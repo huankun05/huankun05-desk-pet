@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gateway Tool Loop**: 新增服务端多轮工具执行链路，backend tools + frontend tools 混合执行；Gateway 直接驱动 LLM tool_calls 多轮循环，前端不再单独维护 tool loop。
+- **Frontend Tool Protocol**: 新增 `tool:execute` / `tool:result` WebSocket 协议，Gateway 可下发前端工具调用，ChatPanelWindow 执行后回传结果。
+- **Backend Tool Executor**: 新增 `server/hermes_gateway_tool_executor.py`、`server/hermes_gateway_backend_tools.py`，支持在 Gateway 内注册/执行 backend tools，默认包含 `echo` 与 `get_current_time`。
+- **Tool Loop Runner**: 新增 `server/hermes_gateway_tool_loop.py`，封装多轮工具调用、frontend/backend 分发、结果回传 LLM 的完整循环。
+- **前端工具透传**: `useHermesGateway.ts` 发送消息时附带当前启用的 frontend tool schema；`ChatPanelWindow` 监听 `tool:execute` 并调用本地 `toolRegistry.execute()` 回传结果。
 - **Embedding 服务配置页**: 新增 `/settings/services/embedding` 独立页面，支持添加/编辑/删除 Embedding 配置，含 API Base/模型/Key 输入、测试连接按钮、ProviderStatusBadge 状态展示，与 LLM/TTS/STT 服务页结构一致
 - **Embedding Provider 实现**: 新增 `OllamaEmbeddingProvider` 和 `OpenAIEmbeddingProvider`，支持本地 Ollama 与云端 OpenAI 兼容接口的向量模型接入
 - **ProviderManager Embedding 支持**: 扩展 `ProviderManager` 支持 `embedding` 类型，新增 `embeddingSlot`、`activeEmbeddingId`、`setActiveEmbeddingProvider()`、`getActiveEmbeddingProvider()` 方法
