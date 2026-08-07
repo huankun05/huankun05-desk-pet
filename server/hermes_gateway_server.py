@@ -125,7 +125,8 @@ class HermesEngine:
             ),
             "history_limit": 20,
             "max_history": 20,
-            "include_tools": False,
+            # 最少工具原则：聊天模式只暴露精简子集（联网 + 时间），其余不挂给模型
+            "tool_names": ["web_search", "get_current_time"],
         },
         "work": {
             "system_prompt": (
@@ -135,7 +136,8 @@ class HermesEngine:
             ),
             "history_limit": 50,
             "max_history": 40,
-            "include_tools": True,
+            # None = 暴露全部可用工具（工作模式工具更全）
+            "tool_names": None,
         },
     }
 
@@ -303,6 +305,16 @@ def create_app() -> FastAPI:
 # ============================================================
 
 
+def _filter_tools(
+    tools: list[dict[str, Any]], allowed: list[str] | None
+) -> list[dict[str, Any]]:
+    """按白名单筛选工具。allowed 为 None 表示不过滤（全部可用）。"""
+    if allowed is None:
+        return tools
+    allowed_set = set(allowed)
+    return [t for t in tools if t.get("name") in allowed_set]
+
+
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     text = data.get("text", "")
     if not text:
@@ -314,7 +326,8 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     log.info("Chat [%s]: %s", mode, text[:80])
 
     cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
-    tools_enabled = bool(cfg.get("include_tools", False))
+    # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
+    allowed_tools = cfg.get("tool_names", None)
 
     # Persist user message
     engine.append_message("user", text)
@@ -335,8 +348,8 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     tool_loop = ToolLoop(
         ws=ws,
         session_id=engine.SESSION_ID,
-        frontend_tools=frontend_tools if tools_enabled else [],
-        backend_tools=tool_executor.tool_definitions() if tools_enabled else [],
+        frontend_tools=_filter_tools(frontend_tools, allowed_tools),
+        backend_tools=_filter_tools(tool_executor.tool_definitions(), allowed_tools),
         executor=tool_executor,
     )
 
