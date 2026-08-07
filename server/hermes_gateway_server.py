@@ -23,6 +23,16 @@ import time
 from pathlib import Path
 from typing import Any, AsyncIterator
 
+# ---------------------------------------------------------------------------
+# Path setup: ensure server/ is on sys.path for sibling module imports.
+# This MUST happen before any `from hermes_*` imports so imports resolve
+# correctly whether launched as `python -m server.hermes_gateway_server`
+# or `python server/hermes_gateway_server.py` from the project root.
+# ---------------------------------------------------------------------------
+_server_dir = Path(__file__).resolve().parent
+if str(_server_dir) not in sys.path:
+    sys.path.insert(0, str(_server_dir))
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,13 +47,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("hermes-gateway")
-
-# ---------------------------------------------------------------------------
-# Path setup
-# ---------------------------------------------------------------------------
-_server_dir = Path(__file__).resolve().parent
-if str(_server_dir) not in sys.path:
-    sys.path.insert(0, str(_server_dir))
 
 from hermes_core import SessionDB  # noqa: E402
 
