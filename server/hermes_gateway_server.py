@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from hermes_gateway_tool_executor import tool_executor
 from hermes_gateway_tool_loop import ToolLoop
+from hermes_gateway_backend_tools import register_backend_tools
 
 logging.basicConfig(
     level=logging.INFO,
@@ -203,6 +204,7 @@ def create_app() -> FastAPI:
     from contextlib import asynccontextmanager
 
     engine: HermesEngine = HermesEngine()
+    register_backend_tools(tool_executor)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

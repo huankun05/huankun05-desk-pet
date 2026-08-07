@@ -453,6 +453,9 @@ core_values: [...]
 - [x] Gateway tool loop：backend tools + frontend tools 混合执行
 - [x] 前端工具注册（截图/剪贴板/文件/搜索）透传到 Gateway
 - [x] tool:execute / tool:result 前端协议（Gateway 驱动工具调用）
+- [x] 后端工具注册器：echo/get_current_time 内置 backend tools
+- [x] ChatPanelWindow 监听 tool:execute 并回传 tool:result
+- [x] MainPetApp 注册内置前端工具并支持 Gateway tool loop
 
 #### Phase 9d: 记忆/技能/行为融合 ✅
 
