@@ -122,9 +122,15 @@ class BM25Index {
     this.avgLen = [...this.docLen.values()].reduce((s, l) => s + l, 0) / this.n;
 
     const freq = new Map<string, number>();
+    // df 必须按「每篇文档首次出现」计 1：若按词频累加，单篇高词频会把 df 撑到 > n，
+    // 使 idf = log((n-df+0.5)/(df+0.5)+1) 变负，相关文档分数被清零（检索失效）。
+    const dfSeen = new Set<string>();
     for (const t of tokens) {
       freq.set(t, (freq.get(t) ?? 0) + 1);
-      this.df.set(t, (this.df.get(t) ?? 0) + 1);
+      if (!dfSeen.has(t)) {
+        dfSeen.add(t);
+        this.df.set(t, (this.df.get(t) ?? 0) + 1);
+      }
     }
     this.tf.set(docId, freq);
   }

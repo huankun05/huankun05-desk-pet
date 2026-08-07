@@ -27,6 +27,7 @@ import {
   type ChatSession,
 } from '../services/chatStorage';
 import type { Message } from '../components/Chat/ChatWindow';
+import { mergeSyncedMessage } from './msgSync';
 
 const log = createLogger('HermesGatewayHook');
 
@@ -310,32 +311,9 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
   }, [gatewayEnabled]);
 
   // 跨窗口消息同步：主窗与聊天面板共享同一 localStorage 会话但内存 state 各自独立。
-  // 收到其他窗口广播的完成态消息时，若属于当前会话则按 id upsert（存在=替换，否则追加）。
+  // 收到其他窗口广播的完成态消息时，用纯函数按「会话匹配 + id upsert」合并（见 msgSync.ts）。
   const upsertRemoteMessage = useCallback((payload: { sessionId: string; msg: Message }) => {
-    if (!payload.sessionId || payload.sessionId !== sessionRef.current?.id) return;
-    // Tauri 事件会 JSON 序列化：timestamp 到远端是 ISO 字符串，必须还原为 Date，
-    // 否则 ChatWindow 的 isSameDay()（依赖 .getTime()）会运行时崩溃。
-    const msg: Message = {
-      ...payload.msg,
-      timestamp: new Date(payload.msg.timestamp),
-    };
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === msg.id);
-      if (idx >= 0) {
-        const existing = prev[idx];
-        // 幂等：自广播或重复事件时同内容直接跳过，避免无谓重渲染
-        if (
-          existing.content === msg.content &&
-          existing.timestamp.getTime() === msg.timestamp.getTime()
-        ) {
-          return prev;
-        }
-        const next = [...prev];
-        next[idx] = msg;
-        return next;
-      }
-      return [...prev, msg];
-    });
+    setMessages((prev) => mergeSyncedMessage(prev, payload, sessionRef.current?.id));
   }, []);
 
   useEffect(() => {
