@@ -444,12 +444,15 @@ core_values: [...]
 - [x] 情绪状态通过 Hermes SessionDB 持久化
 
 #### Phase 9c: 大脑接入 ✅
-
-**目标**：Hermes Gateway 最小化内嵌
+#### Phase 9c: 大脑接入 ✅
+**目标**：Hermes Gateway 统一对话与工具执行
 - [x] desk-pet 启动时 spawn Hermes Gateway（WebSocket :8765，Rust ServiceManager 自动拉起）
 - [x] 前端 `hermesGateway.ts` 实现 WebSocket 客户端（自动重连 + 消息队列）
 - [x] 前端 `useHermesGateway.ts` React Hook 提供对话能力
 - [x] Hermes 回复 → 流式 token 回调 + 完整响应
+- [x] Gateway tool loop：backend tools + frontend tools 混合执行
+- [x] 前端工具注册（截图/剪贴板/文件/搜索）透传到 Gateway
+- [x] tool:execute / tool:result 前端协议（Gateway 驱动工具调用）
 
 #### Phase 9d: 记忆/技能/行为融合 ✅
 
