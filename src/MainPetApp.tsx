@@ -14,6 +14,7 @@ import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
 import { useEmotion, DEFAULT_PERSONALITY, type EmotionState } from './hooks/useEmotion';
 import { useWindowManager } from './hooks/useWindowManager';
 import { useHermesGateway } from './hooks/useHermesGateway';
+import { useRagPersistence } from './hooks/useRagPersistence';
 import { useVoiceInteraction } from './hooks/useVoiceInteraction';
 import { usePetModel } from './hooks/usePetModel';
 import { usePanelWindows } from './hooks/usePanelWindows';
@@ -196,16 +197,33 @@ function MainPetApp() {
     setTimeout(() => setBubble((prev) => (prev?.id === msg.id ? null : prev)), dur);
   }, []);
 
+  // 本地 RAG 记忆写入（新 Gateway 路径的“写端”）
+  const { addToRag } = useRagPersistence();
+
   // 使用 useMemo 稳定回调引用，避免每次渲染创建新对象导致下游 hook 连锁重渲染
   const hermesOptions = useMemo(
     () => ({
       ttsEnabled: true,
       onToken: () => {},
-      onMessageComplete: async (_userText: string, assistantText: string, _sessionId: string) => {
+      onMessageComplete: async (
+        userText: string,
+        assistantText: string,
+        sessionId: string,
+        userMessageId?: string,
+        assistantMessageId?: string,
+      ) => {
         try {
           if (assistantText.trim()) {
             setEmotionFromResponse(assistantText);
             showBubble(assistantText);
+          }
+          // 新 Gateway 路径此前未落盘记忆：把本轮对话写入本地 RAG（长期记忆 + 结构化抽取）
+          if (userMessageId && assistantMessageId && sessionId) {
+            await addToRag(userText, assistantText, {
+              userMessageId,
+              assistantMessageId,
+              sessionId,
+            });
           }
         } catch {
           // ignore
@@ -214,7 +232,7 @@ function MainPetApp() {
       onInterrupt: () => {},
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [addToRag],
   );
 
   const { isStreaming, sendMessage, interruptResponse } = useHermesGateway(hermesOptions);

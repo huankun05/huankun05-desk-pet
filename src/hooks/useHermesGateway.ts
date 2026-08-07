@@ -38,7 +38,13 @@ export interface UseHermesGatewayOptions {
   /** 每收到一个 token 时触发 */
   onToken?: (token: string) => void;
   /** 整条回复完成时触发（可用于 RAG、情感分析、TTS） */
-  onMessageComplete?: (userText: string, assistantText: string, sessionId: string) => void;
+  onMessageComplete?: (
+    userText: string,
+    assistantText: string,
+    sessionId: string,
+    userMessageId?: string,
+    assistantMessageId?: string,
+  ) => void;
   /** 回复被中断时触发 */
   onInterrupt?: () => void;
   /** TTS 是否启用 */
@@ -215,7 +221,13 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           setIsStreaming(false);
           eventBus.emit('message:response', { text: fullResponse, sessionId: session.id });
 
-          options?.onMessageComplete?.(content, fullResponse, session.id);
+          options?.onMessageComplete?.(
+            content,
+            fullResponse,
+            session.id,
+            userMessage.id,
+            assistantId,
+          );
           if (options?.ttsEnabled && fullResponse.trim()) {
             try {
               await providerManager.ready;
