@@ -177,6 +177,26 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       abortedRef.current = false;
       currentResponseRef.current = '';
 
+      const buildFrontendTools = (): Array<Record<string, unknown>> => {
+        try {
+          const all = toolRegistry.getAll();
+          return all
+            .filter((t) => t.enabled !== false)
+            .map((t) => ({
+              name: t.name,
+              description: t.description,
+              parameters: Object.fromEntries(
+                Object.entries(t.parameters).map((entry) => {
+                  const [k, v] = entry as [string, { type: string; description: string }];
+                  return [k, { type: v.type, description: v.description }];
+                }),
+              ),
+            }));
+        } catch {
+          return [];
+        }
+      };
+
       // 用户消息（携带引用与附件，供气泡渲染 + 持久化）
       const userMessage: Message = {
         id: nextMsgId(),
