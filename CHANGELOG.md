@@ -59,6 +59,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **设置项一致性校验通过**: `check-settings-entries` 确认 36 个二级路径 / 36 个 loader / 7 个 Index 页三者一致
 - **补充 `settings.chat` 遗漏的中文 i18n 键**: 修复 `ChatModesPage` 使用的 `mode_badge_chat` / `mode_badge_work` / `mode_current_title` / `mode_current_desc` 仅在顶层 `chat` 命名空间定义、缺少 `settings.chat` 定义导致中文界面显示原始 key 串的问题（`zh-CN.json` 补齐，中英文对齐）。
 
+- **控制面板悬浮提示显示原始 key**: `ControlsIsland` 用动态 `t(\`controls.${b.label}\`)` 构造 key，静态扫描漏检，`controls.transform` / `controls.mode` 两 locale 均缺失导致悬浮提示显示 key 串；已补齐中英文
+- **Gateway Tauri 启动时 ModuleNotFoundError**: `_tool_executor` 等兄弟模块 import 早于 `sys.path` 插入，导致 Tauri spawn 失败；修正 `sys.path` 插入时机（置于兄弟 import 之前）
+- **插件页无限转圈至失败**: GitHub registry fetch 超时（`AbortError`）时无降级，一直加载直到失败；改为超时显示「网络不可达」空状态 + 重试按钮，stats 失败静默降级
+- **工具页 / 模式页可用工具显示 (0)**: 设置窗口为独立 webview，从未调用 `registerBuiltinTools()`，导致 `toolRegistry.getAll()` 返回空；`ToolsPage` 与 `ChatModesPage` 现均在 `useEffect` 中显式注册内置工具，正确显示前端 / 后端 / MCP 工具数量与 chat/work 可用性徽章
+- **历史会话查看器重构为聊天风格**: 点列表项打开 Modal 查看器，消息以圆形猫头头像 + 时间戳气泡呈现，可滚动、可点击查看详情；清空全部会话新增内联下拉框，可选「仅删除会话」或「同时删除备份」（`invoke('delete_backup_files')`）
+- **会话查看器统一桌宠视角**: Hermes 与桌宠已融合为同一人，用户尚未发过消息；移除「我 / AI」角色标签，统一使用猫头渐变头像 + 时间戳，避免角色错乱
+- **查看器顶部被截断**: Modal 原 `items-start` + `py-10` 在视口有限时被裁切，改为 `items-center` + `p-4` 垂直居中；查看器内部 `maxHeight` 由 `60vh` 调为 `70vh` 并加 `minHeight`，顶部信息栏 padding 加大
+- **清空范围下拉框美化 + 防遮挡**: 原生 `<select>` 的 `<option>` 无法 CSS 美化，替换为自定义 `ScopeSelect` 组件（圆角 / 渐变 / 阴影 / 选中色变化），并用 React Portal 渲染至 `document.body`（`z-[9999]`），彻底避免父容器 `overflow` / stacking context 裁切；选中态取消勾选图标，仅保留颜色变化
+- **Modal 标题栏与内容区间距**: children 容器 padding 由 `p-6` 改为 `px-6 pb-6 pt-5`，增加标题栏与内容的视觉呼吸间距
+- **Live2D 并行加载与崩溃防护**: `LAppModel.loadAssets` 与动作预加载并行化（首屏冷启动提速）；修复 `_modelSetting` 在并行任务启动前未赋值、`_model.saveParameters()` 在 model 为 null 时崩溃两个边界问题
+- **窗口位置恢复可见跳动**: 位置恢复期间隐藏窗口避免可见跳动；改为仅恢复一次并使用缓存的模型信息，避免重复 / 错误重置
+
 ### Changed
 
 - **Hermes 深度融合收尾**: Core API + Hermes Gateway 在 Tauri 启动时已自动拉起；情绪事件通过 `/api/core/emotion/bridge/event` 实时同步到 Hermes SessionDB；记忆双向同步已验证（`useUnifiedMemory.ts` 三路并行检索 + `extractStructuredMemories` 自动抽取）。
