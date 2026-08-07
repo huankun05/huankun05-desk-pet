@@ -103,30 +103,53 @@ export class LAppModel extends CubismUserModel {
     // 并行加载所有独立资源，消除串行瀑布流
     const tasks: Promise<void>[] = [];
 
-    // 1. model3.json
-    tasks.push(
-      fetch(`${this._modelHomeDir}${fileName}`)
-        .then((r) => {
-          if (r.ok) return r.arrayBuffer();
-          if (r.status >= 400) {
-            CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
-            this._onErrorCallback?.(`无法加载模型描述文件: ${fileName} (HTTP ${r.status})`);
-            return new ArrayBuffer(0);
-          }
-          return r.arrayBuffer();
-        })
-        .then((arrayBuffer) => {
-          const setting: ICubismModelSetting = new CubismModelSettingJson(
-            arrayBuffer,
-            arrayBuffer.byteLength
-          );
-          this._state = LoadStep.LoadModel;
-          this.setupModel(setting);
-        })
-        .catch((err) => {
+    // 1. model3.json 必须最先完成，因为它初始化 _modelSetting
+    const model3Promise = fetch(`${this._modelHomeDir}${fileName}`)
+      .then((r) => {
+        if (r.ok) return r.arrayBuffer();
+        if (r.status >= 400) {
           CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
-          this._onErrorCallback?.(`无法加载模型描述文件: ${fileName}`);
-        }),
+          this._onErrorCallback?.(`无法加载模型描述文件: ${fileName} (HTTP ${r.status})`);
+          return new ArrayBuffer(0);
+        }
+        return r.arrayBuffer();
+      })
+      .then((arrayBuffer) => {
+        const setting: ICubismModelSetting = new CubismModelSettingJson(
+          arrayBuffer,
+          arrayBuffer.byteLength
+        );
+        this._state = LoadStep.LoadModel;
+        this._modelSetting = setting;
+        this._updating = true;
+        this._initialized = false;
+        return setting;
+      })
+      .catch((err) => {
+        CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
+        this._onErrorCallback?.(`无法加载模型描述文件: ${fileName}`);
+        return null;
+      });
+
+    tasks.push(
+      model3Promise.then((setting) => {
+        if (!setting) return;
+        const modelFileName = setting.getModelFileName();
+        if (!modelFileName) return;
+        return fetch(`${this._modelHomeDir}${modelFileName}`)
+          .then((r) => {
+            if (r.ok) return r.arrayBuffer();
+            if (r.status >= 400) {
+              CubismLogError(`Failed to load file ${this._modelHomeDir}${modelFileName}`);
+              return new ArrayBuffer(0);
+            }
+            return r.arrayBuffer();
+          })
+          .then((mocArrayBuffer) => {
+            this.loadModel(mocArrayBuffer, this._mocConsistency);
+          })
+          .catch((err) => console.error('[Live2D] MOC3 load failed:', modelFileName, err));
+      }),
     );
 
     // 2. config.json
