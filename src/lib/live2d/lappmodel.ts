@@ -95,406 +95,232 @@ enum LoadStep {
  */
 export class LAppModel extends CubismUserModel {
   /**
-   * model3.jsonが置かれたディレクトリとファイルパスからモデルを生成する
-   * @param dir
    * @param fileName
    */
   public loadAssets(dir: string, fileName: string): void {
     this._modelHomeDir = dir;
 
-    // 加载model3.json
-    fetch(`${this._modelHomeDir}${fileName}`)
-      .then(response => response.arrayBuffer())
-      .then(arrayBuffer => {
-        const setting: ICubismModelSetting = new CubismModelSettingJson(
-          arrayBuffer,
-          arrayBuffer.byteLength
-        );
+    // 并行加载所有独立资源，消除串行瀑布流
+    const tasks: Promise<void>[] = [];
 
-        // ステートを更新
-        this._state = LoadStep.LoadModel;
-
-        // 結果を保存
-        this.setupModel(setting);
-      })
-      .catch(error => {
-        // model3.json読み込みでエラーが発生した時点で描画は不可能なので、setupせずエラーをcatchして何もしない
-        CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
-        const errMsg = `无法加载模型描述文件: ${fileName}`;
-        this._onErrorCallback?.(errMsg);
-      });
-
-    // 加载配置文件config.json
-    fetch(`${this._modelHomeDir}config.json`)
-      .then(response => response.json())
-      .then(json => {
-        this._scale = json.scale ? json.scale : 1.0;
-        this._translateX = json.translate.x ? json.translate.x : 0;
-        this._translateY = json.translate.y ? json.translate.y : 0;
-      })
-      .catch(error => {
-        this._scale = 1.0;
-        this._translateX = 0;
-        this._translateY = 0;
-      });
-  }
-
-  /**
-   * model3.jsonからモデルを生成する。
-   * model3.jsonの記述に従ってモデル生成、モーション、物理演算などのコンポーネント生成を行う。
-   *
-   * @param setting ICubismModelSettingのインスタンス
-   */
-  private setupModel(setting: ICubismModelSetting): void {
-    this._updating = true;
-    this._initialized = false;
-
-    this._modelSetting = setting;
-
-    // CubismModel
-    if (this._modelSetting.getModelFileName() != '') {
-      const modelFileName = this._modelSetting.getModelFileName();
-
-      fetch(`${this._modelHomeDir}${modelFileName}`)
-        .then(response => {
-          if (response.ok) {
-            return response.arrayBuffer();
-          } else if (response.status >= 400) {
-            CubismLogError(
-              `Failed to load file ${this._modelHomeDir}${modelFileName}`
-            );
-            this._onErrorCallback?.(`无法加载模型文件: ${modelFileName} (HTTP ${response.status})`);
+    // 1. model3.json
+    tasks.push(
+      fetch(`${this._modelHomeDir}${fileName}`)
+        .then((r) => {
+          if (r.ok) return r.arrayBuffer();
+          if (r.status >= 400) {
+            CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
+            this._onErrorCallback?.(`无法加载模型描述文件: ${fileName} (HTTP ${r.status})`);
             return new ArrayBuffer(0);
           }
+          return r.arrayBuffer();
         })
-        .then(arrayBuffer => {
-          // 在 loadModel 前解析 moc3 的 canvas 尺寸（getCanvasWidth/Height 有 bug）
-          try {
-            const dv = new DataView(arrayBuffer);
-            if (dv.getUint32(0, true) === 0x33434F4D) { // "MOC3" little-endian
-              // moc3 格式: magic(4) + version(4) + sectionCount(4) + offsets...
-              const sectionCount = dv.getUint32(8, true);
-              const canvasSectionId = 12; // CanvasInfo section
-              if (sectionCount > canvasSectionId) {
-                const canvasOffset = dv.getUint32(12 + canvasSectionId * 4, true);
-                // CanvasInfo: count(4) + canvasCount(4) + width(f32) + height(f32)
-                const count = dv.getUint32(canvasOffset, true);
-                if (count > 0) {
-                  const w = dv.getFloat32(canvasOffset + 8, true);
-                  const h = dv.getFloat32(canvasOffset + 12, true);
-                  if (w > 1 && h > 1) {
-                    this.cachedCanvasW = w;
-                    this.cachedCanvasH = h;
-                  }
-                }
-              }
+        .then((arrayBuffer) => {
+          const setting: ICubismModelSetting = new CubismModelSettingJson(
+            arrayBuffer,
+            arrayBuffer.byteLength
+          );
+          this._state = LoadStep.LoadModel;
+          this.setupModel(setting);
+        })
+        .catch((err) => {
+          CubismLogError(`Failed to load file ${this._modelHomeDir}${fileName}`);
+          this._onErrorCallback?.(`无法加载模型描述文件: ${fileName}`);
+        }),
+    );
+
+    // 2. config.json
+    tasks.push(
+      fetch(`${this._modelHomeDir}config.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json) {
+            this._scale = json.scale ?? 1.0;
+            this._translateX = json.translate?.x ?? 0;
+            this._translateY = json.translate?.y ?? 0;
+          }
+        })
+        .catch(() => { /* non-fatal */ }),
+    );
+
+    // 3. expressions（并行）
+    const expressionPromises: Promise<void>[] = [];
+    const expressionCount = this._modelSetting ? this._modelSetting.getExpressionCount() : 0;
+    for (let i = 0; i < expressionCount; i++) {
+      const expressionName = this._modelSetting.getExpressionName(i);
+      const expressionFileName = this._modelSetting.getExpressionFileName(i);
+      expressionPromises.push(
+        fetch(`${this._modelHomeDir}${expressionFileName}`)
+          .then((r) => {
+            if (r.ok) return r.arrayBuffer();
+            if (r.status >= 400) {
+              CubismLogError(`Failed to load file ${this._modelHomeDir}${expressionFileName}`);
+              return new ArrayBuffer(0);
             }
-          } catch { /* ignore parse errors */ }
+            return r.arrayBuffer();
+          })
+          .then((arrayBuffer) => {
+            const motion: ACubismMotion = this.loadExpression(
+              arrayBuffer,
+              arrayBuffer.byteLength,
+              expressionName
+            );
+            const existing = this._expressions.getValue(expressionName);
+            if (existing) ACubismMotion.delete(existing);
+            this._expressions.setValue(expressionName, motion);
+            this._expressionCount++;
+          })
+          .catch((err) => console.error('[Live2D] Expression load failed:', expressionFileName, err)),
+      );
+    }
+    tasks.push(Promise.allSettled(expressionPromises).then(() => {}));
 
-          this.loadModel(arrayBuffer, this._mocConsistency);
-          this._state = LoadStep.LoadExpression;
+    // 4. physics / pose / userData（并行）
+    const physicsFile = this._modelSetting ? (this._modelSetting.getPhysicsFileName() as string) : '';
+    const poseFile = this._modelSetting ? (this._modelSetting.getPoseFileName() as string) : '';
+    const userDataFile = this._modelSetting ? (this._modelSetting.getUserDataFile() as string) : '';
 
-          // callback
-          loadCubismExpression();
-        })
-        .catch(err => console.error('[Live2D] Model load failed:', modelFileName, err));
-
-      this._state = LoadStep.WaitLoadModel;
-    } else {
-      LAppPal.printMessage('Model data does not exist.');
+    if (physicsFile) {
+      tasks.push(
+        fetch(`${this._modelHomeDir}${physicsFile}`)
+          .then((r) => {
+            if (r.ok) return r.arrayBuffer();
+            if (r.status >= 400) {
+              CubismLogError(`Failed to load file ${this._modelHomeDir}${physicsFile}`);
+              return new ArrayBuffer(0);
+            }
+            return r.arrayBuffer();
+          })
+          .then((ab) => this.loadPhysics(ab, ab.byteLength))
+          .catch((err) => console.error('[Live2D] Physics load failed:', physicsFile, err)),
+      );
     }
 
-    // Expression
-    const loadCubismExpression = (): void => {
-      if (this._modelSetting.getExpressionCount() > 0) {
-        const count: number = this._modelSetting.getExpressionCount();
-
-        for (let i = 0; i < count; i++) {
-          const expressionName = this._modelSetting.getExpressionName(i);
-          const expressionFileName =
-            this._modelSetting.getExpressionFileName(i);
-
-          fetch(`${this._modelHomeDir}${expressionFileName}`)
-            .then(response => {
-              if (response.ok) {
-                return response.arrayBuffer();
-              } else if (response.status >= 400) {
-                CubismLogError(
-                  `Failed to load file ${this._modelHomeDir}${expressionFileName}`
-                );
-                // ファイルが存在しなくてもresponseはnullを返却しないため、空のArrayBufferで対応する
-                return new ArrayBuffer(0);
-              }
-            })
-            .then(arrayBuffer => {
-              const motion: ACubismMotion = this.loadExpression(
-                arrayBuffer,
-                arrayBuffer.byteLength,
-                expressionName
-              );
-
-              if (this._expressions.getValue(expressionName) != null) {
-                ACubismMotion.delete(
-                  this._expressions.getValue(expressionName)
-                );
-                this._expressions.setValue(expressionName, null);
-              }
-
-              this._expressions.setValue(expressionName, motion);
-
-              this._expressionCount++;
-
-              if (this._expressionCount >= count) {
-                this._state = LoadStep.LoadPhysics;
-
-                // callback
-                loadCubismPhysics();
-              }
-            })
-            .catch(err => console.error('[Live2D] Expression load failed:', expressionFileName, err));
-        }
-        this._state = LoadStep.WaitLoadExpression;
-      } else {
-        this._state = LoadStep.LoadPhysics;
-
-        // callback
-        loadCubismPhysics();
-      }
-    };
-
-    // Physics
-    const loadCubismPhysics = (): void => {
-      if (this._modelSetting.getPhysicsFileName() != '') {
-        const physicsFileName = this._modelSetting.getPhysicsFileName();
-
-        fetch(`${this._modelHomeDir}${physicsFileName}`)
-          .then(response => {
-            if (response.ok) {
-              return response.arrayBuffer();
-            } else if (response.status >= 400) {
-              CubismLogError(
-                `Failed to load file ${this._modelHomeDir}${physicsFileName}`
-              );
+    if (poseFile) {
+      tasks.push(
+        fetch(`${this._modelHomeDir}${poseFile}`)
+          .then((r) => {
+            if (r.ok) return r.arrayBuffer();
+            if (r.status >= 400) {
+              CubismLogError(`Failed to load file ${this._modelHomeDir}${poseFile}`);
               return new ArrayBuffer(0);
             }
+            return r.arrayBuffer();
           })
-          .then(arrayBuffer => {
-            this.loadPhysics(arrayBuffer, arrayBuffer.byteLength);
-
-            this._state = LoadStep.LoadPose;
-
-            // callback
-            loadCubismPose();
-          })
-          .catch(err => console.error('[Live2D] Physics load failed:', physicsFileName, err));
-        this._state = LoadStep.WaitLoadPhysics;
-      } else {
-        this._state = LoadStep.LoadPose;
-
-        // callback
-        loadCubismPose();
-      }
-    };
-
-    // Pose
-    const loadCubismPose = (): void => {
-      if (this._modelSetting.getPoseFileName() != '') {
-        const poseFileName = this._modelSetting.getPoseFileName();
-
-        fetch(`${this._modelHomeDir}${poseFileName}`)
-          .then(response => {
-            if (response.ok) {
-              return response.arrayBuffer();
-            } else if (response.status >= 400) {
-              CubismLogError(
-                `Failed to load file ${this._modelHomeDir}${poseFileName}`
-              );
-              return new ArrayBuffer(0);
-            }
-          })
-          .then(arrayBuffer => {
-            this.loadPose(arrayBuffer, arrayBuffer.byteLength);
-
-            this._state = LoadStep.SetupEyeBlink;
-
-            // callback
-            setupEyeBlink();
-          })
-          .catch(err => console.error('[Live2D] Pose load failed:', poseFileName, err));
-        this._state = LoadStep.WaitLoadPose;
-      } else {
-        this._state = LoadStep.SetupEyeBlink;
-
-        // callback
-        setupEyeBlink();
-      }
-    };
-
-    // EyeBlink
-    const setupEyeBlink = (): void => {
-      if (this._modelSetting.getEyeBlinkParameterCount() > 0) {
-        this._eyeBlink = CubismEyeBlink.create(this._modelSetting);
-        this._state = LoadStep.SetupBreath;
-      }
-
-      // callback
-      setupBreath();
-    };
-
-    // Breath
-    const setupBreath = (): void => {
-      this._breath = CubismBreath.create();
-
-      const breathParameters: csmVector<BreathParameterData> = new csmVector();
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleX, 0.0, 8.0, 4.5345, 0.5)
+          .then((ab) => this.loadPose(ab, ab.byteLength))
+          .catch((err) => console.error('[Live2D] Pose load failed:', poseFile, err)),
       );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleY, 0.0, 5.0, 3.2345, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleZ, 0.0, 6.0, 3.8345, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamBodyAngleX, 0.0, 3.0, 5.0, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(
-          CubismFramework.getIdManager().getId(
-            CubismDefaultParameterId.ParamBreath
-          ),
-          0.5,
-          0.5,
-          3.2345,
-          1
-        )
-      );
+    }
 
-      this._breath.setParameters(breathParameters);
-      this._state = LoadStep.LoadUserData;
-
-      // callback
-      loadUserData();
-    };
-
-    // UserData
-    const loadUserData = (): void => {
-      if (this._modelSetting.getUserDataFile() != '') {
-        const userDataFile = this._modelSetting.getUserDataFile();
-
+    if (userDataFile) {
+      tasks.push(
         fetch(`${this._modelHomeDir}${userDataFile}`)
-          .then(response => {
-            if (response.ok) {
-              return response.arrayBuffer();
-            } else if (response.status >= 400) {
-              CubismLogError(
-                `Failed to load file ${this._modelHomeDir}${userDataFile}`
-              );
+          .then((r) => {
+            if (r.ok) return r.arrayBuffer();
+            if (r.status >= 400) {
+              CubismLogError(`Failed to load file ${this._modelHomeDir}${userDataFile}`);
               return new ArrayBuffer(0);
             }
+            return r.arrayBuffer();
           })
-          .then(arrayBuffer => {
-            this.loadUserData(arrayBuffer, arrayBuffer.byteLength);
+          .then((ab) => this.loadUserData(ab, ab.byteLength))
+          .catch((err) => console.error('[Live2D] UserData load failed:', userDataFile, err)),
+      );
+    }
 
-            this._state = LoadStep.SetupEyeBlinkIds;
+    // 5. 统一完成后再继续 motion / texture 阶段
+    this._state = LoadStep.WaitLoadModel;
+    Promise.allSettled(tasks)
+      .then(() => {
+        this._state = LoadStep.LoadMotion;
+        this._model.saveParameters();
+        this._allMotionCount = 0;
+        this._motionCount = 0;
+        const group: string[] = [];
+        const motionGroupCount = this._modelSetting.getMotionGroupCount();
+        for (let i = 0; i < motionGroupCount; i++) {
+          group[i] = this._modelSetting.getMotionGroupName(i);
+          this._allMotionCount += this._modelSetting.getMotionCount(group[i]);
+        }
 
-            // callback
-            setupEyeBlinkIds();
-          })
-          .catch(err => console.error('[Live2D] UserData load failed:', userDataFile, err));
+        if (motionGroupCount === 0) {
+          this._state = LoadStep.LoadTexture;
+          this._motionManager.stopAllMotions();
+          this._updating = false;
+          this._initialized = true;
+          this.createRenderer();
+          this.setupTextures();
+          this.getRenderer().startUp(gl);
+          return;
+        }
 
-        this._state = LoadStep.WaitLoadUserData;
-      } else {
-        this._state = LoadStep.SetupEyeBlinkIds;
+        // 并行预加载所有 motion group
+        const motionTasks: Promise<void>[] = [];
+        for (let i = 0; i < motionGroupCount; i++) {
+          motionTasks.push(this._preLoadMotionGroupParallel(group[i]));
+        }
+        Promise.allSettled(motionTasks).then(() => {
+          this._state = LoadStep.LoadTexture;
+          this._motionManager.stopAllMotions();
+          this._updating = false;
+          this._initialized = true;
+          this.createRenderer();
+          this.setupTextures();
+          this.getRenderer().startUp(gl);
+        });
+      })
+      .catch((err) => console.error('[Live2D] Asset pipeline failed:', err));
+  }
 
-        // callback
-        setupEyeBlinkIds();
-      }
-    };
-
-    // EyeBlinkIds
-    const setupEyeBlinkIds = (): void => {
-      const eyeBlinkIdCount: number =
-        this._modelSetting.getEyeBlinkParameterCount();
-
-      for (let i = 0; i < eyeBlinkIdCount; ++i) {
-        this._eyeBlinkIds.pushBack(
-          this._modelSetting.getEyeBlinkParameterId(i)
-        );
-      }
-
-      this._state = LoadStep.SetupLipSyncIds;
-
-      // callback
-      setupLipSyncIds();
-    };
-
-    // LipSyncIds
-    const setupLipSyncIds = (): void => {
-      const lipSyncIdCount = this._modelSetting.getLipSyncParameterCount();
-
-      for (let i = 0; i < lipSyncIdCount; ++i) {
-        this._lipSyncIds.pushBack(this._modelSetting.getLipSyncParameterId(i));
-      }
-      this._state = LoadStep.SetupLayout;
-
-      // callback
-      setupLayout();
-    };
-
-    // Layout
-    const setupLayout = (): void => {
-      const layout: csmMap<string, number> = new csmMap<string, number>();
-
-      if (this._modelSetting == null || this._modelMatrix == null) {
-        CubismLogError('Failed to setupLayout().');
+  /** 并行加载单个 motion group 内的所有 motion */
+  private _preLoadMotionGroupParallel(group: string): Promise<void> {
+    return new Promise((resolve) => {
+      const count = this._modelSetting.getMotionCount(group);
+      if (count === 0) {
+        resolve();
         return;
       }
 
-      this._modelSetting.getLayoutMap(layout);
-      this._modelMatrix.setupFromLayout(layout);
-      this._state = LoadStep.LoadMotion;
-
-      // callback
-      loadCubismMotion();
-    };
-
-    // Motion
-    const loadCubismMotion = (): void => {
-      this._state = LoadStep.WaitLoadMotion;
-      this._model.saveParameters();
-      this._allMotionCount = 0;
-      this._motionCount = 0;
-      const group: string[] = [];
-
-      const motionGroupCount: number = this._modelSetting.getMotionGroupCount();
-
-      // モーションの総数を求める
-      for (let i = 0; i < motionGroupCount; i++) {
-        group[i] = this._modelSetting.getMotionGroupName(i);
-        this._allMotionCount += this._modelSetting.getMotionCount(group[i]);
+      const motionPromises: Promise<void>[] = [];
+      for (let i = 0; i < count; i++) {
+        const motionFileName = this._modelSetting.getMotionFileName(group, i);
+        const name = `${group}_${i}`;
+        motionPromises.push(
+          fetch(`${this._modelHomeDir}${motionFileName}`)
+            .then((r) => {
+              if (r.ok) return r.arrayBuffer();
+              if (r.status >= 400) {
+                CubismLogError(`Failed to load file ${this._modelHomeDir}${motionFileName}`);
+                return new ArrayBuffer(0);
+              }
+              return r.arrayBuffer();
+            })
+            .then((arrayBuffer) => {
+              const tmpMotion: CubismMotion = this.loadMotion(
+                arrayBuffer,
+                arrayBuffer.byteLength,
+                name
+              );
+              if (tmpMotion != null) {
+                let fadeTime = this._modelSetting.getMotionFadeInTimeValue(group, i);
+                if (fadeTime >= 0.0) tmpMotion.setFadeInTime(fadeTime);
+                fadeTime = this._modelSetting.getMotionFadeOutTimeValue(group, i);
+                if (fadeTime >= 0.0) tmpMotion.setFadeOutTime(fadeTime);
+                tmpMotion.setEffectIds(this._eyeBlinkIds, this._lipSyncIds);
+                const existing = this._motions.getValue(name);
+                if (existing) ACubismMotion.delete(existing);
+                this._motions.setValue(name, tmpMotion);
+                this._motionCount++;
+              } else {
+                this._allMotionCount--;
+              }
+            })
+            .catch((err) => console.error('[Live2D] Motion load failed:', motionFileName, err)),
+        );
       }
 
-      // モーションの読み込み
-      for (let i = 0; i < motionGroupCount; i++) {
-        this.preLoadMotionGroup(group[i]);
-      }
-
-      // モーションがない場合
-      if (motionGroupCount == 0) {
-        this._state = LoadStep.LoadTexture;
-
-        // 全てのモーションを停止する
-        this._motionManager.stopAllMotions();
-
-        this._updating = false;
-        this._initialized = true;
-
-        this.createRenderer();
-        this.setupTextures();
-        this.getRenderer().startUp(gl);
-      }
-    };
+      Promise.allSettled(motionPromises).then(() => resolve());
+    });
   }
 
   /**
