@@ -19,6 +19,7 @@ import { createLogger } from '../utils/logger';
 import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { providerManager } from '../services/provider/manager';
+import { toolRegistry } from '../services/tools/registry';
 import {
   createSession,
   saveMessage,
@@ -210,9 +211,11 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       setIsStreaming(true);
 
       // 通过 WebSocket 发送
+      const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
       client.sendChat(content, {
         mode,
+        frontendTools,
         onToken: (token) => {
           if (abortedRef.current) return;
           currentResponseRef.current += token;
@@ -309,6 +312,26 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     const id = setTimeout(() => setMessages(session.messages));
     return () => clearTimeout(id);
   }, [gatewayEnabled]);
+
+  const buildFrontendTools = useCallback((): Array<Record<string, unknown>> => {
+    try {
+      const all = toolRegistry.getAll();
+      return all
+        .filter((t) => t.enabled !== false)
+        .map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: Object.fromEntries(
+            Object.entries(t.parameters).map((entry) => {
+              const [k, v] = entry as [string, { type: string; description: string }];
+              return [k, { type: v.type, description: v.description }];
+            }),
+          ),
+        }));
+    } catch {
+      return [];
+    }
+  }, []);
 
   // 跨窗口消息同步：主窗与聊天面板共享同一 localStorage 会话但内存 state 各自独立。
   // 收到其他窗口广播的完成态消息时，用纯函数按「会话匹配 + id upsert」合并（见 msgSync.ts）。

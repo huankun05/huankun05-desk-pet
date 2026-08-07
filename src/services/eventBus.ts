@@ -26,9 +26,10 @@ type EventMap = {
   'expression:change': { expression: string; emotion: string; intensity: number };
   'param:update': { key: string; value: number };
   'animation:trigger': { name: string; duration: number };
-  // 工具调用事件（由 ToolLoopRunner emit）
+  // 工具调用事件
   'tool:call': { name: string; args: Record<string, unknown> };
   'tool:result': { name: string; content: string; isError?: boolean };
+  'tool:execute': { id: string; name: string; args: Record<string, unknown> };
   // 交互事件：用户点击/触摸宠物
   'interaction:pat': { target: string; count: number };
   'interaction:tap': { target: string; intensity: number };

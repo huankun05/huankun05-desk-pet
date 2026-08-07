@@ -5,26 +5,29 @@ Hermes Gateway — WebSocket 实时对话网关
 - 接受前端 WebSocket 连接，接收用户消息
 - 通过 Hermes SessionDB 持久化对话历史
 - 调用 LLM 生成流式回复
+- 执行工具循环（backend tools + frontend tools）
 - 通过 Core API 同步情绪/记忆状态
-- 流式回传 token 到前端
+- 流式回传 token / tool 事件到前端
 
 启动: python -m server.hermes_gateway_server --port 8765
 """
+
 from __future__ import annotations
 
 import argparse
 import asyncio
-import concurrent.futures
 import json
 import logging
 import sys
 import time
 from pathlib import Path
-from collections.abc import AsyncIterator
-from typing import Any, Optional
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+
+from hermes_gateway_tool_executor import tool_executor
+from hermes_gateway_tool_loop import ToolLoop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,7 +37,7 @@ logging.basicConfig(
 log = logging.getLogger("hermes-gateway")
 
 # ---------------------------------------------------------------------------
-# Path setup（确保 hermes_core 可导入）
+# Path setup
 # ---------------------------------------------------------------------------
 _server_dir = Path(__file__).resolve().parent
 if str(_server_dir) not in sys.path:
@@ -53,33 +56,26 @@ class HermesEngine:
     SESSION_ID = "desk-pet-main"
 
     def __init__(self) -> None:
-        # 初始化 SessionDB
         from core.session_service import get_db, get_session_db_path
         self.db_path = get_session_db_path()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = get_db()
 
-        # LLM 实例（懒加载）
         self._llm: Any = None
+        self.core_api_base = "http://127.0.0.1:9877"
 
-        # 确保主会话存在
         if self._db.get_session(self.SESSION_ID) is None:
             self._db.create_session(self.SESSION_ID, source="desk-pet")
-
-        # Core API 地址（用于同步情绪/记忆）
-        self.core_api_base = "http://127.0.0.1:9877"
 
     # ---- LLM ----
 
     def _get_llm(self) -> Any:
-        """懒加载 LLM 实例。"""
         if self._llm is not None:
             return self._llm
         try:
             from modules.llm import LLMChat
-            # 从 providers.json 读取配置
             providers_path = self.db_path.parent.parent / "data" / "providers.json"
-            config = {}
+            config: dict[str, Any] = {}
             if providers_path.exists():
                 try:
                     data = json.loads(providers_path.read_text(encoding="utf-8"))
@@ -94,7 +90,7 @@ class HermesEngine:
                                 "api_key": c.get("apiKey", ""),
                                 "model": c.get("model", ""),
                                 "temperature": c.get("temperature", 0.7),
-                                "max_tokens": c.get("maxTokens", 2048),
+                                "max_tokens": c.get("max_tokens", 2048),
                             }
                             break
                 except Exception:
@@ -112,16 +108,13 @@ class HermesEngine:
     # ---- 会话操作 ----
 
     def get_history(self, limit: int = 50) -> list[dict]:
-        """获取主会话历史。"""
         return self._db.get_messages(self.SESSION_ID, limit=limit)
 
-    def append_message(self, role: str, content: str) -> None:
-        """写入消息到 Hermes SessionDB。"""
-        self._db.append_message(self.SESSION_ID, role=role, content=content)
+    def append_message(self, role: str, content: str, **meta: Any) -> None:
+        self._db.append_message(self.SESSION_ID, role=role, content=content, **meta)
 
     # ---- 模式配置 ----
 
-    # 模式对应的 system prompt / 历史上限 / 是否附带工具描述
     MODE_CONFIGS: dict[str, dict] = {
         "chat": {
             "system_prompt": (
@@ -144,7 +137,6 @@ class HermesEngine:
         },
     }
 
-    # 工具描述（work 模式下注入 system prompt）
     TOOLS_DESCRIPTION = (
         "\n\n## 可用工具\n"
         "- 文件读写：可以读取、创建、编辑用户指定的文件\n"
@@ -154,82 +146,53 @@ class HermesEngine:
         "当用户的请求需要使用工具时，你可以在回复中说明需要调用什么工具、传入什么参数。"
     )
 
-    # ---- LLM 对话 ----
+    # ---- LLM 流式助手 ----
 
-    async def chat_stream(self, user_text: str, mode: str = "chat") -> AsyncIterator[str]:
-        """流式对话：接收用户文本与模式，yield LLM token。
-
-        Args:
-            user_text: 用户输入文本。
-            mode: 当前模式（"chat" 或 "work"），影响 prompt 风格、上下文长度、工具可用性。
-        """
+    async def _llm_stream(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
         llm = self._get_llm()
-        cfg = self.MODE_CONFIGS.get(mode, self.MODE_CONFIGS["chat"])
-
-        # 写入用户消息
-        self.append_message("user", user_text)
-
-        # 构建消息列表（含历史）
-        history = self._db.get_messages(self.SESSION_ID, limit=cfg["history_limit"])
-        system_content = cfg["system_prompt"]
-        if cfg.get("include_tools"):
-            system_content += self.TOOLS_DESCRIPTION
-        messages = [{"role": "system", "content": system_content}]
-        for msg in history[-cfg["max_history"]:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role in ("user", "assistant") and content:
-                messages.append({"role": role, "content": content})
-
-        if llm and llm.is_available():
-            # 在线程池中运行同步生成器，避免阻塞事件循环
-            loop = asyncio.get_running_loop()
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                tokens = await loop.run_in_executor(
-                    pool, lambda: list(llm.chat_stream(messages))
-                )
-            full_response = ""
-            for token in tokens:
-                full_response += token
-                yield token
-            # 写入助手回复
-            if full_response:
-                self.append_message("assistant", full_response)
-                # 同步到 Core API 情绪/记忆
-                try:
-                    await self._sync_to_core(user_text, full_response)
-                except Exception:
-                    pass
-        else:
-            # LLM 不可用时的回退
-            fallback = f"[Hermes 收到] {user_text[:50]}{'…' if len(user_text) > 50 else ''}"
-            self.append_message("assistant", fallback)
+        if not llm or not llm.is_available():
+            fallback = "[Hermes 收到] " + messages[-1].get("content", "")[:50]
             yield fallback
+            return
+
+        loop = asyncio.get_running_loop()
+        with __import__("concurrent.futures").ThreadPoolExecutor(max_workers=1) as pool:
+            tokens = await loop.run_in_executor(
+                pool, lambda: list(llm.chat_stream(messages))
+            )
+        for token in tokens:
+            yield token
 
     async def _sync_to_core(self, user_text: str, assistant_text: str) -> None:
-        """同步对话到 Core API（情绪事件 + 记忆提取）。"""
-        import httpx
-        async with httpx.AsyncClient(base_url=self.core_api_base, timeout=5) as client:
-            # 情绪事件
-            try:
-                await client.post("/api/core/emotion/bridge/event", json={
-                    "event": "message:sent",
-                    "value": user_text[:200],
-                    "source": "hermes-gateway",
-                })
-            except Exception:
-                pass
-            # 记忆提取
-            try:
-                await client.post("/api/core/brain/memories/extract", json={
-                    "user_text": user_text[:500],
-                    "assistant_text": assistant_text[:500],
-                    "character_id": "default",
-                    "user_id": "default",
-                    "use_llm": False,
-                })
-            except Exception:
-                pass
+        try:
+            import httpx
+            async with httpx.AsyncClient(base_url=self.core_api_base, timeout=5) as client:
+                try:
+                    await client.post(
+                        "/api/core/emotion/bridge/event",
+                        json={
+                            "event": "message:sent",
+                            "value": user_text[:200],
+                            "source": "hermes-gateway",
+                        },
+                    )
+                except Exception:
+                    pass
+                try:
+                    await client.post(
+                        "/api/core/brain/memories/extract",
+                        json={
+                            "user_text": user_text[:500],
+                            "assistant_text": assistant_text[:500],
+                            "character_id": "default",
+                            "user_id": "default",
+                            "use_llm": False,
+                        },
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -247,7 +210,7 @@ def create_app() -> FastAPI:
         yield
         log.info("Hermes Gateway stopped")
 
-    app = FastAPI(title="Hermes Gateway", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Hermes Gateway", version="1.1.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
@@ -267,19 +230,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/gateway/session")
     def get_session(limit: int = 50):
-        """获取主会话历史。"""
         messages = engine.get_history(limit=limit)
         return {"session_id": engine.SESSION_ID, "messages": messages}
 
     @app.get("/api/gateway/skills")
     def list_skills():
-        """获取所有已注册技能（含映射表）。"""
         from core.hermes_skills_bridge import get_all_skills
         return get_all_skills()
 
     @app.post("/api/gateway/chat")
     async def chat_rest(body: dict):
-        """REST 对话接口（非流式）。"""
         text = body.get("text", "")
         if not text:
             return {"error": "text is required"}
@@ -302,7 +262,6 @@ def create_app() -> FastAPI:
             while True:
                 raw = await ws.receive_text()
 
-                # 解析消息
                 try:
                     data = json.loads(raw)
                 except json.JSONDecodeError:
@@ -315,34 +274,6 @@ def create_app() -> FastAPI:
                     await ws.send_json({"type": "pong", "timestamp": time.time()})
                     continue
 
-                if msg_type == "chat":
-                    text = data.get("text", "")
-                    if not text:
-                        continue
-                    mode = data.get("mode", "chat")
-
-                    log.info("Chat [%s]: %s", mode, text[:80])
-
-                    # 流式回复
-                    full_response = ""
-                    async for token in engine.chat_stream(text, mode=mode):
-                        full_response += token
-                        await ws.send_json({
-                            "type": "token",
-                            "token": token,
-                            "id": data.get("id"),
-                            "session_id": engine.SESSION_ID,
-                        })
-
-                    # 回复完成
-                    await ws.send_json({
-                        "type": "done",
-                        "id": data.get("id"),
-                        "session_id": engine.SESSION_ID,
-                        "full_response": full_response,
-                    })
-                    continue
-
                 if msg_type == "history":
                     limit = data.get("limit", 50)
                     messages = engine.get_history(limit=limit)
@@ -351,6 +282,14 @@ def create_app() -> FastAPI:
                         "session_id": engine.SESSION_ID,
                         "messages": messages,
                     })
+                    continue
+
+                if msg_type == "chat":
+                    await _handle_chat(ws, engine, data)
+                    continue
+
+                if msg_type == "tool:result":
+                    await _handle_tool_result(ws, data)
                     continue
 
                 await ws.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
@@ -365,6 +304,83 @@ def create_app() -> FastAPI:
                 pass
 
     return app
+
+
+# ============================================================
+# Chat + tool loop
+# ============================================================
+
+_pending_tool_loops: dict[str, ToolLoop] = {}
+
+
+async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
+    text = data.get("text", "")
+    if not text:
+        return
+    msg_id = data.get("id", f"msg_{time.time()}")
+    mode = data.get("mode", "chat")
+    frontend_tools = data.get("frontend_tools", []) or []
+
+    log.info("Chat [%s]: %s", mode, text[:80])
+
+    cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
+
+    # Persist user message
+    engine.append_message("user", text)
+
+    # Build initial prompt
+    system_content = cfg["system_prompt"]
+    if cfg.get("include_tools"):
+        system_content += engine.TOOLS_DESCRIPTION
+    history = engine.get_history(limit=cfg["history_limit"])
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system_content},
+        *[
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in history[-cfg["max_history"] :]
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ],
+    ]
+
+    tool_loop = ToolLoop(
+        ws=ws,
+        session_id=engine.SESSION_ID,
+        frontend_tools=frontend_tools,
+        backend_tools=tool_executor.tool_definitions(),
+    )
+    _pending_tool_loops[msg_id] = tool_loop
+
+    try:
+        result = await tool_loop.run(text, mode, engine._llm_stream)
+    finally:
+        _pending_tool_loops.pop(msg_id, None)
+
+    full_response = result.get("accumulated", "") or text
+    if full_response:
+        engine.append_message("assistant", full_response)
+        try:
+            await engine._sync_to_core(text, full_response)
+        except Exception:
+            pass
+
+    await ws.send_json({
+        "type": "done",
+        "id": msg_id,
+        "session_id": engine.SESSION_ID,
+        "full_response": full_response,
+    })
+
+
+async def _handle_tool_result(ws: WebSocket, data: dict) -> None:
+    call_id = data.get("id")
+    result = ToolResult(
+        call_id=call_id,
+        name=data.get("name", ""),
+        content=data.get("content", ""),
+        is_error=bool(data.get("isError")),
+    )
+    for loop in _pending_tool_loops.values():
+        loop._frontend_results[call_id] = result
 
 
 # ============================================================

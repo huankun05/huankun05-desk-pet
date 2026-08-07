@@ -22,7 +22,11 @@ const RECONNECT_MAX_MS = 30_000;
 
 export interface HermesGatewayCallbacks {
   mode?: 'work' | 'chat';
+  /** 可执行的前端工具 schema，Gateway 可据此发起 tool:execute */
+  frontendTools?: Array<Record<string, unknown>>;
   onToken?: (token: string) => void;
+  onToolCall?: (call: Record<string, unknown>) => void;
+  onToolResult?: (result: Record<string, unknown>) => void;
   onDone?: (fullResponse: string) => void;
   onError?: (error: string) => void;
 }
@@ -123,6 +127,9 @@ export class HermesGatewayClient {
     const msgId = `msg_${++this.messageIdCounter}_${Date.now()}`;
     const payload: Record<string, unknown> = { type: 'chat', text, id: msgId };
     if (mode) payload.mode = mode;
+    if (callbacks?.frontendTools && callbacks.frontendTools.length > 0) {
+      payload.frontend_tools = callbacks.frontendTools;
+    }
 
     if (callbacks) {
       this.pendingCallbacks.set(msgId, callbacks);
@@ -268,6 +275,28 @@ export class HermesGatewayClient {
       eventBus.emit('hermes:error', { message, msgId });
       return;
     }
+
+    if (msgType === 'tool:call') {
+      eventBus.emit('tool:call', {
+        name: (data.name as string) || '',
+        args: (data.arguments as Record<string, unknown>) || {},
+      });
+      return;
+    }
+
+    if (msgType === 'tool:result') {
+      eventBus.emit('tool:result', {
+        name: (data.name as string) || '',
+        content: (data.content as string) || '',
+        isError: data.isError === true,
+      });
+      return;
+    }
+
+    if (msgType === 'tool:execute') {
+      this._handleFrontendToolExecute(data as Record<string, unknown>);
+      return;
+    }
   }
 
   private scheduleReconnect(): void {
@@ -285,6 +314,14 @@ export class HermesGatewayClient {
       this.reconnectTimer = null;
       this.connect();
     }, delay);
+  }
+
+  private _handleFrontendToolExecute(data: Record<string, unknown>): void {
+    const id = (data.id as string) || '';
+    const name = (data.name as string) || '';
+    const args = (data.arguments as Record<string, unknown>) || {};
+    if (!name) return;
+    eventBus.emit('tool:execute', { id, name, args });
   }
 }
 
