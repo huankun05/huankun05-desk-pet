@@ -1,8 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Section, SettingRow } from '../../components';
 import { useToast } from '../../components';
 import { useMode, MODE_CHANGED_EVENT, type AppMode } from '../../../hooks/useMode';
+import { toolRegistry } from '../../../services/tools/registry';
+import { getAllServerStatuses } from '../../../services/mcp/manager';
+import { fetchModeTools, type ModeToolsInfo } from '../../../services/gatewayApi';
+
+/** 后端工具的中文描述（兜底，网关未返回 description 时使用） */
+const BACKEND_DESC: Record<string, string> = {
+  echo: '回声测试工具',
+  get_current_time: '获取当前服务器时间',
+};
 
 /** 模式元数据（静态描述） */
 const MODE_META: Record<AppMode, { icon: string; features: string[] }> = {
@@ -11,7 +20,7 @@ const MODE_META: Record<AppMode, { icon: string; features: string[] }> = {
     features: [
       '轻量级对话，回复简短自然',
       '上下文窗口 20 条消息',
-      '无工具调用，专注闲聊',
+      '仅启用轻量工具（联网 / 时间）',
       '适合日常陪伴、快速问答',
     ],
   },
@@ -20,11 +29,17 @@ const MODE_META: Record<AppMode, { icon: string; features: string[] }> = {
     features: [
       '完整能力，回答详细有条理',
       '上下文窗口 40 条消息',
-      '支持工具调用（文件/代码/搜索）',
+      '支持全部工具调用（文件 / 代码 / 搜索 / MCP）',
       '适合编程、分析、写作等任务',
     ],
   },
 };
+
+interface ToolView {
+  name: string;
+  description: string;
+  source: 'frontend' | 'backend' | 'mcp';
+}
 
 export function ChatModesPage() {
   const { t } = useTranslation();
@@ -34,6 +49,13 @@ export function ChatModesPage() {
   // 用于平滑过渡动画
   const [prevMode, setPrevMode] = useState(mode);
   const [animating, setAnimating] = useState(false);
+  const [modeTools, setModeTools] = useState<ModeToolsInfo | null>(null);
+
+  useEffect(() => {
+    fetchModeTools()
+      .then(setModeTools)
+      .catch(() => setModeTools(null));
+  }, []);
 
   const handleSwitch = (next: AppMode) => {
     if (next === mode) return;
@@ -51,6 +73,41 @@ export function ChatModesPage() {
 
   const currentMeta = MODE_META[mode];
 
+  // 组装「当前模式可用工具」清单
+  const availableTools: ToolView[] = (() => {
+    const frontend = toolRegistry
+      .getAll()
+      .map<ToolView>((tt) => ({
+        name: tt.name,
+        description: tt.description,
+        source: 'frontend',
+      }));
+    const backend = (modeTools?.backend ?? []).map<ToolView>((n) => ({
+      name: n,
+      description: BACKEND_DESC[n] ?? '后端工具',
+      source: 'backend',
+    }));
+    const mcp = getAllServerStatuses()
+      .flatMap((s) => s.tools ?? [])
+      .map<ToolView>((tt) => ({
+        name: tt.name,
+        description: tt.description,
+        source: 'mcp',
+      }));
+
+    const all = [...frontend, ...backend, ...mcp];
+    const whitelist = mode === 'chat' ? modeTools?.chat : modeTools?.work;
+    if (!whitelist) return all; // work = 全部
+    const set = new Set(whitelist);
+    return all.filter((x) => set.has(x.name));
+  })();
+
+  const sourceLabel: Record<ToolView['source'], string> = {
+    frontend: '前端',
+    backend: '后端',
+    mcp: 'MCP',
+  };
+
   return (
     <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
       {/* 模式选择区 */}
@@ -63,7 +120,7 @@ export function ChatModesPage() {
           <SettingRow
             title={t('settings.chat.mode_chat', { defaultValue: '聊天模式' })}
             description={t('settings.chat.mode_chat_desc', {
-              defaultValue: '简化对话，无工具，上下文更短',
+              defaultValue: '轻量对话，仅启用联网/时间等少量工具',
             })}
           >
             <button
@@ -83,7 +140,7 @@ export function ChatModesPage() {
           <SettingRow
             title={t('settings.chat.mode_work', { defaultValue: '工作模式' })}
             description={t('settings.chat.mode_work_desc', {
-              defaultValue: '完整能力，允许工具调用，上下文更长',
+              defaultValue: '完整能力，允许全部工具调用，上下文更长',
             })}
           >
             <button
@@ -168,6 +225,41 @@ export function ChatModesPage() {
               </li>
             ))}
           </ul>
+
+          {/* 本模式可用工具清单 */}
+          <div className="mt-4 border-t border-neutral-200/70 pt-3">
+            <p className="mb-2 text-xs font-medium text-neutral-700">
+              {t('settings.chat.mode_tools_title', { defaultValue: '本模式可用工具' })}
+              <span className="ml-1 text-neutral-400">（{availableTools.length}）</span>
+            </p>
+            {availableTools.length === 0 ? (
+              <p className="text-xs text-neutral-400">
+                {t('settings.chat.mode_tools_empty', { defaultValue: '暂无可用的工具' })}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {availableTools.map((tool) => (
+                  <span
+                    key={`${tool.source}-${tool.name}`}
+                    title={tool.description}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
+                      mode === 'work'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-pink-100 text-pink-700'
+                    }`}
+                  >
+                    {tool.name}
+                    <span className="opacity-60">·{sourceLabel[tool.source]}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-neutral-400">
+              {t('settings.chat.mode_tools_hint', {
+                defaultValue: '在「扩展 → 工具」中可查看全部工具并启用/禁用',
+              })}
+            </p>
+          </div>
         </div>
       </Section>
 
@@ -191,6 +283,13 @@ export function ChatModesPage() {
             defaultValue: '管理 LLM / TTS / STT 等提供方',
           })}
           to="/settings/services"
+        />
+        <SettingRow
+          title={t('settings.chat.mode_related_tools', { defaultValue: '工具管理' })}
+          description={t('settings.chat.mode_related_tools_desc', {
+            defaultValue: '查看并管理可用的工具与技能',
+          })}
+          to="/settings/extensions/tools"
         />
       </Section>
     </div>

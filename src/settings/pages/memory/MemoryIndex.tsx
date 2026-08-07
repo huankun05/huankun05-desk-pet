@@ -52,6 +52,12 @@ export function MemoryIndex() {
       description: t('settings.memory.backup.entry_desc'),
       to: '/settings/memory/backup',
     },
+    {
+      icon: 'solar:graph-new-bold-duotone',
+      title: t('settings.memory.growth.title'),
+      description: t('settings.memory.growth.desc'),
+      to: '/settings/memory/growth',
+    },
   ];
 
   return (

@@ -26,6 +26,12 @@ export function ExtensionsIndex() {
       description: t('settings.plugins_section.desc'),
       to: '/settings/extensions/plugins',
     },
+    {
+      icon: 'solar:widget-5-bold-duotone',
+      title: t('settings.tools.title'),
+      description: t('settings.tools.desc'),
+      to: '/settings/extensions/tools',
+    },
   ];
 
   return (

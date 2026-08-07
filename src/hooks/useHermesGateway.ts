@@ -20,6 +20,7 @@ import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { providerManager } from '../services/provider/manager';
 import { toolRegistry } from '../services/tools/registry';
+import { getDisabledTools } from '../services/tools/toolManagement';
 import {
   createSession,
   saveMessage,
@@ -236,6 +237,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       client.sendChat(content, {
         mode,
         frontendTools,
+        disabledTools: getDisabledTools(),
         onToken: (token) => {
           if (abortedRef.current) return;
           currentResponseRef.current += token;

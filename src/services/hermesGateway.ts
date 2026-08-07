@@ -24,6 +24,8 @@ export interface HermesGatewayCallbacks {
   mode?: 'work' | 'chat';
   /** 可执行的前端工具 schema，Gateway 可据此发起 tool:execute */
   frontendTools?: Array<Record<string, unknown>>;
+  /** 被用户在「工具管理」中禁用的工具名（前端 + 后端），Gateway 会剔除它们 */
+  disabledTools?: string[];
   onToken?: (token: string) => void;
   onToolCall?: (call: Record<string, unknown>) => void;
   onToolResult?: (result: Record<string, unknown>) => void;
@@ -129,6 +131,9 @@ export class HermesGatewayClient {
     if (mode) payload.mode = mode;
     if (callbacks?.frontendTools && callbacks.frontendTools.length > 0) {
       payload.frontend_tools = callbacks.frontendTools;
+    }
+    if (callbacks?.disabledTools && callbacks.disabledTools.length > 0) {
+      payload.disabled_tools = callbacks.disabledTools;
     }
 
     if (callbacks) {

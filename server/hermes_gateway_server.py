@@ -29,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from hermes_gateway_tool_executor import tool_executor
 from hermes_gateway_tool_loop import ToolLoop
 from hermes_gateway_backend_tools import register_backend_tools
+from hermes_gateway_memory import memory_store, extract_memories_async
 
 logging.basicConfig(
     level=logging.INFO,
@@ -236,6 +237,36 @@ def create_app() -> FastAPI:
         from core.hermes_skills_bridge import get_all_skills
         return get_all_skills()
 
+    @app.get("/api/gateway/mode-tools")
+    def mode_tools():
+        """返回各模式可用工具白名单（None 表示全部）。"""
+        return {
+            "chat": engine.MODE_CONFIGS["chat"].get("tool_names"),
+            "work": engine.MODE_CONFIGS["work"].get("tool_names"),
+            "backend": list(tool_executor.tool_definitions().keys()),
+        }
+
+    @app.get("/api/gateway/memory")
+    def get_memory(q: str | None = None, limit: int = 300):
+        if q:
+            return {"items": memory_store.recall(q, limit)}
+        return {"items": memory_store.list_all(limit), "count": memory_store.count()}
+
+    @app.post("/api/gateway/memory")
+    async def add_memory(body: dict):
+        text = (body.get("text") or "").strip()
+        if not text:
+            return {"error": "text is required"}
+        mid = memory_store.add(
+            text, body.get("category", "fact"), body.get("source", "manual")
+        )
+        return {"id": mid}
+
+    @app.delete("/api/gateway/memory/{mid}")
+    def del_memory(mid: int):
+        memory_store.delete(mid)
+        return {"ok": True}
+
     @app.post("/api/gateway/chat")
     async def chat_rest(body: dict):
         text = body.get("text", "")
@@ -315,6 +346,26 @@ def _filter_tools(
     return [t for t in tools if t.get("name") in allowed_set]
 
 
+async def _learn(engine: HermesEngine, user_text: str, assistant_text: str) -> None:
+    """自学习：从一轮对话中抽取持久记忆并入库。失败静默降级。"""
+    if not assistant_text or not user_text:
+        return
+    conversation = f"用户: {user_text}\n助手: {assistant_text}"
+    try:
+        memories = await extract_memories_async(conversation, engine._llm_stream)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("自学习抽取异常: %s", exc)
+        return
+    if not memories:
+        return
+    added = 0
+    for m in memories:
+        if memory_store.add(m["text"], m.get("category", "fact"), source="chat") > 0:
+            added += 1
+    if added:
+        log.info("自学习：本轮抽取并保存 %d 条记忆", added)
+
+
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     text = data.get("text", "")
     if not text:
@@ -327,13 +378,22 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
 
     cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
     # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
-    allowed_tools = cfg.get("tool_names", None)
+    whitelist = cfg.get("tool_names", None)
+    # 前端可临时禁用某些工具（持久化在 localStorage，随消息上报）
+    disabled = set(data.get("disabled_tools", []) or [])
 
     # Persist user message
     engine.append_message("user", text)
 
-    # Build initial prompt
+    # Build initial prompt：召回成长记忆并注入（仿 Hermes <memory-context> 协议）
     system_content = cfg["system_prompt"]
+    recalled = memory_store.recall(text, limit=6)
+    if recalled:
+        mem_block = "\n".join(f"- {m['text']}" for m in recalled)
+        system_content += (
+            "\n\n<memory-context>\n以下是关于用户已记住的信息，请自然运用，不要重复确认：\n"
+            f"{mem_block}\n</memory-context>"
+        )
     history = engine.get_history(limit=cfg["history_limit"])
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_content},
@@ -345,11 +405,23 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         {"role": "user", "content": text},
     ]
 
+    # 解析「允许的工具」：白名单剔除被禁用的；work(None) 仍要剔除禁用项
+    if whitelist is None:
+        allowed_frontend = [t for t in frontend_tools if t.get("name") not in disabled]
+        allowed_backend = [
+            t for t in tool_executor.tool_definitions() if t.get("name") not in disabled
+        ]
+    else:
+        allowed_frontend = _filter_tools(frontend_tools, [w for w in whitelist if w not in disabled])
+        allowed_backend = _filter_tools(
+            tool_executor.tool_definitions(), [w for w in whitelist if w not in disabled]
+        )
+
     tool_loop = ToolLoop(
         ws=ws,
         session_id=engine.SESSION_ID,
-        frontend_tools=_filter_tools(frontend_tools, allowed_tools),
-        backend_tools=_filter_tools(tool_executor.tool_definitions(), allowed_tools),
+        frontend_tools=allowed_frontend,
+        backend_tools=allowed_backend,
         executor=tool_executor,
     )
 
@@ -369,6 +441,13 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         "session_id": engine.SESSION_ID,
         "full_response": full_response,
     })
+
+    # 后台自学习：从本轮对话抽取持久记忆（不阻塞响应）
+    try:
+        asyncio.create_task(_learn(engine, text, full_response))
+    except RuntimeError:
+        # 无运行中的事件循环时跳过（如 REST 调用路径）
+        pass
 
 
 # ============================================================
