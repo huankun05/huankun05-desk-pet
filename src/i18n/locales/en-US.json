@@ -288,6 +288,8 @@
       "tts_volume": "Synthesis volume",
       "stt_engine_config": "STT engine config",
       "stt_engine_config_desc": "Service address, language, model selection, etc.",
+      "wake_word_config": "Wake word",
+      "wake_word_config_desc": "Wake word detection & model (summon by name like \"XiaoAi\")",
       "stt_engine": "STT engine",
       "stt_section": "Speech-to-Text (STT)",
       "stt_section_desc": "Microphone input to text",

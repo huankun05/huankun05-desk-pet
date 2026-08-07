@@ -330,6 +330,14 @@ export function ChatVoicePage() {
             })}
             to="/settings/services/stt"
           />
+
+          <SettingRow
+            title={t('settings.chat.wake_word_config', { defaultValue: '语音唤醒' })}
+            description={t('settings.chat.wake_word_config_desc', {
+              defaultValue: '唤醒词检测与模型管理（像「小爱同学」一样叫名字唤醒）',
+            })}
+            to="/settings/extensions/wake-word"
+          />
         </div>
       </Section>
     </div>

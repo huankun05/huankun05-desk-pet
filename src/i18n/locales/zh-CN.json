@@ -288,6 +288,8 @@
       "tts_volume": "合成音量",
       "stt_engine_config": "STT 引擎配置",
       "stt_engine_config_desc": "服务地址、语言、模型选择等",
+      "wake_word_config": "语音唤醒",
+      "wake_word_config_desc": "唤醒词检测与模型管理（像「小爱同学」一样叫名字唤醒）",
       "stt_engine": "STT 引擎",
       "stt_section": "语音识别（STT）",
       "stt_section_desc": "麦克风输入转文字",
