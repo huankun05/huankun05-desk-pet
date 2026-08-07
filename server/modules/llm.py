@@ -165,16 +165,18 @@ class LLMChat:
         else:
             raise ValueError(f"不支持的模式: {self.mode}")
 
-    def chat_stream(self, messages: list[dict], **kwargs) -> Generator[str, None, None]:
+    def chat_stream(self, messages: list[dict], tools: list[dict] | None = None, **kwargs) -> Generator[str | dict, None, None]:
         """
         流式对话（token by token 生成）。
 
         Args:
             messages: 消息列表
+            tools: OpenAI function-calling 工具定义（可选）
             **kwargs: 覆盖默认参数
 
         Yields:
-            每次生成的文本片段
+            文本片段（str），或在检测到工具调用时 yield 字典
+            {"type": "tool_calls", "calls": [{"id", "name", "arguments"}]}
         """
         params = {
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
@@ -183,7 +185,7 @@ class LLMChat:
         }
 
         if self.mode == "api":
-            yield from self._chat_api_stream(messages, **params)
+            yield from self._chat_api_stream(messages, tools=tools, **params)
         elif self.mode == "local":
             yield self._chat_local(messages, **params)
         else:
@@ -218,24 +220,60 @@ class LLMChat:
             logger.error(f"API 调用失败: {e}")
             return f"[LLM 调用失败: {e}]"
 
-    def _chat_api_stream(self, messages: list[dict], **kwargs) -> Generator[str, None, None]:
-        """API 流式对话"""
+    def _chat_api_stream(self, messages: list[dict], tools: list[dict] | None = None, **kwargs) -> Generator[str | dict, None, None]:
+        """API 流式对话，支持把工具调用以字典块形式 yield 出去。"""
         if not self._client:
             yield "[LLM 未初始化，请配置 API Key]"
             return
 
         try:
-            response = self._client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=True,
-                max_tokens=kwargs.get("max_tokens", self.max_tokens),
-                temperature=kwargs.get("temperature", self.temperature),
-                top_p=kwargs.get("top_p", self.top_p),
-            )
+            create_kwargs: dict = {
+                "model": self.model,
+                "messages": messages,
+                "stream": True,
+                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+                "temperature": kwargs.get("temperature", self.temperature),
+                "top_p": kwargs.get("top_p", self.top_p),
+            }
+            if tools:
+                create_kwargs["tools"] = tools
+            response = self._client.chat.completions.create(**create_kwargs)
+
+            # 聚合流式增量 tool_calls（OpenAI 按 index 分片返回）
+            accumulated: dict[int, dict[str, str]] = {}
             for chunk in response:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if getattr(delta, "content", None):
+                    yield delta.content
+                tool_calls = getattr(delta, "tool_calls", None)
+                if tool_calls:
+                    for tc in tool_calls:
+                        idx = tc.index
+                        slot = accumulated.setdefault(
+                            idx, {"id": "", "name": "", "arguments": ""}
+                        )
+                        if getattr(tc, "id", None):
+                            slot["id"] = tc.id
+                        fn = getattr(tc, "function", None)
+                        if fn:
+                            if getattr(fn, "name", None):
+                                slot["name"] += fn.name
+                            if getattr(fn, "arguments", None):
+                                slot["arguments"] += fn.arguments
+
+            if accumulated:
+                calls = []
+                for slot in accumulated.values():
+                    try:
+                        args = json.loads(slot["arguments"] or "{}")
+                    except Exception:
+                        args = {}
+                    calls.append(
+                        {"id": slot["id"], "name": slot["name"], "arguments": args}
+                    )
+                yield {"type": "tool_calls", "calls": calls}
         except Exception as e:
             logger.error(f"API 流式调用失败: {e}")
             yield f"[LLM 调用失败: {e}]"

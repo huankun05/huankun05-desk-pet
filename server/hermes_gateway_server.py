@@ -87,11 +87,12 @@ class HermesEngine:
                             config = {
                                 "mode": "api",
                                 "api_provider": "openai",
-                                "api_base_url": c.get("apiBase", ""),
-                                "api_key": c.get("apiKey", ""),
-                                "model": c.get("model", ""),
+                                "api_base_url": c.get("apiBase") or c.get("api_base_url") or "",
+                                "api_key": c.get("apiKey") or c.get("api_key") or "",
+                                "model": c.get("model") or "",
                                 "temperature": c.get("temperature", 0.7),
-                                "max_tokens": c.get("max_tokens", 2048),
+                                "max_tokens": c.get("maxTokens") or c.get("max_tokens", 2048),
+                                "top_p": c.get("topP") or c.get("top_p", 1.0),
                             }
                             break
                 except Exception:
@@ -140,7 +141,9 @@ class HermesEngine:
 
     # ---- LLM 流式助手 ----
 
-    async def _llm_stream(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
+    async def _llm_stream(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> AsyncIterator[str | dict[str, Any]]:
         llm = self._get_llm()
         if not llm or not llm.is_available():
             fallback = "[Hermes 收到] " + messages[-1].get("content", "")[:50]
@@ -150,7 +153,7 @@ class HermesEngine:
         loop = asyncio.get_running_loop()
         with __import__("concurrent.futures").ThreadPoolExecutor(max_workers=1) as pool:
             tokens = await loop.run_in_executor(
-                pool, lambda: list(llm.chat_stream(messages))
+                pool, lambda: list(llm.chat_stream(messages, tools=tools))
             )
         for token in tokens:
             yield token
@@ -281,10 +284,6 @@ def create_app() -> FastAPI:
                     await _handle_chat(ws, engine, data)
                     continue
 
-                if msg_type == "tool:result":
-                    await _handle_tool_result(ws, data)
-                    continue
-
                 await ws.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
 
         except WebSocketDisconnect:
@@ -302,8 +301,6 @@ def create_app() -> FastAPI:
 # ============================================================
 # Chat + tool loop
 # ============================================================
-
-_pending_tool_loops: dict[str, ToolLoop] = {}
 
 
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
@@ -323,8 +320,6 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
 
     # Build initial prompt
     system_content = cfg["system_prompt"]
-    if cfg.get("include_tools"):
-        system_content += engine.TOOLS_DESCRIPTION
     history = engine.get_history(limit=cfg["history_limit"])
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_content},
@@ -333,6 +328,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
             for m in history[-cfg["max_history"] :]
             if m.get("role") in ("user", "assistant") and m.get("content")
         ],
+        {"role": "user", "content": text},
     ]
 
     tool_loop = ToolLoop(
@@ -341,12 +337,8 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         frontend_tools=frontend_tools,
         backend_tools=tool_executor.tool_definitions(),
     )
-    _pending_tool_loops[msg_id] = tool_loop
 
-    try:
-        result = await tool_loop.run(text, mode, engine._llm_stream)
-    finally:
-        _pending_tool_loops.pop(msg_id, None)
+    result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)
 
     full_response = result.get("accumulated", "") or text
     if full_response:
@@ -362,18 +354,6 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         "session_id": engine.SESSION_ID,
         "full_response": full_response,
     })
-
-
-async def _handle_tool_result(ws: WebSocket, data: dict) -> None:
-    call_id = data.get("id")
-    result = ToolResult(
-        call_id=call_id,
-        name=data.get("name", ""),
-        content=data.get("content", ""),
-        is_error=bool(data.get("isError")),
-    )
-    for loop in _pending_tool_loops.values():
-        loop._frontend_results[call_id] = result
 
 
 # ============================================================

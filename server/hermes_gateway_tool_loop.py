@@ -60,15 +60,25 @@ class ToolLoop:
     # Public API
     # ------------------------------------------------------------------
 
-    async def run(self, user_text: str, mode: str, llm_stream: Any) -> dict[str, Any]:
+    async def run(
+        self,
+        user_text: str,
+        mode: str,
+        llm_stream: Any,
+        initial_messages: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Run tool loop and return done payload."""
-        messages: list[dict[str, Any]] = self._build_initial_messages(user_text, mode)
+        if initial_messages:
+            messages = list(initial_messages)
+        else:
+            messages = self._build_initial_messages(user_text, mode)
+        tools = self._to_openai_tools()
         accumulated = ""
         all_calls: list[ToolCall] = []
         all_results: list[ToolResult] = []
 
         for iteration in range(self.max_iterations):
-            tool_calls = await self._collect_tool_calls(messages, llm_stream)
+            tool_calls = await self._collect_tool_calls(messages, llm_stream, tools=tools)
             if not tool_calls:
                 break
 
@@ -100,12 +110,19 @@ class ToolLoop:
                 ],
             })
 
-            # Append to message history
+            # Append to message history (OpenAI tool_calls / tool format)
             messages.append({
                 "role": "assistant",
-                "content": "",
+                "content": None,
                 "tool_calls": [
-                    {"id": c.id, "name": c.name, "arguments": c.arguments}
+                    {
+                        "id": c.id,
+                        "type": "function",
+                        "function": {
+                            "name": c.name,
+                            "arguments": json.dumps(c.arguments, ensure_ascii=False),
+                        },
+                    }
                     for c in tool_calls
                 ],
             })
@@ -121,7 +138,9 @@ class ToolLoop:
             all_results.extend(round_results)
 
             # Collect final text after this round
-            text_parts = await self._collect_tool_calls(messages, llm_stream, want_text=True)
+            text_parts = await self._collect_tool_calls(
+                messages, llm_stream, want_text=True, tools=tools
+            )
             if text_parts:
                 accumulated += "".join(text_parts)
 
@@ -136,24 +155,51 @@ class ToolLoop:
     # ------------------------------------------------------------------
 
     def _build_initial_messages(self, user_text: str, mode: str) -> list[dict[str, Any]]:
-        """Build initial messages with system prompt and tools schema."""
+        """Fallback: build system + user when no initial_messages provided."""
         cfg = self._mode_config(mode)
-        system_content = cfg["system_prompt"]
-        if self.backend_tools:
-            system_content += "\n\n## Available Tools\n" + json.dumps(
-                list(self.backend_tools.values()), ensure_ascii=False, indent=2
-            )
-        if self.frontend_tools:
-            system_content += "\n\n## Frontend Tools\n" + json.dumps(
-                list(self.frontend_tools.values()), ensure_ascii=False, indent=2
-            )
-            system_content += (
-                "\nFrontend tools must be requested via tool_calls with tool_call_id starting with 'fe_'."
-            )
         return [
-            {"role": "system", "content": system_content},
+            {"role": "system", "content": cfg["system_prompt"]},
             {"role": "user", "content": user_text},
         ]
+
+    def _to_openai_tools(self) -> list[dict[str, Any]]:
+        """Convert backend + frontend tool schemas into OpenAI `tools` format."""
+        tools: list[dict[str, Any]] = []
+        for t in list(self.backend_tools.values()) + list(self.frontend_tools.values()):
+            params = t.get("parameters") or {}
+            properties: dict[str, Any] = {}
+            required: list[str] = []
+            if isinstance(params, dict):
+                all_json_schema = (
+                    "type" in params or "properties" in params
+                ) and not any(
+                    isinstance(v, dict) and "type" in v for v in params.values()
+                )
+                if all_json_schema:
+                    properties = params.get("properties", {})
+                    required = list(params.get("required", []))
+                else:
+                    for pname, pdef in params.items():
+                        if not isinstance(pdef, dict):
+                            continue
+                        properties[pname] = {
+                            k: pdef[k] for k in ("type", "description") if k in pdef
+                        }
+                        if pdef.get("required"):
+                            required.append(pname)
+            tools.append({
+                "type": "function",
+                "function": {
+                    "name": t.get("name", ""),
+                    "description": t.get("description", ""),
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
+                },
+            })
+        return tools
 
     def _mode_config(self, mode: str) -> dict[str, Any]:
         cfg = {
@@ -180,13 +226,14 @@ class ToolLoop:
         messages: list[dict[str, Any]],
         llm_stream: Any,
         want_text: bool = False,
+        tools: list[dict[str, Any]] | None = None,
     ) -> list[ToolCall]:
         """Call LLM once and return tool_calls from first response."""
         tool_calls: list[ToolCall] = []
         text_parts: list[str] = []
 
         try:
-            async for chunk in llm_stream(messages):
+            async for chunk in llm_stream(messages, tools=tools):
                 if isinstance(chunk, str):
                     if want_text:
                         text_parts.append(chunk)
