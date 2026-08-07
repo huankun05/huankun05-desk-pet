@@ -4,8 +4,11 @@ import { Section, SettingRow } from '../../components';
 import { useToast } from '../../components';
 import { useMode, MODE_CHANGED_EVENT, type AppMode } from '../../../hooks/useMode';
 import { toolRegistry } from '../../../services/tools/registry';
+import { registerBuiltinTools } from '../../../services/tools';
 import { getAllServerStatuses } from '../../../services/mcp/manager';
 import { fetchModeTools, type ModeToolsInfo } from '../../../services/gatewayApi';
+// 确保内置工具在设置 webview 中注册
+import '../../../services/tools/builtins';
 
 /** 后端工具的中文描述（兜底，网关未返回 description 时使用） */
 const BACKEND_DESC: Record<string, string> = {
@@ -52,6 +55,8 @@ export function ChatModesPage() {
   const [modeTools, setModeTools] = useState<ModeToolsInfo | null>(null);
 
   useEffect(() => {
+    // 设置窗口是独立 webview，需要手动注册内置工具
+    registerBuiltinTools();
     fetchModeTools()
       .then(setModeTools)
       .catch(() => setModeTools(null));

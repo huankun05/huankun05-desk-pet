@@ -86,16 +86,12 @@ function ScopeSelect({
                   onChange(opt.value);
                   setOpen(false);
                 }}
-                className={`flex w-full cursor-pointer px-3.5 py-2 text-left text-xs font-medium transition-colors ${
+                className={`block w-full cursor-pointer px-3.5 py-2 text-left text-xs font-medium transition-colors ${
                   opt.value === value
                     ? 'bg-[var(--primary-50)] text-[var(--primary-600)]'
                     : 'text-neutral-600 hover:bg-neutral-50'
                 }`}
               >
-                {opt.value === value && (
-                  <Icon icon="solar:check-circle-bold" className="mr-2 text-sm text-[var(--primary-500)]" />
-                )}
-                {opt.value !== value && <span className="mr-5 inline-block w-4" />}
                 {opt.label}
               </button>
             ))}

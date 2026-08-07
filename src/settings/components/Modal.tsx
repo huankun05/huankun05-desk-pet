@@ -61,7 +61,7 @@ export function Modal({
             <span className="block w-5 h-5 text-center leading-none text-lg">×</span>
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="px-6 pb-6 pt-5">{children}</div>
         {footer && (
           <div className="px-6 py-4 border-t border-neutral-100 flex justify-end gap-2">
             {footer}
