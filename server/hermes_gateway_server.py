@@ -119,21 +119,63 @@ class HermesEngine:
         """写入消息到 Hermes SessionDB。"""
         self._db.append_message(self.SESSION_ID, role=role, content=content)
 
+    # ---- 模式配置 ----
+
+    # 模式对应的 system prompt / 历史上限 / 是否附带工具描述
+    MODE_CONFIGS: dict[str, dict] = {
+        "chat": {
+            "system_prompt": (
+                "你是一个桌面宠物精灵，性格活泼可爱，用简短自然的语气和用户对话。"
+                "回复保持在 1-3 句话，像朋友聊天一样轻松。"
+            ),
+            "history_limit": 20,
+            "max_history": 20,
+            "include_tools": False,
+        },
+        "work": {
+            "system_prompt": (
+                "你是一个智能桌面助手（桌面宠物精灵），具备完整的问题解决能力。"
+                "你可以帮助用户完成编程、写作、分析、搜索、文件操作等各类任务。"
+                "回答要准确、有条理、可操作。"
+            ),
+            "history_limit": 50,
+            "max_history": 40,
+            "include_tools": True,
+        },
+    }
+
+    # 工具描述（work 模式下注入 system prompt）
+    TOOLS_DESCRIPTION = (
+        "\n\n## 可用工具\n"
+        "- 文件读写：可以读取、创建、编辑用户指定的文件\n"
+        "- 代码执行：可以运行脚本和命令，获取输出结果\n"
+        "- 网络搜索：可以搜索互联网获取最新信息\n"
+        "- 系统操作：可以查看系统状态、管理进程等\n"
+        "当用户的请求需要使用工具时，你可以在回复中说明需要调用什么工具、传入什么参数。"
+    )
+
     # ---- LLM 对话 ----
 
-    async def chat_stream(self, user_text: str) -> AsyncIterator[str]:
-        """流式对话：接收用户文本，yield LLM token。"""
+    async def chat_stream(self, user_text: str, mode: str = "chat") -> AsyncIterator[str]:
+        """流式对话：接收用户文本与模式，yield LLM token。
+
+        Args:
+            user_text: 用户输入文本。
+            mode: 当前模式（"chat" 或 "work"），影响 prompt 风格、上下文长度、工具可用性。
+        """
         llm = self._get_llm()
+        cfg = self.MODE_CONFIGS.get(mode, self.MODE_CONFIGS["chat"])
 
         # 写入用户消息
         self.append_message("user", user_text)
 
         # 构建消息列表（含历史）
-        history = self._db.get_messages(self.SESSION_ID, limit=50)
-        messages = [
-            {"role": "system", "content": "你是一个桌面宠物精灵，性格活泼可爱，用简短自然的语气和用户对话。"},
-        ]
-        for msg in history[-40:]:  # 最多 40 条历史
+        history = self._db.get_messages(self.SESSION_ID, limit=cfg["history_limit"])
+        system_content = cfg["system_prompt"]
+        if cfg.get("include_tools"):
+            system_content += self.TOOLS_DESCRIPTION
+        messages = [{"role": "system", "content": system_content}]
+        for msg in history[-cfg["max_history"]:]:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             if role in ("user", "assistant") and content:
@@ -241,8 +283,9 @@ def create_app() -> FastAPI:
         text = body.get("text", "")
         if not text:
             return {"error": "text is required"}
+        mode = body.get("mode", "chat")
         full = ""
-        async for token in engine.chat_stream(text):
+        async for token in engine.chat_stream(text, mode=mode):
             full += token
         return {"response": full, "session_id": engine.SESSION_ID}
 
@@ -276,12 +319,13 @@ def create_app() -> FastAPI:
                     text = data.get("text", "")
                     if not text:
                         continue
+                    mode = data.get("mode", "chat")
 
-                    log.info("Chat: %s", text[:80])
+                    log.info("Chat [%s]: %s", mode, text[:80])
 
                     # 流式回复
                     full_response = ""
-                    async for token in engine.chat_stream(text):
+                    async for token in engine.chat_stream(text, mode=mode):
                         full_response += token
                         await ws.send_json({
                             "type": "token",

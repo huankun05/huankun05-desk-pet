@@ -21,6 +21,7 @@ import {
 import { providerManager } from '../../services/provider/manager';
 import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
+import { useMode } from '../../hooks/useMode';
 import { SlashCommand, BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 
 /** 顶部栏图标按钮 */
@@ -78,7 +79,7 @@ function ChatPanelWindow() {
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5-turbo');
   const [contextUsed, setContextUsed] = useState<number>(0);
   const [contextTotal, setContextTotal] = useState<number>(8192);
-  const [mode, setMode] = useState<'work' | 'chat'>('chat');
+  const { mode } = useMode();
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem('deskpet_tts_enabled') !== 'false';
@@ -183,12 +184,6 @@ function ChatPanelWindow() {
         const total = localStorage.getItem('deskpet_context_total');
         if (used) setContextUsed(Number(used));
         if (total) setContextTotal(Number(total));
-      } catch {
-        // ignore
-      }
-      try {
-        const m = localStorage.getItem('deskpet_mode');
-        if (m === 'work' || m === 'chat') setMode(m);
       } catch {
         // ignore
       }
@@ -463,19 +458,12 @@ function ChatPanelWindow() {
 
   // 模式切换：写入 localStorage + 一次弹跳动画作为明确反馈
   const [modePop, setModePop] = useState(false);
+  const { toggleMode } = useMode();
   const handleToggleMode = useCallback(() => {
-    setMode((prev) => {
-      const next = prev === 'work' ? 'chat' : 'work';
-      try {
-        localStorage.setItem('deskpet_mode', next);
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    toggleMode();
     setModePop(true);
     setTimeout(() => setModePop(false), 280);
-  }, []);
+  }, [toggleMode]);
 
   const handleToggleTts = useCallback(() => {
     setTtsEnabled((prev) => {
