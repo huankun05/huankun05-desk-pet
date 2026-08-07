@@ -355,7 +355,7 @@ export function ChatSessionPage() {
             <select
               value={clearScope}
               onChange={(e) => setClearScope(e.target.value as 'sessions' | 'all')}
-              className="rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-600 outline-none focus:border-[var(--primary-400)]"
+              className="cursor-pointer appearance-none rounded-xl border border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-3 py-2 text-xs font-medium text-neutral-600 shadow-sm outline-none transition-all focus:border-[var(--primary-400)] focus:ring-2 focus:ring-[var(--primary-100)]"
             >
               <option value="sessions">
                 {t('settings.chat.scope_sessions', { defaultValue: '仅删除会话' })}
@@ -368,7 +368,7 @@ export function ChatSessionPage() {
               type="button"
               onClick={() => void handleClearSessions()}
               disabled={sessions.length === 0}
-              className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="cursor-pointer rounded-xl border border-red-200 bg-red-50/60 px-3.5 py-2 text-xs font-medium text-red-500 shadow-sm transition-all hover:bg-red-100 hover:border-red-300 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t('settings.chat.clear', { defaultValue: '清空' })}
             </button>
@@ -385,81 +385,71 @@ export function ChatSessionPage() {
       >
         {viewingSession && (
           <div className="flex flex-col" style={{ maxHeight: '60vh' }}>
-            {/* 会话信息栏 */}
-            <div className="flex items-center justify-between border-b border-neutral-100 px-1 pb-2.5 mb-1">
+            {/* 顶部信息栏 */}
+            <div className="flex shrink-0 items-center border-b border-neutral-100 px-5 py-2.5">
               <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <Icon icon="solar:chat-round-dots-bold-duotone" className="text-base" />
+                <Icon
+                  icon="solar:chat-round-dots-bold-duotone"
+                  className="text-base text-[var(--primary-400)]"
+                />
                 <span>
                   {t('settings.chat.session_detail_footer', {
                     defaultValue: '{{count}} 条消息',
                     count: viewingSession.messages.length,
                   })}
                 </span>
-                <span>·</span>
+                <span className="text-neutral-300">·</span>
                 <span>{formatDate(viewingSession.updatedAt)}</span>
               </div>
             </div>
 
-            {/* 消息流 */}
-            <div className="flex-1 space-y-3 overflow-y-auto px-1 pb-2">
+            {/* 消息流 —— 统一桌宠视角（Hermes + 桌宠融合为同一角色） */}
+            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
               {viewingSession.messages.map((msg, idx) => {
-                const isUser = msg.role === 'user';
-                const isAssistant = msg.role === 'assistant';
                 const isSystem = msg.role === 'system';
+                const isUserMsg = msg.role === 'user'; // 桌宠主动发起
                 return (
                   <div
                     key={idx}
-                    className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                    className={`flex gap-2.5 ${isUserMsg ? 'flex-row-reverse' : 'flex-row'}`}
                   >
-                    {/* 头像 */}
+                    {/* 头像：系统=齿轮，其余统一用桌宠猫头 */}
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        isUser
-                          ? 'bg-[var(--primary-500)]'
-                          : isAssistant
-                            ? 'bg-neutral-200'
-                            : 'bg-neutral-100'
+                        isSystem
+                          ? 'bg-neutral-100'
+                          : 'bg-gradient-to-br from-[var(--primary-400)] to-[var(--primary-600)]'
                       }`}
                     >
                       <Icon
-                        icon={
-                          isUser
-                            ? 'solar:user-bold-duotone'
-                            : isAssistant
-                              ? 'solar:cpu-bolt-bold-duotone'
-                              : 'solar:settings-bold-duotone'
-                        }
-                        className={`text-sm ${isUser ? 'text-white' : 'text-neutral-500'}`}
+                        icon={isSystem ? 'solar:settings-bold-duotone' : 'solar:cat-bold-duotone'}
+                        className={`text-sm ${isSystem ? 'text-neutral-400' : 'text-white'}`}
                       />
                     </div>
 
-                    {/* 消息气泡 */}
-                    <div className={`max-w-[75%] ${isUser ? 'flex flex-col items-end' : ''}`}>
-                      {/* 角色标签 + 时间 */}
-                      {!isSystem && (
+                    {/* 消息体 */}
+                    <div className={`max-w-[75%] ${isUserMsg ? 'flex flex-col items-end' : ''}`}>
+                      {/* 时间戳（无角色标签——都是同一个人） */}
+                      {!isSystem && msg.timestamp && (
                         <div
-                          className={`mb-1 flex items-center gap-1.5 text-[10px] text-neutral-400 ${isUser ? 'flex-row-reverse' : ''}`}
+                          className={`mb-1 text-[10px] text-neutral-300 ${isUserMsg ? 'text-right' : ''}`}
                         >
-                          <span className="font-medium">
-                            {isUser
-                              ? t('settings.chat.role_user', { defaultValue: '我' })
-                              : t('settings.chat.role_ai', { defaultValue: 'AI' })}
-                          </span>
-                          {msg.timestamp && <span>{formatDate(msg.timestamp.getTime())}</span>}
+                          {formatDate(msg.timestamp.getTime())}
                         </div>
                       )}
 
+                      {/* 气泡 */}
                       <div
                         className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                          isUser
-                            ? 'bg-[var(--primary-500)] text-white rounded-br-md'
-                            : isAssistant
-                              ? 'bg-neutral-100 text-neutral-800 rounded-bl-md'
-                              : 'bg-neutral-50 text-neutral-500 italic text-xs border border-neutral-200'
+                          isSystem
+                            ? 'rounded-bl-md bg-neutral-50 text-neutral-500 italic text-xs border border-neutral-200'
+                            : isUserMsg
+                              ? 'bg-[var(--primary-500)] text-white rounded-br-md shadow-sm shadow-[var(--primary-200)]/40'
+                              : 'bg-white text-neutral-800 rounded-bl-md shadow-sm border border-neutral-100'
                         }`}
                       >
                         {isSystem ? (
-                          <span className="text-xs text-neutral-400">[系统消息]</span>
+                          <span className="text-neutral-400">[系统]</span>
                         ) : (
                           <>
                             {typeof msg.content === 'string' ? (
