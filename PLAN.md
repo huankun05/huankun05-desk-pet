@@ -992,3 +992,32 @@ desk-pet/
 - 相关代码已提交 git 仓库
 
 ---
+
+### Phase 5b: 自学习成长 + 工具/技能/MCP 可视化管理（2026-08-07）
+
+> **核心主题**：让桌宠具备 Hermes 式自学习成长能力，并把「工具 / 技能 / MCP」的管理收拢到统一、可见的设置入口。
+
+#### 自学习成长能力（Hermes 式）
+- **记忆主仓库**: 新增 `server/hermes_gateway_memory.py`，独立库 `data/memories.db`（不复用会话库）；`MemoryStore` 提供 `add / recall / list_all / delete / clear`，类别 `preference / fact / feedback / rule`
+- **自动抽取**: 每轮对话结束后异步用 LLM 从对话中抽 `[{text, category}]` 写入记忆库（`extract_memories_async` 无 JSON/异常时静默返回 `[]`）
+- **记忆注入**: `_handle_chat` 生成前召回相关记忆，拼成 `<memory-context>` 块追加进 system prompt（沿用 Hermes 协议桩，现已真正接通）
+- **可见入口**: 设置 → 记忆体 → **成长记忆**（`src/settings/pages/memory/GrowthPage.tsx`），可查看 / 删除 / 手动添加；后端 `GET/POST/DELETE /api/gateway/memory`
+- **⚠️ 中文检索坑**: 本机 SQLite FTS5 不索引 CJK（单字也搜不到），`recall` 改用 `LIKE %term%` 逐词 AND 匹配（`_split_terms` 按 ASCII 词 / CJK 单字切分）。中文检索一律别用裸 FTS5
+
+#### 工具 / 技能 / MCP 可视化管理
+- **工具管理页**: 新增 设置 → 扩展 → **工具**（`src/settings/pages/extensions/ToolsPage.tsx`）：分组列出前端工具 / 后端工具 / MCP 工具，每项可开关**启用 / 禁用**（禁用态存 `localStorage.deskpet_disabled_tools`，后端 `_handle_chat` 双过滤），并显示该工具在 chat / work 模式下的可用性徽章
+- **统一入口**: 同页含「技能 / MCP / 插件」入口行，把原本散落的能力收拢到一个可见面板
+- **模式页纠正**: `ChatModesPage` 文案纠正（聊天模式也能用联网/时间等少量工具），并实时拉取展示「本模式可用工具」徽章列表 + 「工具管理」直达入口
+- **模式工具白名单**: `MODE_CONFIGS[mode]["tool_names"]` 驱动（`chat: ["web_search","get_current_time"]`，`work: None`=全部），由 Gateway `_filter_tools` 统一筛选
+
+#### 修复（提交 `3fe60fc`）
+- **i18n 中文漏 key（真 bug）**: 补齐 `settings.chat` 命名空间的 `mode_badge_chat` / `mode_badge_work` / `mode_current_title` / `mode_current_desc`，中文界面不再显示原始 key 串
+- **格式对齐**: `prettier --write` 修正 `ChatPanelWindow.tsx` / `ChatModesPage.tsx` / `ToolsPage.tsx` / `GrowthPage.tsx` 的漂移
+
+#### 验证结果
+- `vitest`: 131 passed / 22 files
+- `tsc --noEmit`: 0 errors；`eslint src`: 0 errors（50 个历史 warning 无关）
+- `pnpm check`（lint/typecheck/format/i18n/json/settings）: 全绿；`settings:check`: 38/38
+- 提交: `68cfdf4`（功能，14 文件 +990/−11）、`3fe60fc`（修复+文档，6 文件）
+
+---

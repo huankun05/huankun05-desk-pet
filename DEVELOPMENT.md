@@ -439,7 +439,7 @@ std::thread::spawn(move || {
 | 记忆 | `src/settings/pages/memory/MemoryViewPage.tsx` | 记忆检索/管理 |
 | 服务 | `src/settings/pages/services/` | LLM/TTS/STT/多模态 Provider |
 | 聊天 | `src/settings/pages/chat/`（通用/输入命令/语音/模式） | 对话面板设置 |
-| 扩展 | `src/settings/pages/extensions/`（插件/MCP/市场） | 插件与 MCP 管理 |
+| 扩展 | `src/settings/pages/extensions/`（插件 / 工具管理 / 市场） | 插件、工具启停与模式可用性管理 |
 | 系统 | `src/settings/pages/system/` | 通用/窗口/托盘/监控 |
 | Admin Server | `src-tauri/src/admin_server.rs` | 后端 HTTP API（端口 9876，**非 UI**） |
 
@@ -634,7 +634,7 @@ JS (src/services/mcp/)
   → manager.ts  : 配置持久化 + 连接生命周期
   → bridge.ts   : MCP 工具 → ToolRegistry 注册
     ↓
-Admin 页 (Mcp.tsx) : 添加/连接/断开 MCP 服务器
+设置页 (services/McpPage.tsx) : 添加/连接/断开 MCP 服务器
 ```
 
 **已知限制**：
