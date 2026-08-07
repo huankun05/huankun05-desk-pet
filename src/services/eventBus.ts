@@ -37,9 +37,9 @@ type EventMap = {
   'hermes:connected': Record<string, never>;
   'hermes:disconnected': Record<string, never>;
   'hermes:token': { token: string; msgId: string };
-  'hermes:done': { fullResponse: string };
+  'hermes:done': { fullResponse: string; msgId?: string };
   'hermes:history': { sessionId: string; messages: Array<Record<string, unknown>> };
-  'hermes:error': { message: string };
+  'hermes:error': { message: string; msgId?: string };
   'hermes:skill': { command: string; args: string; behaviorEvent: string };
   // Service Watchdog events
   'service:recovered': { name: string; port: number };

@@ -27,7 +27,7 @@ export interface HermesGatewayCallbacks {
   onError?: (error: string) => void;
 }
 
-class HermesGatewayClient {
+export class HermesGatewayClient {
   private ws: WebSocket | null = null;
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,6 +138,15 @@ class HermesGatewayClient {
     return msgId;
   }
 
+  /** 取消指定请求的回调，中断时使用 */
+  abort(msgId: string): void {
+    const cb = this.pendingCallbacks.get(msgId);
+    if (cb) {
+      cb?.onError?.('aborted');
+      this.pendingCallbacks.delete(msgId);
+    }
+  }
+
   /** 测量延迟（毫秒） */
   measureLatency(): Promise<number> {
     return new Promise((resolve) => {
@@ -213,7 +222,7 @@ class HermesGatewayClient {
     if (msgType === 'token') {
       const token = data.token as string;
       const msgId = (data.id as string) || '';
-      const cb = this.pendingCallbacks.get(msgId);
+      const cb = msgId ? this.pendingCallbacks.get(msgId) : undefined;
       cb?.onToken?.(token);
       // 也通过事件总线广播
       eventBus.emit('hermes:token', { token, msgId });
@@ -222,13 +231,18 @@ class HermesGatewayClient {
 
     if (msgType === 'done') {
       const fullResponse = data.full_response as string;
-      // 查找最近的 pending callback
-      // 由于 done 可能没有 id 匹配，我们通知所有活跃 callback
-      for (const [, cb] of this.pendingCallbacks) {
-        cb?.onDone?.(fullResponse);
+      const msgId = (data.id as string) || '';
+      const cb = msgId ? this.pendingCallbacks.get(msgId) : undefined;
+      cb?.onDone?.(fullResponse);
+      if (msgId) this.pendingCallbacks.delete(msgId);
+      // 兼容旧网关：未携带 id 时回退通知所有活跃 callback
+      if (!msgId) {
+        for (const [, c] of this.pendingCallbacks) {
+          c?.onDone?.(fullResponse);
+        }
+        this.pendingCallbacks.clear();
       }
-      this.pendingCallbacks.clear();
-      eventBus.emit('hermes:done', { fullResponse });
+      eventBus.emit('hermes:done', { fullResponse, msgId });
       return;
     }
 
@@ -241,12 +255,17 @@ class HermesGatewayClient {
 
     if (msgType === 'error') {
       const message = data.message as string;
-      // 通知所有 callback
-      for (const [, cb] of this.pendingCallbacks) {
-        cb?.onError?.(message);
+      const msgId = (data.id as string) || '';
+      const cb = msgId ? this.pendingCallbacks.get(msgId) : undefined;
+      cb?.onError?.(message);
+      if (msgId) this.pendingCallbacks.delete(msgId);
+      if (!msgId) {
+        for (const [, c] of this.pendingCallbacks) {
+          c?.onError?.(message);
+        }
+        this.pendingCallbacks.clear();
       }
-      this.pendingCallbacks.clear();
-      eventBus.emit('hermes:error', { message });
+      eventBus.emit('hermes:error', { message, msgId });
       return;
     }
   }

@@ -286,12 +286,14 @@ def create_app() -> FastAPI:
                         await ws.send_json({
                             "type": "token",
                             "token": token,
+                            "id": data.get("id"),
                             "session_id": engine.SESSION_ID,
                         })
 
                     # 回复完成
                     await ws.send_json({
                         "type": "done",
+                        "id": data.get("id"),
                         "session_id": engine.SESSION_ID,
                         "full_response": full_response,
                     })
