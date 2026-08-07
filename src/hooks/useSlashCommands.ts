@@ -14,7 +14,7 @@ export interface SlashCompletion {
   matchedText: string;
 }
 
-const BUILTIN_COMMANDS: SlashCommand[] = [
+export const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: 'new', description: '新建会话', category: '会话', argsHint: '[标题]', icon: '📄' },
   { name: 'clear', description: '清屏并新建会话', category: '会话', icon: '🧹' },
   { name: 'retry', description: '重发最后一条消息', category: '会话', icon: '🔄' },
