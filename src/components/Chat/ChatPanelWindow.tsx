@@ -23,6 +23,10 @@ import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { useMode } from '../../hooks/useMode';
 import { SlashCommand, BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
+import { toolRegistry } from '../../services/tools/registry';
+import { registerBuiltinTools } from '../../services/tools/builtins';
+import { eventBus } from '../../services/eventBus';
+import { getHermesGatewayClient } from '../../services/hermesGateway';
 
 /** 顶部栏图标按钮 */
 function BarButton({
@@ -191,6 +195,29 @@ function ChatPanelWindow() {
     updateInfo();
     const timer = setInterval(updateInfo, 2000);
     return () => clearInterval(timer);
+  }, []);
+
+  // 注册内置工具并监听 Gateway 下发的前端工具调用
+  useEffect(() => {
+    registerBuiltinTools();
+
+    const unsub = eventBus.on('tool:execute', async (payload) => {
+      const { id, name, args } = payload as { id: string; name: string; args: Record<string, unknown> };
+      const tool = toolRegistry.get(name);
+      if (!tool) {
+        getHermesGatewayClient().sendToolResult(id, name, `Error: unknown tool '${name}'`, true);
+        return;
+      }
+      try {
+        const content = await tool.execute(args);
+        getHermesGatewayClient().sendToolResult(id, name, content, false);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        getHermesGatewayClient().sendToolResult(id, name, `Error: ${message}`, true);
+      }
+    });
+
+    return () => unsub();
   }, []);
 
   // 详情面板拖拽调整宽度

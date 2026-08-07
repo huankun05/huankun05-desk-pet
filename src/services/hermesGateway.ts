@@ -219,6 +219,23 @@ export class HermesGatewayClient {
     }
   }
 
+  /** 发送前端工具执行结果回 Gateway */
+  sendToolResult(id: string, name: string, content: string, isError = false): void {
+    const payload = JSON.stringify({
+      type: 'tool:result',
+      id,
+      name,
+      content,
+      isError,
+    });
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(payload);
+    } else {
+      this.messageQueue.push(payload);
+      this.connect();
+    }
+  }
+
   // ===== 内部 =====
 
   private handleMessage(data: Record<string, unknown>): void {
