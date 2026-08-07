@@ -388,6 +388,25 @@ export const ChatWindow = memo(
       return () => window.removeEventListener('focus', recheck);
     }, []);
 
+    // 消息搜索键盘快捷键：Ctrl/Cmd+F 打开，Esc 关闭
+    useEffect(() => {
+      const onKeyDown = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+          e.preventDefault();
+          setSearchOpen(true);
+          return;
+        }
+        if (e.key === 'Escape' && searchOpen) {
+          setSearchOpen(false);
+          setSearchQuery('');
+          setSearchHit(0);
+          setHighlightedId(null);
+        }
+      };
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }, [searchOpen]);
+
     // 自动滚动到底部（流式输出时持续滚动）
     useEffect(() => {
       const container = messagesContainerRef.current;

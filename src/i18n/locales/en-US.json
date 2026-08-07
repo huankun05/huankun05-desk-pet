@@ -113,6 +113,7 @@
     "cleared": "Cleared",
     "copied": "Copied",
     "copy": "Copy",
+    "delete_session_confirm": "Delete \"{{name}}\"? All messages in this session will be removed permanently.",
     "favorites_title": "Starred messages",
     "no_favorites": "No starred messages yet",
     "unfavorite": "Remove star",

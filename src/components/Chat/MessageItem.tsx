@@ -506,7 +506,7 @@ export function MessageItem({
               <Icon icon="solar:close-circle-linear" width={15} height={15} />
             </button>
           )}
-          {onRetry && (
+          {isUser && onRetry && (
             <button
               onClick={onRetry}
               title="重试"

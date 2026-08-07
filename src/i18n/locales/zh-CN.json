@@ -113,6 +113,7 @@
     "cleared": "已清空",
     "copied": "已复制",
     "copy": "复制",
+    "delete_session_confirm": "确定删除「{{name}}」吗？该会话的所有消息将一并删除，且无法恢复。",
     "favorites_title": "收藏消息",
     "no_favorites": "还没有收藏的消息",
     "unfavorite": "取消收藏",

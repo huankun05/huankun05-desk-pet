@@ -681,7 +681,10 @@ function ChatPanelWindow() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteSession(s.id);
+                          // 防误删：确认后才删除（原生 confirm，与收藏清空一致）
+                          if (window.confirm(t('chat.delete_session_confirm', { name: s.title }))) {
+                            handleDeleteSession(s.id);
+                          }
                         }}
                         style={{
                           background: 'none',
