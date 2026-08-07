@@ -21,6 +21,7 @@ import {
   createSession,
   saveMessage,
   getOrCreateActiveSession,
+  switchSession,
   type ChatSession,
 } from '../services/chatStorage';
 import type { Message } from '../components/Chat/ChatWindow';
@@ -67,6 +68,8 @@ export interface HermesGatewayState {
   ) => Promise<void>;
   interruptResponse: () => void;
   newChat: () => void;
+  /** 切换到指定会话并加载其消息 */
+  loadSession: (sessionId: string) => void;
   setGatewayEnabled: (enabled: boolean) => void;
 }
 
@@ -216,8 +219,11 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
             content: fullResponse,
             timestamp: new Date(),
           };
-          saveMessage(finalMsg);
-          setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+          // 仅当当前仍是发起回复的会话时才落盘/更新 UI，防止切会话后串写
+          if (sessionRef.current?.id === session.id) {
+            saveMessage(finalMsg);
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+          }
           setIsLoading(false);
           setIsStreaming(false);
           eventBus.emit('message:response', { text: fullResponse, sessionId: session.id });
@@ -267,6 +273,18 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     setMessages([]);
   }, []);
 
+  // 切换会话：换 sessionRef 并加载该会话消息
+  const handleLoadSession = useCallback((sessionId: string) => {
+    const session = switchSession(sessionId);
+    if (!session) return;
+    // 先终止在途回复，避免旧会话的 token/onDone 串入新会话
+    abortedRef.current = true;
+    setIsStreaming(false);
+    setIsLoading(false);
+    sessionRef.current = session;
+    setMessages(session.messages);
+  }, []);
+
   // 初始化
   useEffect(() => {
     if (!gatewayEnabled) return;
@@ -284,6 +302,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     sendMessage: handleSendMessage,
     interruptResponse,
     newChat: handleNewChat,
+    loadSession: handleLoadSession,
     setGatewayEnabled,
   };
 }

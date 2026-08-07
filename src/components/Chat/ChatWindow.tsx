@@ -2,6 +2,8 @@ import {
   useState,
   useRef,
   useEffect,
+  useMemo,
+  useLayoutEffect,
   memo,
   useCallback,
   forwardRef,
@@ -106,6 +108,21 @@ interface ChatWindowProps {
   /** 上下文 token 上限（供 /status、/usage 命令反馈） */
   contextTotal?: number;
 }
+
+/** 消息搜索导航按钮样式 */
+const searchNavBtnStyle: React.CSSProperties = {
+  width: 24,
+  height: 24,
+  border: 'none',
+  borderRadius: '6px',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
 
 /** 输入区工具按钮 */
 function ToolButton({
@@ -242,6 +259,73 @@ export const ChatWindow = memo(
         if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
       };
     }, []);
+
+    // ===== 消息搜索 =====
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchHit, setSearchHit] = useState(0);
+    const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+    const searchResults = useMemo(() => {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return [] as number[];
+      const hits: number[] = [];
+      messages.forEach((m, i) => {
+        if (m.content.toLowerCase().includes(q)) hits.push(i);
+      });
+      return hits;
+    }, [messages, searchQuery]);
+
+    // 跳到上一条/下一条命中：扩大渲染窗口保证目标可见，再滚动定位 + 高亮
+    const jumpToSearch = (dir: 1 | -1) => {
+      if (searchResults.length === 0) return;
+      const idx = (searchHit + dir + searchResults.length) % searchResults.length;
+      setSearchHit(idx);
+      const target = searchResults[idx];
+      setHighlightedId(messages[target].id);
+      setVisibleCount((c) => Math.max(c, messages.length - target));
+    };
+
+    // 高亮消息滚动定位（等渲染完成后执行）
+    useEffect(() => {
+      if (!highlightedId) return;
+      const el = messagesContainerRef.current?.querySelector(`[data-msg-id="${highlightedId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setHighlightedId(null), 1800);
+      return () => clearTimeout(timer);
+    }, [highlightedId]);
+
+    // ===== 无限滚动（渲染窗口 + 顶部加载更早）=====
+    const INITIAL_VISIBLE = 50;
+    const STEP_VISIBLE = 50;
+    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+    const prevScrollHeightRef = useRef(0);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      if (el.scrollTop < 60 && visibleCount < messages.length) {
+        prevScrollHeightRef.current = el.scrollHeight;
+        setVisibleCount((c) => Math.min(messages.length, c + STEP_VISIBLE));
+      }
+    };
+
+    // 顶部加载更早后补偿滚动位置，避免内容跳动
+    useLayoutEffect(() => {
+      const el = messagesContainerRef.current;
+      if (el && prevScrollHeightRef.current > 0) {
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+        prevScrollHeightRef.current = 0;
+      }
+    }, [visibleCount]);
+
+    const loadEarlier = () => {
+      const el = messagesContainerRef.current;
+      if (el) prevScrollHeightRef.current = el.scrollHeight;
+      setVisibleCount((c) => Math.min(messages.length, c + STEP_VISIBLE));
+    };
+
+    const displayedMessages = messages.slice(-visibleCount);
+    const hiddenCount = messages.length - displayedMessages.length;
 
     const {
       input: slashInput,
@@ -439,141 +523,278 @@ export const ChatWindow = memo(
       >
         {/* 消息列表 */}
         <div
-          ref={messagesContainerRef}
           style={{
+            position: 'relative',
             flex: 1,
             minHeight: 0,
-            overflowY: 'auto',
-            padding: '12px 0 6px',
             display: 'flex',
             flexDirection: 'column',
-            backgroundImage: appearance.backgroundImage
-              ? `url(${appearance.backgroundImage})`
-              : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'local',
           }}
         >
-          {messages.length === 0 && (
+          {/* 消息搜索条 */}
+          {searchOpen ? (
             <div
               style={{
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                marginTop: '48px',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '10px',
-                padding: '0 16px',
+                gap: '6px',
+                padding: '6px 12px',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-surface)',
+                flexShrink: 0,
               }}
             >
-              <Icon icon="solar:chat-round-dots-linear" width={44} height={44} />
-              <div style={{ color: 'var(--text-secondary)' }}>{t('chat.welcome_hi')}</div>
-              <div style={{ fontSize: '0.9em' }}>{t('chat.welcome_start')}</div>
-
-              {!llmConfigured && (
-                <div
+              <Icon
+                icon="solar:magnifer-linear"
+                width={14}
+                height={14}
+                style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+              />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchHit(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    jumpToSearch(e.shiftKey ? -1 : 1);
+                  }
+                }}
+                placeholder={t('chat.search_placeholder', { defaultValue: '搜索消息…' })}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '12px',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              {searchQuery.trim() && (
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                  {searchResults.length > 0 ? `${searchHit + 1}/${searchResults.length}` : '0/0'}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => jumpToSearch(-1)}
+                disabled={searchResults.length === 0}
+                title={t('chat.search_prev', { defaultValue: '上一条（Shift+Enter）' })}
+                style={searchNavBtnStyle}
+              >
+                <Icon icon="solar:alt-arrow-up-linear" width={14} height={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => jumpToSearch(1)}
+                disabled={searchResults.length === 0}
+                title={t('chat.search_next', { defaultValue: '下一条（Enter）' })}
+                style={searchNavBtnStyle}
+              >
+                <Icon icon="solar:alt-arrow-down-linear" width={14} height={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                  setSearchHit(0);
+                  setHighlightedId(null);
+                }}
+                title={t('chat.search_close', { defaultValue: '关闭搜索' })}
+                style={searchNavBtnStyle}
+              >
+                <Icon icon="solar:close-circle-linear" width={14} height={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              title={t('chat.search_messages', { defaultValue: '搜索消息' })}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 10,
+                zIndex: 3,
+                width: 26,
+                height: 26,
+                border: 'none',
+                borderRadius: '6px',
+                background: 'rgba(0,0,0,0.25)',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              <Icon icon="solar:magnifer-linear" width={14} height={14} />
+            </button>
+          )}
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: '12px 0 6px',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundImage: appearance.backgroundImage
+                ? `url(${appearance.backgroundImage})`
+                : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundAttachment: 'local',
+            }}
+          >
+            {hiddenCount > 0 && (
+              <div style={{ textAlign: 'center', padding: '2px 0 6px' }}>
+                <button
+                  type="button"
+                  onClick={loadEarlier}
                   style={{
-                    marginTop: '4px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 16px',
+                    border: 'none',
                     borderRadius: '12px',
-                    background: 'var(--warning-bg)',
-                    border: '1px solid var(--warning-border)',
-                    color: 'var(--warning-text)',
-                    maxWidth: '260px',
+                    padding: '3px 12px',
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-glass)',
+                    cursor: 'pointer',
                   }}
                 >
-                  <div style={{ fontSize: '0.9em', lineHeight: 1.5 }}>
-                    {t('chat.llm_not_configured')}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void openSettingsAt('/settings/services/llm')}
-                    style={{
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '6px 14px',
-                      fontSize: '0.9em',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      color: '#fff',
-                      background: 'var(--accent)',
-                    }}
-                  >
-                    {t('chat.go_configure')}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                  {t('chat.load_earlier', { defaultValue: '加载更早消息' })}（{hiddenCount}）
+                </button>
+              </div>
+            )}
+            {messages.length === 0 && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  marginTop: '48px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '0 16px',
+                }}
+              >
+                <Icon icon="solar:chat-round-dots-linear" width={44} height={44} />
+                <div style={{ color: 'var(--text-secondary)' }}>{t('chat.welcome_hi')}</div>
+                <div style={{ fontSize: '0.9em' }}>{t('chat.welcome_start')}</div>
 
-          {messages.map((message, idx) => {
-            const prev = idx > 0 ? messages[idx - 1] : null;
-            const showSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
-            return (
-              <Fragment key={message.id}>
-                {showSep && (
+                {!llmConfigured && (
                   <div
                     style={{
+                      marginTop: '4px',
                       display: 'flex',
-                      justifyContent: 'center',
-                      margin: '10px 0 4px',
-                      pointerEvents: 'none',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      background: 'var(--warning-bg)',
+                      border: '1px solid var(--warning-border)',
+                      color: 'var(--warning-text)',
+                      maxWidth: '260px',
                     }}
                   >
-                    <span
+                    <div style={{ fontSize: '0.9em', lineHeight: 1.5 }}>
+                      {t('chat.llm_not_configured')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void openSettingsAt('/settings/services/llm')}
                       style={{
-                        fontSize: '11px',
-                        color: 'var(--text-muted)',
-                        background: 'var(--bg-glass)',
-                        padding: '2px 10px',
-                        borderRadius: '10px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '6px 14px',
+                        fontSize: '0.9em',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        color: '#fff',
+                        background: 'var(--accent)',
                       }}
                     >
-                      {formatDateLabel(message.timestamp)}
-                    </span>
+                      {t('chat.go_configure')}
+                    </button>
                   </div>
                 )}
-                <MessageItem
-                  message={{
-                    ...message,
-                    role: message.role as 'user' | 'assistant' | 'system',
-                    isStreaming: isStreaming && message === messages[messages.length - 1],
-                  }}
-                  onRetry={() => onSendMessage(message.content)}
-                  onQuote={handleQuote}
-                  sessionId={sessionId}
-                  appearance={messageAppearance}
-                />
-              </Fragment>
-            );
-          })}
-
-          {isLoading && !isStreaming && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                color: 'var(--text-muted)',
-                padding: '4px 16px',
-              }}
-            >
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
               </div>
-              <span style={{ fontSize: '0.85em' }}>{t('chat.thinking')}</span>
-            </div>
-          )}
+            )}
 
-          <div ref={messagesEndRef} />
+            {displayedMessages.map((message, idx) => {
+              const prev = idx > 0 ? displayedMessages[idx - 1] : null;
+              const showSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
+              return (
+                <Fragment key={message.id}>
+                  {showSep && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        margin: '10px 0 4px',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-glass)',
+                          padding: '2px 10px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        {formatDateLabel(message.timestamp)}
+                      </span>
+                    </div>
+                  )}
+                  <MessageItem
+                    message={{
+                      ...message,
+                      role: message.role as 'user' | 'assistant' | 'system',
+                      isStreaming: isStreaming && message === messages[messages.length - 1],
+                    }}
+                    onRetry={() => onSendMessage(message.content)}
+                    onQuote={handleQuote}
+                    sessionId={sessionId}
+                    appearance={messageAppearance}
+                    highlighted={message.id === highlightedId}
+                  />
+                </Fragment>
+              );
+            })}
+
+            {isLoading && !isStreaming && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--text-muted)',
+                  padding: '4px 16px',
+                }}
+              >
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <span style={{ fontSize: '0.85em' }}>{t('chat.thinking')}</span>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* 输入区 */}

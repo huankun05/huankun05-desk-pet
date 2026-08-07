@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { parseThinkTags } from '../../utils/thinkTagParser';
+import MarkdownContent from './MarkdownContent';
 import { ChatAvatar } from './ChatAvatar';
 import { ToolCallBlock } from './ToolCallBlock';
 import { showToast } from '../../utils/toast';
@@ -136,25 +137,30 @@ interface MessageItemProps {
   onQuote?: (message: ChatMessage) => void;
   sessionId?: string;
   appearance?: MessageAppearance;
+  /** 消息搜索命中高亮 */
+  highlighted?: boolean;
 }
 
-/** 渲染消息内容（支持 think 标签） */
-function MessageContent({ content }: { content: string }) {
+/** 渲染消息内容：流式中用纯文本（避免每 token 重解析 markdown 卡顿），完成后渲染 Markdown */
+function MessageContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   if (!content) return <span className="typing-cursor">▎</span>;
-  const segments = parseThinkTags(content);
-  return (
-    <>
-      {segments.map((seg, i) =>
-        seg.type === 'think' ? (
-          <em key={i} style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.9em' }}>
-            （{seg.content}）
-          </em>
-        ) : (
-          <span key={i}>{seg.content}</span>
-        ),
-      )}
-    </>
-  );
+  if (isStreaming) {
+    const segments = parseThinkTags(content);
+    return (
+      <>
+        {segments.map((seg, i) =>
+          seg.type === 'think' ? (
+            <em key={i} style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.9em' }}>
+              （{seg.content}）
+            </em>
+          ) : (
+            <span key={i}>{seg.content}</span>
+          ),
+        )}
+      </>
+    );
+  }
+  return <MarkdownContent content={content} />;
 }
 
 /** 附件渲染 */
@@ -265,6 +271,7 @@ export function MessageItem({
   onQuote,
   sessionId,
   appearance = DEFAULT_APPEARANCE,
+  highlighted = false,
 }: MessageItemProps) {
   const isUser = message.role === 'user';
   const [hovered, setHovered] = useState(false);
@@ -303,6 +310,7 @@ export function MessageItem({
 
   return (
     <div
+      data-msg-id={message.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onTouchStart={() => {
@@ -320,6 +328,13 @@ export function MessageItem({
         padding: '6px 14px',
         position: 'relative',
         animation: 'message-enter 250ms cubic-bezier(0.32, 0.72, 0, 1)',
+        ...(highlighted
+          ? {
+              background: 'rgba(245,166,35,0.16)',
+              borderRadius: '10px',
+              outline: '1px solid rgba(245,166,35,0.5)',
+            }
+          : {}),
       }}
     >
       {appearance.showAvatar && (
@@ -381,7 +396,7 @@ export function MessageItem({
             whiteSpace: 'pre-wrap',
           }}
         >
-          <MessageContent content={message.content} />
+          <MessageContent content={message.content} isStreaming={message.isStreaming} />
           {message.isStreaming && (
             <span style={{ opacity: 0.5, animation: 'blink 1s infinite' }}>▋</span>
           )}

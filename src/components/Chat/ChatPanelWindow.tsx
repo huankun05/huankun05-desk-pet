@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { Icon } from '@iconify/react';
@@ -13,7 +13,6 @@ import {
   initChatStorage,
   listSessions,
   getActiveSession,
-  switchSession,
   deleteSession,
   type ChatSession,
 } from '../../services/chatStorage';
@@ -93,6 +92,7 @@ function ChatPanelWindow() {
     sendMessage,
     interruptResponse,
     newChat,
+    loadSession,
     setGatewayEnabled,
   } = useHermesGateway({ ttsEnabled });
 
@@ -362,13 +362,15 @@ function ChatPanelWindow() {
     };
   }, []);
 
-  const handleSwitchSession = useCallback((sessionId: string) => {
-    const session = switchSession(sessionId);
-    if (session) {
+  const handleSwitchSession = useCallback(
+    (sessionId: string) => {
+      // 切换会话：由 Gateway hook 换 sessionRef 并加载该会话消息
+      loadSession(sessionId);
       setActiveSessionId(sessionId);
       setShowSessionList(false);
-    }
-  }, []);
+    },
+    [loadSession],
+  );
 
   const handleDeleteSession = useCallback((sessionId: string) => {
     deleteSession(sessionId);
@@ -382,7 +384,27 @@ function ChatPanelWindow() {
     }
   }, []);
 
-  const recentSessions = sessions.slice(0, 20);
+  // 会话列表：搜索 + 分页（每页 20 条，滚动式加载更多）
+  const [sessionQuery, setSessionQuery] = useState('');
+  const [sessionPage, setSessionPage] = useState(1);
+  const SESSION_PAGE_SIZE = 20;
+
+  const filteredSessions = useMemo(() => {
+    const q = sessionQuery.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter(
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.messages.some((m) => m.content.toLowerCase().includes(q)),
+    );
+  }, [sessions, sessionQuery]);
+
+  const visibleSessions = filteredSessions.slice(0, sessionPage * SESSION_PAGE_SIZE);
+
+  const handleSessionQueryChange = (value: string) => {
+    setSessionQuery(value);
+    setSessionPage(1);
+  };
 
   // 发送消息：走 Hermes Gateway
   const handleSendMessage = useCallback(
@@ -523,8 +545,54 @@ function ChatPanelWindow() {
               onClick={() => setShowSessionList(false)}
             />
           </div>
+          <div
+            style={{
+              padding: '8px 10px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Icon
+              icon="solar:magnifer-linear"
+              width={13}
+              height={13}
+              style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+            />
+            <input
+              value={sessionQuery}
+              onChange={(e) => handleSessionQueryChange(e.target.value)}
+              placeholder={t('chat.session_search_placeholder', { defaultValue: '搜索会话…' })}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontSize: '12px',
+                color: 'var(--text-primary)',
+              }}
+            />
+            {sessionQuery && (
+              <button
+                onClick={() => handleSessionQueryChange('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  padding: '0 2px',
+                }}
+                title={t('app.close', { defaultValue: '清除' })}
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
-            {recentSessions.length === 0 ? (
+            {visibleSessions.length === 0 ? (
               <div
                 style={{
                   color: 'var(--text-muted)',
@@ -533,10 +601,12 @@ function ChatPanelWindow() {
                   padding: '20px',
                 }}
               >
-                {t('app.no_sessions')}
+                {sessions.length === 0
+                  ? t('app.no_sessions')
+                  : t('chat.session_search_no_result', { defaultValue: '无匹配会话' })}
               </div>
             ) : (
-              recentSessions.map((s) => {
+              visibleSessions.map((s) => {
                 const active = s.id === activeSessionId;
                 return (
                   <div
@@ -595,6 +665,28 @@ function ChatPanelWindow() {
                   </div>
                 );
               })
+            )}
+            {visibleSessions.length < filteredSessions.length && (
+              <button
+                onClick={() => setSessionPage((p) => p + 1)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  margin: '8px 0 4px',
+                  padding: '6px 0',
+                  border: 'none',
+                  borderRadius: '8px',
+                  background: 'var(--bg-hover)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                {t('chat.load_more_sessions', {
+                  defaultValue: '加载更多',
+                  count: filteredSessions.length - visibleSessions.length,
+                })}
+              </button>
             )}
           </div>
         </div>
