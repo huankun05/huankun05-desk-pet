@@ -256,6 +256,13 @@ export class LAppModel extends CubismUserModel {
     Promise.allSettled(tasks)
       .then(() => {
         this._state = LoadStep.LoadMotion;
+        if (!this._model) {
+          console.error('[Live2D] Model failed to initialize after asset loading');
+          if (this._onErrorCallback) {
+            this._onErrorCallback('模型初始化失败，请检查模型文件是否完整');
+          }
+          return;
+        }
         this._model.saveParameters();
         this._allMotionCount = 0;
         this._motionCount = 0;
