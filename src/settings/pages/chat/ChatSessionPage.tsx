@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section, SettingRow, Modal, useConfirm, useToast } from '../../components';
@@ -12,6 +12,75 @@ import {
 import { loadFavorites, saveFavorites } from '../../../components/Chat/MessageItem';
 
 type Favorite = ReturnType<typeof loadFavorites>[number];
+
+/** 自定义美化下拉框（替代原生 select，支持圆角/渐变/阴影统一样式） */
+function ScopeSelect({
+  value,
+  onChange,
+}: {
+  value: 'sessions' | 'all';
+  onChange: (v: 'sessions' | 'all') => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const options: { value: 'sessions' | 'all'; label: string }[] = [
+    { value: 'sessions', label: t('settings.chat.scope_sessions', { defaultValue: '仅删除会话' }) },
+    { value: 'all', label: t('settings.chat.scope_all', { defaultValue: '同时删除备份' }) },
+  ];
+  const current = options.find((o) => o.value === value)!;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-3 py-2 text-xs font-medium text-neutral-600 shadow-sm outline-none transition-all hover:border-neutral-300 focus:border-[var(--primary-400)] focus:ring-2 focus:ring-[var(--primary-100)]"
+      >
+        <span>{current.label}</span>
+        <Icon
+          icon="solar:alt-arrow-down-linear"
+          className={`text-sm text-neutral-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1.5 min-w-[160px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg shadow-black/8 backdrop-blur-sm">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`flex w-full cursor-pointer px-3.5 py-2 text-left text-xs font-medium transition-colors ${
+                opt.value === value
+                  ? 'bg-[var(--primary-50)] text-[var(--primary-600)]'
+                  : 'text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {opt.value === value && (
+                <Icon icon="solar:check-circle-bold" className="mr-2 text-sm text-[var(--primary-500)]" />
+              )}
+              {opt.value !== value && <span className="mr-5 inline-block w-4" />}
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function formatDate(ts: number | string): string {
   try {
@@ -352,18 +421,7 @@ export function ChatSessionPage() {
           })}
         >
           <div className="flex items-center gap-2">
-            <select
-              value={clearScope}
-              onChange={(e) => setClearScope(e.target.value as 'sessions' | 'all')}
-              className="cursor-pointer appearance-none rounded-xl border border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-3 py-2 text-xs font-medium text-neutral-600 shadow-sm outline-none transition-all focus:border-[var(--primary-400)] focus:ring-2 focus:ring-[var(--primary-100)]"
-            >
-              <option value="sessions">
-                {t('settings.chat.scope_sessions', { defaultValue: '仅删除会话' })}
-              </option>
-              <option value="all">
-                {t('settings.chat.scope_all', { defaultValue: '同时删除备份' })}
-              </option>
-            </select>
+            <ScopeSelect value={clearScope} onChange={setClearScope} />
             <button
               type="button"
               onClick={() => void handleClearSessions()}
@@ -384,9 +442,9 @@ export function ChatSessionPage() {
         maxWidth="max-w-2xl"
       >
         {viewingSession && (
-          <div className="flex flex-col" style={{ maxHeight: '60vh' }}>
+          <div className="flex flex-col" style={{ minHeight: '200px', maxHeight: '70vh' }}>
             {/* 顶部信息栏 */}
-            <div className="flex shrink-0 items-center border-b border-neutral-100 px-5 py-2.5">
+            <div className="flex shrink-0 items-center border-b border-neutral-100 px-5 py-3">
               <div className="flex items-center gap-2 text-xs text-neutral-400">
                 <Icon
                   icon="solar:chat-round-dots-bold-duotone"
