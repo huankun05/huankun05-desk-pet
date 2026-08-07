@@ -336,6 +336,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         session_id=engine.SESSION_ID,
         frontend_tools=frontend_tools,
         backend_tools=tool_executor.tool_definitions(),
+        executor=tool_executor,
     )
 
     result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)

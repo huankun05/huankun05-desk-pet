@@ -48,6 +48,7 @@ class ToolLoop:
         frontend_tools: list[dict[str, Any]] | None = None,
         backend_tools: list[dict[str, Any]] | None = None,
         max_iterations: int = MAX_TOOL_ITERATIONS,
+        executor: Any = None,
     ) -> None:
         self.ws = ws
         self.session_id = session_id
@@ -55,6 +56,7 @@ class ToolLoop:
         self.backend_tools = {t["name"]: t for t in (backend_tools or [])}
         self.max_iterations = max_iterations
         self._frontend_results: dict[str, ToolResult] = {}
+        self._executor = executor
 
     # ------------------------------------------------------------------
     # Public API
@@ -268,6 +270,13 @@ class ToolLoop:
         return results
 
     async def _execute_backend(self, call: ToolCall) -> ToolResult:
+        if self._executor is not None:
+            try:
+                content = await self._executor.execute(call.name, call.arguments)
+                return ToolResult(call.id, call.name, content, is_error=False)
+            except Exception as exc:
+                return ToolResult(call.id, call.name, str(exc), is_error=True)
+
         tool = self.backend_tools.get(call.name)
         if not tool:
             return ToolResult(call.id, call.name, f"Unknown backend tool: {call.name}", is_error=True)
