@@ -277,6 +277,9 @@ export function useWindowManager({
 
     const win = getCurrentWindow();
 
+    // Hide window during position restoration to avoid visible jump
+    win.hide().catch(() => {});
+
     const baseW = modelConfig.windowWidth;
     const actualCanvasW = modelInfo.canvasWidth;
     const actualCanvasH = modelInfo.canvasHeight;
@@ -313,7 +316,8 @@ export function useWindowManager({
           .catch((err) => console.warn('[WindowManager] setSize failed:', err));
         win
           .setPosition(new LogicalPosition(clamped.x, clamped.y))
-          .catch((err) => console.warn('[WindowManager] setPosition failed:', err));
+          .catch((err) => console.warn('[WindowManager] setPosition failed:', err))
+          .then(() => win.show().catch(() => {}));
 
         winMetricsRef.current = {
           pos: { x: clamped.x, y: clamped.y },
