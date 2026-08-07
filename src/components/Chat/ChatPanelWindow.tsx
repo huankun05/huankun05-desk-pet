@@ -764,6 +764,10 @@ function ChatPanelWindow() {
               sessionId={activeSessionId || undefined}
               ttsEnabled={ttsEnabled}
               onToggleTts={handleToggleTts}
+              gatewayReady={gatewayReady}
+              currentModel={currentModel}
+              contextUsed={contextUsed}
+              contextTotal={contextTotal}
             />
           </div>
 

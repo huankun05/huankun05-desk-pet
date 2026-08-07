@@ -79,6 +79,14 @@ interface ChatWindowProps {
   ttsEnabled?: boolean;
   onToggleTts?: () => void;
   onClose?: () => void;
+  /** Gateway 连接状态（供 /status 命令反馈） */
+  gatewayReady?: boolean;
+  /** 当前模型名（供 /status、/model 命令反馈） */
+  currentModel?: string;
+  /** 已用上下文 token 数（供 /status、/usage 命令反馈） */
+  contextUsed?: number;
+  /** 上下文 token 上限（供 /status、/usage 命令反馈） */
+  contextTotal?: number;
 }
 
 /** 输入区工具按钮 */
@@ -154,6 +162,10 @@ export const ChatWindow = memo(
       sessionId,
       ttsEnabled = true,
       onToggleTts,
+      gatewayReady = false,
+      currentModel,
+      contextUsed = 0,
+      contextTotal = 0,
     },
     ref,
   ) {
@@ -196,6 +208,23 @@ export const ChatWindow = memo(
       }
     });
 
+    // Slash 命令结果反馈（/status、/model、/usage、/retry 的可见出口）
+    const [notice, setNotice] = useState<{
+      kind: 'info' | 'success' | 'error';
+      text: string;
+    } | null>(null);
+    const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const showNotice = useCallback((kind: 'info' | 'success' | 'error', text: string) => {
+      setNotice({ kind, text });
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = setTimeout(() => setNotice(null), 4500);
+    }, []);
+    useEffect(() => {
+      return () => {
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      };
+    }, []);
+
     const {
       input: slashInput,
       setInput: setSlashInput,
@@ -205,11 +234,43 @@ export const ChatWindow = memo(
       reset: resetSlash,
     } = useSlashCommands({
       onNewChat: () => onNewChat?.(),
-      onRetry: () => {},
+      onRetry: () => {
+        const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+        if (!lastUser) {
+          showNotice('error', '当前没有可重试的用户消息');
+          return;
+        }
+        onSendMessage(lastUser.content);
+        showNotice('info', '已重发上一条用户消息');
+      },
       onStop: () => onCancelStream?.(),
-      onModelChange: () => {},
-      onStatus: () => {},
-      onUsage: () => {},
+      onModelChange: (model?: string) => {
+        const current = aiService.getConfig().model || '未知';
+        if (!model) {
+          showNotice('info', `当前模型：${current}`);
+          return;
+        }
+        try {
+          aiService.saveConfig({ model });
+          showNotice('success', `已切换模型 → ${model}`);
+        } catch (e) {
+          showNotice('error', `切换模型失败：${(e as Error)?.message ?? String(e)}`);
+        }
+      },
+      onStatus: () => {
+        const status = gatewayReady ? '已连接' : '未连接';
+        const model = currentModel || aiService.getConfig().model || '未知';
+        showNotice(
+          'info',
+          `Gateway：${status} · 模型：${model} · 上下文：${contextUsed}/${contextTotal}`,
+        );
+      },
+      onUsage: () => {
+        const total = contextTotal || 0;
+        const used = contextUsed || 0;
+        const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+        showNotice('info', `上下文用量：${used}/${total} tokens（${pct}%）`);
+      },
     });
 
     useEffect(() => {
@@ -492,6 +553,68 @@ export const ChatWindow = memo(
             flexShrink: 0,
           }}
         >
+          {/* Slash 命令结果反馈横幅 */}
+          {notice && (
+            <div
+              style={{
+                marginBottom: '8px',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background:
+                  notice.kind === 'success'
+                    ? 'rgba(34,197,94,0.15)'
+                    : notice.kind === 'error'
+                      ? 'rgba(239,68,68,0.15)'
+                      : 'var(--accent-soft)',
+                color:
+                  notice.kind === 'success'
+                    ? '#16a34a'
+                    : notice.kind === 'error'
+                      ? '#dc2626'
+                      : 'var(--accent)',
+                border: '1px solid',
+                borderColor:
+                  notice.kind === 'success'
+                    ? '#16a34a'
+                    : notice.kind === 'error'
+                      ? '#dc2626'
+                      : 'var(--accent)',
+              }}
+            >
+              <Icon
+                icon={
+                  notice.kind === 'success'
+                    ? 'solar:check-circle-linear'
+                    : notice.kind === 'error'
+                      ? 'solar:close-circle-linear'
+                      : 'solar:info-circle-linear'
+                }
+                width={14}
+                height={14}
+              />
+              <span style={{ flex: 1, minWidth: 0 }}>{notice.text}</span>
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* 引用预览 */}
           {quotedMessage && (
             <div
