@@ -51,10 +51,8 @@ export interface WindowManagerState {
   controlsEdge: 'left' | 'right' | 'none';
   isLocked: boolean;
   toggleLock: () => void;
-  isMoving: boolean;
-  toggleMove: () => void;
-  isZooming: boolean;
-  toggleZoom: () => void;
+  isTransforming: boolean;
+  toggleTransform: () => void;
   fadeOnHover: boolean;
   toggleFadeOnHover: () => void;
   isHovering: boolean;
@@ -79,8 +77,7 @@ export function useWindowManager({
   const [edgeSnap, setEdgeSnap] = useState(() => settingsStorage.get().edgeSnap);
   const [controlsEdge, setControlsEdge] = useState<'left' | 'right' | 'none'>('none');
   const [isLocked, setIsLocked] = useState(true);
-  const [isMoving, setIsMoving] = useState(false);
-  const [isZooming, setIsZooming] = useState(false);
+  const [isTransforming, setIsTransforming] = useState(false);
   const [fadeOnHover, setFadeOnHover] = useState(true);
   const [isHovering, setIsHovering] = useState(false);
   const [isTop, setIsTop] = useState(false);
@@ -348,11 +345,11 @@ export function useWindowManager({
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isZooming) setIsZooming(false);
+      if (e.key === 'Escape' && isTransforming) setIsTransforming(false);
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [isZooming]);
+  }, [isTransforming]);
 
   useEffect(() => {
     if (!isTauriEnv()) return;
@@ -523,8 +520,7 @@ export function useWindowManager({
       log.info('toggle-lock event received, locked:', newLocked);
       setIsLocked(newLocked);
       if (!newLocked) {
-        setIsMoving(false);
-        setIsZooming(false);
+        setIsTransforming(false);
       }
     })
       .then((fn) => {
@@ -559,15 +555,8 @@ export function useWindowManager({
     }
   }, [isTop]);
 
-  const handleMove = useCallback(() => {
-    setIsMoving((p) => {
-      if (!p) setIsLocked(false);
-      return !p;
-    });
-  }, []);
-
-  const handleToggleZoom = useCallback(() => {
-    setIsZooming((p) => {
+  const handleToggleTransform = useCallback(() => {
+    setIsTransforming((p) => {
       if (!p) setIsLocked(false);
       return !p;
     });
@@ -577,8 +566,7 @@ export function useWindowManager({
     setIsLocked((p) => {
       const newLocked = !p;
       if (newLocked) {
-        setIsMoving(false);
-        setIsZooming(false);
+        setIsTransforming(false);
       }
       // 同步状态到 Rust 侧
       if (isTauriEnv()) {
@@ -594,11 +582,11 @@ export function useWindowManager({
 
   const _handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      if (!isZooming) return;
+      if (!isTransforming) return;
       e.preventDefault();
       setPetScale((p) => Math.min(2, Math.max(0.2, p + (e.deltaY > 0 ? -0.05 : 0.05))));
     },
-    [isZooming],
+    [isTransforming],
   );
 
   return {
@@ -609,10 +597,8 @@ export function useWindowManager({
     controlsEdge,
     isLocked,
     toggleLock: handleToggleLock,
-    isMoving,
-    toggleMove: handleMove,
-    isZooming,
-    toggleZoom: handleToggleZoom,
+    isTransforming,
+    toggleTransform: handleToggleTransform,
     fadeOnHover,
     toggleFadeOnHover: handleToggleFadeOnHover,
     isHovering,

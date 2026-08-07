@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -11,6 +12,7 @@ import { useInteraction } from './hooks/useInteraction';
 import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
 import { useEmotion, DEFAULT_PERSONALITY, type EmotionState } from './hooks/useEmotion';
 import { useWindowManager } from './hooks/useWindowManager';
+import { useMode } from './hooks/useMode';
 import { useHermesGateway } from './hooks/useHermesGateway';
 import { useRagPersistence } from './hooks/useRagPersistence';
 import { useVoiceInteraction } from './hooks/useVoiceInteraction';
@@ -42,6 +44,7 @@ import { useBrainBridge } from './hooks/useBrainBridge';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
+import { showToast } from './utils/toast';
 import { setLogLevel as setGlobalLogLevel } from './utils/logger';
 import { startWatchdog, registerService } from './services/provider/watchdog';
 import { IDLE_THRESHOLDS } from './services/idle/constants';
@@ -172,10 +175,8 @@ function MainPetApp() {
     controlsEdge,
     isLocked,
     toggleLock,
-    isMoving,
-    toggleMove,
-    isZooming,
-    toggleZoom,
+    isTransforming,
+    toggleTransform,
     fadeOnHover,
     toggleFadeOnHover,
     isHovering,
@@ -186,6 +187,20 @@ function MainPetApp() {
     modelInfo,
     controlsIslandRef,
   });
+
+  const { t } = useTranslation();
+  const { mode, toggleMode } = useMode();
+
+  const handleToggleMode = useCallback(() => {
+    const next = mode === 'chat' ? 'work' : 'chat';
+    toggleMode();
+    showToast(
+      next === 'work'
+        ? t('settings.chat.switch_to_work', { defaultValue: '已切换到工作模式' })
+        : t('settings.chat.switch_to_chat', { defaultValue: '已切换到聊天模式' }),
+      'success',
+    );
+  }, [mode, toggleMode, t]);
 
   const showBubble = useCallback((text: string, duration?: number) => {
     const raw = localStorage.getItem(APPEARANCE_KEYS.bubbleDuration);
@@ -430,11 +445,11 @@ function MainPetApp() {
 
   const handlePetClick = useCallback(
     (adjustedY: number) => {
-      if (isLocked || isMoving || isZooming) return;
+      if (isLocked || isTransforming) return;
       if (!appearance.clickFeedback) return;
       handleCanvasClick(adjustedY);
     },
-    [isLocked, isMoving, isZooming, appearance.clickFeedback, handleCanvasClick],
+    [isLocked, isTransforming, appearance.clickFeedback, handleCanvasClick],
   );
 
   useEffect(() => {
@@ -697,7 +712,7 @@ function MainPetApp() {
 
   const handlePetMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (!isMoving) return;
+      if (!isTransforming) return;
       const t = e.target as HTMLElement;
       if (
         ['BUTTON', 'INPUT', 'TEXTAREA'].includes(t.tagName) ||
@@ -713,7 +728,7 @@ function MainPetApp() {
         /* ignore */
       }
     },
-    [isMoving, appearance.dragEnabled],
+    [isTransforming, appearance.dragEnabled],
   );
 
   const handleClose = useCallback(async () => {
@@ -740,11 +755,11 @@ function MainPetApp() {
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      if (!isZooming) return;
+      if (!isTransforming) return;
       e.preventDefault();
       setPetScale((p) => Math.min(2, Math.max(0.2, p + (e.deltaY > 0 ? -0.05 : 0.05))));
     },
-    [isZooming, setPetScale],
+    [isTransforming, setPetScale],
   );
 
   const live2dEmotion = getLive2DEmotion(emotionState.emotion);
@@ -788,7 +803,7 @@ function MainPetApp() {
       </div>
 
       <div
-        className={`pet-zone ${isLocked ? 'locked' : ''} ${isMoving ? 'moving' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}
+        className={`pet-zone ${isLocked ? 'locked' : ''} ${isTransforming ? 'moving' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}
         onMouseDown={handlePetMouseDown}
         onMouseEnter={() => !isLocked && setIsHovering(true)}
         onMouseLeave={() => !isLocked && setIsHovering(false)}
@@ -830,11 +845,11 @@ function MainPetApp() {
         onRefresh={handleRefresh}
         onToggleLock={toggleLock}
         onToggleFade={toggleFadeOnHover}
-        onToggleMove={toggleMove}
-        onToggleZoom={toggleZoom}
+        onToggleTransform={toggleTransform}
+        onToggleMode={handleToggleMode}
         onExit={handleClose}
-        isMoving={isMoving}
-        isZooming={isZooming}
+        isTransforming={isTransforming}
+        currentMode={mode}
         isLocked={isLocked}
         fadeOnHover={fadeOnHover}
         availableModels={availableModels}

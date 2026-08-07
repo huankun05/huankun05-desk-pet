@@ -22,11 +22,11 @@ interface ControlsIslandProps {
   onRefresh: () => void;
   onToggleLock: () => void;
   onToggleFade: () => void;
-  onToggleMove: () => void;
-  onToggleZoom: () => void;
+  onToggleTransform: () => void;
+  onToggleMode: () => void;
   onExit: () => void;
-  isMoving: boolean;
-  isZooming: boolean;
+  isTransforming: boolean;
+  currentMode: 'chat' | 'work';
   isLocked: boolean;
   fadeOnHover: boolean;
   availableModels?: ModelOption[];
@@ -39,8 +39,8 @@ const buttons = [
   { icon: 'solar:settings-linear', label: 'settings' },
   { icon: 'solar:chat-round-dots-linear', label: 'chat' },
   { icon: 'solar:refresh-circle-linear', label: 'refresh' },
-  { icon: 'lucide:move', label: 'move' },
-  { icon: 'lucide:scan', label: 'scale' },
+  { icon: 'lucide:move', label: 'transform' },
+  { icon: 'solar:code-linear', label: 'mode' },
   { icon: 'solar:users-group-rounded-linear', label: 'model' },
   { icon: 'solar:eye-bold', label: 'fade' },
   { icon: 'solar:lock-keyhole-linear', label: 'lock' },
@@ -209,7 +209,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
 
     const handleMainBtnMouseDown = useCallback(
       (e: React.MouseEvent) => {
-        if (!props.isMoving) return;
+        if (!props.isTransforming) return;
         if (!isTauriEnv()) return;
 
         dragStateRef.current = {
@@ -244,7 +244,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
           document.removeEventListener('mouseup', handleMouseUp);
         };
       },
-      [props.isMoving, startWindowDrag],
+      [props.isTransforming, startWindowDrag],
     );
 
     useEffect(() => {
@@ -280,11 +280,11 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
         case 'refresh':
           props.onRefresh();
           break;
-        case 'move':
-          props.onToggleMove();
+        case 'transform':
+          props.onToggleTransform();
           break;
-        case 'scale':
-          props.onToggleZoom();
+        case 'mode':
+          props.onToggleMode();
           break;
         case 'model':
           setShowModelPicker((v) => !v);
@@ -302,8 +302,8 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
     };
 
     const activeMap: Record<string, boolean> = {
-      move: props.isMoving,
-      scale: props.isZooming,
+      transform: props.isTransforming,
+      mode: props.currentMode === 'work',
       model: showModelPicker,
       fade: props.fadeOnHover,
       lock: props.isLocked,
@@ -322,7 +322,11 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
             ? props.isLocked
               ? 'solar:lock-keyhole-linear'
               : 'solar:lock-keyhole-unlocked-linear'
-            : b.icon,
+            : b.label === 'mode'
+              ? props.currentMode === 'work'
+                ? 'solar:code-linear'
+                : 'solar:chat-line-linear'
+              : b.icon,
     }));
 
     const modelPicker = showModelPicker &&
@@ -455,7 +459,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
               background: props.isLocked ? COLORS.dangerBg : COLORS.bg,
               backdropFilter: 'blur(12px)',
               color: props.isLocked ? COLORS.danger : COLORS.text,
-              cursor: props.isMoving ? 'grab' : 'pointer',
+              cursor: props.isTransforming ? 'grab' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -563,7 +567,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
               background: props.isLocked ? COLORS.dangerBg : COLORS.bg,
               backdropFilter: 'blur(12px)',
               color: props.isLocked ? COLORS.danger : COLORS.text,
-              cursor: props.isMoving ? 'grab' : 'pointer',
+              cursor: props.isTransforming ? 'grab' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
