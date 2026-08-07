@@ -135,7 +135,14 @@ export function usePetModel(): PetModelState {
     };
   });
   const [modelInfo, setModelInfo] = useState<{ canvasWidth: number; canvasHeight: number } | null>(
-    null,
+    () => {
+      // 启动时先用缓存/默认尺寸定位窗口，避免等模型加载完再跳
+      const cached = loadCachedModelConfig();
+      if (cached) {
+        return { canvasWidth: cached.canvasWidth ?? 550, canvasHeight: cached.canvasHeight ?? 700 };
+      }
+      return { canvasWidth: 550, canvasHeight: 700 };
+    },
   );
   const initializedRef = useRef(false);
 

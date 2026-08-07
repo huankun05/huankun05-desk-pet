@@ -93,6 +93,7 @@ export function useWindowManager({
     height: number;
   } | null>(null);
   const initialPosRestoredRef = useRef(false);
+  const windowShownRef = useRef(false);
   const fadeOnHoverRef = useRef(fadeOnHover);
 
   useEffect(() => {
@@ -317,7 +318,12 @@ export function useWindowManager({
         win
           .setPosition(new LogicalPosition(clamped.x, clamped.y))
           .catch((err) => console.warn('[WindowManager] setPosition failed:', err))
-          .then(() => win.show().catch(() => {}));
+          .then(() => {
+            if (!windowShownRef.current) {
+              windowShownRef.current = true;
+              return win.show().catch(() => {});
+            }
+          });
 
         winMetricsRef.current = {
           pos: { x: clamped.x, y: clamped.y },
