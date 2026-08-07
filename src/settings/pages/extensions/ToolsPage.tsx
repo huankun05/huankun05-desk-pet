@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '@iconify/react';
 import { Section, SettingRow } from '../../components';
 import { useToast } from '../../components';
 import { toolRegistry } from '../../../services/tools/registry';
+import { registerBuiltinTools } from '../../../services/tools/builtins';
 import { getAllServerStatuses } from '../../../services/mcp/manager';
 import { fetchModeTools, type ModeToolsInfo } from '../../../services/gatewayApi';
 import {
@@ -73,6 +75,11 @@ export function ToolsPage() {
   }, [modeTools]);
 
   useEffect(() => {
+    // 设置窗口是独立 webview，需要自行注册内置工具（主窗口已在 MainPetApp 里注册过）
+    registerBuiltinTools();
+  }, []);
+
+  useEffect(() => {
     fetchModeTools()
       .then((r) => {
         setModeTools(r);
@@ -109,14 +116,14 @@ export function ToolsPage() {
   };
 
   return (
-    <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
+    <div className="p-5 animate-[fade-in-up_0.3s_ease-out]">
       <Section
         title={t('settings.tools.title', { defaultValue: '工具管理' })}
         description={t('settings.tools.desc', {
           defaultValue: '查看、启用或禁用可供模型调用的工具；禁用后将在下次对话生效。',
         })}
       >
-        <p className="px-4 pb-2 text-xs text-neutral-500">
+        <p className="px-4 pb-3 text-xs text-neutral-500 leading-relaxed">
           {t('settings.tools.hint', {
             defaultValue:
               '前端工具在桌面侧执行（截图/文件等），后端工具在 Gateway 进程内执行，MCP 工具来自外部服务器。',
@@ -124,34 +131,38 @@ export function ToolsPage() {
         </p>
 
         {(['frontend', 'backend', 'mcp'] as const).map((src) => (
-          <div key={src} className="px-4 pb-2">
-            <p className="mb-1.5 text-xs font-semibold text-neutral-600">
+          <div key={src} className="px-4 pb-4">
+            <p className="mb-2 text-sm font-semibold text-neutral-700">
               {SOURCE_LABEL[src]}
-              <span className="ml-1 text-neutral-400">（{grouped[src].length}）</span>
+              <span className="ml-1.5 text-neutral-400">（{grouped[src].length}）</span>
             </p>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {grouped[src].length === 0 && (
-                <p className="text-xs text-neutral-400">
+                <div className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2.5 text-xs text-neutral-400">
+                  <Icon
+                    icon="solar:close-circle-bold-duotone"
+                    className="h-4 w-4 text-neutral-300"
+                  />
                   {src === 'mcp'
                     ? t('settings.tools.mcp_empty', {
                         defaultValue: '暂无 MCP 工具，可在「MCP」中连接服务器',
                       })
-                    : t('settings.tools.none', { defaultValue: '无' })}
-                </p>
+                    : t('settings.tools.none', { defaultValue: '暂无工具' })}
+                </div>
               )}
               {grouped[src].map((tool) => (
                 <div
                   key={`${src}-${tool.name}`}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2"
+                  className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-neutral-800">{tool.name}</span>
+                      <span className="text-sm font-semibold text-neutral-800">{tool.name}</span>
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
                           tool.disabled
-                            ? 'bg-neutral-200 text-neutral-500'
-                            : 'bg-emerald-100 text-emerald-700'
+                            ? 'bg-neutral-100 text-neutral-500'
+                            : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                         }`}
                       >
                         {tool.disabled
@@ -159,22 +170,24 @@ export function ToolsPage() {
                           : t('settings.tools.on', { defaultValue: '启用' })}
                       </span>
                     </div>
-                    <p className="truncate text-xs text-neutral-500">{tool.description}</p>
-                    <div className="mt-1 flex gap-1">
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-neutral-500">
+                      {tool.description}
+                    </p>
+                    <div className="mt-1.5 flex gap-1.5">
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`rounded-md px-2 py-0.5 text-[11px] ${
                           tool.chat
-                            ? 'bg-pink-100 text-pink-700'
-                            : 'bg-neutral-100 text-neutral-400 line-through'
+                            ? 'bg-pink-50 text-pink-600 border border-pink-200'
+                            : 'bg-neutral-50 text-neutral-400 line-through'
                         }`}
                       >
                         聊天
                       </span>
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`rounded-md px-2 py-0.5 text-[11px] ${
                           tool.work
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-neutral-100 text-neutral-400 line-through'
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                            : 'bg-neutral-50 text-neutral-400 line-through'
                         }`}
                       >
                         工作
@@ -184,9 +197,9 @@ export function ToolsPage() {
                   <button
                     type="button"
                     onClick={() => toggle(tool.name)}
-                    className={`ml-3 shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                    className={`ml-4 shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                       tool.disabled
-                        ? 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                        ? 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800'
                         : 'bg-[var(--primary-500)] text-white hover:opacity-90'
                     }`}
                   >

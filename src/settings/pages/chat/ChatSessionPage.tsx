@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
-import { Section, SettingRow, useConfirm, useToast } from '../../components';
+import { Section, SettingRow, Modal, useConfirm, useToast } from '../../components';
 import {
   deleteSession,
   initChatStorage,
@@ -43,6 +43,13 @@ export function ChatSessionPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [loading, setLoading] = useState(true);
+  /** 查看会话详情的弹窗状态 */
+  const [viewingSession, setViewingSession] = useState<ChatSession | null>(null);
+  /** 清空确认增强：是否同时删除备份文件 */
+  const [clearOptions, setClearOptions] = useState<{ open: boolean; deleteBackups: boolean }>({
+    open: false,
+    deleteBackups: false,
+  });
 
   const refresh = useCallback(() => {
     setSessions(listSessions());
@@ -79,15 +86,37 @@ export function ChatSessionPage() {
   };
 
   const handleClearSessions = async () => {
+    // 第一步：弹出选项面板（是否同时删除备份）
+    setClearOptions({ open: true, deleteBackups: false });
+  };
+
+  const confirmClearSessions = async () => {
     const ok = await confirm({
       title: t('settings.chat.clear_all', { defaultValue: '清空全部会话' }),
-      message: t('settings.chat.clear_all_confirm', {
-        defaultValue: '将删除全部聊天记录，且无法恢复。确定继续吗？',
-      }),
+      message: clearOptions.deleteBackups
+        ? t('settings.chat.clear_all_confirm_with_backup', {
+            defaultValue: '将删除全部聊天记录**以及所有本地备份文件**，且无法恢复。确定继续吗？',
+          })
+        : t('settings.chat.clear_all_confirm', {
+            defaultValue: '将删除全部聊天记录，且无法恢复。确定继续吗？',
+          }),
       danger: true,
     });
-    if (!ok) return;
+    if (!ok) {
+      setClearOptions((prev) => ({ ...prev, open: false }));
+      return;
+    }
     for (const s of listSessions()) deleteSession(s.id);
+    // 如果选择了同时删除备份，尝试删除备份目录
+    if (clearOptions.deleteBackups) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('delete_backup_files');
+      } catch {
+        /* 备份删除失败不阻断主流程 */
+      }
+    }
+    setClearOptions({ open: false, deleteBackups: false });
     refresh();
     showToast(t('settings.chat.cleared', { defaultValue: '已清空' }), 'success');
   };
@@ -177,17 +206,18 @@ export function ChatSessionPage() {
             </p>
           </div>
         ) : (
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto rounded-xl border border-neutral-200">
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="group flex items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0 hover:bg-neutral-50"
+                onClick={() => setViewingSession(session)}
+                className="group flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-4 py-3.5 last:border-b-0 hover:bg-neutral-50 active:bg-neutral-100"
               >
                 <Icon
                   icon="solar:chat-round-dots-bold-duotone"
-                  className="shrink-0 text-lg text-neutral-300"
+                  className="shrink-0 text-xl text-neutral-300 group-hover:text-neutral-400 transition-colors"
                 />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
                   {renamingId === session.id ? (
                     <input
                       autoFocus
@@ -201,19 +231,33 @@ export function ChatSessionPage() {
                       className="w-full rounded border border-[var(--primary-300)] px-2 py-1 text-sm outline-none"
                     />
                   ) : (
-                    <div className="truncate text-sm font-medium text-neutral-800">
-                      {session.title}
-                    </div>
+                    <>
+                      <div className="truncate text-sm font-medium text-neutral-800 group-hover:text-neutral-900">
+                        {session.title}
+                      </div>
+                      <div className="mt-0.5 text-xs text-neutral-400">
+                        {t('settings.chat.session_meta', {
+                          defaultValue: '{{msgCount}} 条消息 · {{time}}',
+                          msgCount: session.messages.length,
+                          time: formatDate(session.updatedAt),
+                        })}
+                      </div>
+                    </>
                   )}
-                  <div className="mt-0.5 text-xs text-neutral-400">
-                    {t('settings.chat.session_meta', {
-                      defaultValue: '{{msgCount}} 条消息 · {{time}}',
-                      msgCount: session.messages.length,
-                      time: formatDate(session.updatedAt),
-                    })}
-                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                {/* 查看按钮 */}
+                <button
+                  type="button"
+                  title={t('settings.chat.view_detail', { defaultValue: '查看对话' })}
+                  onClick={() => setViewingSession(session)}
+                  className="shrink-0 rounded p-1.5 text-neutral-400 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-500 group-hover:opacity-100"
+                >
+                  <Icon icon="solar:eye-bold-duotone" className="text-base" />
+                </button>
+                <div
+                  className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     type="button"
                     title={t('settings.chat.rename', { defaultValue: '重命名' })}
@@ -316,7 +360,7 @@ export function ChatSessionPage() {
         <SettingRow
           title={t('settings.chat.clear_all', { defaultValue: '清空全部会话' })}
           description={t('settings.chat.clear_all_row_desc', {
-            defaultValue: '删除所有聊天记录，包括本地文件备份',
+            defaultValue: '删除所有聊天记录，可选择是否同时删除备份文件',
           })}
         >
           <button
@@ -329,6 +373,121 @@ export function ChatSessionPage() {
           </button>
         </SettingRow>
       </Section>
+
+      {/* ===== 会话详情查看器 ===== */}
+      <Modal
+        isOpen={viewingSession !== null}
+        onClose={() => setViewingSession(null)}
+        title={viewingSession?.title ?? ''}
+        maxWidth="max-w-2xl"
+      >
+        {viewingSession && (
+          <div className="max-h-[60vh] overflow-y-auto">
+            <div className="space-y-3 px-1 pb-2">
+              {viewingSession.messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-[var(--primary-500)] text-white'
+                        : msg.role === 'assistant'
+                          ? 'bg-neutral-100 text-neutral-800'
+                          : 'bg-neutral-50 text-neutral-500 italic text-xs'
+                    }`}
+                  >
+                    {msg.role === 'system' ? (
+                      <span className="text-xs text-neutral-400">[系统消息]</span>
+                    ) : (
+                      <>
+                        {typeof msg.content === 'string' ? (
+                          <pre className="whitespace-pre-wrap break-words font-sans">
+                            {msg.content}
+                          </pre>
+                        ) : (
+                          <div className="space-y-1">
+                            {Array.isArray(msg.content)
+                              ? (msg.content as unknown[]).map((c, i) => (
+                                  <div key={i}>{String(c)}</div>
+                                ))
+                              : String(msg.content)}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 border-t border-neutral-100 pt-2 text-center text-xs text-neutral-400">
+              {t('settings.chat.session_detail_footer', {
+                defaultValue: '{{count}} 条消息 · {{time}}',
+                count: viewingSession.messages.length,
+                time: formatDate(viewingSession.updatedAt),
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ===== 清空选项面板（是否删除备份）===== */}
+      <Modal
+        isOpen={clearOptions.open}
+        onClose={() => setClearOptions((prev) => ({ ...prev, open: false }))}
+        title={t('settings.chat.clear_options_title', { defaultValue: '清空选项' })}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setClearOptions((prev) => ({ ...prev, open: false }))}
+              className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmClearSessions()}
+              className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
+            >
+              {t('settings.chat.confirm_clear', { defaultValue: '确认清空' })}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-neutral-600">
+            {t('settings.chat.clear_options_desc', {
+              defaultValue: '选择清空范围后点击「确认清空」执行操作：',
+            })}
+          </p>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-red-200 bg-red-50/50 p-3 transition-colors hover:bg-red-50">
+            <input
+              type="checkbox"
+              checked={clearOptions.deleteBackups}
+              onChange={(e) =>
+                setClearOptions((prev) => ({ ...prev, deleteBackups: e.target.checked }))
+              }
+              className="mt-0.5 h-4 w-4 rounded border-red-300 text-red-500 focus:ring-red-200"
+            />
+            <div>
+              <div className="text-sm font-medium text-red-700">
+                {t('settings.chat.delete_backups_label', {
+                  defaultValue: '同时删除本地备份文件',
+                })}
+              </div>
+              <div className="mt-0.5 text-xs text-red-500/80">
+                {t('settings.chat.delete_backups_desc', {
+                  defaultValue:
+                    '勾选后将一并删除 data/backups/ 下的所有备份文件，释放磁盘空间。此操作不可恢复。',
+                })}
+              </div>
+            </div>
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }

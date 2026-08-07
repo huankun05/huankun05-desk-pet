@@ -37,17 +37,35 @@ export function PluginMarketPage() {
     preset: RegistryMcpPreset;
     values: Record<string, string>;
   } | null>(null);
+  /** 网络不可达 / 加载失败的错误信息 */
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   const loadRegistry = useCallback(async () => {
     setLoading(true);
+    setNetworkError(null);
     try {
       const data = await fetchRegistry();
       setRegistry(data);
-      // 并行获取统计数据
-      const pluginStats = await fetchAllStats(data.plugins);
-      setStats(pluginStats);
+      // 并行获取统计数据（失败时静默降级，不阻塞主流程）
+      try {
+        const pluginStats = await fetchAllStats(data.plugins);
+        setStats(pluginStats);
+      } catch {
+        /* stats 降级为空，不影响插件列表展示 */
+      }
     } catch (err) {
-      showToast(t('settings.market.load_failed', { error: String(err) }), 'error');
+      const msg = err instanceof Error ? err.message : String(err);
+      const isAbort = err instanceof DOMException && err.name === 'AbortError';
+      const userMsg = isAbort
+        ? t('settings.market.network_error', {
+            defaultValue: '网络连接超时或不可达，无法加载插件市场',
+          })
+        : t('settings.market.load_failed', { error: msg });
+      setNetworkError(userMsg);
+      // 仅在非 AbortError 时弹 toast（超时不刷屏）
+      if (!isAbort) {
+        showToast(userMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -288,6 +306,24 @@ export function PluginMarketPage() {
               <Icon icon="solar:refresh-circle-bold-duotone" className="h-8 w-8 animate-spin" />
               <span className="mt-2 text-sm">{t('settings.market.loading')}</span>
             </div>
+          ) : networkError ? (
+            <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+              <Icon
+                icon="solar:wi-fi-router-off-bold-duotone"
+                className="mb-3 h-10 w-10 text-neutral-300"
+              />
+              <span className="text-sm font-medium text-neutral-600">{networkError}</span>
+              <p className="mt-1 text-xs text-neutral-400">
+                {t('settings.market.network_hint', { defaultValue: '请检查网络连接后点击重试' })}
+              </p>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+              >
+                {t('settings.market.retry', { defaultValue: '重新加载' })}
+              </button>
+            </div>
           ) : filteredPlugins.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
               <Icon icon="solar:box-bold-duotone" className="mb-2 h-10 w-10" />
@@ -428,6 +464,21 @@ export function PluginMarketPage() {
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
               <Icon icon="solar:refresh-circle-bold-duotone" className="h-8 w-8 animate-spin" />
               <span className="mt-2 text-sm">{t('settings.market.loading')}</span>
+            </div>
+          ) : networkError ? (
+            <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+              <Icon
+                icon="solar:wi-fi-router-off-bold-duotone"
+                className="mb-3 h-10 w-10 text-neutral-300"
+              />
+              <span className="text-sm font-medium text-neutral-600">{networkError}</span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+              >
+                {t('settings.market.retry', { defaultValue: '重新加载' })}
+              </button>
             </div>
           ) : filteredPresets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
