@@ -144,6 +144,8 @@
       "clear_favorites": "Clear starred",
       "clear_favorites_confirm": "This removes all starred messages (original chat history is kept). Continue?",
       "clear_favorites_row_desc": "Only removes the star mark, chat history is untouched",
+      "copy": "Copy",
+      "copied": "Copied",
       "cleared": "Cleared",
       "color_desc": "Light/dark scheme and accent color of the chat window",
       "color_title": "Colors",

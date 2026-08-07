@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { parseThinkTags } from '../../utils/thinkTagParser';
 import { ChatAvatar } from './ChatAvatar';
+import { ToolCallBlock } from './ToolCallBlock';
+import { showToast } from '../../utils/toast';
 
 export interface ToolCallEntry {
   name: string;
   input: unknown;
   output: unknown;
+  status?: 'running' | 'success' | 'error';
 }
 
 export interface ChatMessage {
@@ -265,6 +268,8 @@ export function MessageItem({
 }: MessageItemProps) {
   const isUser = message.role === 'user';
   const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const isTouchRef = useRef(false);
   const [fav, setFav] = useState(() => (sessionId ? isFavorite(message.id, sessionId) : false));
 
   const ts =
@@ -273,13 +278,12 @@ export function MessageItem({
       : message.timestamp;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    const toast = document.createElement('div');
-    toast.textContent = '已复制';
-    toast.style.cssText =
-      'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:6px 16px;border-radius:6px;font-size:13px;z-index:9999;';
-    document.body.appendChild(toast);
-    setTimeout(() => document.body.removeChild(toast), 1500);
+    try {
+      await navigator.clipboard.writeText(message.content);
+      showToast('已复制', 'success');
+    } catch {
+      showToast('复制失败', 'error');
+    }
   };
 
   const handleFavorite = () => {
@@ -301,6 +305,13 @@ export function MessageItem({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onTouchStart={() => {
+        isTouchRef.current = true;
+      }}
+      onClick={() => {
+        // 触屏设备无 hover：点按消息切换操作栏显隐
+        if (isTouchRef.current) setPinned((p) => !p);
+      }}
       style={{
         display: 'flex',
         flexDirection: isUser ? 'row-reverse' : 'row',
@@ -377,7 +388,18 @@ export function MessageItem({
           <Attachments attachments={message.attachments} />
         </div>
 
-        {/* 时间：固定高度占位，hover 才显示，避免抖动 */}
+        {/* 工具调用：内联到所属消息，可折叠 */}
+        {message.toolCalls?.map((call, i) => (
+          <ToolCallBlock
+            key={`tc-${message.id}-${i}`}
+            name={call.name}
+            input={call.input}
+            output={call.output}
+            status={call.status ?? 'success'}
+          />
+        ))}
+
+        {/* 时间：固定高度占位，hover/触屏钉选才显示，避免抖动 */}
         <div
           style={{
             height: '14px',
@@ -386,7 +408,7 @@ export function MessageItem({
             fontSize: '10px',
             lineHeight: '14px',
             color: 'var(--text-muted)',
-            opacity: hovered ? 1 : 0,
+            opacity: hovered || pinned ? 1 : 0,
             transition: 'opacity 0.15s',
           }}
         >
@@ -394,9 +416,10 @@ export function MessageItem({
         </div>
       </div>
 
-      {/* 操作栏：绝对定位浮在气泡上方 */}
-      {hovered && (
+      {/* 操作栏：绝对定位浮在气泡上方；鼠标 hover 或触屏点按钉选时显示 */}
+      {(hovered || pinned) && (
         <div
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
             top: '-2px',
@@ -453,6 +476,21 @@ export function MessageItem({
           >
             <Icon icon={fav ? 'solar:star-bold' : 'solar:star-linear'} width={15} height={15} />
           </button>
+          {pinned && (
+            <button
+              onClick={() => setPinned(false)}
+              title="收起"
+              style={hoverBtn()}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Icon icon="solar:close-circle-linear" width={15} height={15} />
+            </button>
+          )}
           {onRetry && (
             <button
               onClick={onRetry}

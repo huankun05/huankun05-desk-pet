@@ -6,6 +6,7 @@ import { ChatWindow, type ChatWindowHandle, type Message } from './ChatWindow';
 import { ChatAvatar } from './ChatAvatar';
 import { useChatAppearance } from './useChatAppearance';
 import { SlashHelpOverlay } from './SlashHelpOverlay';
+import { FavoritesDrawer } from './FavoritesDrawer';
 import './chat-theme.css';
 import { AudioRecorder } from '../../services/audio/recorder';
 import {
@@ -108,6 +109,7 @@ function ChatPanelWindow() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showSessionList, setShowSessionList] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
 
   // 初始化 Slash 命令列表
   useEffect(() => {
@@ -703,6 +705,12 @@ function ChatPanelWindow() {
             onClick={() => setShowSessionList((p) => !p)}
           />
           <BarButton
+            icon="solar:star-linear"
+            title={t('chat.favorites_title')}
+            active={showFavorites}
+            onClick={() => setShowFavorites((p) => !p)}
+          />
+          <BarButton
             icon="solar:add-circle-linear"
             title={t('chat.new_chat')}
             onClick={handleNewChat}
@@ -869,6 +877,13 @@ function ChatPanelWindow() {
         visible={showSlashHelp}
         onClose={() => setShowSlashHelp(false)}
         onSelect={() => setShowSlashHelp(false)}
+      />
+
+      {/* 收藏查看抽屉 */}
+      <FavoritesDrawer
+        open={showFavorites}
+        onClose={() => setShowFavorites(false)}
+        sessionId={activeSessionId || undefined}
       />
     </div>
   );

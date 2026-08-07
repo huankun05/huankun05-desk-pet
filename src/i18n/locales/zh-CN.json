@@ -144,6 +144,8 @@
       "clear_favorites": "清空收藏",
       "clear_favorites_confirm": "将移除全部收藏的消息（不会删除原始聊天记录）。确定继续吗？",
       "clear_favorites_row_desc": "仅移除收藏标记，不影响聊天记录",
+      "copy": "复制",
+      "copied": "已复制",
       "cleared": "已清空",
       "color_desc": "聊天窗口的深浅配色与主色",
       "color_title": "配色",

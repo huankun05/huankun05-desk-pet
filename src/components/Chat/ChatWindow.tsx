@@ -6,11 +6,11 @@ import {
   useCallback,
   forwardRef,
   useImperativeHandle,
+  Fragment,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { MessageItem } from './MessageItem';
-import { ToolCallBlock } from './ToolCallBlock';
 import { aiService } from '../../services/ai';
 import { openSettingsAt } from '../../utils/openSettings';
 import { useSlashCommands } from '../../hooks/useSlashCommands';
@@ -48,6 +48,24 @@ export interface Message {
 /** 命令式句柄：供父组件（如面板窗 STT）向输入框回填草稿文本 */
 export interface ChatWindowHandle {
   setDraft: (text: string) => void;
+}
+
+/** 日期分隔：今天 / 昨天 / 年月日 */
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatDateLabel(d: Date): string {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(d, now)) return '今天';
+  if (isSameDay(d, yesterday)) return '昨天';
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 interface ChatWindowProps {
@@ -494,32 +512,47 @@ export const ChatWindow = memo(
             </div>
           )}
 
-          {messages.map((message) => (
-            <MessageItem
-              key={message.id}
-              message={{
-                ...message,
-                role: message.role as 'user' | 'assistant' | 'system',
-                isStreaming: isStreaming && message === messages[messages.length - 1],
-              }}
-              onRetry={() => onSendMessage(message.content)}
-              onQuote={handleQuote}
-              sessionId={sessionId}
-              appearance={messageAppearance}
-            />
-          ))}
-
-          {/* 工具调用展示（最近一条 assistant 消息的工具调用） */}
-          {messages.length > 0 &&
-            messages[messages.length - 1].toolCalls?.map((call, i) => (
-              <ToolCallBlock
-                key={`tool-${i}`}
-                name={call.name}
-                input={call.input}
-                output={call.output}
-                status={call.status ?? 'success'}
-              />
-            ))}
+          {messages.map((message, idx) => {
+            const prev = idx > 0 ? messages[idx - 1] : null;
+            const showSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
+            return (
+              <Fragment key={message.id}>
+                {showSep && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      margin: '10px 0 4px',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-muted)',
+                        background: 'var(--bg-glass)',
+                        padding: '2px 10px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      {formatDateLabel(message.timestamp)}
+                    </span>
+                  </div>
+                )}
+                <MessageItem
+                  message={{
+                    ...message,
+                    role: message.role as 'user' | 'assistant' | 'system',
+                    isStreaming: isStreaming && message === messages[messages.length - 1],
+                  }}
+                  onRetry={() => onSendMessage(message.content)}
+                  onQuote={handleQuote}
+                  sessionId={sessionId}
+                  appearance={messageAppearance}
+                />
+              </Fragment>
+            );
+          })}
 
           {isLoading && !isStreaming && (
             <div

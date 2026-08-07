@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { getHermesGatewayClient, destroyHermesGatewayClient } from '../services/hermesGateway';
 import { eventBus } from '../services/eventBus';
 import { createLogger } from '../utils/logger';
+import { showToast } from '../utils/toast';
 import { providerManager } from '../services/provider/manager';
 import {
   createSession,
@@ -252,6 +253,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           setMessages((prev) => prev.map((m) => (m.id === assistantId ? errorMsg : m)));
           setIsLoading(false);
           setIsStreaming(false);
+          showToast(t('app.error_api_key', { message: error }), 'error');
         },
       });
     },
