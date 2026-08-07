@@ -36,7 +36,13 @@ export const SLASH_ACTION_META: Record<
   voice: { label: '切换语音输入/TTS', needsArgs: true, category: '设置' },
   help: { label: '显示帮助', category: '系统' },
   export: { label: '导出当前会话', category: '会话' },
+  rename: { label: '重命名当前会话', needsArgs: true, category: '会话' },
+  theme: { label: '切换聊天主题', needsArgs: true, category: '设置' },
+  clearctx: { label: '清空当前会话上下文', category: '会话' },
 };
+
+/** 设置页增删改自定义命令后广播的事件名（供已开的聊天窗实时重载） */
+export const SLASH_COMMANDS_CHANGED = 'slash-commands-changed';
 
 /** 内置命令 → 动作 id 映射（含别名） */
 const BUILTIN_COMMAND_ACTIONS: Record<string, string> = {
@@ -52,6 +58,9 @@ const BUILTIN_COMMAND_ACTIONS: Record<string, string> = {
   voice: 'voice',
   help: 'help',
   export: 'export',
+  rename: 'rename',
+  theme: 'theme',
+  clearctx: 'clearctx',
 };
 
 export const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -112,6 +121,29 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
     actionId: 'voice',
   },
   { name: 'help', description: '显示帮助', category: '系统', icon: '❓', actionId: 'help' },
+  {
+    name: 'rename',
+    description: '重命名当前会话',
+    category: '会话',
+    argsHint: '[新标题]',
+    icon: '✏️',
+    actionId: 'rename',
+  },
+  {
+    name: 'theme',
+    description: '切换聊天主题（浅色/深色）',
+    category: '设置',
+    argsHint: '[light|dark]',
+    icon: '🎨',
+    actionId: 'theme',
+  },
+  {
+    name: 'clearctx',
+    description: '清空当前会话的上下文历史',
+    category: '会话',
+    icon: '🧼',
+    actionId: 'clearctx',
+  },
 ];
 
 // ───────────────────────────────────────────────────────────
@@ -182,6 +214,9 @@ export interface UseSlashCommandsOptions {
   onVoiceToggle?: (enable?: boolean) => void;
   onHelp?: () => void;
   onExport?: () => void;
+  onRename?: (title: string) => void;
+  onTheme?: (theme?: 'light' | 'dark') => void;
+  onClearCtx?: () => void;
   gatewayReady?: boolean;
 }
 
@@ -345,6 +380,17 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
           break;
         case 'export':
           options.onExport?.();
+          break;
+        case 'rename':
+          if (argString) options.onRename?.(argString);
+          break;
+        case 'theme':
+          options.onTheme?.(
+            argString === 'light' ? 'light' : argString === 'dark' ? 'dark' : undefined,
+          );
+          break;
+        case 'clearctx':
+          options.onClearCtx?.();
           break;
         default:
           return false;

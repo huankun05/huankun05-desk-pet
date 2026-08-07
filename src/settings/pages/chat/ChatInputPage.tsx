@@ -8,8 +8,10 @@ import {
   loadCustomCommands,
   saveCustomCommands,
   SLASH_ACTION_META,
+  SLASH_COMMANDS_CHANGED,
 } from '../../../hooks/useSlashCommands';
 import type { SlashCommand } from '../../../hooks/useSlashCommands';
+import { isTauriEnv } from '../../../utils/tauriEnv';
 
 interface DisplayCmd {
   name: string;
@@ -364,6 +366,14 @@ export function ChatInputPage() {
   const persist = (next: CustomSlashCommand[]) => {
     setCustomCommands(next);
     saveCustomCommands(next);
+    // 跨 webview 通知已开的聊天窗实时重载自定义命令
+    if (isTauriEnv()) {
+      void import('@tauri-apps/api/event')
+        .then(({ emit }) => emit(SLASH_COMMANDS_CHANGED))
+        .catch(() => {
+          /* 广播失败不影响本地写入 */
+        });
+    }
   };
 
   const handleSave = (cmd: CustomSlashCommand) => {

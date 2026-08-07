@@ -15,8 +15,11 @@ import { Icon } from '@iconify/react';
 import { MessageItem } from './MessageItem';
 import { aiService } from '../../services/ai';
 import { openSettingsAt } from '../../utils/openSettings';
-import { useSlashCommands } from '../../hooks/useSlashCommands';
+import { useSlashCommands, SLASH_COMMANDS_CHANGED } from '../../hooks/useSlashCommands';
 import { useChatAppearance } from './useChatAppearance';
+import { APPEARANCE_KEYS, CHAT_APPEARANCE_EVENT } from '../../settings/appearanceConfig';
+import { writeStorage } from '../../hooks/useStorageEvent';
+import { isTauriEnv } from '../../utils/tauriEnv';
 import './chat-theme.css';
 
 export interface Message {
@@ -107,6 +110,10 @@ interface ChatWindowProps {
   contextUsed?: number;
   /** 上下文 token 上限（供 /status、/usage 命令反馈） */
   contextTotal?: number;
+  /** /rename 命令：重命名当前会话（由父窗口落地到存储并刷新侧栏） */
+  onRenameSession?: (title: string) => void;
+  /** /clearctx 命令：清空当前会话上下文（由父窗口清存储并 reload） */
+  onClearContext?: () => void;
 }
 
 /** 消息搜索导航按钮样式 */
@@ -201,6 +208,8 @@ export const ChatWindow = memo(
       currentModel,
       contextUsed = 0,
       contextTotal = 0,
+      onRenameSession,
+      onClearContext,
     },
     ref,
   ) {
@@ -337,6 +346,7 @@ export const ChatWindow = memo(
       handleKeyDown: handleSlashKeyDown,
       handleSubmit: handleSlashSubmit,
       reset: resetSlash,
+      reloadCustomCommands,
     } = useSlashCommands({
       onNewChat: () => onNewChat?.(),
       onRetry: () => {
@@ -398,6 +408,26 @@ export const ChatWindow = memo(
           showNotice('error', `导出失败：${(e as Error)?.message ?? String(e)}`);
         }
       },
+      onRename: (title: string) => {
+        onRenameSession?.(title);
+        showNotice('success', `会话已重命名为「${title}」`);
+      },
+      onTheme: (theme?: 'light' | 'dark') => {
+        const next = theme ?? (appearance.theme === 'dark' ? 'light' : 'dark');
+        writeStorage(APPEARANCE_KEYS.chatTheme, next);
+        if (isTauriEnv()) {
+          void import('@tauri-apps/api/event')
+            .then(({ emit }) => emit(CHAT_APPEARANCE_EVENT))
+            .catch(() => {
+              /* 广播失败不影响本地写入 */
+            });
+        }
+        showNotice('success', `已切换主题 → ${next === 'dark' ? '深色' : '浅色'}`);
+      },
+      onClearCtx: () => {
+        onClearContext?.();
+        showNotice('success', '已清空当前会话的上下文历史');
+      },
     });
 
     useEffect(() => {
@@ -412,6 +442,24 @@ export const ChatWindow = memo(
       window.addEventListener('focus', recheck);
       return () => window.removeEventListener('focus', recheck);
     }, []);
+
+    // 设置页增删改自定义命令后，跨 webview 实时重载自动补全与执行路由
+    useEffect(() => {
+      if (!isTauriEnv()) {
+        window.addEventListener('focus', reloadCustomCommands);
+        return () => window.removeEventListener('focus', reloadCustomCommands);
+      }
+      let unlisten: (() => void) | undefined;
+      void import('@tauri-apps/api/event')
+        .then(({ listen }) => listen<unknown>(SLASH_COMMANDS_CHANGED, () => reloadCustomCommands()))
+        .then((fn) => {
+          unlisten = fn;
+        })
+        .catch(() => {
+          /* 事件系统不可用时忽略，下次聚焦仍会重载 */
+        });
+      return () => unlisten?.();
+    }, [reloadCustomCommands]);
 
     // 消息搜索键盘快捷键：Ctrl/Cmd+F 打开，Esc 关闭
     useEffect(() => {

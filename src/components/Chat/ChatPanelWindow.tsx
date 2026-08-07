@@ -14,12 +14,14 @@ import {
   listSessions,
   getActiveSession,
   deleteSession,
+  renameSession,
+  clearSessionMessages,
   type ChatSession,
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
 import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
-import { SlashCommand } from '../../hooks/useSlashCommands';
+import { SlashCommand, BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 
 /** 顶部栏图标按钮 */
 function BarButton({
@@ -124,7 +126,6 @@ function ChatPanelWindow() {
 
   // Slash help overlay state
   const [showSlashHelp, setShowSlashHelp] = useState(false);
-  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
 
   // 会话管理状态（保留，用于侧边栏）
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -132,39 +133,8 @@ function ChatPanelWindow() {
   const [showSessionList, setShowSessionList] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
 
-  // 初始化 Slash 命令列表
-  useEffect(() => {
-    setSlashCommands([
-      { name: 'new', description: '新建会话', category: '会话', argsHint: '[标题]', icon: '📄' },
-      { name: 'clear', description: '清屏并新建会话', category: '会话', icon: '🧹' },
-      { name: 'retry', description: '重发最后一条消息', category: '会话', icon: '🔄' },
-      {
-        name: 'undo',
-        description: '回退 N 条用户消息',
-        category: '会话',
-        argsHint: '[N]',
-        icon: '↩️',
-      },
-      { name: 'stop', description: '停止当前生成', category: '会话', icon: '⏹️' },
-      {
-        name: 'model',
-        description: '查看或切换模型',
-        category: '模型',
-        argsHint: '[模型名]',
-        icon: '🧠',
-      },
-      { name: 'usage', description: '查看余额/用量', category: '模型', icon: '📊' },
-      { name: 'status', description: '查看 Gateway 连接状态', category: '系统', icon: '📡' },
-      {
-        name: 'voice',
-        description: '切换语音输入/TTS',
-        category: '设置',
-        argsHint: '[on|off]',
-        icon: '🎙️',
-      },
-      { name: 'help', description: '显示帮助', category: '系统', icon: '❓' },
-    ]);
-  }, []);
+  // Slash 命令列表（直接复用内置命令定义，避免与 useSlashCommands 漂移）
+  const slashCommands = BUILTIN_COMMANDS;
 
   const handleSlashHelpToggle = useCallback(() => {
     setShowSlashHelp((p) => !p);
@@ -472,6 +442,24 @@ function ChatPanelWindow() {
     const active = getActiveSession();
     setActiveSessionId(active?.id ?? null);
   }, [newChat]);
+
+  // /rename：重命名当前会话，同步刷新侧栏标题
+  const handleRenameSession = useCallback(
+    (title: string) => {
+      if (!activeSessionId) return;
+      renameSession(activeSessionId, title);
+      setSessions(listSessions());
+    },
+    [activeSessionId],
+  );
+
+  // /clearctx：清空当前会话历史并重新加载（上下文归零，会话本身保留）
+  const handleClearContext = useCallback(() => {
+    if (!activeSessionId) return;
+    clearSessionMessages(activeSessionId);
+    loadSession(activeSessionId);
+    setSessions(listSessions());
+  }, [activeSessionId, loadSession]);
 
   // 模式切换：写入 localStorage + 一次弹跳动画作为明确反馈
   const [modePop, setModePop] = useState(false);
@@ -905,6 +893,8 @@ function ChatPanelWindow() {
               currentModel={currentModel}
               contextUsed={contextUsed}
               contextTotal={contextTotal}
+              onRenameSession={handleRenameSession}
+              onClearContext={handleClearContext}
             />
           </div>
 

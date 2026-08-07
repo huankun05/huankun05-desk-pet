@@ -184,3 +184,10 @@ export function renameSession(sessionId: string, title: string): void {
   const sessions = data.sessions.map((s) => (s.id === sessionId ? { ...s, title } : s));
   chatStorage.set({ ...data, sessions });
 }
+
+/** 清空某个会话的消息历史（保留会话本身，用于 /clearctx 重置上下文） */
+export function clearSessionMessages(sessionId: string): void {
+  const data = chatStorage.get();
+  const sessions = data.sessions.map((s) => (s.id === sessionId ? { ...s, messages: [] } : s));
+  chatStorage.set({ ...data, sessions });
+}

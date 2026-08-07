@@ -125,4 +125,35 @@ describe('executeCommand 路由', () => {
     });
     expect(r!.handled).toBe(false);
   });
+
+  it('新增动作：/rename 带参数路由到 onRename', () => {
+    const onRename = vi.fn();
+    const { result } = renderHook(() => useSlashCommands({ onRename }));
+    act(() => {
+      result.current.executeCommand('/rename 周报整理');
+    });
+    expect(onRename).toHaveBeenCalledWith('周报整理');
+  });
+
+  it('新增动作：/theme light|dark 路由到 onTheme，空参数传 undefined', () => {
+    const onTheme = vi.fn();
+    const { result } = renderHook(() => useSlashCommands({ onTheme }));
+    act(() => {
+      result.current.executeCommand('/theme dark');
+    });
+    expect(onTheme).toHaveBeenCalledWith('dark');
+    act(() => {
+      result.current.executeCommand('/theme');
+    });
+    expect(onTheme).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('新增动作：/clearctx 路由到 onClearCtx', () => {
+    const onClearCtx = vi.fn();
+    const { result } = renderHook(() => useSlashCommands({ onClearCtx }));
+    act(() => {
+      result.current.executeCommand('/clearctx');
+    });
+    expect(onClearCtx).toHaveBeenCalledTimes(1);
+  });
 });
