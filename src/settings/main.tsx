@@ -9,6 +9,7 @@ import { ToastProvider, ConfirmProvider } from './components';
 import i18n from '../i18n';
 import { routes } from './routes';
 import { consumePendingSettingsPath } from '../utils/openSettings';
+import '../iconify';
 import './settings.css';
 
 // 拦截窗口关闭：改为隐藏，避免重新创建导致闪白

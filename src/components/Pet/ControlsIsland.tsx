@@ -39,7 +39,7 @@ const buttons = [
   { icon: 'solar:settings-linear', label: 'settings' },
   { icon: 'solar:chat-round-dots-linear', label: 'chat' },
   { icon: 'solar:refresh-circle-linear', label: 'refresh' },
-  { icon: 'lucide:move', label: 'transform' },
+  { icon: 'solar:cursor-linear', label: 'transform' },
   { icon: 'solar:code-linear', label: 'mode' },
   { icon: 'solar:users-group-rounded-linear', label: 'model' },
   { icon: 'solar:eye-bold', label: 'fade' },
