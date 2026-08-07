@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 
 export interface SlashCommand {
   name: string;
@@ -7,6 +7,8 @@ export interface SlashCommand {
   argsHint?: string;
   aliases?: string[];
   icon?: string;
+  /** 绑定的内置动作 id（用于执行路由） */
+  actionId?: string;
 }
 
 export interface SlashCompletion {
@@ -14,30 +16,160 @@ export interface SlashCompletion {
   matchedText: string;
 }
 
+/**
+ * 动作注册表 —— 把每条内置命令背后的"行为"抽成可复用单元。
+ * 用户自定义命令时可直接从这张表里挑一个 action 绑定，无需写代码。
+ * 扩充内置命令 = 往这里加一条 + 在 BUILTIN_COMMANDS 加一行。
+ */
+export const SLASH_ACTION_META: Record<
+  string,
+  { label: string; needsArgs?: boolean; category: string }
+> = {
+  new: { label: '新建会话', category: '会话' },
+  clear: { label: '清屏并新建', category: '会话' },
+  retry: { label: '重发最后一条消息', category: '会话' },
+  undo: { label: '回退 N 条消息', needsArgs: true, category: '会话' },
+  stop: { label: '停止当前生成', category: '会话' },
+  model: { label: '查看或切换模型', needsArgs: true, category: '模型' },
+  usage: { label: '查看用量', category: '模型' },
+  status: { label: '查看连接状态', category: '系统' },
+  voice: { label: '切换语音输入/TTS', needsArgs: true, category: '设置' },
+  help: { label: '显示帮助', category: '系统' },
+  export: { label: '导出当前会话', category: '会话' },
+};
+
+/** 内置命令 → 动作 id 映射（含别名） */
+const BUILTIN_COMMAND_ACTIONS: Record<string, string> = {
+  new: 'new',
+  reset: 'new',
+  clear: 'clear',
+  retry: 'retry',
+  undo: 'undo',
+  stop: 'stop',
+  model: 'model',
+  usage: 'usage',
+  status: 'status',
+  voice: 'voice',
+  help: 'help',
+  export: 'export',
+};
+
 export const BUILTIN_COMMANDS: SlashCommand[] = [
-  { name: 'new', description: '新建会话', category: '会话', argsHint: '[标题]', icon: '📄' },
-  { name: 'clear', description: '清屏并新建会话', category: '会话', icon: '🧹' },
-  { name: 'retry', description: '重发最后一条消息', category: '会话', icon: '🔄' },
-  { name: 'undo', description: '回退 N 条用户消息', category: '会话', argsHint: '[N]', icon: '↩️' },
-  { name: 'stop', description: '停止当前生成', category: '会话', icon: '⏹️' },
+  {
+    name: 'new',
+    description: '新建会话',
+    category: '会话',
+    argsHint: '[标题]',
+    icon: '📄',
+    actionId: 'new',
+  },
+  { name: 'clear', description: '清屏并新建会话', category: '会话', icon: '🧹', actionId: 'clear' },
+  {
+    name: 'retry',
+    description: '重发最后一条消息',
+    category: '会话',
+    icon: '🔄',
+    actionId: 'retry',
+  },
+  {
+    name: 'undo',
+    description: '回退 N 条用户消息',
+    category: '会话',
+    argsHint: '[N]',
+    icon: '↩️',
+    actionId: 'undo',
+  },
+  { name: 'stop', description: '停止当前生成', category: '会话', icon: '⏹️', actionId: 'stop' },
+  {
+    name: 'export',
+    description: '导出当前会话为 Markdown',
+    category: '会话',
+    icon: '📤',
+    actionId: 'export',
+  },
   {
     name: 'model',
     description: '查看或切换模型',
     category: '模型',
     argsHint: '[模型名]',
     icon: '🧠',
+    actionId: 'model',
   },
-  { name: 'usage', description: '查看余额/用量', category: '模型', icon: '📊' },
-  { name: 'status', description: '查看 Gateway 连接状态', category: '系统', icon: '📡' },
+  { name: 'usage', description: '查看余额/用量', category: '模型', icon: '📊', actionId: 'usage' },
+  {
+    name: 'status',
+    description: '查看 Gateway 连接状态',
+    category: '系统',
+    icon: '📡',
+    actionId: 'status',
+  },
   {
     name: 'voice',
     description: '切换语音输入/TTS',
     category: '设置',
     argsHint: '[on|off]',
     icon: '🎙️',
+    actionId: 'voice',
   },
-  { name: 'help', description: '显示帮助', category: '系统', icon: '❓' },
+  { name: 'help', description: '显示帮助', category: '系统', icon: '❓', actionId: 'help' },
 ];
+
+// ───────────────────────────────────────────────────────────
+// 自定义命令数据层（localStorage 持久化）
+// ───────────────────────────────────────────────────────────
+
+export const CUSTOM_COMMANDS_KEY = 'deskpet_custom_commands_v1';
+
+export type CustomCommandType = 'macro' | 'action';
+
+export interface CustomSlashCommand {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  argsHint?: string;
+  icon?: string;
+  type: CustomCommandType;
+  /** type === 'macro'：触发时填入/发送的预设文本 */
+  macroText?: string;
+  /** type === 'action'：绑定的内置动作 id（见 SLASH_ACTION_META） */
+  actionId?: string;
+  /** 由某个内置命令"复制为自定义"而来时记录源名，便于 UI 标记 */
+  source?: string;
+  createdAt: number;
+}
+
+export function loadCustomCommands(): CustomSlashCommand[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_COMMANDS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as CustomSlashCommand[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomCommands(cmds: CustomSlashCommand[]): void {
+  try {
+    localStorage.setItem(CUSTOM_COMMANDS_KEY, JSON.stringify(cmds));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/** 合并内置 + 自定义，供 UI 列表与自动补全使用 */
+export function getAllCommands(custom: CustomSlashCommand[]): SlashCommand[] {
+  const customAsSlash: SlashCommand[] = custom.map((c) => ({
+    name: c.name,
+    description: c.description,
+    category: c.category,
+    argsHint: c.argsHint,
+    icon: c.icon,
+    actionId: c.actionId,
+  }));
+  return [...BUILTIN_COMMANDS, ...customAsSlash];
+}
 
 export interface UseSlashCommandsOptions {
   onNewChat?: (title?: string) => void;
@@ -49,6 +181,7 @@ export interface UseSlashCommandsOptions {
   onUsage?: () => void;
   onVoiceToggle?: (enable?: boolean) => void;
   onHelp?: () => void;
+  onExport?: () => void;
   gatewayReady?: boolean;
 }
 
@@ -58,7 +191,15 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [slashActive, setSlashActive] = useState(false);
+  const [customCommands, setCustomCommands] = useState<CustomSlashCommand[]>(() =>
+    loadCustomCommands(),
+  );
   const abortRef = useRef(false);
+
+  // 设置页修改后可在 focus 时调用以重新加载
+  const reloadCustomCommands = useCallback(() => {
+    setCustomCommands(loadCustomCommands());
+  }, []);
 
   const reset = useCallback(() => {
     setInput('');
@@ -68,20 +209,28 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
     abortRef.current = false;
   }, []);
 
-  const complete = useCallback((query: string): SlashCompletion[] => {
-    const q = query.trim().toLowerCase();
-    if (!q) {
-      return BUILTIN_COMMANDS.map((cmd) => ({ command: cmd, matchedText: cmd.name }));
-    }
-    return BUILTIN_COMMANDS.filter((cmd) => {
-      const hay = [cmd.name, ...(cmd.aliases ?? [])].join(' ').toLowerCase();
-      return hay.includes(q) || cmd.description.toLowerCase().includes(q);
-    }).map((cmd) => {
-      const matched =
-        [cmd.name, ...(cmd.aliases ?? [])].find((a) => a.toLowerCase().startsWith(q)) ?? cmd.name;
-      return { command: cmd, matchedText: matched };
-    });
-  }, []);
+  const allCommands = useMemo(() => getAllCommands(customCommands), [customCommands]);
+
+  const complete = useCallback(
+    (query: string): SlashCompletion[] => {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        return allCommands.map((cmd) => ({ command: cmd, matchedText: cmd.name }));
+      }
+      return allCommands
+        .filter((cmd) => {
+          const hay = [cmd.name, ...(cmd.aliases ?? [])].join(' ').toLowerCase();
+          return hay.includes(q) || cmd.description.toLowerCase().includes(q);
+        })
+        .map((cmd) => {
+          const matched =
+            [cmd.name, ...(cmd.aliases ?? [])].find((a) => a.toLowerCase().startsWith(q)) ??
+            cmd.name;
+          return { command: cmd, matchedText: matched };
+        });
+    },
+    [allCommands],
+  );
 
   const updateCompletions = useCallback(
     (value: string) => {
@@ -158,18 +307,14 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
     return null;
   }, [slashActive, completions, selectedIndex, input, updateCompletions]);
 
-  const executeCommand = useCallback(
-    (raw: string) => {
-      const trimmed = raw.trim();
-      if (!trimmed.startsWith('/')) return { handled: false as const };
-
-      const withoutSlash = trimmed.slice(1);
-      const [name, ...args] = withoutSlash.split(/[ \t]+/);
-      const argString = args.join(' ');
-
-      switch (name) {
+  /**
+   * 路由到具体动作。返回是否处理。
+   */
+  const routeAction = useCallback(
+    (actionId: string, argString: string): boolean => {
+      switch (actionId) {
         case 'new':
-        case 'reset':
+        case 'clear':
           options.onNewChat?.(argString || undefined);
           break;
         case 'retry':
@@ -198,26 +343,62 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
         case 'help':
           options.onHelp?.();
           break;
+        case 'export':
+          options.onExport?.();
+          break;
         default:
-          return { handled: false as const };
+          return false;
       }
-      return { handled: true as const };
+      return true;
     },
     [options],
   );
 
+  const executeCommand = useCallback(
+    (raw: string): { handled: boolean; macro?: string } => {
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith('/')) return { handled: false };
+
+      const withoutSlash = trimmed.slice(1);
+      const [name, ...args] = withoutSlash.split(/[ \t]+/);
+      const argString = args.join(' ');
+
+      // 1. 自定义命令优先（用户自定义可覆盖同名内置）
+      const custom = customCommands.find((c) => c.name === name);
+      if (custom) {
+        if (custom.type === 'macro') {
+          // 宏命令：把预设文本 + 参数填入输入框，让用户确认后再发
+          const base = (custom.macroText ?? '').trim();
+          const filled = base + (argString ? ' ' + argString : '');
+          return { handled: true, macro: filled };
+        }
+        // action 型：路由到注册表动作
+        if (!custom.actionId) return { handled: true };
+        const ok = routeAction(custom.actionId, argString);
+        return { handled: ok };
+      }
+
+      // 2. 内置命令（含别名）
+      const actionId = BUILTIN_COMMAND_ACTIONS[name];
+      if (!actionId) return { handled: false };
+      const ok = routeAction(actionId, argString);
+      return { handled: ok };
+    },
+    [customCommands, routeAction],
+  );
+
   const handleSubmit = useCallback(
-    (value: string) => {
+    (value: string): { handled: boolean; macro?: string } => {
       const trimmed = value.trim();
-      if (!trimmed) return false;
+      if (!trimmed) return { handled: false };
       if (trimmed.startsWith('/')) {
         const result = executeCommand(trimmed);
         if (result.handled) {
-          reset();
-          return true;
+          if (result.macro === undefined) reset();
+          return result;
         }
       }
-      return false;
+      return { handled: false };
     },
     [executeCommand, reset],
   );
@@ -245,5 +426,7 @@ export function useSlashCommands(options: UseSlashCommandsOptions = {}) {
     reset,
     executeSelected,
     executeCommand,
+    customCommands,
+    reloadCustomCommands,
   };
 }

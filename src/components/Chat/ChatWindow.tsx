@@ -376,6 +376,28 @@ export const ChatWindow = memo(
         const pct = total > 0 ? Math.round((used / total) * 100) : 0;
         showNotice('info', `上下文用量：${used}/${total} tokens（${pct}%）`);
       },
+      onExport: () => {
+        try {
+          const lines = messages.map((m) => {
+            const role = m.role === 'user' ? '## 用户' : '## 助手';
+            const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+            return `${role}\n\n${text}\n`;
+          });
+          const md = `# 会话导出 ${new Date().toLocaleString()}\n\n${lines.join('\n')}`;
+          const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `session-${sessionId || 'chat'}-${Date.now()}.md`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showNotice('success', '已导出当前会话');
+        } catch (e) {
+          showNotice('error', `导出失败：${(e as Error)?.message ?? String(e)}`);
+        }
+      },
     });
 
     useEffect(() => {
@@ -459,11 +481,17 @@ export const ChatWindow = memo(
       const trimmed = (slashInput || input).trim();
       if (!trimmed || isLoading) return;
 
-      const slashHandled = handleSlashSubmit(trimmed);
-      if (slashHandled) {
-        setInput('');
-        setSlashInput('');
-        resetSlash();
+      const slashResult = handleSlashSubmit(trimmed);
+      if (slashResult.handled) {
+        if (slashResult.macro !== undefined) {
+          // 宏命令：把预设文本填入输入框，用户确认后再发送
+          setInput(slashResult.macro);
+          setSlashInput(slashResult.macro);
+        } else {
+          setInput('');
+          setSlashInput('');
+          resetSlash();
+        }
         return;
       }
 
