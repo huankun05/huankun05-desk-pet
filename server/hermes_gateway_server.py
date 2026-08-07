@@ -138,15 +138,6 @@ class HermesEngine:
         },
     }
 
-    TOOLS_DESCRIPTION = (
-        "\n\n## 可用工具\n"
-        "- 文件读写：可以读取、创建、编辑用户指定的文件\n"
-        "- 代码执行：可以运行脚本和命令，获取输出结果\n"
-        "- 网络搜索：可以搜索互联网获取最新信息\n"
-        "- 系统操作：可以查看系统状态、管理进程等\n"
-        "当用户的请求需要使用工具时，你可以在回复中说明需要调用什么工具、传入什么参数。"
-    )
-
     # ---- LLM 流式助手 ----
 
     async def _llm_stream(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
