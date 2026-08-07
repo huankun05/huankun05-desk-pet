@@ -1,0 +1,48 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Debug output files
+*_output.txt
+*_result.txt
+*_out.txt
+cargo_err.txt
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Tooling caches
+.eslintcache
+
+# Playwright
+playwright-report/
+test-results/
+.playwright-mcp/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python (server)
+venv/
+server/.venv/
+server/__pycache__/
+server/**/*.pyc
+server/gpt_sovits
+server/models
+data

@@ -1,0 +1,168 @@
+/**
+ * 聊天窗口主题变量（仿 QQ 简洁风格）。
+ *
+ * 背景：ChatWindow / MessageItem 一直在用 --bg-surface、--text-primary 等变量，
+ * 但项目里从未定义过它们，导致所有配色实际都回退成浏览器默认值，
+ * 只靠 ChatPanelWindow 里硬编码的深色背景撑着。这里把这套变量补齐。
+ *
+ * 作用域限定在 .chat-root 内，避免污染桌宠主窗与设置窗的全局样式。
+ * data-chat-theme = light | dark，由 ChatPanelWindow 根据「聊天设置 → 外观」写入。
+ * 注意：这套外观与「设置 → 外观」（桌宠气泡、角色）是两套独立配置。
+ */
+
+.chat-root {
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --accent: #12b7f5;
+  --accent-soft: rgba(18, 183, 245, 0.14);
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
+
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 浅色（默认） ---------- */
+.chat-root,
+.chat-root[data-chat-theme='light'] {
+  --chat-bg: #f2f3f5;
+  --bg-surface: #ffffff;
+  --bg-glass: #f7f8fa;
+  --bg-hover: rgba(15, 23, 42, 0.06);
+  --border: #e6e8eb;
+  --glass-border: rgba(15, 23, 42, 0.06);
+  --text-primary: #1f2329;
+  --text-secondary: #646a73;
+  --text-muted: #9aa1a9;
+  --bubble-ai-bg: #ffffff;
+  --bubble-ai-text: #1f2329;
+  --bubble-user-bg: var(--accent);
+  --bubble-user-text: #ffffff;
+  --warning-bg: rgba(245, 158, 11, 0.12);
+  --warning-border: rgba(245, 158, 11, 0.35);
+  --warning-text: #b45309;
+  --toolbar-bg: rgba(255, 255, 255, 0.96);
+  --toolbar-border: rgba(15, 23, 42, 0.08);
+  color-scheme: light;
+}
+
+/* ---------- 深色 ---------- */
+.chat-root[data-chat-theme='dark'] {
+  --chat-bg: #16171b;
+  --bg-surface: #202226;
+  --bg-glass: #26282d;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --border: #313439;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #e8eaed;
+  --text-secondary: #a4abb3;
+  --text-muted: #6f767e;
+  --bubble-ai-bg: #26282d;
+  --bubble-ai-text: #e8eaed;
+  --bubble-user-bg: var(--accent);
+  --bubble-user-text: #ffffff;
+  --warning-bg: rgba(245, 158, 11, 0.14);
+  --warning-border: rgba(245, 158, 11, 0.3);
+  --warning-text: #fbbf24;
+  --toolbar-bg: rgba(32, 34, 38, 0.96);
+  --toolbar-border: rgba(255, 255, 255, 0.1);
+  color-scheme: dark;
+}
+
+/* ---------- 气泡与尾巴 ---------- */
+.chat-bubble {
+  position: relative;
+}
+
+.chat-bubble::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.chat-bubble--ai::after {
+  left: -3px;
+  border-left: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.chat-bubble--user::after {
+  right: -3px;
+}
+
+/* 无尾模式（设置里可关闭气泡尾） */
+.chat-bubble--flat::after {
+  display: none;
+}
+
+/* ---------- 滚动条 ---------- */
+.chat-root ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.chat-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-root ::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+}
+
+.chat-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ---------- 顶部栏胶囊按钮 ---------- */
+.chat-chip {
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  transition:
+    background 0.15s,
+    color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.chat-chip:hover {
+  color: var(--text-primary);
+}
+
+.chat-chip--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 模式切换的反馈动画 */
+@keyframes chat-mode-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.chat-chip--pop {
+  animation: chat-mode-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}

@@ -1,0 +1,63 @@
+{
+  "emotion_json_path": "D:/hermes_env/shared/body/emotion.json",
+  "weights": {
+    "interaction": 0.3,
+    "dialogue": 0.7
+  },
+  "throttle_ms": 5000,
+  "expression_scale": 0.6,
+  "history_limit": 20,
+  "dimension_range": [0, 100],
+  "events": {
+    "interaction:pat": {
+      "pleasure": 20,
+      "anxiety": -8,
+      "gratitude": 6
+    },
+    "interaction:tap": {
+      "pleasure": 14,
+      "gratitude": 8
+    },
+    "interaction:step": {
+      "pleasure": -6,
+      "energy": -5
+    },
+    "perception:gesture": {
+      "👍": { "pleasure": 16, "confidence": 10 },
+      "👎": { "pleasure": -12, "anxiety": 8 },
+      "✊": { "curiosity": 8, "excitement": 8 },
+      "✋": { "curiosity": 6 },
+      "✌️": { "curiosity": 6, "excitement": 6 }
+    },
+    "perception:face_expr": {
+      "happy": { "pleasure": 16, "energy": 8 },
+      "angry": { "anxiety": 14, "pleasure": -10 },
+      "sad": { "empathy": 12, "energy": -8 },
+      "surprised": { "curiosity": 10, "excitement": 8 }
+    },
+    "dialogue_positive": {
+      "pleasure": 18,
+      "gratitude": 14,
+      "excitement": 10
+    },
+    "dialogue_negative": {
+      "empathy": 14,
+      "anxiety": 12,
+      "energy": -6
+    },
+    "idle": {
+      "loneliness": 6,
+      "anxiety": 3
+    }
+  },
+  "emotion_to_pad": {
+    "pleasure": { "pleasure": 1.0 },
+    "energy": { "arousal": 1.0 },
+    "confidence": { "dominance": 1.0 },
+    "anxiety": { "pleasure": -0.6, "arousal": 0.4 },
+    "loneliness": { "arousal": -0.3, "dominance": -0.3 },
+    "gratitude": { "pleasure": 0.4 },
+    "excitement": { "arousal": 0.5, "pleasure": 0.2 },
+    "empathy": { "pleasure": -0.2 }
+  }
+}

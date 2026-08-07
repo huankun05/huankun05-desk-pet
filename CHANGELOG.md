@@ -1,0 +1,211 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- **Embedding 服务配置页**: 新增 `/settings/services/embedding` 独立页面，支持添加/编辑/删除 Embedding 配置，含 API Base/模型/Key 输入、测试连接按钮、ProviderStatusBadge 状态展示，与 LLM/TTS/STT 服务页结构一致
+- **Embedding Provider 实现**: 新增 `OllamaEmbeddingProvider` 和 `OpenAIEmbeddingProvider`，支持本地 Ollama 与云端 OpenAI 兼容接口的向量模型接入
+- **ProviderManager Embedding 支持**: 扩展 `ProviderManager` 支持 `embedding` 类型，新增 `embeddingSlot`、`activeEmbeddingId`、`setActiveEmbeddingProvider()`、`getActiveEmbeddingProvider()` 方法
+- **多模态视觉优先级配置**: `MultimodalPage` 新增 `visionSourcePriority` 字段，支持 `auto`/`manual` 模式，区分自动检测与手动标记的原生多模态模型
+- **混合检索摘要卡片**: `BehaviorPage` 的混合检索区块改为摘要卡片 + 跳转按钮，指向 Embedding 服务配置页
+- **Provider 连通性测试补齐**: Embedding 服务页新增测试连接功能，支持实时检测 provider 可用性
+- **Splash WebGL 预热**: `index.html` 中新增隐藏 canvas + 原生脚本预热 WebGL 上下文；`useSplashInit` hook 进一步编译最小着色器程序，提前唤醒 GPU 驱动/着色器编译器
+- **预热上下文复用**: `initLive2D()` 和 `LAppGlManager.initFromCanvas()` 支持传入外部 WebGL 上下文；首屏初始化时优先复用 splash 预热上下文，避免重复创建上下文导致的冷启动延迟
+- **启动队列**: `useStartupQueue` hook 提供 P0-P3 优先级调度，MCP 自动连接、Behavior 系统初始化等非关键任务延后到首屏空闲时执行
+- **模型预加载与配置缓存**: `usePetModel` 新增配置默认值 fallback，优先读取本地缓存，减少首屏解析开销
+- **聊天窗口 UI 重写（仿 QQ 风格）**: 将控制面板聊天窗口重写为现代、干净、浅色为主的 QQ 风格——圆角气泡 + 气泡尾、顶部上下文栏 → 消息列表 → 输入区（附件 / 语音 / TTS 开关）；消息 hover 出操作栏、语音按钮开始录音、模式切换有明确反馈。所有对话、收藏、主题、字体大小持久化，后端统一走 Gateway
+- **聊天设置拆分为五个清晰分区**: 聊天设置作为独立入口，内部含「外观 / 输入 / 语音 / 模式 / 会话与数据」五个分区。外观页涵盖头像（AI 默认桌宠形象、用户可上传）、气泡（圆角 / 气泡尾 / 字号）、聊天背景、配色（浅色为主 + 可切深色 + 强调色预设）并带实时预览；会话与数据页管理历史会话、收藏消息与数据清理。各分区可一键跳转到外观气泡、全局主题、模型等关联设置页
+- **聊天外观独立配置体系**: 在 `appearanceConfig.ts` 新增全套 `chat*` 键（`chatTheme` / `chatAccent` / `chatBubbleRadius` / `chatBubbleTail` / `chatShowAvatar` / `chatUserAvatar` / `chatAiAvatar` / `chatFontSize` / `chatBackgroundImage`），与桌宠头顶气泡、应用全局主题完全解耦；`writeAppearanceConfig` 写入后通过 Tauri `CHAT_APPEARANCE_EVENT` 跨 webview 实时同步，`useChatAppearance` 三通道订阅（storage 事件 + Tauri 事件 + 窗口聚焦）
+- **聊天主题 CSS 与头像组件**: 新增 `chat-theme.css`（`.chat-root` 变量、`.chat-bubble--user/ai`、气泡尾 `::after`、`.chat-chip--pop` 动画）与 `ChatAvatar.tsx`（role 区分 user/assistant/system，支持上传、AI 默认桌宠渐变 + `solar:cat-bold`）
+
+### Changed
+
+- **修复聊天设置错误跳转**: 原 `ChatGeneralPage` 误跳 `/settings/appearance/bubble`，已删除并以 `ChatAppearancePage` 取代；同步将 `GeneralPage` 中 `/settings/chat/general` 修正为 `/settings/chat/appearance`，并在外观页明确提示「聊天窗口外观与桌宠气泡、全局主题互不影响」
+- **`createStorage` 改为每次 set 立即写盘**: 移除原 1s 防抖，避免窗口关闭时配置丢失（`storage.test.ts` 同步更新断言为「无防抖」）
+- **国际化补齐**: 新增 72 个 `settings.chat.*` 键（中英文对称）、`app.close`、`chat.attachment`；移除 6 个废弃键（`general_title` 等）
+
+- **ProviderSlot abort 约束放宽**: 将 `abort()` 改为可选 `abort?()`，避免 EmbeddingProvider 等无 abort 实现的类型报错
+- **zh-CN.json 修复**: 修复 JSON 语法错误，使用 json5 解析并重新序列化，确保 Vite 正常加载国际化文件
+- **Provider 创建逻辑增强**: `createProviderFromConfig` 补全 embedding 分支，自动根据 API Base 选择 Ollama 或 OpenAI 适配器
+- **设置重组：记忆相关项迁出行为页**: 将「上下文管理」「本地长期记忆（RAG）」「LLM 增强记忆抽取」「混合检索」四项从 `BehaviorPage`（角色行为）迁移至独立的「记忆体」分区，新增 `ContextPage`（`/settings/memory/context`）与 `LongTermPage`（`/settings/memory/long-term`）；行为页不再保留跳转入口，记忆体索引页与环境变量配置同步更新。混合检索摘要卡片原位于 `BehaviorPage`，现归属 `LongTermPage`
+- **i18n 归位**: 上述四项文案从 `settings.models` 下迁移至 `settings.memory` 命名空间（`zh-CN.json` / `en-US.json` 各 49 key 对齐）
+
+### Fixed
+
+- **Embedding 添加失败**: 修复 ProviderManager 不支持 embedding 类型导致添加失败的问题
+- **zh-CN.json 解析错误**: 修复 Vite 报 `position 5310` JSON 语法错误，恢复应用正常加载
+- **React 组件渲染测试（Phase 6 测试补齐）**: 新增 `ChatBubble` + `SettingRow` 组件渲染测试，验证 props 渲染、onComplete 定时回调、title/description 缺省显示。 (`src/components/Bubble/ChatBubble.test.tsx`, `src/settings/components/SettingRow.test.tsx`)
+- **5 个功能缺口闭环完成**:
+  - 离线模式生效：`src/services/ai.ts` 的 `chat/chatStream/generateProactiveMessage` 读取 `deskpet_offline_mode`，离线时直接禁用 AI 调用
+  - 看门狗重启接通 Rust：`watchdog.ts` 通过 `invoke('service_stop/start_raw')` 调用 Rust Tauri command，Rust 侧已有完整实现无需改动
+  - 结构化记忆接入 BM25：`extractStructuredMemories()` 抽取的 fact/preference/event 已通过 `upsert()` 进入 BM25 索引，`search()/getContext()` 统一检索
+  - Perception 前端降级接入 pipeline：`usePerception.ts` 已有完整链路，WebSocket 断开时自动切 `PerceptionFallback`（鼠标/摄像头降级）
+  - emotion_bridge 后端进程自动启动：Rust 已有代码自动拉起 Core API (9877) + Hermes Gateway (8765)，前端 `useBrainBridge.ts` 已接通双向调用
+- **i18n 键缺失导致构建失败**: `scan-i18n-keys` 发现 `app.close`、`chat.attachment` 缺失（聊天窗口重写引入），已补入 `zh-CN.json` / `en-US.json`
+- **设置项一致性校验通过**: `check-settings-entries` 确认 36 个二级路径 / 36 个 loader / 7 个 Index 页三者一致
+
+### Changed
+
+- **Hermes 深度融合收尾**: Core API + Hermes Gateway 在 Tauri 启动时已自动拉起；情绪事件通过 `/api/core/emotion/bridge/event` 实时同步到 Hermes SessionDB；记忆双向同步已验证（`useUnifiedMemory.ts` 三路并行检索 + `extractStructuredMemories` 自动抽取）。
+- **测试覆盖提升**: 测试总数从 46 提升至 54（+8），覆盖 Provider 连通性 + React 组件渲染。
+
+- **大脑接入（Phase 2）**: `server/core/session_service.py` 将 hermes_core.SessionDB 接入 Core API，新增 8 个会话端点（list/create/get/append/search/delete/stats + FTS5 全文检索）。前端 `coreApi.ts` 补全会话 API。设置页新增「大脑状态」面板（`/settings/system/brain`）：健康徽章、会话/消息统计、记忆统一查询、会话列表管理。 (`server/core/session_service.py`, `server/core/api_server.py`, `src/services/coreApi.ts`, `src/settings/pages/system/BrainPage.tsx`)
+- **记忆统一查询层（Phase 3）**: `POST /api/core/brain/search-all` 一次检索同时命中 MemoryFragment 记忆碎片与 Hermes FTS5 会话全文。 (`server/core/api_server.py`, `src/services/coreApi.ts`)
+- **身体→大脑事件桥接（Phase 3）**: `src/hooks/useBrainBridge.ts` 将对话消息写入主会话、感知事件（手势/表情/交互）写入 brain-events 会话，App.tsx 全局挂载，Core API 离线时静默降级。 (`src/hooks/useBrainBridge.ts`, `src/App.tsx`)
+- **情绪双向绑定（方案 A）**: 新增 Emotion Bridge——desk-pet 身体事件（拍头/摸身/戳脚/手势/表情）通过 `POST /api/core/emotion/bridge/event` 更新汐月九维情绪 emotion.json（节流 5s + 权重 3:7 + 惯性平滑 + 原子写入）；前端定时拉取 `GET /api/core/emotion/bridge/state` 映射 PAD 后发射 `expression:change` 驱动 Live2D 表情（流露强度 ×0.6）。全部参数在 `server/core/emotion_bridge_config.json` 热加载可调。 (`server/core/emotion_bridge.py`, `server/core/emotion_bridge_config.json`, `server/core/api_server.py`, `src/services/coreApi.ts`, `src/hooks/useBrainBridge.ts`)
+- **设置页搜索框**: PageHeader 标题右侧新增 `SettingsSearch` 组件，数据源为 `settingsTree`（路由单一真相源），支持按标题/副标题/描述搜索全部设置项，下拉结果点击跳转，↑↓ 选择 + Enter 跳转 + Esc 关闭。 (`src/settings/components/SettingsSearch.tsx`, `src/settings/components/PageHeader.tsx`, `src/settings/components/SettingsLayout.tsx`)
+
+### Fixed
+
+- **circadian 端点缺失**: `/api/core/time/circadian` 方法存在但未注册路由（404），已补充。 (`server/core/api_server.py`)
+- **设置页缺失图标批量修复**: 16 个不存在的 Solar 图标名（42 处引用）替换为 `@iconify-json/solar` 本地包中同主题有效图标。涉及设置行右侧大图标（`plugin-bold-duotone`→`widget-5-bold-duotone`、`voice-bold-duotone`→`soundwave-bold-duotone`、`plug-in-bold-duotone`→`plug-circle-bold-duotone`）、侧边导航、Toast 警告、加载 spinner、插件市场分类、存储管理等。 (`src/settings/**`, `src/services/market/generator.ts`, `src/plugins/watch-together/index.ts`)
+
+### Changed
+
+#### Phase 5: 性能、可扩展性与健壮性全面优化
+
+**P0 严重问题修复（6项）**
+- **Live2D 模型加载 fetch 错误处理**: `lappmodel.ts` 7处 `fetch().then()` 链添加 `.catch()`，`lapppal.ts` 和 `lappwavfilehandler.ts` 同步修复，避免网络错误时模型加载状态机永久卡死
+- **聊天管线初始化错误处理**: `useChatPipeline.ts` 的 `Promise.all([...]).then()` 添加 `.catch()`，初始化失败时记录错误日志而非静默
+- **ControlsIsland 事件监听器泄漏修复**: `dragStateRef` 新增 `cleanup` 字段 + `useEffect` 兜底清理，防止组件卸载时 `mousemove`/`mouseup` 监听器永久泄漏
+- **Behavior 系统 cleanup 时序竞态修复**: 新增 `behaviorDisposedRef` 标记组件卸载状态，async IIFE 在关键节点检查该 ref，防止监听器和定时器在竞态条件下泄漏
+- **useLive2D 待机表情 effect 依赖修复**: 依赖数组补全 `customIdle` 和 `energy`，修复待机表情池和活力值变化时定时器不重建的功能 bug
+- **usePerception 表情恢复定时器泄漏修复**: 新增 `expressionTimerRef` 管理定时器生命周期，防止手势快速切换时旧定时器叠加执行
+
+**P1 高风险问题修复（6项）**
+- **WebSocket 心跳+指数退避+UI反馈**: `perception/service.ts` 新增 30s 心跳机制（连续 2 次未响应触发重连）、指数退避+抖动（2s→4s→8s→16s→30s）、达到最大重连次数后发射 `perception:disconnected` 事件供 UI 订阅
+- **fetch 请求超时机制**: 新增 `utils/fetch.ts` 的 `fetchWithTimeout` 工具函数，为 `usePetModel`、`market/client`、`logger`、`Live2DPage` 的 fetch 请求添加 3-15s 超时
+- **Pipeline 调度器错误隔离**: `scheduler.ts` 每个 Stage 的 `process` 调用包裹 try-catch，新增 `onStageError` 回调和 `continueOnError` 选项（默认 true），非致命错误不中断管道
+- **关键 `.catch(() => {})` 添加日志**: App.tsx（3处）、useWindowManager.ts（6处）、storage.ts（4处）共 13 处静默 catch 添加 `console.warn` 日志
+- **localStorage 写入 try-catch 保护**: `useInteraction.ts`、`themes.ts`（2处）、`usePetModel.ts`（2处）、`StatusPanelWindow.tsx`（2处）共 7 处 localStorage 操作添加 try-catch
+- **invoke Promise 添加 .catch()**: `StatusPanelWindow.tsx`（2处）、`ChatPanelWindow.tsx`（2处）共 4 处 Tauri invoke 添加 `.catch()`
+
+**P2 架构改进（8项）**
+- **App.tsx 拆分**: 抽取 `usePersonaAutoSwitch` 和 `useAppStorageSync` 两个独立 hook，App.tsx 从 959 行减至约 830 行
+- **useChatPipeline 职责拆分**: 抽取 `useSttBridge`（STT 轮询桥）和 `useRagPersistence`（RAG 持久化）两个独立 hook，useChatPipeline 从 484 行减至 437 行
+- **ProviderManager 泛型抽象**: 新增 `ProviderSlot<T>` 泛型类封装缓存管理，manager.ts 从 903 行减至 675 行（-25%）
+- **EDGE_THRESHOLD 统一**: `useWindowManager.ts` 中 40/30 两个不一致阈值统一为 40
+- **Provider 默认端口集中**: 新增 `services/provider/defaults.ts`，9 个 Provider 和 Perception WS 的默认端口统一管理
+- **Idle 检测逻辑统一**: 新增 `services/idle/constants.ts`，三处不一致的 idle 阈值（5min/6min/30min）提取为共享常量 `IDLE_THRESHOLDS`
+- **settingsStorage 重复定义合并**: 新增 `services/storage/settingsStorage.ts` 共享实例，`usePluginSystem` 和 `useWindowManager` 不再各自定义
+- **ThemeProvider context value useMemo 优化**: value 对象和 5 个回调函数分别用 `useMemo`/`useCallback` 包裹，消除消费者无谓重渲染
+
+### Changed
+- **TTS Provider setup 竞态修复**: `useChatPipeline.ts` 中 TTS Provider 的 validate + setup 从 fire-and-forget（`.then()`）改为 `await`，确保 TTS 控制器在管道执行前完成初始化，避免首句 TTS 播放失败或竞态异常。
+- **感知→情感→行为闭环**: `usePerception.ts` 现在通过 eventBus 发射 `perception:gesture` 和 `perception:face_expr` 事件，使情感系统和行为系统能感知到用户的手势和面部表情。`BehaviorRegistry` 新增 `PerceptionResponseBehavior`，根据手势（👍👎✋✊✌️）和面部表情（happy/sad/angry/surprised）触发差异化气泡反馈。
+- **点击/触摸→行为闭环**: `useInteraction.ts` 在用户拍打头部、点击身体、戳脚时分别发射 `interaction:pat`/`interaction:tap`/`interaction:step` 事件。`InteractionResponseBehavior` 根据触摸部位和强度给出不同反馈（轻点 vs 用力 vs 连戳）。
+- **VAD→STT 流程统一**: `useVoiceInteraction.ts` 添加 `recordingModeRef` 状态机（idle/manual/auto），防止手动录音和 VAD 自动录音互相冲突。VAD auto-STT 仅在 idle 模式下启动，手动录音同样检查模式。
+- **主动行为智能化**: `ProactiveScheduler` 新增 `recordUserMessage`/`updateEmotionTrend`/`getContextHints` 方法，追踪最近 10 条用户消息和情感趋势，使主动问候能感知上下文。
+
+### Added
+- **RAG long-term memory pipeline**: BM25-based local document retrieval integrated into chat pipeline. `RAGStage` (after `MemoryStage`) injects relevant history into LLM context. Conversations auto-upsert to RAG index with localStorage persistence. Settings page adds RAG toggle, document count display, and memory wipe. (`src/services/pipeline/stages/rag.ts`, `src/services/rag/engine.ts`, `src/hooks/useChatPipeline.ts`, `src/settings/pages/models/BehaviorPage.tsx`)
+- **Behavior system integration**: 5 built-in behaviors (greeting, emotion resonance, idle chat, farewell, favorability milestone) auto-registered to `BehaviorRegistry`. App.tsx constructs `PetContextImpl` and forwards eventBus events (`message:sent/response`, `emotion/favorability/persona:changed`, window focus/blur, 6min idle timer) to `registry.dispatch`. Settings page adds per-behavior enable/disable toggles. (`src/services/behavior/builtins.ts`, `src/App.tsx`, `src/settings/pages/models/BehaviorPage.tsx`)
+- **Live2D visual decoration event bus**: `BehaviorDecorateStage` emits `expression:change`/`param:update`/`animation:trigger` events. `useLive2D` subscribes and drives Live2D model expression switching, transient parameter overrides (ParamCheek/ParamAngry with auto-expiry), and animation triggering. (`src/hooks/useLive2D.ts`, `src/lib/live2d/lappdelegate.ts`, `src/lib/live2d/lappmodel.ts`)
+- **Emotion/favorability event emission**: `useEmotion` now emits `emotion:changed` and `favorability:changed` events via eventBus when state changes, enabling behavior system and proactive scheduler to react. (`src/hooks/useEmotion.ts`)
+- **Persona hot-swap UI (runtime switching)**: ControlsIsland now has a persona picker button (next to model picker) for runtime persona switching without restart. App.tsx integrates `personaHotswap.switchTo()` with bubble greeting and `persona:changed` event subscription. CharacterPage adds "Auto-Switch Rules" section for time-based persona switching (e.g. cheerful persona at 10am, calm at 10pm), persisted to localStorage and synced to `personaHotswap` on startup. (`src/components/Pet/ControlsIsland.tsx`, `src/App.tsx`, `src/settings/pages/models/CharacterPage.tsx`)
+- **web_search tool (real implementation)**: Rust backend uses `ureq` to fetch DuckDuckGo HTML endpoint and parse results (title/url/snippet), no API key required. Frontend tool upgraded from stub to real `invoke('web_search')` call. (`src-tauri/src/lib.rs`, `src/services/tools/builtins.ts`)
+- **Proactive companion UI activation**: BehaviorPage "智能闲聊" switch now drives `proactiveScheduler` in real-time. App initializes scheduler from behavior config on startup. Pet proactively greets by time-of-day, reminds on long idle, lunch/dinner/late-night care. (`src/settings/pages/models/BehaviorPage.tsx`, `src/App.tsx`)
+- CI/CD pipeline (GitHub Actions): lint, typecheck, test, Rust fmt/clippy, Tauri build
+- **Perception service integration**: MediaPipe hand (21 landmarks) + face (468 landmarks + iris) + gesture recognition via WebSocket real-time stream
+  - Python module: `server/perception/` (hand_tracker, face_tracker, data_processor, gesture_learner, perception_server)
+  - Frontend module: `src/services/perception/` (types, service, gestureMapping, hooks)
+- **Perception admin page** (`/perception`): camera preview with landmark visualization, gesture/facial expression monitoring, sensitivity tuning
+- **Tauri environment safety utility**: `src/utils/tauriEnv.ts` with `isTauriEnv()` and `safeTauriCall()` to prevent crashes in non-Tauri (browser) environments
+- **Perception page controls**: camera mirror flip, independent hand landmark / face landmark visibility toggles
+- **Settings redesign**: card-based layout with 5 modules (Character, Appearance, Interaction, Service Sources, Memory)
+- **Plugin management page**: plugin registry with enable/disable toggles
+- **Automation (cron tasks) page**: scheduled task management
+
+### Changed
+- **tsconfig lib fix**: Added `ES2022.Error` to `lib` array, resolving 19 `TS2554` errors on `new Error(msg, { cause })` calls that blocked `tsc` and `vite build`. (`tsconfig.json`)
+- **App.tsx refactored**: 2141-line monolith split into 8 custom hooks (useEmotion, useWindowManager, useChatPipeline, useVoiceInteraction, usePetModel, usePanelWindows, usePerception, usePluginSystem), reduced to 531 lines
+- **Emotion system unified**: merged useEmotion / emotionStore / EmotionEngine into single useEmotion hook with Sigmoid decay algorithm and mood-emotion bidirectional influence model
+- **Settings system unified**: removed admin backend and floating panel, retained settings window with multi-provider switching, plugin management, and automation
+- **ControlsIsland UI optimization**: replaced undefined CSS variables with concrete color values, switched to light theme (white semi-transparent bg + dark text) for better readability
+- **Active state button style**: changed from square to rounded corners (borderRadius: 12px)
+- **Live2D preload expanded**: 2 files → 10 files (4 texture PNGs + physics3.json + cdi3.json added), covering the full fetch chain. CubismCore now loads via `defer` instead of blocking.
+- **Page title**: "Tauri + React + Typescript" → "Desk Pet"
+- Removed debug `border: 2px solid red` from `App.css`
+- **Default feetOffset**: 0 → 80, model sits lower so bottom reference line aligns with toolbar top edge
+- **Documents merged**: CLAUDE.md + ARCHITECTURE.md consolidated into DEVELOPMENT.md (single source of truth for engineering standards)
+
+### Removed
+- **Duplicate IdleChatBehavior**: removed the example `IdleChatBehavior` class from `base.ts` (identical id `builtin.idle_chat` as the real implementation in `builtins.ts`). Updated barrel export in `behavior/index.ts`. (`src/services/behavior/base.ts`, `src/services/behavior/index.ts`)
+- **Zustand stores**: removed `src/stores/` directory (6 files: emotionStore, personalityStore, etc.), functionality replaced by useState + localStorage
+- **Admin dashboard**: removed `src/admin/` directory, admin functionality to be reworked later
+- **Floating settings panel**: removed `src/components/Settings/` directory, unified settings via independent window
+
+### Fixed
+- **usePluginSystem deps jitter**: useEffect deps included `emotionState` (updates every 120s decay + every interaction), causing all plugins to be shutdown and re-registered repeatedly. Fixed by holding dependencies in a ref, effect now runs only once on mount. (`src/hooks/usePluginSystem.ts`)
+- **usePerception deps jitter**: useEffect deps included `currentEmotion`/`getLive2DEmotion`, causing perception WebSocket to disconnect/reconnect on every emotion change (up to every 3s). Fixed by moving emotion deps to a ref. (`src/hooks/usePerception.ts`)
+- **Admin panel 401 in dev mode**: `admin.html` rewritten to load from Vite dev server (port 1420) with HMR, eliminating stale `dist/admin.html` issue. `vite.config.ts` now enables CORS for cross-origin module loading.
+- **Live2D slow loading (~10s)**: Root cause was synchronous `setup()` in `lib.rs` that blocked the main Tauri thread — each offline provider port triggered a 2s TCP health check timeout. Fix: auto-start loop moved to `std::thread::spawn`, timeouts reduced (TCP connect 2000→500ms, read/write 1500→500ms, attempt_wait 2000→1000ms). Window now creates immediately, Live2D renders in 2-3s.
+- **pnpm 11+ compatibility**: `ERR_PNPM_IGNORED_BUILDS` — esbuild postinstall script blocked by default security policy. Fixed via `pnpm-workspace.yaml` with `allowBuilds.esbuild: true`.
+- **Tauri API crashes in browser**: `getCurrentWindow()`, `listen()` etc. return undefined in non-Tauri environments causing cascading failures. Fixed with environment guards and try-catch on all Tauri calls.
+- **Provider service start/stop state machine**: `startService` now sets state to `starting` instead of jumping directly to `running`, enabling proper ready-state detection via polling. ProviderCard status badges refactored with unified logic and added `error` state support. Stop button works during `starting` (cancel launch), start button works during `error` (retry).
+- **Perception camera mirror**: Horizontal flip applied to canvas rendering so hand/face orientation matches real-world direction.
+- **Move function**: Fixed `handlePetMouseDown` using deprecated Tauri API, switched to correct `getCurrentWindow().startDragging()`
+- **React Hooks order violation**: Fixed App.tsx hooks being called after conditional return, which violated Rules of Hooks and caused runtime failures
+- **ESLint errors**: Fixed all ESLint errors (0 errors, 83 warnings remaining), including:
+  - `useVADInteraction.ts`: handleSpeechStart used before declaration → refactored with useRef callback pattern
+  - `useVoiceInteraction.ts`: ref assigned during render → moved to useEffect
+  - Settings pages: setState in effect synchronous calls → adjusted function declaration order
+- **Vite build**: Added `settings.html` to build entry points, removed `admin.html`
+- **TypeScript errors**: Resolved all TypeScript compilation errors after refactoring
+
+## [0.1.0] - 2026-06-23
+
+### Added
+
+#### Core
+- Live2D character rendering (Nahida .moc3) via Cubism SDK v5 native WebGL2
+- Borderless transparent window with drag-to-move and resize
+- Lock/penetrate toggle (Ctrl+Shift+D) with tray context menu
+- Interactive system: click area detection, idle timer, proactive chat
+
+#### AI & Conversation
+- OpenAI-compatible API chat with streaming output & typewriter cursor
+- Dual-layer emotion system: Mood + Emotion with Sigmoid decay
+- Character personality system with hot-swap at runtime
+- Inner monologue (`<think>` tags) with per-sentence emotion analysis
+- Multi-session chat history persistence
+
+#### Voice
+- Three TTS providers: Edge TTS (free), GPT-SoVITS v2, VoxCPM2
+- Two STT providers: FunASR, SenseVoice
+- Provider abstraction layer with runtime switching
+
+#### Admin Panel
+- React 19 + HeroUI v3 + Tailwind v4 admin dashboard
+- Liquid-glass theme with 10 pages + KeepAlive caching
+- Token-based authentication for local-only access
+
+#### Engineering
+- Onion pipeline (10-stage AsyncGenerator) for message processing
+- EventBus + Behavior plugin system with PetContext DI
+- MCP protocol client (JSON-RPC over stdio) with ToolRegistry
+- Context compression: 3-layer defense (round truncation → LLM summary → half-cut)
+- RAG semantic memory (BM25 tokenizer + dual-path retrieval)
+- Content safety: Keywords, LengthLimit, RateLimit strategies
+
+#### Backend (Rust)
+- Tauri 2.0 desktop framework with transparent overlay window
+- Full-desktop eye tracking (GetCursorPos + lerp smoothing)
+- Service process manager with auto-restart & exponential backoff
+- Network online detection via multi-address TCP probing
+- DPAPI-encrypted API key storage
+- Structured error handling (thiserror + anyhow)
+- Screenshot capture & clipboard integration
+
+#### Quality
+- TypeScript strict mode + strictNullChecks enabled
+- 32 unit tests (Vitest + jsdom)
+- ESLint + Prettier + Husky + lint-staged pre-commit hooks
+- i18n (zh-CN + en-US, 152 keys)
+- React Error Boundary (top-level + page-level)

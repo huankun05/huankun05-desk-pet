@@ -1,0 +1,70 @@
+# ============================================================
+# desk-pet — 共享 Python 依赖（所有插件共用此环境）
+# ============================================================
+# 安装:
+#   cd desk-pet
+#   python -m venv venv
+#   venv\Scripts\activate
+#   pip install -r server/requirements.txt
+# ============================================================
+
+# ── CUDA PyTorch ──
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.5.0
+torchaudio>=2.5.0
+
+# ── HTTP 服务 ──
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+pydantic<=2.10.6
+
+# ── 音频 I/O ──
+numpy<2.0
+soundfile>=0.12.0
+librosa==0.10.2
+scipy>=1.10
+sounddevice>=0.4
+
+# ── TTS: Edge TTS ──
+edge-tts>=6.1.0
+
+# ── TTS: GPT-SoVITS (推理) ──
+ffmpeg-python
+matplotlib
+tensorboard
+split-lang
+g2p-en
+fast-langdetect>=0.3.1
+pytorch-lightning>=2.4
+transformers>=4.43,<=4.50
+sentencepiece
+cn2an
+pypinyin
+jieba_fast
+numba
+peft<0.18.0
+x_transformers
+rotary_embedding_torch
+
+# ── TTS: VoxCPM (推理, 不含 torchcodec/gradio) ──
+einops
+huggingface-hub>=0.20.0
+safetensors
+addict
+
+# ── STT: FunASR + SenseVoice ──
+funasr>=1.0.0
+modelscope>=1.9.0
+
+# ── 工具 ──
+PyYAML>=6.0
+tqdm>=4.65
+loguru>=0.7
+rich>=13.0
+websockets>=12.0
+httpx>=0.27.0
+
+# ── Perception 感知（手势识别 + 面部追踪）──
+mediapipe>=0.10.0
+opencv-python-headless>=4.8.0

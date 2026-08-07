@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "ES2022.Error", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Path aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@framework/*": ["./src/lib/framework/*"]
+    },
+
+    /* Strict mode enabled (except strictNullChecks — SDK not compatible) */
+    "strict": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Test types */
+    "types": ["vitest/globals"]
+  },
+  "include": ["src"],
+  "exclude": ["src/lib/framework", "src/lib/live2d"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

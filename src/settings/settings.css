@@ -1,0 +1,374 @@
+@import 'tailwindcss';
+
+/* ===== Primary 色系（由 ThemeProvider 动态设置，这里只做 fallback） ===== */
+:root {
+  --primary-50: #eef2ff;
+  --primary-100: #e0e7ff;
+  --primary-200: #c7d2fe;
+  --primary-300: #a5b4fc;
+  --primary-300-rgb: 165, 180, 252;
+  --primary-400: #818cf8;
+  --primary-400-rgb: 129, 140, 248;
+  --primary-500: #6366f1;
+  --primary-500-rgb: 99, 102, 241;
+  --primary-600: #4f46e5;
+  --primary-600-rgb: 79, 70, 229;
+  --bg-color: #ffffff;
+}
+
+html.dark {
+  --bg-color: #111114;
+}
+
+/* ===== Base Layout ===== */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family:
+    'Inter',
+    'SF Pro Display',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'Noto Sans SC',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+}
+
+/* ===== Hide Scrollbar (keep scrollable) ===== */
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ===== IconItem —— 复刻 AIRI icon-item.vue ===== */
+
+.menu-icon-item {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background: #fafafa; /* neutral-50 */
+  border: 2px solid #f5f5f5; /* neutral-100 */
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.4s ease-in-out;
+  /* 默认无阴影，hover 时显现 */
+  filter: drop-shadow(0 0 0 rgba(220, 220, 220, 0));
+}
+
+.menu-icon-item:hover {
+  border-color: rgba(var(--primary-500-rgb), 0.3);
+  filter: drop-shadow(0px 4px 4px rgba(220, 220, 220, 0.4));
+}
+
+/* ::before 渐变层（hover 时从 25% 扩展到 85%） */
+.menu-icon-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(var(--primary-500-rgb), 0),
+    rgba(var(--primary-500-rgb), 0)
+  );
+  mask-image: linear-gradient(120deg, white 30%, transparent 50%);
+  -webkit-mask-image: linear-gradient(120deg, white 30%, transparent 50%);
+  opacity: 0;
+  transition: all 0.4s ease-in-out;
+}
+
+.menu-icon-item:hover::before {
+  background: linear-gradient(
+    to right,
+    rgba(var(--primary-500-rgb), 0.2),
+    rgba(var(--primary-500-rgb), 0.1) 40%,
+    transparent
+  );
+  width: 85%;
+  opacity: 1;
+}
+
+/* ::after 点阵纹理（10px×10px 圆点，165deg 遮罩） */
+.menu-icon-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle, #e5e5e5 1px, transparent 1px);
+  background-size: 10px 10px;
+  background-color: transparent;
+  mask-image: linear-gradient(165deg, white 30%, transparent 50%);
+  -webkit-mask-image: linear-gradient(165deg, white 30%, transparent 50%);
+  transition: all 0.4s ease-in-out;
+}
+
+.menu-icon-item:hover::after {
+  background-image: radial-gradient(circle, rgba(var(--primary-300-rgb), 0.5) 1px, transparent 1px);
+}
+
+/* 图标默认半透明 */
+.menu-icon-item-icon {
+  opacity: 0.5;
+  transition: all 0.4s ease-in-out;
+}
+
+/* hover 时文字变色 */
+.menu-icon-item:hover .menu-icon-item-title {
+  color: var(--primary-600);
+}
+
+.menu-icon-item:hover .menu-icon-item-description {
+  color: var(--primary-600);
+  opacity: 0.8;
+}
+
+/* hover 时图标放大 + 变色 */
+.menu-icon-item:hover .menu-icon-item-icon {
+  color: var(--primary-500);
+  opacity: 1;
+  transform: translateY(16px) scale(1.2);
+}
+
+html.dark .menu-icon-item {
+  background: #171717; /* neutral-900 */
+  border-color: rgba(38, 38, 38, 0.25);
+}
+
+html.dark .menu-icon-item:hover {
+  border-color: rgba(var(--primary-400-rgb), 0.3);
+  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+}
+
+html.dark .menu-icon-item::after {
+  background-image: radial-gradient(circle, rgba(64, 64, 64, 0.4) 1px, transparent 1px);
+}
+
+html.dark .menu-icon-item:hover::after {
+  background-image: radial-gradient(circle, rgba(var(--primary-300-rgb), 0.2) 1px, transparent 1px);
+}
+
+html.dark .menu-icon-item:hover .menu-icon-item-title,
+html.dark .menu-icon-item:hover .menu-icon-item-description {
+  color: var(--primary-300);
+}
+
+html.dark .menu-icon-item:hover .menu-icon-item-icon {
+  color: var(--primary-400);
+}
+
+/* ===== PageHeader 切换动画 ===== */
+
+@keyframes page-header-enter {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes page-header-leave {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+}
+
+/* ===== 列表入场动画 ===== */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== 装饰齿轮旋转入场 ===== */
+
+@keyframes gear-spin {
+  from {
+    transform: rotate(180deg) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== slide-away 页面切换动画 ===== */
+
+.slide-away-enter-active,
+.slide-away-leave-active {
+  transition:
+    transform 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
+}
+
+.slide-away-enter,
+.slide-away-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-away-enter-from,
+.slide-away-leave {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+/* ===== slide 页面切换动画（用于路由过渡） ===== */
+
+@keyframes slide-enter {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+.slide-page-enter {
+  animation: slide-enter 0.25s ease forwards;
+}
+
+/* ===== Section 折叠组件（复刻 AIRI Section） ===== */
+
+.section-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: between;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #525252;
+  font-size: 14px;
+  transition: all 0.25s ease-in-out;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.section-trigger:hover {
+  background: #e5e5e5;
+}
+
+html.dark .section-trigger {
+  background: #262626;
+  color: #a3a3a3;
+}
+
+html.dark .section-trigger:hover {
+  background: #404040;
+}
+
+/* ===== Bar 设置项行（复刻 AIRI Bar） ===== */
+
+.bar-row {
+  width: 100%;
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: between;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.25s ease-in-out;
+  background: #fafafa;
+}
+
+.bar-row:hover {
+  background: #e5e5e5;
+}
+
+html.dark .bar-row {
+  background: #262626;
+}
+
+html.dark .bar-row:hover {
+  background: #404040;
+}
+
+/* ===== Modal 入场动画 ===== */
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-enter {
+  animation: modal-enter 200ms ease-out forwards;
+}
+
+/* ===== Toast 入场动画 ===== */
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-slide-in {
+  animation: toast-slide-in 250ms ease-out forwards;
+}

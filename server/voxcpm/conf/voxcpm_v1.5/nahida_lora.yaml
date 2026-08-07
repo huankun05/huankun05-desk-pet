@@ -1,0 +1,28 @@
+pretrained_path: /root/tts/VoxCPM/pretrained_models/models--openbmb--VoxCPM1.5/snapshots/21c5944939d8750786d45603a313ba4e382313a8
+train_manifest: /root/tts/VoxCPM/data/nahida_train_local.jsonl
+val_manifest: null
+sample_rate: 44100
+batch_size: 1                     # 2→1: 进一步降低显存到 6GB 以内
+grad_accum_steps: 2              # 1→2: 保持等效 batch size=2
+num_workers: 2                   # 1→2: 加速数据加载
+num_iters: 1000
+log_interval: 5
+valid_interval: 500
+save_interval: 5                 # 每 5 步保存 checkpoint
+learning_rate: 0.0001
+weight_decay: 0.01
+warmup_steps: 50
+max_steps: 1000
+max_batch_tokens: 2048           # 减少显存占用
+save_path: /root/tts/training/nahida_lora_v15_opt
+tensorboard: /root/tts/training/nahida_lora_v15_opt/logs
+lambdas:
+  loss/diff: 1.0
+  loss/stop: 1.0
+lora:
+  enable_lm: true
+  enable_dit: true
+  enable_proj: false
+  r: 16
+  alpha: 32
+  dropout: 0.1

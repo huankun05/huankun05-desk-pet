@@ -1,0 +1,18 @@
+{
+  "models": [
+    {
+      "id": "nahida",
+      "name": "纳西妲",
+      "model3Json": "/models/nahida/Nahida_1080.model3.json",
+      "configJson": "/models/nahida/config.json",
+      "icon": "/models/nahida/icon.jpg"
+    },
+    {
+      "id": "hiyori",
+      "name": "希奥莉",
+      "model3Json": "/models/hiyori/hiyori_free_zh/hiyori_free_t08.model3.json",
+      "configJson": "/models/hiyori/hiyori_free_zh/config.json",
+      "icon": ""
+    }
+  ]
+}
