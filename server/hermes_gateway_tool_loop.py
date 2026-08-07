@@ -69,7 +69,11 @@ class ToolLoop:
         llm_stream: Any,
         initial_messages: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Run tool loop and return done payload."""
+        """Run tool loop and return done payload.
+
+        每次迭代只调用一次 LLM：同时收集 tool_calls 与流式文本。
+        若本轮有 tool_calls 则执行后进入下一轮；否则把文本当作最终回复并结束。
+        """
         if initial_messages:
             messages = list(initial_messages)
         else:
@@ -79,12 +83,14 @@ class ToolLoop:
         all_calls: list[ToolCall] = []
         all_results: list[ToolResult] = []
 
-        for iteration in range(self.max_iterations):
-            tool_calls = await self._collect_tool_calls(messages, llm_stream, tools=tools)
+        for _ in range(self.max_iterations):
+            tool_calls, text_parts = await self._collect(messages, llm_stream, tools=tools)
             if not tool_calls:
+                # 没有更多工具调用 → 本轮流式文本即最终回复
+                accumulated += "".join(text_parts)
                 break
 
-            # Notify frontend tool calls
+            # 通知前端（展示用）
             await self.ws.send_json({
                 "type": "tool:call",
                 "session_id": self.session_id,
@@ -94,10 +100,10 @@ class ToolLoop:
                 ],
             })
 
-            # Execute tools
+            # 执行工具（后端本地 / 前端经 WS）
             round_results = await self._execute_tools(tool_calls)
 
-            # Notify frontend results
+            # 通知前端结果（展示用）
             await self.ws.send_json({
                 "type": "tool:result",
                 "session_id": self.session_id,
@@ -112,7 +118,7 @@ class ToolLoop:
                 ],
             })
 
-            # Append to message history (OpenAI tool_calls / tool format)
+            # 追加到消息历史（OpenAI tool_calls / tool 格式）
             messages.append({
                 "role": "assistant",
                 "content": None,
@@ -138,13 +144,7 @@ class ToolLoop:
 
             all_calls.extend(tool_calls)
             all_results.extend(round_results)
-
-            # Collect final text after this round
-            text_parts = await self._collect_tool_calls(
-                messages, llm_stream, want_text=True, tools=tools
-            )
-            if text_parts:
-                accumulated += "".join(text_parts)
+            # 继续下一轮：LLM 可能再产生 tool_calls 或最终文本
 
         return {
             "accumulated": accumulated,
@@ -223,34 +223,31 @@ class ToolLoop:
         }
         return cfg.get(mode, cfg["chat"])
 
-    async def _collect_tool_calls(
+    async def _collect(
         self,
         messages: list[dict[str, Any]],
         llm_stream: Any,
-        want_text: bool = False,
         tools: list[dict[str, Any]] | None = None,
-    ) -> list[ToolCall]:
-        """Call LLM once and return tool_calls from first response."""
+    ) -> tuple[list[ToolCall], list[str]]:
+        """单次 LLM 调用：同时收集 tool_calls 与流式文本。"""
         tool_calls: list[ToolCall] = []
         text_parts: list[str] = []
 
         try:
             async for chunk in llm_stream(messages, tools=tools):
                 if isinstance(chunk, str):
-                    if want_text:
-                        text_parts.append(chunk)
-                elif isinstance(chunk, dict):
-                    if chunk.get("type") == "tool_calls":
-                        for call in chunk.get("calls", []):
-                            tool_calls.append(ToolCall(
-                                call_id=call.get("id", f"call_{time.time()}"),
-                                name=call.get("name", ""),
-                                arguments=call.get("arguments", {}),
-                            ))
+                    text_parts.append(chunk)
+                elif isinstance(chunk, dict) and chunk.get("type") == "tool_calls":
+                    for call in chunk.get("calls", []):
+                        tool_calls.append(ToolCall(
+                            call_id=call.get("id", f"call_{time.time()}"),
+                            name=call.get("name", ""),
+                            arguments=call.get("arguments", {}),
+                        ))
         except Exception as exc:
             log.warning("Tool loop LLM call failed: %s", exc)
 
-        return text_parts if want_text else tool_calls
+        return tool_calls, text_parts
 
     async def _execute_tools(self, calls: list[ToolCall]) -> list[ToolResult]:
         results: list[ToolResult] = []
@@ -283,7 +280,11 @@ class ToolLoop:
         fn = tool.get("execute")
         if not fn:
             return ToolResult(call.id, call.name, f"Tool missing execute: {call.name}", is_error=True)
-        return await asyncio.wait_for(fn(call.arguments), timeout=BACKEND_TOOL_TIMEOUT)
+        try:
+            content = await asyncio.wait_for(fn(call.arguments), timeout=BACKEND_TOOL_TIMEOUT)
+            return ToolResult(call.id, call.name, content, is_error=False)
+        except Exception as exc:
+            return ToolResult(call.id, call.name, str(exc), is_error=True)
 
     async def _execute_frontend(self, call: ToolCall) -> ToolResult:
         if call.name not in self.frontend_tools:

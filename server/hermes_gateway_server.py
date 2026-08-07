@@ -314,6 +314,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     log.info("Chat [%s]: %s", mode, text[:80])
 
     cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
+    tools_enabled = bool(cfg.get("include_tools", False))
 
     # Persist user message
     engine.append_message("user", text)
@@ -334,8 +335,8 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     tool_loop = ToolLoop(
         ws=ws,
         session_id=engine.SESSION_ID,
-        frontend_tools=frontend_tools,
-        backend_tools=tool_executor.tool_definitions(),
+        frontend_tools=frontend_tools if tools_enabled else [],
+        backend_tools=tool_executor.tool_definitions() if tools_enabled else [],
         executor=tool_executor,
     )
 
