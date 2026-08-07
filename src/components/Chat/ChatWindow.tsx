@@ -302,6 +302,8 @@ export const ChatWindow = memo(
     const prevScrollHeightRef = useRef(0);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      // 流式中不加载更早：与强制滚底的 RAF 循环冲突，避免滚动位置被拉回
+      if (isStreaming) return;
       const el = e.currentTarget;
       if (el.scrollTop < 60 && visibleCount < messages.length) {
         prevScrollHeightRef.current = el.scrollHeight;
@@ -319,6 +321,7 @@ export const ChatWindow = memo(
     }, [visibleCount]);
 
     const loadEarlier = () => {
+      if (isStreaming) return;
       const el = messagesContainerRef.current;
       if (el) prevScrollHeightRef.current = el.scrollHeight;
       setVisibleCount((c) => Math.min(messages.length, c + STEP_VISIBLE));

@@ -12,10 +12,12 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { emit, listen } from '@tauri-apps/api/event';
 import { getHermesGatewayClient, destroyHermesGatewayClient } from '../services/hermesGateway';
 import { eventBus } from '../services/eventBus';
 import { createLogger } from '../utils/logger';
 import { showToast } from '../utils/toast';
+import { isTauriEnv } from '../utils/tauriEnv';
 import { providerManager } from '../services/provider/manager';
 import {
   createSession,
@@ -29,6 +31,9 @@ import type { Message } from '../components/Chat/ChatWindow';
 const log = createLogger('HermesGatewayHook');
 
 const GATEWAY_READY_KEY = 'deskpet_hermes_gateway_enabled';
+
+/** 跨窗口消息同步事件：完成态消息广播（主窗 ↔ 聊天面板窗，共享同一 localStorage 会话） */
+const MSG_SYNC_EVENT = 'chat:msg-synced';
 
 let _msgCounter = 0;
 function nextMsgId(): string {
@@ -181,6 +186,10 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       };
       saveMessage(userMessage);
       setMessages((prev) => [...prev, userMessage]);
+      // 广播给其他窗口（主窗/面板窗同步同一会话）
+      if (isTauriEnv()) {
+        emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: userMessage }).catch(() => {});
+      }
 
       // 占位助手消息
       const assistantId = nextMsgId();
@@ -223,6 +232,10 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           if (sessionRef.current?.id === session.id) {
             saveMessage(finalMsg);
             setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+          }
+          // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
+          if (isTauriEnv()) {
+            emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: finalMsg }).catch(() => {});
           }
           setIsLoading(false);
           setIsStreaming(false);
@@ -293,6 +306,42 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     const id = setTimeout(() => setMessages(session.messages));
     return () => clearTimeout(id);
   }, [gatewayEnabled]);
+
+  // 跨窗口消息同步：主窗与聊天面板共享同一 localStorage 会话但内存 state 各自独立。
+  // 收到其他窗口广播的完成态消息时，若属于当前会话则按 id upsert（存在=替换，否则追加）。
+  const upsertRemoteMessage = useCallback((payload: { sessionId: string; msg: Message }) => {
+    if (!payload.sessionId || payload.sessionId !== sessionRef.current?.id) return;
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === payload.msg.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = payload.msg;
+        return next;
+      }
+      return [...prev, payload.msg];
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<{ sessionId: string; msg: Message }>(MSG_SYNC_EVENT, (e) => {
+      upsertRemoteMessage(e.payload);
+    })
+      .then((fn) => {
+        // 卸载可能早于 listen resolve，此时直接注销避免监听器泄漏
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 事件不可用时退化为仅本窗口 */
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [upsertRemoteMessage]);
 
   return {
     messages,
