@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { invoke } from '@tauri-apps/api/core';
 import { Section, SettingRow, useToast } from '../../components';
-import { isTauriEnv } from '../../../utils/tauriEnv';
 
 /** 格式化字节为可读字符串 */
 function formatBytes(bytes: number): string {

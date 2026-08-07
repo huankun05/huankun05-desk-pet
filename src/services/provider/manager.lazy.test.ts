@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProviderManager } from './manager';
-import { providerRegistry } from './registry';
 
 describe('ProviderManager lazy loading', () => {
   beforeEach(() => {

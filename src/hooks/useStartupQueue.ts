@@ -9,7 +9,6 @@ interface TaskDef {
   run: Task;
 }
 
-let taskId = 0;
 const tasks: TaskDef[] = [];
 let scheduled = false;
 
@@ -20,9 +19,7 @@ function schedule() {
   const runPhase = (phase: Phase) => {
     const batch = tasks.filter((t) => t.phase === phase);
     for (const t of batch) {
-      const id = taskId++;
       const start = performance.now();
-      let cleanup: void | (() => void) | undefined;
       const result = t.run();
 
       const isPromise = result && typeof result === 'object' && typeof result.then === 'function';
@@ -35,7 +32,6 @@ function schedule() {
           (err: unknown) => console.warn(`[StartupQueue] ${t.label} failed:`, err),
         );
       } else if (typeof result === 'function') {
-        cleanup = result;
         console.debug(
           `[StartupQueue] ${t.label} scheduled (${(performance.now() - start).toFixed(0)}ms)`,
         );

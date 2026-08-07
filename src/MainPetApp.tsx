@@ -6,8 +6,6 @@ import i18n from './i18n';
 import { Live2DViewer } from './components/Pet/Live2DViewer';
 import { ControlsIsland, type ControlsIslandHandle } from './components/Pet/ControlsIsland';
 import { ChatBubble } from './components/Bubble/ChatBubble';
-import ChatPanelWindow from './components/Chat/ChatPanelWindow';
-import StatusPanelWindow from './components/Status/StatusPanelWindow';
 
 import { useInteraction } from './hooks/useInteraction';
 import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
@@ -385,7 +383,6 @@ function MainPetApp() {
     },
     [],
   );
-  const showFps = appearance.showFps;
 
   // 悬停淡出透明度：由外观配置驱动 CSS 变量，设置窗调整后主窗实时生效
   useEffect(() => {

@@ -209,7 +209,8 @@ export async function restoreBackup(filePath: string): Promise<void> {
   window.location.reload();
 }
 
-function applyData(data: Record<string, unknown>): void {
+/** 将备份数据写回 localStorage（导出以便独立测试/复用） */
+export function applyData(data: Record<string, unknown>): void {
   for (const s of SOURCES) {
     if (data[s.logical] !== undefined) {
       localStorage.setItem(s.lsKey, JSON.stringify(data[s.logical]));
