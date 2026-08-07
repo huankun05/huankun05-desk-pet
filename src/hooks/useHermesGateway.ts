@@ -38,7 +38,9 @@ const MSG_SYNC_EVENT = 'chat:msg-synced';
 let _msgCounter = 0;
 function nextMsgId(): string {
   _msgCounter += 1;
-  return `hermes_${Date.now()}_${_msgCounter}`;
+  // 加随机后缀：主窗/面板窗各自维护 counter，同毫秒发消息时 id 可能撞车，
+  // 跨窗同步后相同 id 会互相覆盖，必须保证全局唯一。
+  return `hermes_${Date.now()}_${_msgCounter}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export interface UseHermesGatewayOptions {
@@ -311,14 +313,28 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
   // 收到其他窗口广播的完成态消息时，若属于当前会话则按 id upsert（存在=替换，否则追加）。
   const upsertRemoteMessage = useCallback((payload: { sessionId: string; msg: Message }) => {
     if (!payload.sessionId || payload.sessionId !== sessionRef.current?.id) return;
+    // Tauri 事件会 JSON 序列化：timestamp 到远端是 ISO 字符串，必须还原为 Date，
+    // 否则 ChatWindow 的 isSameDay()（依赖 .getTime()）会运行时崩溃。
+    const msg: Message = {
+      ...payload.msg,
+      timestamp: new Date(payload.msg.timestamp),
+    };
     setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === payload.msg.id);
+      const idx = prev.findIndex((m) => m.id === msg.id);
       if (idx >= 0) {
+        const existing = prev[idx];
+        // 幂等：自广播或重复事件时同内容直接跳过，避免无谓重渲染
+        if (
+          existing.content === msg.content &&
+          existing.timestamp.getTime() === msg.timestamp.getTime()
+        ) {
+          return prev;
+        }
         const next = [...prev];
-        next[idx] = payload.msg;
+        next[idx] = msg;
         return next;
       }
-      return [...prev, payload.msg];
+      return [...prev, msg];
     });
   }, []);
 
