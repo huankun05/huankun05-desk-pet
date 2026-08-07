@@ -168,6 +168,8 @@
       "clear_all": "清空全部会话",
       "clear_all_confirm": "将删除全部聊天记录，且无法恢复。确定继续吗？",
       "clear_all_row_desc": "删除所有聊天记录，可选择是否同时删除备份文件",
+      "scope_sessions": "仅删除会话",
+      "scope_all": "同时删除备份",
       "clear_options_title": "清空选项",
       "clear_options_desc": "选择清空范围后点击「确认清空」执行操作：",
       "delete_backups_label": "同时删除本地备份文件",

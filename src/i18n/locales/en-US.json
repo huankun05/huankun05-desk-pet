@@ -164,6 +164,8 @@
       "clear_all": "Clear all sessions",
       "clear_all_confirm": "This deletes all chat history permanently. Continue?",
       "clear_all_row_desc": "Delete all chat records; optionally delete backup files too",
+      "scope_sessions": "Sessions only",
+      "scope_all": "Include backups",
       "clear_options_title": "Clear Options",
       "clear_options_desc": "Select scope, then tap Confirm to proceed:",
       "delete_backups_label": "Also delete local backup files",
