@@ -531,25 +531,57 @@ export class RAGEngine {
 
   private static readonly STORAGE_KEY = 'deskpet_rag_docs_v1';
 
-  /** 序列化持久化到 localStorage（重启不丢） */
+  /** 序列化持久化到 localStorage（重启不丢）；超限时按重要性降级逐出 */
   saveToStorage(): void {
     try {
-      const serializable = Array.from(this.docs.values()).map((d) => ({
-        ...d,
-        baseImportance: d.baseImportance ?? d.importance,
-        createdAt: d.createdAt.toISOString(),
-        lastAccessed: d.lastAccessed.toISOString(),
-      }));
-      const json = JSON.stringify(serializable);
+      const serialize = (): string =>
+        JSON.stringify(
+          Array.from(this.docs.values()).map((d) => ({
+            ...d,
+            baseImportance: d.baseImportance ?? d.importance,
+            createdAt: d.createdAt.toISOString(),
+            lastAccessed: d.lastAccessed.toISOString(),
+          })),
+        );
+      let json = serialize();
       try {
         localStorage.setItem(RAGEngine.STORAGE_KEY, json);
       } catch {
-        /* 跨域/隐私模式或超过 5MB，忽略 */
+        // 超限（约 5MB，localStorage 硬上限）：逐出最低效的非永久文档后重试，
+        // 避免新记忆静默丢失（内存态始终保留，仅持久化降级）。
+        if (this.evictLowestForStorage() > 0) {
+          json = serialize();
+          try {
+            localStorage.setItem(RAGEngine.STORAGE_KEY, json);
+          } catch {
+            /* 仍超限则忽略：内存态保留，刷新后丢失的只是最低效记忆 */
+          }
+        }
       }
       log.debug('RAG persisted', { docs: this.docs.size, bytes: json.length });
     } catch (err) {
       log.warn('RAG persist failed', { err: String(err) });
     }
+  }
+
+  /** 超限降级：按有效重要性从低到高逐出非永久文档，最多 20%，返回逐出数 */
+  private evictLowestForStorage(): number {
+    const targets = [...this.docs.entries()]
+      .filter(([, d]) => d.metadata?.permanent !== 'true')
+      .sort((a, b) => this.effectiveImportance(a[1]) - this.effectiveImportance(b[1]));
+    const maxEvict = Math.max(1, Math.floor(this.docs.size * 0.2));
+    let evicted = 0;
+    for (const [id] of targets) {
+      if (evicted >= maxEvict) break;
+      this.bm25.remove(id);
+      this.vec.remove(id);
+      this.docs.delete(id);
+      evicted++;
+    }
+    if (evicted > 0) {
+      log.warn('RAG storage quota exceeded, evicted lowest-importance docs', { evicted });
+    }
+    return evicted;
   }
 
   /** 从 localStorage 反序列化恢复 */

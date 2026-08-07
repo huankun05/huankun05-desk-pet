@@ -18,6 +18,7 @@ import {
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
 import { useHermesGateway } from '../../hooks/useHermesGateway';
+import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { SlashCommand } from '../../hooks/useSlashCommands';
 
 /** 顶部栏图标按钮 */
@@ -84,6 +85,9 @@ function ChatPanelWindow() {
     }
   });
 
+  // 本地 RAG 记忆写入：面板对话完成后同样落盘（消息 id 唯一，与主窗口不会双写）
+  const { addToRag } = useRagPersistence();
+
   const {
     messages,
     isLoading,
@@ -94,7 +98,24 @@ function ChatPanelWindow() {
     newChat,
     loadSession,
     setGatewayEnabled,
-  } = useHermesGateway({ ttsEnabled });
+  } = useHermesGateway({
+    ttsEnabled,
+    onMessageComplete: async (
+      userText,
+      assistantText,
+      sessionId,
+      userMessageId,
+      assistantMessageId,
+    ) => {
+      if (userMessageId && assistantMessageId && sessionId) {
+        await addToRag(userText, assistantText, {
+          userMessageId,
+          assistantMessageId,
+          sessionId,
+        });
+      }
+    },
+  });
 
   // 详情面板状态
   const [showDetails, setShowDetails] = useState(false);
@@ -372,17 +393,30 @@ function ChatPanelWindow() {
     [loadSession],
   );
 
-  const handleDeleteSession = useCallback((sessionId: string) => {
-    deleteSession(sessionId);
-    const all = listSessions();
-    setSessions(all);
-    const active = getActiveSession();
-    if (active) {
-      setActiveSessionId(active.id);
-    } else {
-      setActiveSessionId(null);
-    }
-  }, []);
+  const handleDeleteSession = useCallback(
+    (sessionId: string) => {
+      const wasActive = sessionId === activeSessionId;
+      deleteSession(sessionId);
+      const all = listSessions();
+      setSessions(all);
+      const active = getActiveSession();
+      if (active) {
+        setActiveSessionId(active.id);
+        // 删除的是当前会话：同步加载下一个会话的消息，避免界面残留已删内容
+        if (wasActive) loadSession(active.id);
+      } else {
+        setActiveSessionId(null);
+        // 没有剩余会话：开一个新会话并同步会话列表
+        if (wasActive) {
+          newChat();
+          const all2 = listSessions();
+          setSessions(all2);
+          setActiveSessionId(getActiveSession()?.id ?? null);
+        }
+      }
+    },
+    [activeSessionId, loadSession, newChat],
+  );
 
   // 会话列表：搜索 + 分页（每页 20 条，滚动式加载更多）
   const [sessionQuery, setSessionQuery] = useState('');
