@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **聊天设置拆分为五个清晰分区**: 聊天设置作为独立入口，内部含「外观 / 输入 / 语音 / 模式 / 会话与数据」五个分区。外观页涵盖头像（AI 默认桌宠形象、用户可上传）、气泡（圆角 / 气泡尾 / 字号）、聊天背景、配色（浅色为主 + 可切深色 + 强调色预设）并带实时预览；会话与数据页管理历史会话、收藏消息与数据清理。各分区可一键跳转到外观气泡、全局主题、模型等关联设置页
 - **聊天外观独立配置体系**: 在 `appearanceConfig.ts` 新增全套 `chat*` 键（`chatTheme` / `chatAccent` / `chatBubbleRadius` / `chatBubbleTail` / `chatShowAvatar` / `chatUserAvatar` / `chatAiAvatar` / `chatFontSize` / `chatBackgroundImage`），与桌宠头顶气泡、应用全局主题完全解耦；`writeAppearanceConfig` 写入后通过 Tauri `CHAT_APPEARANCE_EVENT` 跨 webview 实时同步，`useChatAppearance` 三通道订阅（storage 事件 + Tauri 事件 + 窗口聚焦）
 - **聊天主题 CSS 与头像组件**: 新增 `chat-theme.css`（`.chat-root` 变量、`.chat-bubble--user/ai`、气泡尾 `::after`、`.chat-chip--pop` 动画）与 `ChatAvatar.tsx`（role 区分 user/assistant/system，支持上传、AI 默认桌宠渐变 + `solar:cat-bold`）
+- **自学习成长能力（仿 Hermes）**: 新增 `server/hermes_gateway_memory.py` 记忆主仓库（独立 `data/memories.db`，类别 preference/fact/feedback/rule，支持 add/recall/list/delete/clear），每轮对话后异步用 LLM 抽取值得记住的事实写库；`_handle_chat` 在生成前召回相关记忆并注入 `<memory-context>` 块进 system prompt。新增 `GET/POST/DELETE /api/gateway/memory` 与 `GET /api/gateway/mode-tools` REST 端点。
+- **工具 / 技能 / MCP 可视化管理**: 新增设置页「扩展 → 工具」（`/settings/extensions/tools`，`ToolsPage.tsx`），分组列出前端/后端/MCP 工具，每项可开关启用/禁用（禁用态存 `localStorage.deskpet_disabled_tools`，经 `src/services/tools/toolManagement.ts`，后端 `_handle_chat` 双层过滤），并显示 chat/work 可用性徽章；含技能/MCP/插件入口。
+- **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
 
 ### Changed
 
@@ -54,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - emotion_bridge 后端进程自动启动：Rust 已有代码自动拉起 Core API (9877) + Hermes Gateway (8765)，前端 `useBrainBridge.ts` 已接通双向调用
 - **i18n 键缺失导致构建失败**: `scan-i18n-keys` 发现 `app.close`、`chat.attachment` 缺失（聊天窗口重写引入），已补入 `zh-CN.json` / `en-US.json`
 - **设置项一致性校验通过**: `check-settings-entries` 确认 36 个二级路径 / 36 个 loader / 7 个 Index 页三者一致
+- **补充 `settings.chat` 遗漏的中文 i18n 键**: 修复 `ChatModesPage` 使用的 `mode_badge_chat` / `mode_badge_work` / `mode_current_title` / `mode_current_desc` 仅在顶层 `chat` 命名空间定义、缺少 `settings.chat` 定义导致中文界面显示原始 key 串的问题（`zh-CN.json` 补齐，中英文对齐）。
 
 ### Changed
 

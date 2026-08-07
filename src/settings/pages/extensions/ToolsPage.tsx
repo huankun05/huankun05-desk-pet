@@ -4,10 +4,7 @@ import { Section, SettingRow } from '../../components';
 import { useToast } from '../../components';
 import { toolRegistry } from '../../../services/tools/registry';
 import { getAllServerStatuses } from '../../../services/mcp/manager';
-import {
-  fetchModeTools,
-  type ModeToolsInfo,
-} from '../../../services/gatewayApi';
+import { fetchModeTools, type ModeToolsInfo } from '../../../services/gatewayApi';
 import {
   getDisabledTools,
   setToolDisabled,
@@ -121,7 +118,8 @@ export function ToolsPage() {
       >
         <p className="px-4 pb-2 text-xs text-neutral-500">
           {t('settings.tools.hint', {
-            defaultValue: '前端工具在桌面侧执行（截图/文件等），后端工具在 Gateway 进程内执行，MCP 工具来自外部服务器。',
+            defaultValue:
+              '前端工具在桌面侧执行（截图/文件等），后端工具在 Gateway 进程内执行，MCP 工具来自外部服务器。',
           })}
         </p>
 

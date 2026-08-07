@@ -50,16 +50,10 @@ export function GrowthPage() {
     try {
       await addMemory(text, newCat);
       setNewText('');
-      showToast(
-        t('settings.memory.growth.added', { defaultValue: '已添加记忆' }),
-        'success',
-      );
+      showToast(t('settings.memory.growth.added', { defaultValue: '已添加记忆' }), 'success');
       load();
     } catch {
-      showToast(
-        t('settings.memory.growth.add_fail', { defaultValue: '添加失败' }),
-        'error',
-      );
+      showToast(t('settings.memory.growth.add_fail', { defaultValue: '添加失败' }), 'error');
     }
   };
 
@@ -68,10 +62,7 @@ export function GrowthPage() {
       await deleteMemory(id);
       setItems((prev) => prev.filter((x) => x.id !== id));
     } catch {
-      showToast(
-        t('settings.memory.growth.del_fail', { defaultValue: '删除失败' }),
-        'error',
-      );
+      showToast(t('settings.memory.growth.del_fail', { defaultValue: '删除失败' }), 'error');
     }
   };
 
@@ -145,9 +136,7 @@ export function GrowthPage() {
                     </div>
                     <p className="mt-0.5 text-[10px] text-neutral-400">
                       {m.source} ·{' '}
-                      {m.created_at
-                        ? new Date(m.created_at * 1000).toLocaleString()
-                        : ''}
+                      {m.created_at ? new Date(m.created_at * 1000).toLocaleString() : ''}
                     </p>
                   </div>
                   <button

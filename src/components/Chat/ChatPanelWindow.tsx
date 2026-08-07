@@ -202,7 +202,11 @@ function ChatPanelWindow() {
     registerBuiltinTools();
 
     const unsub = eventBus.on('tool:execute', async (payload) => {
-      const { id, name, args } = payload as { id: string; name: string; args: Record<string, unknown> };
+      const { id, name, args } = payload as {
+        id: string;
+        name: string;
+        args: Record<string, unknown>;
+      };
       const tool = toolRegistry.get(name);
       if (!tool) {
         getHermesGatewayClient().sendToolResult(id, name, `Error: unknown tool '${name}'`, true);

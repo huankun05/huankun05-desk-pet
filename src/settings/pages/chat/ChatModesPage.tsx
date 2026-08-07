@@ -75,13 +75,11 @@ export function ChatModesPage() {
 
   // 组装「当前模式可用工具」清单
   const availableTools: ToolView[] = (() => {
-    const frontend = toolRegistry
-      .getAll()
-      .map<ToolView>((tt) => ({
-        name: tt.name,
-        description: tt.description,
-        source: 'frontend',
-      }));
+    const frontend = toolRegistry.getAll().map<ToolView>((tt) => ({
+      name: tt.name,
+      description: tt.description,
+      source: 'frontend',
+    }));
     const backend = (modeTools?.backend ?? []).map<ToolView>((n) => ({
       name: n,
       description: BACKEND_DESC[n] ?? '后端工具',
@@ -243,9 +241,7 @@ export function ChatModesPage() {
                     key={`${tool.source}-${tool.name}`}
                     title={tool.description}
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
-                      mode === 'work'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-pink-100 text-pink-700'
+                      mode === 'work' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
                     }`}
                   >
                     {tool.name}
