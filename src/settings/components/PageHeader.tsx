@@ -43,7 +43,15 @@ export function PageHeader({
   }, [location.pathname, title, subtitle]);
 
   const handleBack = () => {
-    // 父子级返回：根据当前路径计算父级分区并跳转，而非退回历史栈
+    // 有历史栈时优先回退历史：无论是「跨分区跳转」（如聊天语音→语音唤醒，
+    // 返回刚才的页面）还是「父子级跳转」（如聊天→语音，返回上一极），
+    // 回退历史栈都能精确回到来路，无需按 pathname 臆测父级。
+    // 初始渲染的 location.key 为 'default'；非 default 即存在前序历史。
+    if (location.key && location.key !== 'default') {
+      navigate(-1);
+      return;
+    }
+    // 无历史（如从主窗口深链直达深层页）：按父分区兜底
     // /settings/services/tts -> /settings/services；/settings/services -> /settings
     const segments = location.pathname.split('/').filter(Boolean);
     if (segments.length <= 1) {
