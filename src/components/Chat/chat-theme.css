@@ -23,6 +23,9 @@
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
 
+  /* 覆盖 App.css 的全局 :root { color: #ffffff }，确保浅色背景下文字可见 */
+  color: var(--text-primary, #1f2329);
+
   font-variant-numeric: tabular-nums;
 }
 

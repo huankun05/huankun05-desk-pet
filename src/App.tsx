@@ -8,6 +8,11 @@ if (typeof document !== 'undefined') {
   if (!isPanel) {
     // 主窗：透明背景（由 Rust 窗口属性 + CSS 共同决定）
     document.body.style.backgroundColor = 'transparent';
+  } else {
+    // 面板窗：立即设置背景色防止闪白 + 移除主窗遮罩（面板无 Live2D 不会触发移除）
+    document.body.style.backgroundColor = '#f2f3f5';
+    const splash = document.getElementById('app-loading');
+    if (splash) splash.remove();
   }
   document.body.style.margin = '0';
   document.body.style.overflow = 'hidden';

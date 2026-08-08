@@ -163,11 +163,13 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
   }
   if (mdError) {
     // Markdown 渲染失败时回退纯文本，确保内容始终可见
-    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{content}</span>;
+    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'inherit' }}>{content}</span>;
   }
   return (
     <ErrorBoundary onError={() => setMdError(true)}>
-      <MarkdownContent content={content} />
+      <span style={{ color: 'inherit' }}>
+        <MarkdownContent content={content} />
+      </span>
     </ErrorBoundary>
   );
 }
@@ -427,13 +429,14 @@ export function MessageItem({
             padding: '7px 11px',
             borderRadius: `${radius}px`,
             background: isUser ? 'var(--bubble-user-bg, #12b7f5)' : 'var(--bubble-ai-bg, #ffffff)',
+            // 双层 fallback：CSS 变量 → 硬编码颜色（覆盖 App.css 全局 :root { color: #fff }）
             color: isUser ? 'var(--bubble-user-text, #ffffff)' : 'var(--bubble-ai-text, #1f2329)',
             border: isUser ? '1px solid transparent' : '1px solid var(--glass-border, rgba(15,23,42,0.08))',
             boxShadow: 'var(--shadow-sm)',
             lineHeight: 1.5,
             wordBreak: 'break-word',
             whiteSpace: 'pre-wrap',
-            minWidth: '40px', // 确保空内容时气泡仍可见
+            minWidth: '40px',
             overflow: 'hidden',
           }}
         >

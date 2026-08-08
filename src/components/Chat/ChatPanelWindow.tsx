@@ -30,6 +30,8 @@ import { getHermesGatewayClient } from '../../services/hermesGateway';
 
 /** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
 let _contextResetTs = 0;
+/** 标记是否为挂载后的首次 updateInfo 调用（跳过 localStorage 旧值） */
+let _isFirstUpdate = true;
 
 /** 顶部栏图标按钮 */
 function BarButton({
@@ -153,10 +155,7 @@ function ChatPanelWindow() {
     setGatewayEnabled(true);
     // 聊天面板窗没有 Live2D，不会触发 useLive2D 的遮罩移除，需手动处理
     const splash = document.getElementById('app-loading');
-    if (splash) {
-      splash.classList.add('hidden');
-      setTimeout(() => splash.remove(), 300);
-    }
+    if (splash) splash.remove();
   }, [setGatewayEnabled]);
 
   // 录音器初始化 + STT 可用性（通过 localStorage 标志从主窗口同步）
@@ -183,6 +182,13 @@ function ChatPanelWindow() {
 
   // 读取当前模型和上下文信息
   useEffect(() => {
+    // 挂载时标记：首次 updateInfo 跳过 localStorage 旧值
+    _contextResetTs = Date.now();
+    _isFirstUpdate = true;
+    try {
+      localStorage.removeItem('deskpet_context_used');
+    } catch { /* ignore */ }
+
     const updateInfo = () => {
       try {
         const provider = providerManager.getActiveChatProvider();
@@ -195,9 +201,10 @@ function ChatPanelWindow() {
       try {
         const used = localStorage.getItem('deskpet_context_used');
         const total = localStorage.getItem('deskpet_context_total');
-        // 重置后 3 秒内不读取旧值（避免 Gateway 残留写入覆盖归零）
-        if (Date.now() - _contextResetTs < 3000) {
+        // 首次更新或重置后 5 秒内不读取旧值（避免 Gateway 残余写入覆盖归零）
+        if (_isFirstUpdate || Date.now() - _contextResetTs < 5000) {
           setContextUsed(0);
+          _isFirstUpdate = false;
         } else {
           if (used) setContextUsed(Number(used));
         }
@@ -206,9 +213,10 @@ function ChatPanelWindow() {
         // ignore
       }
     };
-    updateInfo();
+    // 延迟首次读取，给 Gateway 时间写入当前会话的真实值
+    const initTimer = setTimeout(updateInfo, 1500);
     const timer = setInterval(updateInfo, 2000);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); clearTimeout(initTimer); };
   }, []);
 
   // 重置上下文显示（切换/删除/新建会话时调用，避免残留旧 token 数）
