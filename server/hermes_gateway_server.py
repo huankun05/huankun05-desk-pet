@@ -253,7 +253,8 @@ class HermesEngine:
             return
 
         loop = asyncio.get_running_loop()
-        with __import__("concurrent.futures").ThreadPoolExecutor(max_workers=1) as pool:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as pool:
             tokens = await loop.run_in_executor(
                 pool, lambda: list(llm.chat_stream(messages, tools=tools))
             )
@@ -477,27 +478,35 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     frontend_tools = data.get("frontend_tools", []) or []
 
     log.info("[CHAT] start id=%s mode=%s text=%s", msg_id, mode, text[:120])
+    _trace("[CHAT] start id=%s mode=%s text=%s", msg_id, mode, text[:120])
     # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
     cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
     # 前端可临时禁用某些工具（持久化在 localStorage，随消息上报）
     disabled = set(data.get("disabled_tools", []) or [])
     log.info("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
+    _trace("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
 
     whitelist = cfg.get("tool_names", None)
+    _trace("[CHAT] whitelist=%s", whitelist)
 
     # Persist user message
     engine.append_message("user", text)
+    _trace("[CHAT] user message appended")
 
     # Build initial prompt：召回成长记忆并注入（仿 Hermes <memory-context> 协议）
     system_content = cfg["system_prompt"]
+    _trace("[CHAT] recalling memories...")
     recalled = memory_store.recall(text, limit=6)
+    _trace("[CHAT] recalled=%d", len(recalled))
     if recalled:
         mem_block = "\n".join(f"- {m['text']}" for m in recalled)
         system_content += (
             "\n\n<memory-context>\n以下是关于用户已记住的信息，请自然运用，不要重复确认：\n"
             f"{mem_block}\n</memory-context>"
         )
+    _trace("[CHAT] fetching history...")
     history = engine.get_history(limit=cfg["history_limit"])
+    _trace("[CHAT] history_len=%d", len(history))
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_content},
         *[
@@ -507,6 +516,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         ],
         {"role": "user", "content": text},
     ]
+    _trace("[CHAT] messages_len=%d", len(messages))
 
     # 解析「允许的工具」：白名单剔除被禁用的；work(None) 仍要剔除禁用项
     if whitelist is None:
@@ -519,6 +529,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         allowed_backend = _filter_tools(
             tool_executor.tool_definitions(), [w for w in whitelist if w not in disabled]
         )
+    _trace("[CHAT] allowed_frontend=%d allowed_backend=%d", len(allowed_frontend), len(allowed_backend))
 
     tool_loop = ToolLoop(
         ws=ws,
@@ -527,13 +538,18 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         backend_tools=allowed_backend,
         executor=tool_executor,
     )
+    _trace("[CHAT] tool_loop created")
     log.info("[CHAT] tool_loop created frontend=%d backend=%d", len(allowed_frontend), len(allowed_backend))
     log.info("[CHAT] calling tool_loop.run...")
+    _trace("[CHAT] calling tool_loop.run...")
     result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)
+    _trace("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
     log.info("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
     log.info("[CHAT] toolCalls=%d toolResults=%d", len(result.get("toolCalls", [])), len(result.get("toolResults", [])))
 
     full_response = result.get("accumulated", "") or text
+    if not full_response.strip():
+        full_response = "[DIAGNOSTIC] 后端未检测到可用的 LLM 配置，回复为空。请在 Rust 管理后台或设置页配置 Chat Provider。"
     if full_response:
         engine.append_message("assistant", full_response)
         try:
