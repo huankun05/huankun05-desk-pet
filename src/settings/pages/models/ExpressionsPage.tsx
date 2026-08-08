@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section, Switch, useToast } from '../../components';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { isTauriEnv } from '../../../utils/tauriEnv';
 import {
   MODEL_ASSETS,
@@ -40,6 +40,36 @@ export function ExpressionsPage() {
   const [disabled, setDisabled] = useState<Set<string>>(() => getDisabledVisuals());
 
   const refreshDisabled = () => setDisabled(getDisabledVisuals());
+
+  // 预览链路状态（调试用）：发送后等主窗 ack 回执；超时未到说明跨窗事件未送达
+  const [previewStatus, setPreviewStatus] = useState<{
+    kind: 'idle' | 'sending' | 'ok' | 'filtered' | 'timeout';
+    text?: string;
+  }>({ kind: 'idle' });
+
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    const off = listen<{
+      ok: boolean;
+      reason?: string;
+      applied?: string;
+      payloadModelKey?: string;
+      myModelKey?: string;
+    }>('deskpet:preview-ack', (e) => {
+      console.log('[Preview] 收到主窗回执 ack：', e.payload);
+      if (e.payload.ok) {
+        setPreviewStatus({ kind: 'ok', text: `主窗已应用：${e.payload.applied}` });
+      } else {
+        setPreviewStatus({
+          kind: 'filtered',
+          text: `被主窗忽略（${e.payload.reason}）：payload.modelKey=${e.payload.payloadModelKey}，主窗=${e.payload.myModelKey}`,
+        });
+      }
+    });
+    return () => {
+      off.then((fn) => fn());
+    };
+  }, []);
 
   const toggle = (modelKey: string, name: string) => {
     const enabled = isVisualEnabled(modelKey, name);
@@ -99,27 +129,51 @@ export function ExpressionsPage() {
 
   // ===== 跨窗预览 =====
   const previewExpression = async (name: string) => {
+    console.log('[Preview] 点击预览表情：', name, 'modelKey=nahida');
     if (!isTauriEnv()) {
+      console.warn('[Preview] 非 Tauri 环境，不发送');
       showToast(t('settings.expressions.preview_need_pet'), 'warning');
       return;
     }
+    setPreviewStatus({ kind: 'sending' });
+    const timer = window.setTimeout(() => {
+      setPreviewStatus((prev) =>
+        prev.kind === 'sending'
+          ? { kind: 'timeout', text: '1.5s 内未收到主窗回执，跨窗事件链路可能未通' }
+          : prev,
+      );
+    }, 1500);
     try {
       // 用全局 emit（而非 window.emit），事件才能跨 webview 送达主窗桌宠
       await emit('deskpet:preview-expression', {
         expression: name,
         modelKey: 'nahida',
       });
+      console.log('[Preview] 已 emit deskpet:preview-expression：', { expression: name, modelKey: 'nahida' });
       showToast(t('settings.expressions.preview_sent'), 'success');
-    } catch {
-      showToast(t('settings.expressions.preview_failed'), 'error');
+    } catch (err) {
+      console.error('[Preview] emit 失败：', err);
+      setPreviewStatus({ kind: 'timeout', text: `emit 抛异常：${String(err)}` });
+    } finally {
+      window.clearTimeout(timer);
     }
   };
 
   const previewMotion = async (groupName: string) => {
+    console.log('[Preview] 点击预览动作：', groupName, 'modelKey=hiyori');
     if (!isTauriEnv()) {
+      console.warn('[Preview] 非 Tauri 环境，不发送');
       showToast(t('settings.expressions.preview_need_pet'), 'warning');
       return;
     }
+    setPreviewStatus({ kind: 'sending' });
+    const timer = window.setTimeout(() => {
+      setPreviewStatus((prev) =>
+        prev.kind === 'sending'
+          ? { kind: 'timeout', text: '1.5s 内未收到主窗回执，跨窗事件链路可能未通' }
+          : prev,
+      );
+    }, 1500);
     try {
       // 用全局 emit（而非 window.emit），事件才能跨 webview 送达主窗桌宠
       await emit('deskpet:preview-motion', {
@@ -127,9 +181,13 @@ export function ExpressionsPage() {
         modelKey: 'hiyori',
         duration: 3000,
       });
+      console.log('[Preview] 已 emit deskpet:preview-motion：', { name: groupName, modelKey: 'hiyori' });
       showToast(t('settings.expressions.preview_sent'), 'success');
-    } catch {
-      showToast(t('settings.expressions.preview_failed'), 'error');
+    } catch (err) {
+      console.error('[Preview] emit 失败：', err);
+      setPreviewStatus({ kind: 'timeout', text: `emit 抛异常：${String(err)}` });
+    } finally {
+      window.clearTimeout(timer);
     }
   };
 
@@ -205,6 +263,26 @@ export function ExpressionsPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-12 animate-[fade-in-up_0.3s_ease-out]">
+      {/* 调试：预览链路状态（发送 → 主窗回执）。问题定位一目了然。 */}
+      {previewStatus.kind !== 'idle' && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            previewStatus.kind === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : previewStatus.kind === 'sending'
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+          }`}
+        >
+          <span className="font-medium">预览链路：</span>
+          {previewStatus.kind === 'sending' && '发送中…'}
+          {previewStatus.kind === 'ok' && (previewStatus.text ?? '主窗已应用')}
+          {previewStatus.kind === 'filtered' && (previewStatus.text ?? '被主窗忽略')}
+          {previewStatus.kind === 'timeout' && (previewStatus.text ?? '超时未收到回执')}
+          <span className="ml-2 text-[11px] opacity-60">（详见控制台日志）</span>
+        </div>
+      )}
+
       <Section
         title={t('settings.expressions.nahida_title')}
         description={t('settings.expressions.nahida_note')}

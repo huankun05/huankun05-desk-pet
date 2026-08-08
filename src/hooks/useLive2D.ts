@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { isTauriEnv } from '../utils/tauriEnv';
-import { listen } from '@tauri-apps/api/event';
+import { listen, emit } from '@tauri-apps/api/event';
 import {
   initLive2D,
   loadModelFromPath,
@@ -292,19 +292,45 @@ export function useLive2D({
 
   // 跨窗口预览：设置页「表情与动作」管理页通过 Tauri 事件请求主窗桌宠播放指定项。
   // 仅当 modelKey 匹配时才落地，避免把 nahida 表情误发到 hiyori、反之亦然。
+  // 调试：收到后反向 emit `deskpet:preview-ack` 回设置页，便于在设置页直接看到链路状态。
   useEffect(() => {
-    if (isLoading) return;
-    if (!isTauriEnv()) return;
+    if (isLoading) {
+      console.log('[Live2D:preview] 跳过注册监听：isLoading=true（模型未就绪）');
+      return;
+    }
+    if (!isTauriEnv()) {
+      console.log('[Live2D:preview] 跳过注册监听：非 Tauri 环境');
+      return;
+    }
     let unlistenExpr: (() => void) | undefined;
     let unlistenMotion: (() => void) | undefined;
     let cancelled = false;
+    console.log('[Live2D:preview] 注册预览监听，本窗 modelKey =', modelKey);
 
     void listen<{ expression: string; modelKey: string }>(
       'deskpet:preview-expression',
       (e) => {
-        if (e.payload.modelKey && e.payload.modelKey !== modelKey) return;
+        console.log('[Live2D:preview] 收到 expression 事件：', e.payload, '本窗 modelKey =', modelKey);
+        if (e.payload.modelKey && e.payload.modelKey !== modelKey) {
+          console.warn(
+            '[Live2D:preview] modelKey 不匹配，忽略。payload=',
+            e.payload.modelKey,
+            '本窗=',
+            modelKey,
+          );
+          void emit('deskpet:preview-ack', {
+            ok: false,
+            reason: 'modelKey-mismatch',
+            payloadModelKey: e.payload.modelKey,
+            myModelKey: modelKey,
+          });
+          return;
+        }
         const name = e.payload.expression;
-        setExpression(name === 'Default' ? '' : name);
+        const finalName = name === 'Default' ? '' : name;
+        console.log('[Live2D:preview] 调用 setExpression ->', JSON.stringify(finalName));
+        setExpression(finalName);
+        void emit('deskpet:preview-ack', { ok: true, applied: finalName, modelKey });
       },
     ).then((fn) => {
       if (!cancelled) unlistenExpr = fn;
@@ -313,8 +339,25 @@ export function useLive2D({
     void listen<{ name: string; modelKey: string; duration: number }>(
       'deskpet:preview-motion',
       (e) => {
-        if (e.payload.modelKey && e.payload.modelKey !== modelKey) return;
+        console.log('[Live2D:preview] 收到 motion 事件：', e.payload, '本窗 modelKey =', modelKey);
+        if (e.payload.modelKey && e.payload.modelKey !== modelKey) {
+          console.warn(
+            '[Live2D:preview] modelKey 不匹配，忽略 motion。payload=',
+            e.payload.modelKey,
+            '本窗=',
+            modelKey,
+          );
+          void emit('deskpet:preview-ack', {
+            ok: false,
+            reason: 'modelKey-mismatch',
+            payloadModelKey: e.payload.modelKey,
+            myModelKey: modelKey,
+          });
+          return;
+        }
+        console.log('[Live2D:preview] 调用 triggerAnimation ->', e.payload.name);
         triggerAnimation(e.payload.name, e.payload.duration ?? 3000);
+        void emit('deskpet:preview-ack', { ok: true, applied: `motion:${e.payload.name}`, modelKey });
       },
     ).then((fn) => {
       if (!cancelled) unlistenMotion = fn;
