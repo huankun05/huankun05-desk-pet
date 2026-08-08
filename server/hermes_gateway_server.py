@@ -405,13 +405,13 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     frontend_tools = data.get("frontend_tools", []) or []
 
     log.info("[CHAT] start id=%s mode=%s text=%s", msg_id, mode, text[:120])
-    log.info("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
-
     # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
-    # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
-    whitelist = cfg.get("tool_names", None)
+    cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
     # 前端可临时禁用某些工具（持久化在 localStorage，随消息上报）
     disabled = set(data.get("disabled_tools", []) or [])
+    log.info("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
+
+    whitelist = cfg.get("tool_names", None)
 
     # Persist user message
     engine.append_message("user", text)
