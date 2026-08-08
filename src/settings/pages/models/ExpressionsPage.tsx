@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section, Switch, useToast } from '../../components';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { emit } from '@tauri-apps/api/event';
 import { isTauriEnv } from '../../../utils/tauriEnv';
 import {
   MODEL_ASSETS,
@@ -104,7 +104,8 @@ export function ExpressionsPage() {
       return;
     }
     try {
-      await getCurrentWindow().emit('deskpet:preview-expression', {
+      // 用全局 emit（而非 window.emit），事件才能跨 webview 送达主窗桌宠
+      await emit('deskpet:preview-expression', {
         expression: name,
         modelKey: 'nahida',
       });
@@ -120,7 +121,8 @@ export function ExpressionsPage() {
       return;
     }
     try {
-      await getCurrentWindow().emit('deskpet:preview-motion', {
+      // 用全局 emit（而非 window.emit），事件才能跨 webview 送达主窗桌宠
+      await emit('deskpet:preview-motion', {
         name: groupName,
         modelKey: 'hiyori',
         duration: 3000,
