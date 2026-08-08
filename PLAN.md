@@ -1021,3 +1021,29 @@ desk-pet/
 - 提交: `68cfdf4`（功能，14 文件 +990/−11）、`3fe60fc`（修复+文档，6 文件）
 
 ---
+
+### Phase 5c: Gateway LLM 可用性修复（2026-08-08）
+
+> **核心问题**：面板发消息后前端显示 `done`，但 `full_response` 一直是用户原话，没有模型回复。
+
+#### 根因
+- `%APPDATA%\desk-pet\providers.json` 实际是 Windows DPAPI 加密二进制，前缀为 `DPAPIv1:`，Python 直接 `json.loads()` 会报 `JSONDecodeError`
+- 即使解密成功，Python venv 里缺少 `openai` 包，`modules.llm` 初始化后 `llm_available=False`
+- `_llm_stream` 里 `__import__("concurrent.futures")` 写法导致 `module 'concurrent' has no attribute 'ThreadPoolExecutor'`
+- 修改后未清 `__pycache__`，Python 继续执行旧字节码，补丁看似无效
+
+#### 修复
+- `server/hermes_gateway_server.py`：`_get_llm()` 增加 `DPAPIv1:` 前缀检测 + `CryptUnprotectData` 解密路径
+- 安装 venv 依赖：`openai`
+- 修正导入为 `from concurrent.futures import ThreadPoolExecutor`
+- 清除 `server/__pycache__/hermes_gateway_server.cpython-312.pyc`
+
+#### 验证
+- 独立 WebSocket 直连测试：`recv done 在的！我在这里...`，确认返回真实 LLM 回复
+- `python -m py_compile`、`pnpm run typecheck` 均通过
+
+#### 相关提交
+- `4797ea9` decrypt Windows DPAPI providers.json
+- `4bba7c6` fix ThreadPoolExecutor import
+
+---
