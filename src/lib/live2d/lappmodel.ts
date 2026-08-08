@@ -115,6 +115,14 @@ export class LAppModel extends CubismUserModel {
         return r.arrayBuffer();
       })
       .then((arrayBuffer) => {
+        // 保存 model3.json 原始对象，绕过 CubismJson 对「对象数组」(FileReferences.Expressions)
+        // 解析失败导致 getExpressionCount() 恒为 0 的缺陷（详见表情加载回退逻辑）。
+        try {
+          const text = new TextDecoder('utf-8').decode(arrayBuffer);
+          this._model3Json = JSON.parse(text);
+        } catch {
+          this._model3Json = null;
+        }
         const setting: ICubismModelSetting = new CubismModelSettingJson(
           arrayBuffer,
           arrayBuffer.byteLength
@@ -167,12 +175,38 @@ export class LAppModel extends CubismUserModel {
     );
 
     // 3. expressions（并行）
+    // 注意：此 SDK 的 CubismJson 解析器对「对象数组」(FileReferences.Expressions)
+    // 解析失败，导致 getExpressionCount() 恒为 0、表情永远不加载。
+    // 因此优先用 SDK 接口，读不到时回退到 model3.json 原始对象（我们自己 JSON.parse）。
+    interface ExprEntry { Name: string; File: string }
+    const expressionList: ExprEntry[] = [];
+    if (this._modelSetting && this._modelSetting.getExpressionCount() > 0) {
+      const n = this._modelSetting.getExpressionCount();
+      for (let i = 0; i < n; i++) {
+        expressionList.push({
+          Name: this._modelSetting.getExpressionName(i),
+          File: this._modelSetting.getExpressionFileName(i),
+        });
+      }
+      console.log('[LAppModel:expressions] source = SDK | count =', n, '| home =', this._modelHomeDir);
+    } else {
+      const refs = (this._model3Json as { FileReferences?: { Expressions?: ExprEntry[] } } | null)
+        ?.FileReferences?.Expressions;
+      if (Array.isArray(refs)) {
+        for (const e of refs) {
+          if (e && e.Name && e.File) expressionList.push({ Name: e.Name, File: e.File });
+        }
+      }
+      console.log(
+        '[LAppModel:expressions] source =',
+        expressionList.length > 0 ? 'model3Json-fallback' : 'NONE',
+        '| count =', expressionList.length,
+        '| home =', this._modelHomeDir,
+      );
+    }
+
     const expressionPromises: Promise<void>[] = [];
-    const expressionCount = this._modelSetting ? this._modelSetting.getExpressionCount() : 0;
-    console.log('[LAppModel:expressions] _modelHomeDir =', this._modelHomeDir, '| count =', expressionCount);
-    for (let i = 0; i < expressionCount; i++) {
-      const expressionName = this._modelSetting.getExpressionName(i);
-      const expressionFileName = this._modelSetting.getExpressionFileName(i);
+    for (const { Name: expressionName, File: expressionFileName } of expressionList) {
       expressionPromises.push(
         fetch(`${this._modelHomeDir}${expressionFileName}`)
           .then((r) => {
@@ -746,24 +780,14 @@ export class LAppModel extends CubismUserModel {
   public setExpression(expressionId: string): void {
     const motion: ACubismMotion = this._expressions.getValue(expressionId);
 
-    // ===== DEBUG（排查预览表情无变化）=====
-    try {
-      const size = this._expressions.getSize();
-      const keys: string[] = [];
-      // csmMap 内部 _keyValues: [{ first: key, second: value }, ...]
-      const kv = (this._expressions as unknown as { _keyValues?: Array<{ first: string }> })._keyValues;
-      if (kv) for (let i = 0; i < kv.length; i++) keys.push(kv[i].first);
-      console.log(
-        '[LAppModel:setExpression]',
-        JSON.stringify(expressionId),
-        '| found =', motion != null,
-        '| loadedTotal =', size,
-        '| keys =', JSON.stringify(keys),
-      );
-    } catch (e) {
-      console.log('[LAppModel:setExpression] debug err', e);
-    }
-    // =====================================
+    // ===== DEBUG（排查预览表情无变化，验证修复后保留）=====
+    console.log(
+      '[LAppModel:setExpression]',
+      JSON.stringify(expressionId),
+      '| found =', motion != null,
+      '| loadedTotal =', this._expressions.getSize(),
+    );
+    // =====================================================
 
     if (this._debugMode) {
       LAppPal.printMessage(`[APP]expression: [${expressionId}]`);
@@ -994,6 +1018,7 @@ export class LAppModel extends CubismUserModel {
     super();
 
     this._modelSetting = null;
+    this._model3Json = null;
     this._modelHomeDir = null;
     this._userTimeSeconds = 0.0;
 
@@ -1042,6 +1067,7 @@ export class LAppModel extends CubismUserModel {
   }
 
   _modelSetting: ICubismModelSetting; // モデルセッティング情報
+  _model3Json: unknown = null; // model3.json 原始对象（绕过 CubismJson 对对象数组的解析缺陷）
   _modelHomeDir: string; // モデルセッティングが置かれたディレクトリ
   _userTimeSeconds: number; // デルタ時間の積算値[秒]
 
