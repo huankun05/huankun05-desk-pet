@@ -438,6 +438,9 @@ export function MessageItem({
             whiteSpace: 'pre-wrap',
             minWidth: '40px',
             overflow: 'hidden',
+            // 覆盖 App.css 全局 .chat-bubble { opacity: 0; pointer-events: none; }
+            opacity: 1,
+            pointerEvents: 'auto',
           }}
         >
           <MessageContent content={message.content} isStreaming={message.isStreaming} />

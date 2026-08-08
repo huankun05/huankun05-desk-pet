@@ -77,7 +77,11 @@
 }
 
 /* ---------- 气泡与尾巴 ---------- */
-.chat-bubble {
+/* 覆盖 App.css 全局 .chat-bubble { opacity: 0; pointer-events: none; }
+   （那是主窗 Live2D 气泡用的，聊天面板消息气泡需要始终可见） */
+.chat-root .chat-bubble {
+  opacity: 1;
+  pointer-events: auto;
   position: relative;
 }
 

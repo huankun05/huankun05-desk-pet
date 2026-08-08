@@ -9,9 +9,10 @@ if (typeof document !== 'undefined') {
     // 主窗：透明背景（由 Rust 窗口属性 + CSS 共同决定）
     document.body.style.backgroundColor = 'transparent';
   } else {
-    // 面板窗：立即设置背景色防止闪白 + 移除主窗遮罩（面板无 Live2D 不会触发移除）
-    document.documentElement.style.setProperty('background-color', '#12121c', 'important');
-    document.body.style.setProperty('background-color', '#12121c', 'important');
+    // 面板窗：立即设置背景色防止闪白（用聊天主题的浅色底色，避免 React 渲染后变色闪烁）
+    const bg = window.location.search.includes('panel=chat') ? '#f2f3f5' : '#ffffff';
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
     const splash = document.getElementById('app-loading');
     if (splash) splash.remove();
   }
