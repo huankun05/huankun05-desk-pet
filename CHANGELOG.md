@@ -70,6 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Modal 标题栏与内容区间距**: children 容器 padding 由 `p-6` 改为 `px-6 pb-6 pt-5`，增加标题栏与内容的视觉呼吸间距
 - **Live2D 并行加载与崩溃防护**: `LAppModel.loadAssets` 与动作预加载并行化（首屏冷启动提速）；修复 `_modelSetting` 在并行任务启动前未赋值、`_model.saveParameters()` 在 model 为 null 时崩溃两个边界问题
 - **窗口位置恢复可见跳动**: 位置恢复期间隐藏窗口避免可见跳动；改为仅恢复一次并使用缓存的模型信息，避免重复 / 错误重置
+- **Live2D 表情从未加载（预览 / 情绪换脸无效）**: 根因为 `_model3Json` 在 `model3Promise.then()` 回调中异步赋值，而表情加载代码同步执行时 `_model3Json` 仍为 `null`，导致 `model3Json` 回退路径永远读不到任何表情（日志表现为 `source = NONE | count = 0`，所有 `setExpression` 静默 no-op）。将 MOC 与表情加载合并进同一个 `model3Promise.then()` 回调，确保进入回退分支时 `_model3Json` 已就绪（nahida 现正确加载 16 个表情）。(`src/lib/live2d/lappmodel.ts`)
+- **Brain API 情绪标签大小写不匹配**: `useBrainBridge` 将 Brain API 的 `mood_label`（小写如 `happy`）直接当表情名下发 `expression:change`，而模型里是 `Happy`，导致情绪驱动的换脸静默 no-op；`useLive2D` 现统一经 `resolveVisualForModel(expr, modelKey)` 归一后再 `setExpression`。(`src/hooks/useLive2D.ts`, `src/hooks/useBrainBridge.ts`)
+- **表情 / 动作预览调试日志清理**: 移除 `lappmodel.ts` / `lappdelegate.ts` / `useLive2D.ts` 排查期间添加的临时 `console.log`，保留跨窗预览 `deskpet:preview-ack` 回执链路与 modelKey 不匹配告警。
 
 ### Changed
 

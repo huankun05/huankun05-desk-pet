@@ -498,16 +498,8 @@ export function setExpression(name: string): void {
   const manager = LAppLive2DManager.getInstance();
   const modelCount = manager.getModelCount ? manager.getModelCount() : -1;
   const model = manager.getModel(0);
-  console.log(
-    '[lappdelegate:setExpression] name =',
-    JSON.stringify(name),
-    '| getModel(0) =', model ? 'OK' : 'NULL',
-    '| totalModels =', modelCount,
-  );
   if (model) {
     model.setExpression(name);
-  } else {
-    console.warn('[lappdelegate:setExpression] getModel(0) 返回 null，无法设置表情');
   }
 }
 
