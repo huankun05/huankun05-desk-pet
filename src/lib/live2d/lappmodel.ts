@@ -169,6 +169,7 @@ export class LAppModel extends CubismUserModel {
     // 3. expressions（并行）
     const expressionPromises: Promise<void>[] = [];
     const expressionCount = this._modelSetting ? this._modelSetting.getExpressionCount() : 0;
+    console.log('[LAppModel:expressions] _modelHomeDir =', this._modelHomeDir, '| count =', expressionCount);
     for (let i = 0; i < expressionCount; i++) {
       const expressionName = this._modelSetting.getExpressionName(i);
       const expressionFileName = this._modelSetting.getExpressionFileName(i);
@@ -183,6 +184,14 @@ export class LAppModel extends CubismUserModel {
             return r.arrayBuffer();
           })
           .then((arrayBuffer) => {
+            // ===== DEBUG: 记录每个表情文件加载到的字节数 =====
+            console.log(
+              '[LAppModel:loadExpression]',
+              expressionName,
+              '| file =', expressionFileName,
+              '| bytes =', arrayBuffer.byteLength,
+            );
+            // ================================================
             const motion: ACubismMotion = this.loadExpression(
               arrayBuffer,
               arrayBuffer.byteLength,
@@ -737,6 +746,25 @@ export class LAppModel extends CubismUserModel {
   public setExpression(expressionId: string): void {
     const motion: ACubismMotion = this._expressions.getValue(expressionId);
 
+    // ===== DEBUG（排查预览表情无变化）=====
+    try {
+      const size = this._expressions.getSize();
+      const keys: string[] = [];
+      // csmMap 内部 _keyValues: [{ first: key, second: value }, ...]
+      const kv = (this._expressions as unknown as { _keyValues?: Array<{ first: string }> })._keyValues;
+      if (kv) for (let i = 0; i < kv.length; i++) keys.push(kv[i].first);
+      console.log(
+        '[LAppModel:setExpression]',
+        JSON.stringify(expressionId),
+        '| found =', motion != null,
+        '| loadedTotal =', size,
+        '| keys =', JSON.stringify(keys),
+      );
+    } catch (e) {
+      console.log('[LAppModel:setExpression] debug err', e);
+    }
+    // =====================================
+
     if (this._debugMode) {
       LAppPal.printMessage(`[APP]expression: [${expressionId}]`);
     }
@@ -749,7 +777,9 @@ export class LAppModel extends CubismUserModel {
         false,
         LAppDefine.PriorityForce
       );
+      console.log('[LAppModel:setExpression] 已 startMotionPriority ->', JSON.stringify(expressionId));
     } else {
+      console.warn('[LAppModel:setExpression] 表情未找到，静默 no-op ->', JSON.stringify(expressionId));
       if (this._debugMode) {
         LAppPal.printMessage(`[APP]expression[${expressionId}] is null`);
       }
