@@ -177,6 +177,7 @@ class HermesEngine:
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[str | dict[str, Any]]:
         llm = self._get_llm()
+        log.info("[LLM] _llm_stream called llm_available=%s tools=%d", llm is not None and llm.is_available(), len(tools or []))
         if not llm or not llm.is_available():
             # LLM 不可用时返回空（不暴露内部回显信息给用户）
             yield ""
@@ -187,7 +188,9 @@ class HermesEngine:
             tokens = await loop.run_in_executor(
                 pool, lambda: list(llm.chat_stream(messages, tools=tools))
             )
-        for token in tokens:
+        log.info("[LLM] chat_stream returned %d tokens/chunks", len(tokens))
+        for i, token in enumerate(tokens):
+            log.info("[LLM] token[%d] type=%s len=%s", i, type(token).__name__, len(token) if isinstance(token, str) else "dict")
             yield token
 
     async def _sync_to_core(self, user_text: str, assistant_text: str) -> None:
