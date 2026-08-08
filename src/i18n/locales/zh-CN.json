@@ -665,6 +665,11 @@
       "emotion_binding": "情绪 → 动画 绑定",
       "emotion_binding_desc": "为每种情绪指定它应该播放的表情或动作。修改后立即对 AI / 情绪驱动的换脸生效。",
       "bind_inherit": "默认（{{v}}）",
+      "library_title": "动作表情库",
+      "library_hint": "点击展开 · 默认收起",
+      "library_desc": "管理可用表情 / 动作：改名、启用、停用、预览。被停用的不会出现在上方「情绪 → 动画」绑定下拉里。",
+      "library_count": "已启用 {{count}} / 共 {{total}}",
+      "base_state": "基础态（不可禁用）",
       "emotions": {
         "idle": "平静",
         "happy": "开心",

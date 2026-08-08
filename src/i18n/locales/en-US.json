@@ -661,6 +661,11 @@
       "emotion_binding": "Emotion → Animation binding",
       "emotion_binding_desc": "Choose which expression or motion each emotion should play. Takes effect immediately for AI/emotion-driven face changes.",
       "bind_inherit": "Default ({{v}})",
+      "library_title": "Motion & Expression Library",
+      "library_hint": "Click to expand · collapsed by default",
+      "library_desc": "Manage available expressions / motions: rename, enable, disable, preview. Disabled ones won't appear in the \"Emotion → Animation\" binding dropdown above.",
+      "library_count": "{{count}} enabled / {{total}} total",
+      "base_state": "Base state (cannot be disabled)",
       "emotions": {
         "idle": "Idle",
         "happy": "Happy",

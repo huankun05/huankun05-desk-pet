@@ -79,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **「表情与动作」页精简重构（按反馈）**: 去掉与「情绪绑定」重复的「表情/动作列表」大区，以及行内「显示别名 / 启用停用 / 用于情绪标签」等冗余控件；页面现在只聚焦两件事——顶部角色下拉栏 + 「情绪→动画」绑定表（每种情绪一行：色点 + 中文名 + 下拉选动画 + 预览按钮）。概念就是「给情绪绑动画」。`deskpet_emotion_bindings` 存储与 `resolveVisualForModel` 解析不变；启用/停用底层逻辑（`deskpet_disabled_visuals` / `isVisualEnabled`）仍在 `useLive2D` 生效，只是本页不再暴露 UI。 (`src/settings/pages/models/ExpressionsPage.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+- **「表情与动作」页样式统一 + 可折叠库管理（按反馈重做）**: ① 视觉与其它设置页一致——原先的蓝色横幅改为白色 `rounded-2xl` 卡片、内边距加大（`gap-5`/`p-5`）、控件 `rounded-xl`，消除「页边距小 / 圆角不够 / 不统一」的观感。② **修复下拉切换无实时更新**：编辑区抽成 `ModelEditor` 子组件，外层用 `key={selectedModel}` 驱动重挂载，切换角色即重新从 localStorage 初始化绑定/别名/停用状态。③ **新增「动作表情库」可折叠区（默认收起）**：列出该角色全部表情/动作，每行可改名（显示别名）、启用/停用（`Switch`）、预览；**被停用的不会出现在上方「情绪→动画」绑定下拉**（`Default` 基础态恒启用不可禁用）。 (`src/settings/pages/models/ExpressionsPage.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
 
 - **Hermes 深度融合收尾**: Core API + Hermes Gateway 在 Tauri 启动时已自动拉起；情绪事件通过 `/api/core/emotion/bridge/event` 实时同步到 Hermes SessionDB；记忆双向同步已验证（`useUnifiedMemory.ts` 三路并行检索 + `extractStructuredMemories` 自动抽取）。
 - **测试覆盖提升**: 测试总数从 46 提升至 54（+8），覆盖 Provider 连通性 + React 组件渲染。
