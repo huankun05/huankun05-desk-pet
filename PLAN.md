@@ -905,7 +905,7 @@ desk-pet/
 ### pnpm 11+ 兼容性修复
 - **根因**: pnpm 11 默认阻止第三方包构建脚本（`ERR_PNPM_IGNORED_BUILDS`），esbuild postinstall 被拦截
 - **修复**: `pnpm-workspace.yaml` 配置 `allowBuilds.esbuild: true`
-- **文件**: `pnpm-workspace.yaml`, `start.bat`（启动前检查配置）
+- **文件**: `pnpm-workspace.yaml`
 
 ### Tauri 环境安全调用修复
 - **根因**: 浏览器环境下 Tauri API 为 undefined，`getCurrentWindow()`、`listen()` 等调用导致级联崩溃
