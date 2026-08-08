@@ -135,35 +135,28 @@ export interface ResolvedVisual {
   motion: string | null;
 }
 
-/**
- * 构建某模型「情绪 → 视觉」的有效映射（静态表 + 用户 override）。
- * override 以「视觉项 → 情绪」存储，这里反转为「情绪 → 视觉」供解析使用。
- */
-function buildEffectiveMapping(modelKey: 'nahida' | 'hiyori'): Record<string, string | null> {
-  const base =
-    modelKey === 'hiyori' ? HIYORI_EMOTION_MOTION : NAHIDA_EMOTION_EXPRESSION;
-  const effective: Record<string, string | null> = { ...base };
-  const overrides = getEmotionOverrides();
-  const prefix = `${modelKey}:`;
-  for (const [key, emo] of Object.entries(overrides)) {
-    if (key.startsWith(prefix)) {
-      const name = key.slice(prefix.length);
-      effective[emo] = name; // 该情绪现在映射到这个视觉项（覆盖静态表）
-    }
-  }
-  return effective;
+export function defaultVisualForEmotion(
+  modelKey: 'nahida' | 'hiyori',
+  emotion: string,
+): string {
+  const base = modelKey === 'hiyori' ? HIYORI_EMOTION_MOTION : NAHIDA_EMOTION_EXPRESSION;
+  return base[emotion as EmotionType] ?? '';
 }
 
 /**
  * 统一解析：给定情绪字符串（EmotionType 或已转换的表情/动作名）与模型 key，
- * 返回应当播放的表情与动作。用户自定义的「情绪绑定」override 优先于静态表。
+ * 返回应当播放的表情与动作。用户自定义的「情绪 → 视觉」绑定优先于静态表。
  */
 export function resolveVisualForModel(emotion: string, modelKey: string): ResolvedVisual {
   const isEmotionType = EMOTION_TYPE_SET.has(emotion);
 
   if (modelKey === 'nahida') {
     if (isEmotionType) {
-      return { expression: buildEffectiveMapping('nahida')[emotion] ?? '', motion: null };
+      const binding = getEmotionBinding('nahida', emotion);
+      if (binding !== undefined) {
+        return { expression: binding || '', motion: null };
+      }
+      return { expression: NAHIDA_EMOTION_EXPRESSION[emotion as EmotionType] ?? '', motion: null };
     }
     // 已传表情 Name（含合成表情）：直接用
     if (
@@ -177,7 +170,11 @@ export function resolveVisualForModel(emotion: string, modelKey: string): Resolv
 
   if (modelKey === 'hiyori') {
     if (isEmotionType) {
-      return { expression: '', motion: buildEffectiveMapping('hiyori')[emotion] ?? null };
+      const binding = getEmotionBinding('hiyori', emotion);
+      if (binding !== undefined) {
+        return { expression: '', motion: binding || null };
+      }
+      return { expression: '', motion: HIYORI_EMOTION_MOTION[emotion as EmotionType] ?? null };
     }
     // 已传动作组名？
     const allGroups = Object.values(MODEL_ASSETS.hiyori.motionGroups).flat();
@@ -189,10 +186,12 @@ export function resolveVisualForModel(emotion: string, modelKey: string): Resolv
   return { expression: isEmotionType ? '' : emotion, motion: null };
 }
 
-/** 取 nahida（默认模型）下某情绪对应的表情 Name（供 usePerception 还原用，含 override） */
+/** 取 nahida（默认模型）下某情绪对应的表情 Name（供 usePerception 还原用，含用户绑定） */
 export function getNahidaExpression(emotion: string): string {
   if (EMOTION_TYPE_SET.has(emotion)) {
-    return buildEffectiveMapping('nahida')[emotion] ?? '';
+    const binding = getEmotionBinding('nahida', emotion);
+    if (binding !== undefined) return binding || '';
+    return NAHIDA_EMOTION_EXPRESSION[emotion as EmotionType] ?? '';
   }
   if (
     MODEL_ASSETS.nahida.expressions.includes(emotion) ||
@@ -283,41 +282,42 @@ export function setVisualEnabled(modelKey: string, name: string, enabled: boolea
 
 // ===== 用户可编辑覆盖层（持久化到 localStorage） =====
 // 用户在「表情与动作」管理页可自行：
-//   (1) 重绑情绪：把某个视觉项（表情/动作）绑定到某个情绪。键 `${modelKey}:${name}` → EmotionType
+//   (1) 重绑情绪：情绪 → 视觉（表情/动作）。键 `${modelKey}:${emotion}` → 视觉名
+//       （方向是「情绪 决定 播放哪个动画」，而非动画去绑情绪）
 //   (2) 改显示名：只改列表里展示的别名，底层 model3.json 注册名不变（零风险）。
 // 这些覆盖只影响「情绪 → 视觉」解析与 UI 文案，绝不改动模型资产文件。
 
-const EMOTION_OVERRIDE_KEY = 'deskpet_emotion_overrides';
+const EMOTION_BINDING_KEY = 'deskpet_emotion_bindings';
 const VISUAL_ALIAS_KEY = 'deskpet_visual_aliases';
 
-/** 读取全部情绪绑定 override（键 `${modelKey}:${name}` → EmotionType） */
-export function getEmotionOverrides(): Record<string, EmotionType> {
+/** 读取全部「情绪 → 视觉」绑定（键 `${modelKey}:${emotion}` → 视觉名；'' 表示基础态） */
+export function getEmotionBindings(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(EMOTION_OVERRIDE_KEY);
-    if (raw) return JSON.parse(raw) as Record<string, EmotionType>;
+    const raw = localStorage.getItem(EMOTION_BINDING_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, string>;
   } catch {
     /* localStorage 不可用时忽略 */
   }
   return {};
 }
 
-/** 该视觉项是否被用户显式绑定了某个情绪 */
-export function getEmotionOverride(modelKey: string, name: string): EmotionType | null {
-  return getEmotionOverrides()[`${modelKey}:${name}`] ?? null;
+/** 取某模型某情绪的绑定视觉名；未设置返回 undefined（调用方回退静态默认值） */
+export function getEmotionBinding(modelKey: string, emotion: string): string | undefined {
+  return getEmotionBindings()[`${modelKey}:${emotion}`];
 }
 
-/** 设置/清除某个视觉项的情绪绑定（emotion=null 表示恢复默认） */
-export function setEmotionOverride(
+/** 设置/清除某情绪绑定（visual=null 表示恢复默认静态映射） */
+export function setEmotionBinding(
   modelKey: string,
-  name: string,
-  emotion: EmotionType | null,
+  emotion: string,
+  visual: string | null,
 ): void {
   try {
-    const map = getEmotionOverrides();
-    const key = `${modelKey}:${name}`;
-    if (emotion) map[key] = emotion;
-    else delete map[key];
-    localStorage.setItem(EMOTION_OVERRIDE_KEY, JSON.stringify(map));
+    const map = getEmotionBindings();
+    const key = `${modelKey}:${emotion}`;
+    if (visual === null) delete map[key];
+    else map[key] = visual;
+    localStorage.setItem(EMOTION_BINDING_KEY, JSON.stringify(map));
   } catch {
     /* localStorage 不可用时忽略 */
   }
@@ -350,20 +350,6 @@ export function setVisualAlias(modelKey: string, name: string, alias: string | n
   } catch {
     /* localStorage 不可用时忽略 */
   }
-}
-
-/**
- * 取某视觉项当前绑定的情绪（override 优先，回退静态表反向查找）。
- * 供设置页「绑定情绪」下拉预填。
- */
-export function getBoundEmotion(modelKey: string, name: string): EmotionType | null {
-  const ov = getEmotionOverride(modelKey, name);
-  if (ov) return ov;
-  const base = modelKey === 'hiyori' ? HIYORI_EMOTION_MOTION : NAHIDA_EMOTION_EXPRESSION;
-  for (const [emo, v] of Object.entries(base)) {
-    if (v === name) return emo as EmotionType;
-  }
-  return null;
 }
 
 /** 取某视觉项的展示名（有别名用别名，否则用底层注册名） */

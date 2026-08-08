@@ -11,12 +11,12 @@ import {
   getDisabledVisuals,
   isVisualEnabled,
   setVisualEnabled,
-  getBoundEmotion,
-  setEmotionOverride,
+  getEmotionBinding,
+  setEmotionBinding,
+  defaultVisualForEmotion,
   getVisualDisplayName,
   setVisualAlias,
 } from '../../../services/live2d/visualMapping';
-import type { EmotionType } from '../../../hooks/useEmotion';
 
 type VisualRow = {
   name: string;
@@ -31,59 +31,51 @@ const MODEL_LABELS: Record<string, string> = {
 
 const CURRENT_MODEL_KEY = 'desk-pet-current-model';
 
-function visualKey(modelKey: string, name: string): string {
-  return `${modelKey}:${name}`;
-}
+const ALL_MODELS = ['nahida', 'hiyori'] as const;
 
 /**
- * 表情与动作管理页（角色 → 表情与动作）
- * - nahida：16 个烘焙表情（12 真实 + 4 合成），无身体动作
- * - hiyori：6 组身体动作，无表情
- * 复用 visualMapping.ts 的 MODEL_ASSETS 作为唯一真相源。
- *
- * 关键约束（用户要求）：只编辑「当前桌宠正在使用的模型」，避免误改另一模型的资产。
- * 活动模型从 localStorage['desk-pet-current-model'] 读取（跨 webview 共享）；
- * 另一模型整段置灰、仅可查看，不可编辑/预览。
- *
- * 每个视觉项都可在本页：
- *   - 改「显示名」（仅 UI 别名，底层资产名不变，零风险）
- *   - 改「绑定情绪」（持久化到 override，覆盖默认的 情绪→视觉 映射）
- *   - 启用/停用、跨窗预览
- * 预览通过 Tauri 跨窗事件把指令发到正在运行的桌宠主窗。
+ * 表情与动作管理页
+ * - 顶部下拉栏选择要管理的角色；正在桌宠中使用的角色高亮（●），其它灰显（○ 未使用）。
+ * - 情绪绑定方向为「情绪 → 表情/动作」：每种情绪配一个下拉，选它该播放的视觉项。
+ * - 视觉列表：可改「显示名」（仅 UI 别名，零风险）、启用/停用、跨窗预览。
+ * 预览通过 Tauri 跨窗事件发到正在运行的桌宠主窗，仅对「正在使用」的角色生效。
  */
 export function ExpressionsPage() {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
-  // 活动模型（= 当前桌宠所用模型）。localStorage 跨 webview 共享。
-  const [activeModel, setActiveModel] = useState<string>(() => {
+  // 桌宠当前实际使用的模型（localStorage 跨 webview 共享）
+  const [petModel, setPetModel] = useState<string>(() => {
     try {
       return localStorage.getItem(CURRENT_MODEL_KEY) || 'nahida';
     } catch {
       return 'nahida';
     }
   });
+  // 本页下拉选中的、正在编辑的模型（可与 petModel 不同）
+  const [selectedModel, setSelectedModel] = useState<string>(petModel);
 
-  // 重新读取活动模型（桌宠侧切换后，回到本页/聚焦时同步）
-  const refreshActiveModel = useCallback(() => {
+  const refreshPet = useCallback(() => {
     try {
-      const id = localStorage.getItem(CURRENT_MODEL_KEY) || 'nahida';
-      setActiveModel(id);
+      setPetModel(localStorage.getItem(CURRENT_MODEL_KEY) || 'nahida');
     } catch {
       /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    const onFocus = () => refreshActiveModel();
+    const onFocus = () => refreshPet();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [refreshActiveModel]);
+  }, [refreshPet]);
 
   // 停用状态（localStorage 持久化），用于驱动重新渲染
   const [disabled, setDisabled] = useState<Set<string>>(() => getDisabledVisuals());
-
   const refreshDisabled = () => setDisabled(getDisabledVisuals());
+
+  // 绑定/别名变更后强制重算派生数据
+  const [rev, setRev] = useState(0);
+  const bump = () => setRev((r) => r + 1);
 
   // 预览链路状态：发送后等主窗 ack 回执；超时未到说明跨窗事件未送达
   const [previewStatus, setPreviewStatus] = useState<{
@@ -114,15 +106,13 @@ export function ExpressionsPage() {
     };
   }, []);
 
-  const toggle = (modelKey: string, name: string) => {
-    const enabled = isVisualEnabled(modelKey, name);
-    setVisualEnabled(modelKey, name, !enabled);
-    refreshDisabled();
-  };
+  const isNahida = selectedModel === 'nahida';
+  const previewEnabled = selectedModel === petModel; // 仅正在使用的角色可预览
 
-  const nahidaRows: VisualRow[] = useMemo(
-    () =>
-      [
+  // 当前编辑模型的视觉项列表
+  const visuals: VisualRow[] = useMemo(() => {
+    if (isNahida) {
+      return [
         ...MODEL_ASSETS.nahida.expressions,
         ...NAHIDA_EXTRA_EXPRESSIONS.filter(
           (n) => !MODEL_ASSETS.nahida.expressions.includes(n),
@@ -130,22 +120,39 @@ export function ExpressionsPage() {
       ].map((name) => ({
         name,
         synthetic: NAHIDA_EXTRA_EXPRESSIONS.includes(name),
-      })),
-    [],
-  );
+      }));
+    }
+    return Object.entries(MODEL_ASSETS.hiyori.motionGroups).map(([group, files]) => ({
+      name: group,
+      synthetic: false,
+      files,
+    }));
+  }, [isNahida]);
 
-  const hiyoriRows: VisualRow[] = useMemo(
-    () =>
-      Object.entries(MODEL_ASSETS.hiyori.motionGroups).map(([group, files]) => ({
-        name: group,
-        synthetic: false,
-        files,
-      })),
-    [],
-  );
+  const availableVisuals = useMemo(() => visuals.map((v) => v.name), [visuals]);
 
-  // ===== 跨窗预览（modelKey 即行所属模型，必等于活动模型才启用） =====
-  const previewExpression = async (name: string, modelKey: string) => {
+  // 反向映射：某视觉项被哪些情绪使用（含默认与自定义绑定）——仅用于展示提示
+  const visualToEmotions = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    const mk = selectedModel as 'nahida' | 'hiyori';
+    for (const emo of EMOTION_TYPES) {
+      const b = getEmotionBinding(mk, emo);
+      const v = b !== undefined ? b : defaultVisualForEmotion(mk, emo);
+      if (!v) continue;
+      (map[v] ||= []).push(emo);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel, rev]);
+
+  const toggle = (modelKey: string, name: string) => {
+    const enabled = isVisualEnabled(modelKey, name);
+    setVisualEnabled(modelKey, name, !enabled);
+    refreshDisabled();
+  };
+
+  // ===== 跨窗预览（modelKey 即选中的编辑模型） =====
+  const previewExpression = async (name: string) => {
     if (!isTauriEnv()) {
       showToast(t('settings.expressions.preview_need_pet'), 'warning');
       return;
@@ -160,7 +167,7 @@ export function ExpressionsPage() {
     }, 1500);
     try {
       // 用全局 emit（而非 window.emit），事件才能跨 webview 送达主窗桌宠
-      await emit('deskpet:preview-expression', { expression: name, modelKey });
+      await emit('deskpet:preview-expression', { expression: name, modelKey: selectedModel });
       showToast(t('settings.expressions.preview_sent'), 'success');
     } catch (err) {
       setPreviewStatus({ kind: 'timeout', text: `emit 抛异常：${String(err)}` });
@@ -169,7 +176,7 @@ export function ExpressionsPage() {
     }
   };
 
-  const previewMotion = async (groupName: string, modelKey: string) => {
+  const previewMotion = async (groupName: string) => {
     if (!isTauriEnv()) {
       showToast(t('settings.expressions.preview_need_pet'), 'warning');
       return;
@@ -185,7 +192,7 @@ export function ExpressionsPage() {
     try {
       await emit('deskpet:preview-motion', {
         name: groupName,
-        modelKey,
+        modelKey: selectedModel,
         duration: 3000,
       });
       showToast(t('settings.expressions.preview_sent'), 'success');
@@ -196,24 +203,30 @@ export function ExpressionsPage() {
     }
   };
 
-  const renderRow = (modelKey: 'nahida' | 'hiyori', row: VisualRow) => {
-    const key = visualKey(modelKey, row.name);
+  // ===== 情绪 → 视觉 绑定 =====
+  const onBindChange = (emo: string, value: string) => {
+    const mk = selectedModel as 'nahida' | 'hiyori';
+    const staticDefault = defaultVisualForEmotion(mk, emo);
+    // 选回默认值即视为清除自定义绑定
+    setEmotionBinding(mk, emo, value === staticDefault ? null : value);
+    bump();
+  };
+
+  const renderVisualRow = (row: VisualRow) => {
+    const key = `${selectedModel}:${row.name}`;
     const enabled = !disabled.has(key);
-    const isActive = modelKey === activeModel;
-    const displayName = getVisualDisplayName(modelKey, row.name);
-    const bound = getBoundEmotion(modelKey, row.name);
+    const displayName = getVisualDisplayName(selectedModel, row.name);
+    const usedBy = visualToEmotions[row.name] ?? [];
 
     const onPreview = () =>
-      modelKey === 'nahida'
-        ? previewExpression(row.name, modelKey)
-        : previewMotion(row.name, modelKey);
+      isNahida ? previewExpression(row.name) : previewMotion(row.name);
 
     return (
       <div
         key={key}
         className={`flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
           enabled ? 'border-neutral-200 bg-white' : 'border-neutral-200 bg-neutral-50'
-        } ${!isActive ? 'opacity-50' : ''}`}
+        }`}
       >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
@@ -222,16 +235,17 @@ export function ExpressionsPage() {
               <input
                 type="text"
                 value={displayName}
-                disabled={!isActive}
-                onChange={(e) => setVisualAlias(modelKey, row.name, e.target.value)}
+                onChange={(e) => {
+                  setVisualAlias(selectedModel, row.name, e.target.value);
+                  bump();
+                }}
                 onBlur={(e) => {
-                  // 清空则恢复原名
-                  if (!e.target.value.trim()) setVisualAlias(modelKey, row.name, null);
+                  if (!e.target.value.trim()) setVisualAlias(selectedModel, row.name, null);
                 }}
                 title={t('settings.expressions.alias_label')}
-                className="min-w-0 max-w-[160px] truncate rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                className="min-w-0 max-w-[160px] truncate rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400"
               />
-              {modelKey === 'nahida' && (
+              {isNahida && (
                 <span
                   className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                     row.synthetic
@@ -244,7 +258,7 @@ export function ExpressionsPage() {
                     : t('settings.expressions.type_real')}
                 </span>
               )}
-              {displayName !== row.name && isActive && (
+              {displayName !== row.name && (
                 <span className="shrink-0 truncate text-[10px] text-neutral-400">
                   ({row.name})
                 </span>
@@ -256,50 +270,38 @@ export function ExpressionsPage() {
                 {row.files.join(', ')}
               </div>
             )}
+            {usedBy.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <span className="shrink-0 text-[10px] text-neutral-400">
+                  {t('settings.expressions.used_by')}:
+                </span>
+                {usedBy.map((emo) => (
+                  <span
+                    key={emo}
+                    className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500"
+                  >
+                    {t(`settings.expressions.emotions.${emo}`)}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
             type="button"
             onClick={onPreview}
-            disabled={!isActive}
-            title={t('settings.expressions.preview')}
+            disabled={!previewEnabled}
+            title={
+              previewEnabled
+                ? t('settings.expressions.preview')
+                : t('settings.expressions.preview_locked')
+            }
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 transition-colors hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon icon="solar:play-circle-bold" className="text-lg" />
           </button>
 
-          <Switch
-            checked={enabled}
-            disabled={!isActive}
-            onChange={() => toggle(modelKey, row.name)}
-            onClick={() => toggle(modelKey, row.name)}
-          />
-        </div>
-
-        {/* 绑定情绪（可编辑） */}
-        <div className="flex items-center gap-2 pl-0.5">
-          <span className="shrink-0 text-[11px] text-neutral-400">
-            {t('settings.expressions.bound_emotion_label')}:
-          </span>
-          <select
-            value={bound ?? ''}
-            disabled={!isActive}
-            onChange={(e) =>
-              setEmotionOverride(
-                modelKey,
-                row.name,
-                (e.target.value || null) as EmotionType | null,
-              )
-            }
-            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] text-neutral-600 outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-100"
-          >
-            <option value="">{t('settings.expressions.bound_none')}</option>
-            {EMOTION_TYPES.map((emo) => (
-              <option key={emo} value={emo}>
-                {emo}
-              </option>
-            ))}
-          </select>
+          <Switch checked={enabled} onChange={() => toggle(selectedModel, row.name)} />
         </div>
       </div>
     );
@@ -307,30 +309,58 @@ export function ExpressionsPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-12 animate-[fade-in-up_0.3s_ease-out]">
-      {/* 活动模型提示条 */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-        <div className="flex items-center justify-between gap-2">
-          <span>
-            <span className="font-medium">
-              {t('settings.expressions.active_model', {
-                name: MODEL_LABELS[activeModel] ?? activeModel,
-                model: activeModel,
+      {/* 角色下拉选择栏 */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-sm font-medium text-blue-700">
+              {t('settings.expressions.model_select')}:
+            </span>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm text-neutral-800 outline-none focus:border-blue-400"
+            >
+              {ALL_MODELS.map((id) => {
+                const inUse = id === petModel;
+                return (
+                  <option
+                    key={id}
+                    value={id}
+                    className={inUse ? 'font-medium text-blue-700' : 'text-neutral-400'}
+                  >
+                    {inUse ? '● ' : '○ '}
+                    {MODEL_LABELS[id] ?? id}
+                    {inUse
+                      ? ` ${t('settings.expressions.model_in_use')}`
+                      : ` ${t('settings.expressions.model_not_in_use')}`}
+                  </option>
+                );
               })}
-            </span>
-            <span className="ml-1 opacity-70">
-              {t('settings.expressions.active_model_hint')}
-            </span>
-          </span>
+            </select>
+          </div>
           <button
             type="button"
-            onClick={refreshActiveModel}
+            onClick={refreshPet}
             className="flex shrink-0 items-center gap-1 rounded-lg border border-blue-200 bg-white px-2 py-1 text-[11px] text-blue-600 transition-colors hover:bg-blue-50"
           >
             <Icon icon="solar:refresh-bold" className="text-sm" />
             {t('settings.expressions.refresh')}
           </button>
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-blue-600/80">
+          {t('settings.expressions.model_hint')}
+        </p>
       </div>
+
+      {/* 选中了未使用角色时的提示 */}
+      {!previewEnabled && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          {t('settings.expressions.non_active_warning', {
+            name: MODEL_LABELS[selectedModel] ?? selectedModel,
+          })}
+        </div>
+      )}
 
       {/* 预览链路状态 */}
       {previewStatus.kind !== 'idle' && (
@@ -351,45 +381,73 @@ export function ExpressionsPage() {
         </div>
       )}
 
+      {/* 情绪 → 视觉 绑定（方向正确：情绪决定播放哪个动画） */}
       <Section
-        title={t('settings.expressions.nahida_title')}
-        description={
-          activeModel === 'nahida'
-            ? t('settings.expressions.nahida_note')
-            : t('settings.expressions.other_model_locked', { name: MODEL_LABELS.nahida })
-        }
+        title={t('settings.expressions.emotion_binding')}
+        description={t('settings.expressions.emotion_binding_desc')}
       >
-        <div className="flex items-center justify-between px-4 pb-2">
-          <span className="text-xs text-neutral-400">
-            {t('settings.expressions.total_expressions', { count: nahidaRows.length })}
-          </span>
-          <span className="text-[11px] text-neutral-400">
-            {t('settings.expressions.preview_hint')}
-          </span>
-        </div>
-        <div className="flex flex-col gap-2 p-4 pt-0">
-          {nahidaRows.map((row) => renderRow('nahida', row))}
+        <div className="flex flex-col gap-1.5 p-4">
+          {EMOTION_TYPES.map((emo) => {
+            const mk = selectedModel as 'nahida' | 'hiyori';
+            const staticDefault = defaultVisualForEmotion(mk, emo);
+            const b = getEmotionBinding(mk, emo);
+            const value = b !== undefined ? b : staticDefault;
+            return (
+              <div key={emo} className="flex items-center gap-3 py-1">
+                <span className="w-16 shrink-0 text-sm text-neutral-700">
+                  {t(`settings.expressions.emotions.${emo}`)}
+                </span>
+                <span className="shrink-0 text-[11px] text-neutral-400">
+                  {t('settings.expressions.bound_to')}:
+                </span>
+                <select
+                  value={value}
+                  onChange={(e) => onBindChange(emo, e.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-700 outline-none focus:border-neutral-400"
+                >
+                  <option value="">
+                    {isNahida
+                      ? t('settings.expressions.visual_empty_nahida')
+                      : t('settings.expressions.visual_empty_hiyori')}
+                  </option>
+                  {availableVisuals.map((name) => (
+                    <option key={name} value={name}>
+                      {getVisualDisplayName(selectedModel, name)}
+                    </option>
+                  ))}
+                </select>
+                {b !== undefined && (
+                  <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                    {t('settings.expressions.custom_badge')}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </Section>
 
+      {/* 视觉资产列表（重命名 / 启用 / 预览） */}
       <Section
-        title={t('settings.expressions.hiyori_title')}
+        title={isNahida ? t('settings.expressions.nahida_title') : t('settings.expressions.hiyori_title')}
         description={
-          activeModel === 'hiyori'
-            ? t('settings.expressions.hiyori_note')
-            : t('settings.expressions.other_model_locked', { name: MODEL_LABELS.hiyori })
+          isNahida
+            ? t('settings.expressions.nahida_note')
+            : t('settings.expressions.hiyori_note')
         }
       >
         <div className="flex items-center justify-between px-4 pb-2">
           <span className="text-xs text-neutral-400">
-            {t('settings.expressions.total_motions', { count: hiyoriRows.length })}
+            {isNahida
+              ? t('settings.expressions.total_expressions', { count: visuals.length })
+              : t('settings.expressions.total_motions', { count: visuals.length })}
           </span>
           <span className="text-[11px] text-neutral-400">
             {t('settings.expressions.preview_hint')}
           </span>
         </div>
         <div className="flex flex-col gap-2 p-4 pt-0">
-          {hiyoriRows.map((row) => renderRow('hiyori', row))}
+          {visuals.map((row) => renderVisualRow(row))}
         </div>
       </Section>
     </div>

@@ -74,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Brain API 情绪标签大小写不匹配**: `useBrainBridge` 将 Brain API 的 `mood_label`（小写如 `happy`）直接当表情名下发 `expression:change`，而模型里是 `Happy`，导致情绪驱动的换脸静默 no-op；`useLive2D` 现统一经 `resolveVisualForModel(expr, modelKey)` 归一后再 `setExpression`。(`src/hooks/useLive2D.ts`, `src/hooks/useBrainBridge.ts`)
 - **表情 / 动作预览调试日志清理**: 移除 `lappmodel.ts` / `lappdelegate.ts` / `useLive2D.ts` 排查期间添加的临时 `console.log`，保留跨窗预览 `deskpet:preview-ack` 回执链路与 modelKey 不匹配告警。
 - **「表情与动作」管理页可编辑化 + 多模型门控**: 修复预览时 `modelKey` 不匹配（在 nahida 桌宠上预览 hiyori 动作被忽略）的根因——管理页现只读 `localStorage['desk-pet-current-model']` 判定**当前桌宠所用模型**，仅该模型可编辑/预览，另一模型整段置灰只读，从源头杜绝误改其它模型资产（切换模型后在桌宠控件操作、回本页点「刷新」同步）。新增两项用户可编辑覆盖层（均持久化到 localStorage，零风险不改底层资产）：① **显示别名**——只改列表展示名，底层 model3.json 注册名不变；② **绑定情绪**——下拉把任意表情/动作绑定到 11 种情绪之一，`resolveVisualForModel` / `getNahidaExpression` 解析时优先采用覆盖。 (`src/settings/pages/models/ExpressionsPage.tsx`, `src/services/live2d/visualMapping.ts`, `src/settings/components/Switch.tsx`)
+- **「表情与动作」页交互重做（按反馈）**: ① 模型选择由「两栏并列 + 置灰只读」改为**顶部下拉栏选角色**——正在桌宠中使用的角色用 ● 高亮并标「使用中」，其它角色用 ○ 灰显标「未使用」；选中未使用角色时给出提示并禁用预览（预览仅对正在使用的角色生效）。② **修正情绪绑定方向**：原先是「动画去绑情绪」（每行动画挂个情绪下拉），概念倒置；现改为「**情绪 → 表情/动作**」——列出 11 种情绪，每种配一个下拉选它该播放的视觉项。存储层同步由 `视觉→情绪`（`deskpet_emotion_overrides`）翻转为 `情绪→视觉`（`deskpet_emotion_bindings`），`resolveVisualForModel` / `getNahidaExpression` 改为读新键，回归静态默认映射无 override 时行为不变。 (`src/settings/pages/models/ExpressionsPage.tsx`, `src/services/live2d/visualMapping.ts`)
 
 ### Changed
 
