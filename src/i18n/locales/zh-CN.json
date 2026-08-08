@@ -666,7 +666,14 @@
       "none": "无",
       "files_count": "{{count}} 个文件",
       "total_expressions": "共 {{count}} 个表情",
-      "total_motions": "共 {{count}} 组动作"
+      "total_motions": "共 {{count}} 组动作",
+      "active_model": "正在编辑：{{name}}（{{model}}）",
+      "active_model_hint": "仅可编辑当前桌宠使用的模型，避免误改其它模型资产",
+      "refresh": "刷新",
+      "alias_label": "显示名称（仅改名显示，不影响底层资产）",
+      "bound_emotion_label": "绑定情绪",
+      "bound_none": "（默认）",
+      "other_model_locked": "当前桌宠使用「{{name}}」，此模型为只读；在桌宠控件切换模型后点「刷新」即可编辑"
     },
     "nav": {
       "appearance": "外观",

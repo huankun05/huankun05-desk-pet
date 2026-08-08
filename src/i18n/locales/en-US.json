@@ -662,7 +662,14 @@
       "none": "None",
       "files_count": "{{count}} files",
       "total_expressions": "{{count}} expressions total",
-      "total_motions": "{{count}} motion groups total"
+      "total_motions": "{{count}} motion groups total",
+      "active_model": "Editing: {{name}} ({{model}})",
+      "active_model_hint": "Only the model currently used by the desktop pet is editable, to avoid editing the wrong model's assets",
+      "refresh": "Refresh",
+      "alias_label": "Display name (renames display only, underlying asset unchanged)",
+      "bound_emotion_label": "Bound emotion",
+      "bound_none": "(default)",
+      "other_model_locked": "The desktop pet is using \"{{name}}\"; this model is read-only. Switch the model from the pet controls then click \"Refresh\" to edit"
     },
     "nav": {
       "appearance": "Appearance",
