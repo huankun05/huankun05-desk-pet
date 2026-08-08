@@ -48,6 +48,25 @@ logging.basicConfig(
 )
 log = logging.getLogger("hermes-gateway")
 
+# 额外文件日志：诊断用，确保 Tauri 管道外也能落盘
+_trace_logger = logging.getLogger("hermes-gateway-trace")
+_trace_logger.setLevel(logging.INFO)
+_trace_path = Path(__file__).resolve().parent.parent / "data" / "gateway_trace.log"
+try:
+    _trace_handler = logging.FileHandler(_trace_path, encoding="utf-8")
+    _trace_handler.setFormatter(logging.Formatter("%(asctime)s [TRACE] %(message)s", datefmt="%H:%M:%S"))
+    _trace_logger.addHandler(_trace_handler)
+    _trace_logger.info("Trace log initialized: %s", _trace_path)
+except Exception:
+    pass
+
+
+def _trace(msg: str, *args: Any) -> None:
+    try:
+        _trace_logger.info(msg, *args)
+    except Exception:
+        pass
+
 from hermes_core import SessionDB  # noqa: E402
 
 
