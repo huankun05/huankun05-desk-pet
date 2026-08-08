@@ -28,6 +28,9 @@ import { registerBuiltinTools } from '../../services/tools/builtins';
 import { eventBus } from '../../services/eventBus';
 import { getHermesGatewayClient } from '../../services/hermesGateway';
 
+/** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
+let _contextResetTs = 0;
+
 /** 顶部栏图标按钮 */
 function BarButton({
   icon,
@@ -145,9 +148,15 @@ function ChatPanelWindow() {
     setShowSlashHelp((p) => !p);
   }, []);
 
-  // 确保面板启动时启用 Gateway
+  // 确保面板启动时启用 Gateway + 移除首屏加载遮罩
   useEffect(() => {
     setGatewayEnabled(true);
+    // 聊天面板窗没有 Live2D，不会触发 useLive2D 的遮罩移除，需手动处理
+    const splash = document.getElementById('app-loading');
+    if (splash) {
+      splash.classList.add('hidden');
+      setTimeout(() => splash.remove(), 300);
+    }
   }, [setGatewayEnabled]);
 
   // 录音器初始化 + STT 可用性（通过 localStorage 标志从主窗口同步）
@@ -186,7 +195,12 @@ function ChatPanelWindow() {
       try {
         const used = localStorage.getItem('deskpet_context_used');
         const total = localStorage.getItem('deskpet_context_total');
-        if (used) setContextUsed(Number(used));
+        // 重置后 3 秒内不读取旧值（避免 Gateway 残留写入覆盖归零）
+        if (Date.now() - _contextResetTs < 3000) {
+          setContextUsed(0);
+        } else {
+          if (used) setContextUsed(Number(used));
+        }
         if (total) setContextTotal(Number(total));
       } catch {
         // ignore
@@ -200,6 +214,7 @@ function ChatPanelWindow() {
   // 重置上下文显示（切换/删除/新建会话时调用，避免残留旧 token 数）
   const resetContextDisplay = useCallback(() => {
     setContextUsed(0);
+    _contextResetTs = Date.now();
     try {
       localStorage.removeItem('deskpet_context_used');
       localStorage.removeItem('deskpet_context_total');

@@ -143,8 +143,8 @@ export function usePanelWindows(): PanelWindowsState {
       const mainWin = getCurrentWindow();
       const mainPos = await mainWin.outerPosition();
       await mainWin.outerSize();
-      let panelW = 400,
-        panelH = 600,
+      let panelW = 850,
+        panelH = 620,
         panelX: number | undefined,
         panelY: number | undefined;
       try {
@@ -152,8 +152,8 @@ export function usePanelWindows(): PanelWindowsState {
         if (!raw) raw = await invoke<string>('load_data', { key: 'chat_panel_size' });
         if (raw) {
           const s = JSON.parse(raw);
-          panelW = s.w || 400;
-          panelH = s.h || 600;
+          panelW = s.w || 850;
+          panelH = s.h || 620;
           panelX = s.x;
           panelY = s.y;
         }

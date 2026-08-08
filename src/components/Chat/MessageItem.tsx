@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { parseThinkTags } from '../../utils/thinkTagParser';
 import MarkdownContent from './MarkdownContent';
@@ -143,7 +143,8 @@ interface MessageItemProps {
 
 /** 渲染消息内容：流式中用纯文本（避免每 token 重解析 markdown 卡顿），完成后渲染 Markdown */
 function MessageContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  if (!content) return <span className="typing-cursor">▎</span>;
+  const [mdError, setMdError] = useState(false);
+  if (!content) return <span style={{ opacity: 0.4 }}>▎</span>;
   if (isStreaming) {
     const segments = parseThinkTags(content);
     return (
@@ -160,7 +161,44 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
       </>
     );
   }
-  return <MarkdownContent content={content} />;
+  if (mdError) {
+    // Markdown 渲染失败时回退纯文本，确保内容始终可见
+    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{content}</span>;
+  }
+  return (
+    <ErrorBoundary onError={() => setMdError(true)}>
+      <MarkdownContent content={content} />
+    </ErrorBoundary>
+  );
+}
+
+/** 轻量错误边界：捕获子组件渲染异常，显示 fallback */
+function ErrorBoundary({ children, onError }: { children: React.ReactNode; onError: () => void }) {
+  return (
+    <CatchError onError={onError}>
+      {children}
+    </CatchError>
+  );
+}
+
+class CatchError extends React.Component<
+  { children: React.ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch() {
+    this.props.onError();
+  }
+  render() {
+    if (this.state.hasError) return null; // 由父组件展示 fallback
+    return this.props.children;
+  }
 }
 
 /** 附件渲染 */
@@ -388,13 +426,15 @@ export function MessageItem({
           style={{
             padding: '7px 11px',
             borderRadius: `${radius}px`,
-            background: isUser ? 'var(--bubble-user-bg)' : 'var(--bubble-ai-bg)',
-            color: isUser ? 'var(--bubble-user-text)' : 'var(--bubble-ai-text)',
-            border: isUser ? '1px solid transparent' : '1px solid var(--glass-border)',
+            background: isUser ? 'var(--bubble-user-bg, #12b7f5)' : 'var(--bubble-ai-bg, #ffffff)',
+            color: isUser ? 'var(--bubble-user-text, #ffffff)' : 'var(--bubble-ai-text, #1f2329)',
+            border: isUser ? '1px solid transparent' : '1px solid var(--glass-border, rgba(15,23,42,0.08))',
             boxShadow: 'var(--shadow-sm)',
             lineHeight: 1.5,
             wordBreak: 'break-word',
             whiteSpace: 'pre-wrap',
+            minWidth: '40px', // 确保空内容时气泡仍可见
+            overflow: 'hidden',
           }}
         >
           <MessageContent content={message.content} isStreaming={message.isStreaming} />
