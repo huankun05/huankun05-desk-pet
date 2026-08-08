@@ -79,11 +79,33 @@ class HermesEngine:
             return self._llm
         try:
             from modules.llm import LLMChat
-            providers_path = self.db_path.parent.parent / "data" / "providers.json"
             config: dict[str, Any] = {}
-            if providers_path.exists():
+
+            # 多路径查找 providers.json：
+            # 1) <project>/data/providers.json（Python Gateway 原始路径）
+            # 2) %APPDATA%/desk-pet/providers.json（Rust 前端写入位置）
+            candidates: list[Path] = [
+                self.db_path.parent.parent / "data" / "providers.json",
+            ]
+            # 尝试 APPDATA 路径（跨平台）
+            import os
+            appdata = (
+                os.environ.get("APPDATA")
+                or os.environ.get("XDG_CONFIG_HOME")
+                or None
+            )
+            if appdata:
+                candidates.append(Path(appdata) / "desk-pet" / "providers.json")
+
+            for providers_path in candidates:
+                if not providers_path.exists():
+                    continue
                 try:
-                    data = json.loads(providers_path.read_text(encoding="utf-8"))
+                    raw = providers_path.read_text(encoding="utf-8").strip()
+                    data = json.loads(raw)
+                    # Rust 端可能存储为加密格式（外层包裹），尝试提取
+                    if isinstance(data, str):
+                        data = json.loads(data)
                     configs = data.get("configs", [])
                     active_id = data.get("activeChatId", "")
                     for c in configs:
@@ -99,15 +121,19 @@ class HermesEngine:
                                 "top_p": c.get("topP") or c.get("top_p", 1.0),
                             }
                             break
+                    if config:
+                        log.info("LLM config loaded from %s", providers_path)
+                        break
                 except Exception:
-                    log.warning("Failed to parse providers.json", exc_info=True)
+                    log.warning("Failed to parse %s", providers_path, exc_info=True)
+
             self._llm = LLMChat(config) if config else None
             if self._llm:
-                log.info("LLM initialized from providers.json")
+                log.info("LLM initialized successfully")
             else:
-                log.warning("No LLM config found — gateway will echo messages")
+                log.warning("No LLM config found — gateway will echo empty")
         except Exception as exc:
-            log.warning("LLM init failed: %s — gateway will echo messages", exc)
+            log.warning("LLM init failed: %s — gateway will echo empty", exc)
             self._llm = None
         return self._llm
 

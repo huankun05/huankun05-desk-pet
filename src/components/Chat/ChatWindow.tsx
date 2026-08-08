@@ -73,6 +73,33 @@ function formatDateLabel(d: Date): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+/** 时间分隔标签：QQ 风格 — 两条消息间隔超过阈值时在中间显示时间 */
+const TIME_SEPARATOR_MINUTES = 5;
+
+function needsTimeSeparator(prev: Message | null | undefined, curr: Message): boolean {
+  if (!prev) return false;
+  // 不同角色总是需要间隔（用户/AI 切换）
+  if (prev.role !== curr.role) {
+    const prevTs = prev.timestamp instanceof Date ? prev.timestamp : new Date(prev.timestamp);
+    const currTs = curr.timestamp instanceof Date ? curr.timestamp : new Date(curr.timestamp);
+    const gapMinutes = (currTs.getTime() - prevTs.getTime()) / 60000;
+    return gapMinutes >= TIME_SEPARATOR_MINUTES;
+  }
+  // 同角色：间隔超过阈值才显示
+  const prevTs = prev.timestamp instanceof Date ? prev.timestamp : new Date(prev.timestamp);
+  const currTs = curr.timestamp instanceof Date ? curr.timestamp : new Date(curr.timestamp);
+  const gapMinutes = (currTs.getTime() - prevTs.getTime()) / 60000;
+  return gapMinutes >= TIME_SEPARATOR_MINUTES;
+}
+
+function formatTimeLabel(d: Date): string {
+  try {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
 interface ChatWindowProps {
   messages: Message[];
   onSendMessage: (
@@ -829,15 +856,43 @@ export const ChatWindow = memo(
 
             {displayedMessages.map((message, idx) => {
               const prev = idx > 0 ? displayedMessages[idx - 1] : null;
-              const showSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
+              // 日期分隔（跨天）
+              const showDateSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
+              // 时间分隔（QQ 风格：间隔 >= 5 分钟或角色切换时）
+              const showTimeSep = !showDateSep && needsTimeSeparator(prev, message);
               return (
                 <Fragment key={message.id}>
-                  {showSep && (
+                  {/* 日期分隔标签 */}
+                  {showDateSep && (
                     <div
                       style={{
                         display: 'flex',
                         justifyContent: 'center',
-                        margin: '6px 0 2px',
+                        margin: '8px 0 4px',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-glass, rgba(0,0,0,0.04))',
+                          padding: '2px 10px',
+                          borderRadius: '10px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {formatDateLabel(message.timestamp)}
+                      </span>
+                    </div>
+                  )}
+                  {/* 时间分隔标签（QQ 风格） */}
+                  {showTimeSep && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        margin: '6px 0 4px',
                         pointerEvents: 'none',
                       }}
                     >
@@ -847,10 +902,14 @@ export const ChatWindow = memo(
                           color: 'var(--text-muted)',
                           background: 'transparent',
                           padding: '1px 8px',
-                          borderRadius: '8px',
+                          borderRadius: '6px',
                         }}
                       >
-                        {formatDateLabel(message.timestamp)}
+                        {formatTimeLabel(
+                          message.timestamp instanceof Date
+                            ? message.timestamp
+                            : new Date(message.timestamp),
+                        )}
                       </span>
                     </div>
                   )}

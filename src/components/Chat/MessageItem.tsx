@@ -291,19 +291,6 @@ function Attachments({ attachments }: { attachments: ChatMessage['attachments'] 
   );
 }
 
-function formatTime(ts: Date): string {
-  try {
-    return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
-}
-
-/**
- * 单条消息：QQ 风格。
- * 用户消息靠右（主色气泡 + 右侧头像），AI 消息靠左（白色气泡 + 左侧头像）。
- * hover 时在气泡上方浮出操作栏，绝对定位，不撑开布局。
- */
 export function MessageItem({
   message,
   onRetry,
@@ -318,11 +305,6 @@ export function MessageItem({
   const [pinned, setPinned] = useState(false);
   const isTouchRef = useRef(false);
   const [fav, setFav] = useState(() => (sessionId ? isFavorite(message.id, sessionId) : false));
-
-  const ts =
-    typeof message.timestamp === 'string' || typeof message.timestamp === 'number'
-      ? new Date(message.timestamp)
-      : message.timestamp;
 
   const handleCopy = async () => {
     try {
@@ -459,36 +441,23 @@ export function MessageItem({
           />
         ))}
 
-        {/* 时间：固定高度占位，hover/触屏钉选才显示，避免抖动 */}
+        {/* 操作栏：始终占用固定高度容器，hover/触屏钉选时才显示内容，避免布局跳动 */}
         <div
           style={{
-            height: '14px',
+            height: '28px',
             marginTop: '2px',
-            padding: '0 2px',
-            fontSize: '10px',
-            lineHeight: '14px',
-            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0px',
+            padding: '3px 4px',
+            background: 'transparent',
+            borderRadius: '6px',
             opacity: hovered || pinned ? 1 : 0,
             transition: 'opacity 0.15s',
+            overflow: 'hidden',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {formatTime(ts)}
-        </div>
-
-        {/* 操作栏：气泡下方，透明背景，仅图标；hover 或触屏钉选时显示 */}
-        {(hovered || pinned) && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0px',
-              padding: '3px 4px',
-              marginTop: '2px',
-              background: 'transparent',
-              borderRadius: '6px',
-            }}
-          >
           {onQuote && (
             <button
               onClick={() => onQuote(message)}
@@ -578,7 +547,6 @@ export function MessageItem({
             </button>
           )}
         </div>
-        )}
       </div>
     </div>
   );

@@ -917,8 +917,6 @@ function ChatPanelWindow() {
               isRecording={isRecording}
               sttAvailable={sttAvailable}
               sessionId={activeSessionId || undefined}
-              ttsEnabled={ttsEnabled}
-              onToggleTts={handleToggleTts}
               gatewayReady={gatewayReady}
               currentModel={currentModel}
               contextUsed={contextUsed}
