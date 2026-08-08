@@ -78,6 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **「表情与动作」页精简重构（按反馈）**: 去掉与「情绪绑定」重复的「表情/动作列表」大区，以及行内「显示别名 / 启用停用 / 用于情绪标签」等冗余控件；页面现在只聚焦两件事——顶部角色下拉栏 + 「情绪→动画」绑定表（每种情绪一行：色点 + 中文名 + 下拉选动画 + 预览按钮）。概念就是「给情绪绑动画」。`deskpet_emotion_bindings` 存储与 `resolveVisualForModel` 解析不变；启用/停用底层逻辑（`deskpet_disabled_visuals` / `isVisualEnabled`）仍在 `useLive2D` 生效，只是本页不再暴露 UI。 (`src/settings/pages/models/ExpressionsPage.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+
 - **Hermes 深度融合收尾**: Core API + Hermes Gateway 在 Tauri 启动时已自动拉起；情绪事件通过 `/api/core/emotion/bridge/event` 实时同步到 Hermes SessionDB；记忆双向同步已验证（`useUnifiedMemory.ts` 三路并行检索 + `extractStructuredMemories` 自动抽取）。
 - **测试覆盖提升**: 测试总数从 46 提升至 54（+8），覆盖 Provider 连通性 + React 组件渲染。
 
