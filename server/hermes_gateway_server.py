@@ -102,6 +102,15 @@ class HermesEngine:
                     continue
                 try:
                     raw = providers_path.read_text(encoding="utf-8").strip()
+                    # Windows DPAPI 加密格式：开头为 "DPAPIv1:"，需要解密
+                    if raw.startswith("DPAPIv1:"):
+                        encrypted = raw.split(":", 1)[1]
+                        try:
+                            import base64
+                            encrypted_bytes = base64.b64decode(encrypted)
+                        except Exception:
+                            encrypted_bytes = encrypted.encode("utf-8", errors="replace")
+                        raw = self._decrypt_dpapi(encrypted_bytes)
                     data = json.loads(raw)
                     # Rust 端可能存储为加密格式（外层包裹），尝试提取
                     if isinstance(data, str):
@@ -136,6 +145,47 @@ class HermesEngine:
             log.warning("LLM init failed: %s — gateway will echo empty", exc)
             self._llm = None
         return self._llm
+
+    @staticmethod
+    def _decrypt_dpapi(encrypted_bytes: bytes) -> str:
+        """Decrypt Windows DPAPI blob and return UTF-8 string."""
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [
+                    ("cbData", wintypes.DWORD),
+                    ("pbData", ctypes.POINTER(wintypes.BYTE)),
+                ]
+
+            blob_in = DATA_BLOB(
+                len(encrypted_bytes),
+                (wintypes.BYTE * len(encrypted_bytes)).from_buffer_copy(encrypted_bytes),
+            )
+            blob_out = DATA_BLOB()
+
+            crypt32 = ctypes.windll.crypt32
+            kernel32 = ctypes.windll.kernel32
+
+            if not crypt32.CryptUnprotectData(
+                ctypes.byref(blob_in),
+                None,
+                None,
+                None,
+                None,
+                0,
+                ctypes.byref(blob_out),
+            ):
+                err = ctypes.get_last_error()
+                raise RuntimeError(f"CryptUnprotectData failed, error={err}")
+
+            decrypted = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+            kernel32.LocalFree(blob_out.pbData)
+            return decrypted.decode("utf-8", errors="replace")
+        except Exception as exc:
+            log.warning("DPAPI decryption failed: %s", exc)
+            raise
 
     # ---- 会话操作 ----
 
