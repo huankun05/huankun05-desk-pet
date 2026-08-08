@@ -301,7 +301,7 @@ export function MessageItem({
   const radius = appearance.bubbleRadius;
   const tailClass = appearance.bubbleTail ? '' : ' chat-bubble--flat';
   // 操作栏水平锚点：让开头像占的宽度
-  const actionInset = appearance.showAvatar ? 54 : 14;
+  const actionInset = appearance.showAvatar ? 50 : 14;
 
   const hoverBtn = (extra?: React.CSSProperties): React.CSSProperties => ({
     ...iconBtnStyle,
@@ -324,8 +324,8 @@ export function MessageItem({
         display: 'flex',
         flexDirection: isUser ? 'row-reverse' : 'row',
         alignItems: 'flex-start',
-        gap: '8px',
-        padding: '6px 14px',
+        gap: '6px',
+        padding: '4px 12px',
         position: 'relative',
         animation: 'message-enter 250ms cubic-bezier(0.32, 0.72, 0, 1)',
         ...(highlighted
@@ -341,6 +341,7 @@ export function MessageItem({
         <ChatAvatar
           role={isUser ? 'user' : 'assistant'}
           src={isUser ? appearance.userAvatar : appearance.aiAvatar}
+          size={32}
         />
       )}
 
@@ -385,13 +386,13 @@ export function MessageItem({
         <div
           className={`chat-bubble ${isUser ? 'chat-bubble--user' : 'chat-bubble--ai'}${tailClass}`}
           style={{
-            padding: '8px 12px',
+            padding: '7px 11px',
             borderRadius: `${radius}px`,
             background: isUser ? 'var(--bubble-user-bg)' : 'var(--bubble-ai-bg)',
             color: isUser ? 'var(--bubble-user-text)' : 'var(--bubble-ai-text)',
             border: isUser ? '1px solid transparent' : '1px solid var(--glass-border)',
             boxShadow: 'var(--shadow-sm)',
-            lineHeight: 1.55,
+            lineHeight: 1.5,
             wordBreak: 'break-word',
             whiteSpace: 'pre-wrap',
           }}

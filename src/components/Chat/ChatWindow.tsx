@@ -839,17 +839,17 @@ export const ChatWindow = memo(
                       style={{
                         display: 'flex',
                         justifyContent: 'center',
-                        margin: '10px 0 4px',
+                        margin: '6px 0 2px',
                         pointerEvents: 'none',
                       }}
                     >
                       <span
                         style={{
-                          fontSize: '11px',
+                          fontSize: '10px',
                           color: 'var(--text-muted)',
-                          background: 'var(--bg-glass)',
-                          padding: '2px 10px',
-                          borderRadius: '10px',
+                          background: 'transparent',
+                          padding: '1px 8px',
+                          borderRadius: '8px',
                         }}
                       >
                         {formatDateLabel(message.timestamp)}
@@ -895,11 +895,11 @@ export const ChatWindow = memo(
           </div>
         </div>
 
-        {/* 输入区 */}
+        {/* 输入区（仿 QQ 底部风格） */}
         <form
           onSubmit={handleSubmit}
           style={{
-            padding: '8px 12px 10px',
+            padding: '6px 10px 8px',
             background: 'var(--bg-surface)',
             borderTop: '1px solid var(--border)',
             flexShrink: 0,
@@ -1085,86 +1085,79 @@ export const ChatWindow = memo(
             </div>
           )}
 
-          {/* 工具条：附件 / 语音 / TTS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '4px' }}>
-            <ToolButton
-              icon="solar:paperclip-linear"
-              title={t('chat.attachment', { defaultValue: '附件' })}
-              onClick={() => fileInputRef.current?.click()}
+          {/* 工具条 + 输入框 + 发送按钮（单行 QQ 风格） */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+            {/* 左侧工具按钮组 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flexShrink: 0, paddingBottom: '1px' }}>
+              <ToolButton
+                icon="solar:paperclip-linear"
+                title={t('chat.attachment', { defaultValue: '附件' })}
+                onClick={() => fileInputRef.current?.click()}
+              />
+              {sttAvailable && (
+                <ToolButton
+                  icon={isRecording ? 'solar:microphone-bold' : 'solar:microphone-linear'}
+                  title={isRecording ? t('chat.release_to_stop') : t('chat.hold_to_speak')}
+                  danger={isRecording}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (!isRecording) onRecordStart?.();
+                  }}
+                  onMouseUp={() => {
+                    if (isRecording) onRecordStop?.();
+                  }}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    if (!isRecording) onRecordStart?.();
+                  }}
+                  onTouchEnd={() => {
+                    if (isRecording) onRecordStop?.();
+                  }}
+                />
+              )}
+              {onToggleTts && (
+                <ToolButton
+                  icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
+                  title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'}
+                  active={ttsEnabled}
+                  onClick={onToggleTts}
+                />
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar,.7z"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                const newAttachments: Message['attachments'] = [];
+                const newBlobUrls: string[] = [];
+                files.forEach((file) => {
+                  const isImage = file.type.startsWith('image/');
+                  const url = isImage ? URL.createObjectURL(file) : '';
+                  if (url) newBlobUrls.push(url);
+                  newAttachments.push({
+                    type: isImage ? 'image' : 'file',
+                    url,
+                    name: file.name,
+                    size: file.size,
+                    mimeType: file.type,
+                  });
+                });
+                setPendingAttachments((prev) => {
+                  prev.forEach((a) => {
+                    if (a.url && a.url.startsWith('blob:')) URL.revokeObjectURL(a.url);
+                  });
+                  return [...prev, ...newAttachments];
+                });
+                blobUrlsRef.current.push(...newBlobUrls);
+                e.target.value = '';
+              }}
             />
-            {sttAvailable && (
-              <ToolButton
-                icon={isRecording ? 'solar:microphone-bold' : 'solar:microphone-linear'}
-                title={isRecording ? t('chat.release_to_stop') : t('chat.hold_to_speak')}
-                danger={isRecording}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (!isRecording) onRecordStart?.();
-                }}
-                onMouseUp={() => {
-                  if (isRecording) onRecordStop?.();
-                }}
-                onTouchStart={(e) => {
-                  e.preventDefault();
-                  if (!isRecording) onRecordStart?.();
-                }}
-                onTouchEnd={() => {
-                  if (isRecording) onRecordStop?.();
-                }}
-              />
-            )}
-            {onToggleTts && (
-              <ToolButton
-                icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
-                title={ttsEnabled ? 'TTS 已开启' : 'TTS 已关闭'}
-                active={ttsEnabled}
-                onClick={onToggleTts}
-              />
-            )}
-            <div style={{ flex: 1 }} />
-            {isRecording && (
-              <span style={{ fontSize: '0.75em', color: 'var(--color-danger)' }}>
-                {t('chat.release_to_stop')}
-              </span>
-            )}
-          </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar,.7z"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const files = Array.from(e.target.files || []);
-              const newAttachments: Message['attachments'] = [];
-              const newBlobUrls: string[] = [];
-              files.forEach((file) => {
-                const isImage = file.type.startsWith('image/');
-                const url = isImage ? URL.createObjectURL(file) : '';
-                if (url) newBlobUrls.push(url);
-                newAttachments.push({
-                  type: isImage ? 'image' : 'file',
-                  url,
-                  name: file.name,
-                  size: file.size,
-                  mimeType: file.type,
-                });
-              });
-              // 清理即将被替换的旧 blob URL
-              setPendingAttachments((prev) => {
-                prev.forEach((a) => {
-                  if (a.url && a.url.startsWith('blob:')) URL.revokeObjectURL(a.url);
-                });
-                return [...prev, ...newAttachments];
-              });
-              // 记录本次创建的 blob URL（供组件卸载时统一清理）
-              blobUrlsRef.current.push(...newBlobUrls);
-              e.target.value = '';
-            }}
-          />
-
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
             <textarea
               ref={textareaRef}
               value={slashInput || input}
@@ -1179,18 +1172,18 @@ export const ChatWindow = memo(
               rows={1}
               style={{
                 flex: 1,
-                padding: '8px 12px',
+                padding: '7px 10px',
                 borderRadius: '10px',
                 border: '1px solid var(--border)',
                 background: 'var(--bg-glass)',
                 color: 'var(--text-primary)',
                 outline: 'none',
                 fontSize: '1em',
-                lineHeight: 1.5,
+                lineHeight: 1.45,
                 resize: 'none',
                 height: textareaHeight,
-                minHeight: '36px',
-                maxHeight: '132px',
+                minHeight: '34px',
+                maxHeight: '120px',
                 fontFamily: 'inherit',
                 boxSizing: 'border-box',
                 overflow: 'auto',
@@ -1202,20 +1195,22 @@ export const ChatWindow = memo(
                 onClick={onCancelStream}
                 title={t('chat.stop') || '停止'}
                 style={{
-                  height: 36,
-                  padding: '0 14px',
-                  borderRadius: '10px',
+                  height: 34,
+                  padding: '0 12px',
+                  borderRadius: '8px',
                   border: 'none',
                   background: 'var(--color-danger)',
                   color: '#fff',
                   cursor: 'pointer',
-                  fontSize: '0.9em',
+                  fontSize: '0.85em',
+                  fontWeight: 500,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
+                  flexShrink: 0,
                 }}
               >
-                <Icon icon="solar:stop-bold" width={15} height={15} />
+                <Icon icon="solar:stop-bold" width={14} height={14} />
                 {t('chat.stop', { defaultValue: '停止' })}
               </button>
             ) : (
@@ -1223,22 +1218,23 @@ export const ChatWindow = memo(
                 type="submit"
                 disabled={!canSend}
                 style={{
-                  height: 36,
-                  padding: '0 16px',
-                  borderRadius: '10px',
+                  height: 34,
+                  padding: '0 14px',
+                  borderRadius: '8px',
                   border: 'none',
                   background: canSend ? 'var(--accent)' : 'var(--bg-hover)',
                   color: canSend ? '#fff' : 'var(--text-muted)',
                   cursor: canSend ? 'pointer' : 'not-allowed',
-                  fontSize: '0.9em',
+                  fontSize: '0.85em',
                   fontWeight: 500,
                   transition: 'background 0.15s, color 0.15s',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
+                  flexShrink: 0,
                 }}
               >
-                <Icon icon="solar:plain-linear" width={15} height={15} />
+                <Icon icon="solar:plain-linear" width={14} height={14} />
                 {t('chat.send')}
               </button>
             )}

@@ -197,6 +197,15 @@ function ChatPanelWindow() {
     return () => clearInterval(timer);
   }, []);
 
+  // 重置上下文显示（切换/删除/新建会话时调用，避免残留旧 token 数）
+  const resetContextDisplay = useCallback(() => {
+    setContextUsed(0);
+    try {
+      localStorage.removeItem('deskpet_context_used');
+      localStorage.removeItem('deskpet_context_total');
+    } catch { /* ignore */ }
+  }, []);
+
   // 注册内置工具并监听 Gateway 下发的前端工具调用
   useEffect(() => {
     registerBuiltinTools();
@@ -383,16 +392,18 @@ function ChatPanelWindow() {
     (sessionId: string) => {
       // 切换会话：由 Gateway hook 换 sessionRef 并加载该会话消息
       loadSession(sessionId);
+      resetContextDisplay();
       setActiveSessionId(sessionId);
       setShowSessionList(false);
     },
-    [loadSession],
+    [loadSession, resetContextDisplay],
   );
 
   const handleDeleteSession = useCallback(
     (sessionId: string) => {
       const wasActive = sessionId === activeSessionId;
       deleteSession(sessionId);
+      resetContextDisplay();
       const all = listSessions();
       setSessions(all);
       const active = getActiveSession();
@@ -411,7 +422,7 @@ function ChatPanelWindow() {
         }
       }
     },
-    [activeSessionId, loadSession, newChat],
+    [activeSessionId, loadSession, newChat, resetContextDisplay],
   );
 
   // 会话列表：搜索 + 分页（每页 20 条，滚动式加载更多）
@@ -463,11 +474,12 @@ function ChatPanelWindow() {
   // 新聊天：由 Gateway hook 管理会话，同时同步本地会话列表
   const handleNewChat = useCallback(() => {
     newChat();
+    resetContextDisplay();
     const all = listSessions();
     setSessions(all);
     const active = getActiveSession();
     setActiveSessionId(active?.id ?? null);
-  }, [newChat]);
+  }, [newChat, resetContextDisplay]);
 
   // /rename：重命名当前会话，同步刷新侧栏标题
   const handleRenameSession = useCallback(
@@ -483,9 +495,10 @@ function ChatPanelWindow() {
   const handleClearContext = useCallback(() => {
     if (!activeSessionId) return;
     clearSessionMessages(activeSessionId);
+    resetContextDisplay();
     loadSession(activeSessionId);
     setSessions(listSessions());
-  }, [activeSessionId, loadSession]);
+  }, [activeSessionId, loadSession, resetContextDisplay]);
 
   // 模式切换：写入 localStorage + 一次弹跳动画作为明确反馈
   const [modePop, setModePop] = useState(false);
@@ -746,12 +759,12 @@ function ChatPanelWindow() {
           minWidth: 0,
         }}
       >
-        {/* 顶部上下文栏 */}
+        {/* 顶部标题栏（仿 QQ 风格：单行紧凑） */}
         <div
           onMouseDown={handleBarDrag}
           style={{
-            height: '46px',
-            padding: '0 8px 0 12px',
+            height: '44px',
+            padding: '0 10px',
             background: 'var(--bg-surface)',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
@@ -762,11 +775,12 @@ function ChatPanelWindow() {
             position: 'relative',
           }}
         >
-          <ChatAvatar role="assistant" src={appearance.aiAvatar} size={28} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div
+          {/* 左侧：头像 + 标题 + 状态 */}
+          <ChatAvatar role="assistant" src={appearance.aiAvatar} size={30} />
+          <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+            <span
               style={{
-                fontSize: '13px',
+                fontSize: '14px',
                 fontWeight: 600,
                 lineHeight: 1.3,
                 overflow: 'hidden',
@@ -775,95 +789,58 @@ function ChatPanelWindow() {
               }}
             >
               {t('chat.title')}
-            </div>
-            <div
+            </span>
+            <span
+              title={gatewayReady ? 'Gateway 已连接' : 'Gateway 未连接'}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: gatewayReady ? 'var(--color-success)' : 'var(--color-danger)',
+              }}
+            />
+            <span
+              style={{
                 fontSize: '11px',
                 color: 'var(--text-muted)',
-                lineHeight: 1.3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
+              title={`${contextUsed}/${contextTotal} tokens · ${(contextRatio * 100).toFixed(0)}%`}
             >
-              <span
-                title={gatewayReady ? 'Gateway 已连接' : 'Gateway 未连接'}
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                  background: gatewayReady ? 'var(--color-success)' : 'var(--color-danger)',
-                }}
-              />
-              <span
-                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                title={`${contextUsed}/${contextTotal} tokens`}
-              >
-                {currentModel} · {contextUsed}/{contextTotal}
-              </span>
-            </div>
+              {currentModel}
+              {contextUsed > 0 && ` · ${contextUsed}/${contextTotal}`}
+            </span>
           </div>
 
-          {/* 模式切换：文字胶囊，切换时弹跳一下作为反馈 */}
+          {/* 右侧：工具图标（精简分组） */}
           <button
             type="button"
             onClick={handleToggleMode}
             className={`chat-chip ${mode === 'work' ? 'chat-chip--active' : ''}${
               modePop ? ' chat-chip--pop' : ''
             }`}
-            title={mode === 'work' ? '点击切换到聊天模式' : '点击切换到工作模式'}
+            title={mode === 'work' ? '切换到聊天模式' : '切换到工作模式'}
+            style={{ fontSize: '10px', padding: '2px 8px' }}
           >
             <Icon
               icon={mode === 'work' ? 'solar:case-minimalistic-bold' : 'solar:chat-round-bold'}
-              width={12}
-              height={12}
+              width={11}
+              height={11}
             />
-            {mode === 'work' ? '工作模式' : '聊天模式'}
+            {mode === 'work' ? '工作' : '聊天'}
           </button>
 
-          <BarButton
-            icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
-            title={ttsEnabled ? 'TTS 已开启' : 'TTS 已关闭'}
-            active={ttsEnabled}
-            onClick={handleToggleTts}
-          />
-          <BarButton
-            icon="solar:slash-square-linear"
-            title="命令帮助"
-            active={showSlashHelp}
-            onClick={handleSlashHelpToggle}
-          />
-          <BarButton
-            icon="solar:hamburger-menu-linear"
-            title="会话列表"
-            active={showSessionList}
-            onClick={() => setShowSessionList((p) => !p)}
-          />
-          <BarButton
-            icon="solar:star-linear"
-            title={t('chat.favorites_title')}
-            active={showFavorites}
-            onClick={() => setShowFavorites((p) => !p)}
-          />
-          <BarButton
-            icon="solar:add-circle-linear"
-            title={t('chat.new_chat')}
-            onClick={handleNewChat}
-          />
-          <BarButton
-            icon="solar:info-circle-linear"
-            title="详情面板"
-            active={showDetails}
-            onClick={() => setShowDetails((p) => !p)}
-          />
-          <BarButton
-            icon="solar:close-circle-linear"
-            title={t('app.close', { defaultValue: '关闭' })}
-            onClick={handleCloseWindow}
-          />
+          <BarButton icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'} title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'} active={ttsEnabled} onClick={handleToggleTts} />
+          <BarButton icon="solar:hamburger-menu-linear" title="会话列表" active={showSessionList} onClick={() => setShowSessionList((p) => !p)} />
+          <BarButton icon="solar:star-linear" title={t('chat.favorites_title')} active={showFavorites} onClick={() => setShowFavorites((p) => !p)} />
+          <BarButton icon="solar:add-circle-linear" title={t('chat.new_chat')} onClick={handleNewChat} />
+          <BarButton icon="solar:info-circle-linear" title="详情面板" active={showDetails} onClick={() => setShowDetails((p) => !p)} />
+          <BarButton icon="solar:close-circle-linear" title={t('app.close', { defaultValue: '关闭' })} onClick={handleCloseWindow} />
 
-          {/* 上下文占用：贴在标题栏底边的细进度条 */}
+          {/* 上下文占用进度条（贴底） */}
           <div
             style={{
               position: 'absolute',
@@ -994,13 +971,99 @@ function ChatPanelWindow() {
                   </div>
                 )}
                 {detailsTab === 'tasks' && (
-                  <div style={{ color: 'var(--text-muted)' }}>
-                    任务视图后续接入 Gateway goal/queue/agents
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>用户消息</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.filter(m => m.role === 'user').length}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>AI 回复</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.filter(m => m.role === 'assistant').length}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>工具调用</span>
+                        <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{messages.reduce((sum, m) => sum + (m.toolCalls?.length || 0), 0)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>流式中</span>
+                        <span style={{ fontWeight: 600, color: isStreaming ? 'var(--accent)' : 'var(--text-muted)' }}>{isStreaming ? '是' : '否'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>总消息数</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.length}</span>
+                      </div>
+                    </div>
+                    {messages.length === 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '20px' }}>
+                        暂无消息数据
+                      </div>
+                    )}
                   </div>
                 )}
                 {detailsTab === 'tools' && (
-                  <div style={{ color: 'var(--text-muted)' }}>
-                    工具调用视图后续接入 Gateway tool calls
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {messages.length === 0 ? (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '20px' }}>
+                        暂无工具调用记录
+                      </div>
+                    ) : (
+                      messages
+                        .filter(m => m.toolCalls && m.toolCalls.length > 0)
+                        .flatMap(m =>
+                          (m.toolCalls || []).map((tc, i) => ({ ...tc, msgId: m.id, idx: i }))
+                        )
+                        .map((tc, i) => (
+                          <div
+                            key={`tool-${i}`}
+                            style={{
+                              padding: '8px',
+                              borderRadius: '8px',
+                              background: 'var(--bg-glass)',
+                              border: '1px solid var(--glass-border)',
+                              fontSize: '11px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  flexShrink: 0,
+                                  background:
+                                    tc.status === 'running'
+                                      ? '#f59e0b'
+                                      : tc.status === 'success'
+                                        ? 'var(--color-success)'
+                                        : 'var(--color-danger)',
+                                }}
+                              />
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {tc.name}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', flexShrink: 0, fontSize: '10px' }}>
+                                {tc.status === 'running' ? '运行中' : tc.status === 'success' ? '成功' : '失败'}
+                              </span>
+                            </div>
+                            {tc.input != null && (
+                              <div style={{ color: 'var(--text-secondary)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
+                                输入: {typeof tc.input === 'string' ? tc.input : String(JSON.stringify(tc.input)).slice(0, 80)}
+                              </div>
+                            )}
+                            {tc.output != null && (
+                              <div style={{ color: 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>
+                                输出: {typeof tc.output === 'string' ? tc.output : String(JSON.stringify(tc.output)).slice(0, 80)}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                    )}
+                    {messages.filter(m => m.toolCalls && m.toolCalls.length > 0).length === 0 && messages.length > 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '10px' }}>
+                        当前会话无工具调用
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
