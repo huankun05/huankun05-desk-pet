@@ -139,24 +139,89 @@ export class LAppModel extends CubismUserModel {
         return null;
       });
 
+    // 1.5 model3 解析完成后，再并行加载 MOC 与表情。
+    //      关键修复：_model3Json 在 model3Promise 的 .then() 中「异步」赋值，
+    //      原先表情加载代码同步执行时 _model3Json 仍为 null，导致 model3Json 回退路径
+    //      永远读不到任何表情（日志表现为 source = NONE | count = 0）。
+    //      现把 MOC 与表情加载都放进 model3Promise.then()，确保 _model3Json 已就绪。
     tasks.push(
       model3Promise.then((setting) => {
         if (!setting) return;
+
+        const subTasks: Promise<void>[] = [];
+
+        // --- MOC ---
         const modelFileName = setting.getModelFileName();
-        if (!modelFileName) return;
-        return fetch(`${this._modelHomeDir}${modelFileName}`)
-          .then((r) => {
-            if (r.ok) return r.arrayBuffer();
-            if (r.status >= 400) {
-              CubismLogError(`Failed to load file ${this._modelHomeDir}${modelFileName}`);
-              return new ArrayBuffer(0);
+        if (modelFileName) {
+          subTasks.push(
+            fetch(`${this._modelHomeDir}${modelFileName}`)
+              .then((r) => (r.ok ? r.arrayBuffer() : new ArrayBuffer(0)))
+              .then((mocArrayBuffer) => {
+                this.loadModel(mocArrayBuffer, this._mocConsistency);
+              })
+              .catch((err) => console.error('[Live2D] MOC3 load failed:', modelFileName, err)),
+          );
+        }
+
+        // --- Expressions ---
+        // 注意：此 SDK 的 CubismJson 解析器对「对象数组」(FileReferences.Expressions)
+        // 解析失败，导致 getExpressionCount() 恒为 0、表情永远不加载。
+        // 因此优先用 SDK 接口，读不到时回退到 model3.json 原始对象（我们自己 JSON.parse）。
+        interface ExprEntry { Name: string; File: string }
+        const expressionList: ExprEntry[] = [];
+        if (this._modelSetting && this._modelSetting.getExpressionCount() > 0) {
+          const n = this._modelSetting.getExpressionCount();
+          for (let i = 0; i < n; i++) {
+            expressionList.push({
+              Name: this._modelSetting.getExpressionName(i),
+              File: this._modelSetting.getExpressionFileName(i),
+            });
+          }
+          console.log('[LAppModel:expressions] source = SDK | count =', n, '| home =', this._modelHomeDir);
+        } else {
+          const refs = (this._model3Json as { FileReferences?: { Expressions?: ExprEntry[] } } | null)
+            ?.FileReferences?.Expressions;
+          if (Array.isArray(refs)) {
+            for (const e of refs) {
+              if (e && e.Name && e.File) expressionList.push({ Name: e.Name, File: e.File });
             }
-            return r.arrayBuffer();
-          })
-          .then((mocArrayBuffer) => {
-            this.loadModel(mocArrayBuffer, this._mocConsistency);
-          })
-          .catch((err) => console.error('[Live2D] MOC3 load failed:', modelFileName, err));
+          }
+          console.log(
+            '[LAppModel:expressions] source =',
+            expressionList.length > 0 ? 'model3Json-fallback' : 'NONE',
+            '| count =', expressionList.length,
+            '| home =', this._modelHomeDir,
+          );
+        }
+
+        for (const { Name: expressionName, File: expressionFileName } of expressionList) {
+          subTasks.push(
+            fetch(`${this._modelHomeDir}${expressionFileName}`)
+              .then((r) => (r.ok ? r.arrayBuffer() : new ArrayBuffer(0)))
+              .then((arrayBuffer) => {
+                // ===== DEBUG: 记录每个表情文件加载到的字节数 =====
+                console.log(
+                  '[LAppModel:loadExpression]',
+                  expressionName,
+                  '| file =', expressionFileName,
+                  '| bytes =', arrayBuffer.byteLength,
+                );
+                // ================================================
+                const motion: ACubismMotion = this.loadExpression(
+                  arrayBuffer,
+                  arrayBuffer.byteLength,
+                  expressionName,
+                );
+                const existing = this._expressions.getValue(expressionName);
+                if (existing) ACubismMotion.delete(existing);
+                this._expressions.setValue(expressionName, motion);
+                this._expressionCount++;
+              })
+              .catch((err) => console.error('[Live2D] Expression load failed:', expressionFileName, err)),
+          );
+        }
+
+        return Promise.allSettled(subTasks).then(() => {});
       }),
     );
 
@@ -174,72 +239,7 @@ export class LAppModel extends CubismUserModel {
         .catch(() => { /* non-fatal */ }),
     );
 
-    // 3. expressions（并行）
-    // 注意：此 SDK 的 CubismJson 解析器对「对象数组」(FileReferences.Expressions)
-    // 解析失败，导致 getExpressionCount() 恒为 0、表情永远不加载。
-    // 因此优先用 SDK 接口，读不到时回退到 model3.json 原始对象（我们自己 JSON.parse）。
-    interface ExprEntry { Name: string; File: string }
-    const expressionList: ExprEntry[] = [];
-    if (this._modelSetting && this._modelSetting.getExpressionCount() > 0) {
-      const n = this._modelSetting.getExpressionCount();
-      for (let i = 0; i < n; i++) {
-        expressionList.push({
-          Name: this._modelSetting.getExpressionName(i),
-          File: this._modelSetting.getExpressionFileName(i),
-        });
-      }
-      console.log('[LAppModel:expressions] source = SDK | count =', n, '| home =', this._modelHomeDir);
-    } else {
-      const refs = (this._model3Json as { FileReferences?: { Expressions?: ExprEntry[] } } | null)
-        ?.FileReferences?.Expressions;
-      if (Array.isArray(refs)) {
-        for (const e of refs) {
-          if (e && e.Name && e.File) expressionList.push({ Name: e.Name, File: e.File });
-        }
-      }
-      console.log(
-        '[LAppModel:expressions] source =',
-        expressionList.length > 0 ? 'model3Json-fallback' : 'NONE',
-        '| count =', expressionList.length,
-        '| home =', this._modelHomeDir,
-      );
-    }
-
-    const expressionPromises: Promise<void>[] = [];
-    for (const { Name: expressionName, File: expressionFileName } of expressionList) {
-      expressionPromises.push(
-        fetch(`${this._modelHomeDir}${expressionFileName}`)
-          .then((r) => {
-            if (r.ok) return r.arrayBuffer();
-            if (r.status >= 400) {
-              CubismLogError(`Failed to load file ${this._modelHomeDir}${expressionFileName}`);
-              return new ArrayBuffer(0);
-            }
-            return r.arrayBuffer();
-          })
-          .then((arrayBuffer) => {
-            // ===== DEBUG: 记录每个表情文件加载到的字节数 =====
-            console.log(
-              '[LAppModel:loadExpression]',
-              expressionName,
-              '| file =', expressionFileName,
-              '| bytes =', arrayBuffer.byteLength,
-            );
-            // ================================================
-            const motion: ACubismMotion = this.loadExpression(
-              arrayBuffer,
-              arrayBuffer.byteLength,
-              expressionName
-            );
-            const existing = this._expressions.getValue(expressionName);
-            if (existing) ACubismMotion.delete(existing);
-            this._expressions.setValue(expressionName, motion);
-            this._expressionCount++;
-          })
-          .catch((err) => console.error('[Live2D] Expression load failed:', expressionFileName, err)),
-      );
-    }
-    tasks.push(Promise.allSettled(expressionPromises).then(() => {}));
+    // （表情加载已合并到上方 model3Promise.then 中，见「1.5」注释，避免 _model3Json 异步未就绪）
 
     // 4. physics / pose / userData（并行）
     const physicsFile = this._modelSetting ? (this._modelSetting.getPhysicsFileName() as string) : '';

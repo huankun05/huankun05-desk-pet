@@ -271,8 +271,12 @@ export function useLive2D({
     if (isLoading) return;
 
     const offExpr = eventBus.on('expression:change', (payload) => {
-      if (payload.expression) setExpression(payload.expression);
-      lastExpressionRef.current = payload.expression;
+      // payload.expression 可能是「情绪类型」(如 Brain API 的 'happy'，小写) 或已解析的表情名
+      // (如 'Happy')。统一经 resolveVisualForModel 归一，确保大小写/语义正确落地。
+      const resolved = resolveVisualForModel(payload.expression, modelKey);
+      const expr = resolved.expression ?? '';
+      if (expr) setExpression(expr);
+      lastExpressionRef.current = expr;
     });
 
     const offParam = eventBus.on('param:update', (payload) => {
@@ -288,7 +292,7 @@ export function useLive2D({
       offParam();
       offAnim();
     };
-  }, [isLoading]);
+  }, [isLoading, modelKey]);
 
   // 跨窗口预览：设置页「表情与动作」管理页通过 Tauri 事件请求主窗桌宠播放指定项。
   // 仅当 modelKey 匹配时才落地，避免把 nahida 表情误发到 hiyori、反之亦然。
