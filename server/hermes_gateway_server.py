@@ -152,8 +152,8 @@ class HermesEngine:
     ) -> AsyncIterator[str | dict[str, Any]]:
         llm = self._get_llm()
         if not llm or not llm.is_available():
-            fallback = "[Hermes 收到] " + messages[-1].get("content", "")[:50]
-            yield fallback
+            # LLM 不可用时返回空（不暴露内部回显信息给用户）
+            yield ""
             return
 
         loop = asyncio.get_running_loop()

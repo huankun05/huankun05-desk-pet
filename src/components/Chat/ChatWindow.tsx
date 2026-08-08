@@ -98,9 +98,9 @@ interface ChatWindowProps {
   sttAvailable?: boolean;
   /** 当前会话 ID（用于收藏等） */
   sessionId?: string;
-  /** TTS 开关状态（输入区快捷开关） */
-  ttsEnabled?: boolean;
-  onToggleTts?: () => void;
+  // TTS 按钮已移至头部栏（ChatPanelWindow），以下保留接口兼容性但不再使用
+  // ttsEnabled?: boolean;
+  // onToggleTts?: () => void;
   onClose?: () => void;
   /** Gateway 连接状态（供 /status 命令反馈） */
   gatewayReady?: boolean;
@@ -202,8 +202,6 @@ export const ChatWindow = memo(
       isRecording = false,
       sttAvailable = false,
       sessionId,
-      ttsEnabled = true,
-      onToggleTts,
       gatewayReady = false,
       currentModel,
       contextUsed = 0,
@@ -1113,14 +1111,6 @@ export const ChatWindow = memo(
                   onTouchEnd={() => {
                     if (isRecording) onRecordStop?.();
                   }}
-                />
-              )}
-              {onToggleTts && (
-                <ToolButton
-                  icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
-                  title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'}
-                  active={ttsEnabled}
-                  onClick={onToggleTts}
                 />
               )}
             </div>

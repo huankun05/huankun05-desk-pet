@@ -340,8 +340,6 @@ export function MessageItem({
 
   const radius = appearance.bubbleRadius;
   const tailClass = appearance.bubbleTail ? '' : ' chat-bubble--flat';
-  // 操作栏水平锚点：让开头像占的宽度
-  const actionInset = appearance.showAvatar ? 50 : 14;
 
   const hoverBtn = (extra?: React.CSSProperties): React.CSSProperties => ({
     ...iconBtnStyle,
@@ -476,27 +474,21 @@ export function MessageItem({
         >
           {formatTime(ts)}
         </div>
-      </div>
 
-      {/* 操作栏：绝对定位浮在气泡上方；鼠标 hover 或触屏点按钉选时显示 */}
-      {(hovered || pinned) && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            top: '-2px',
-            ...(isUser ? { right: `${actionInset}px` } : { left: `${actionInset}px` }),
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1px',
-            padding: '2px',
-            borderRadius: '8px',
-            background: 'var(--toolbar-bg)',
-            border: '1px solid var(--toolbar-border)',
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 5,
-          }}
-        >
+        {/* 操作栏：气泡下方，透明背景，仅图标；hover 或触屏钉选时显示 */}
+        {(hovered || pinned) && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0px',
+              padding: '3px 4px',
+              marginTop: '2px',
+              background: 'transparent',
+              borderRadius: '6px',
+            }}
+          >
           {onQuote && (
             <button
               onClick={() => onQuote(message)}
@@ -586,7 +578,8 @@ export function MessageItem({
             </button>
           )}
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
