@@ -247,6 +247,12 @@ class ToolLoop:
         except Exception as exc:
             log.warning("Tool loop LLM call failed: %s", exc)
 
+        log.info("[TOOL_LOOP] _collect done: text_parts=%d tool_calls=%d", len(text_parts), len(tool_calls))
+        if text_parts:
+            log.info("[TOOL_LOOP] first_text=%s", text_parts[0][:120])
+        if tool_calls:
+            log.info("[TOOL_LOOP] tool_calls=%s", [c.name for c in tool_calls])
+
         return tool_calls, text_parts
 
     async def _execute_tools(self, calls: list[ToolCall]) -> list[ToolResult]:

@@ -459,6 +459,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     log.info("[CHAT] calling tool_loop.run...")
     result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)
     log.info("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
+    log.info("[CHAT] toolCalls=%d toolResults=%d", len(result.get("toolCalls", [])), len(result.get("toolResults", [])))
 
     full_response = result.get("accumulated", "") or text
     if full_response:
