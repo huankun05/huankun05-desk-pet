@@ -326,14 +326,22 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     setMessages(session.messages);
   }, []);
 
-  // 初始化：立即加载会话消息（用 requestIdleCallback 让出主线程后再渲染消息列表）
+  // 初始化：立即加载会话消息（rIC 优先，降级到 setTimeout，保证消息一定能渲染） */
   useEffect(() => {
     if (!gatewayEnabled) return;
     const session = getOrCreateActiveSession();
     sessionRef.current = session;
-    // 用 rIC 替代 setTimeout：首屏更快响应，空闲时再渲染消息
-    const id = requestIdleCallback(() => setMessages(session.messages), { timeout: 200 });
-    return () => cancelIdleCallback(id);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (typeof requestIdleCallback === 'function') {
+        const id = requestIdleCallback(() => setMessages(session.messages), { timeout: 200 });
+        return () => cancelIdleCallback(id);
+      }
+      timer = setTimeout(() => setMessages(session.messages), 0);
+      return () => clearTimeout(timer);
+    };
+    const cleanup = schedule();
+    return cleanup;
   }, [gatewayEnabled]);
 
   const buildFrontendTools = useCallback((): Array<Record<string, unknown>> => {

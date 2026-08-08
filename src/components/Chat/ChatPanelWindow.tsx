@@ -87,7 +87,18 @@ function ChatPanelWindow() {
   // 上下文栏状态
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5-turbo');
   const [contextUsed, setContextUsed] = useState<number>(0);
-  const [contextTotal, setContextTotal] = useState<number>(8192);
+  const [contextTotal, setContextTotal] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem('deskpet_context_total');
+      if (raw) {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
   const { mode } = useMode();
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => {
     try {
