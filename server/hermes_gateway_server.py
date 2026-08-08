@@ -398,14 +398,16 @@ async def _learn(engine: HermesEngine, user_text: str, assistant_text: str) -> N
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     text = data.get("text", "")
     if not text:
+        log.warning("[CHAT] empty text received, ignoring")
         return
     msg_id = data.get("id", f"msg_{time.time()}")
     mode = data.get("mode", "chat")
     frontend_tools = data.get("frontend_tools", []) or []
 
-    log.info("Chat [%s]: %s", mode, text[:80])
+    log.info("[CHAT] start id=%s mode=%s text=%s", msg_id, mode, text[:120])
+    log.info("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
 
-    cfg = engine.MODE_CONFIGS.get(mode, engine.MODE_CONFIGS["chat"])
+    # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
     # 工具白名单：None 表示全部可用；列表则只暴露该子集（最少工具原则）
     whitelist = cfg.get("tool_names", None)
     # 前端可临时禁用某些工具（持久化在 localStorage，随消息上报）
@@ -453,8 +455,10 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         backend_tools=allowed_backend,
         executor=tool_executor,
     )
-
+    log.info("[CHAT] tool_loop created frontend=%d backend=%d", len(allowed_frontend), len(allowed_backend))
+    log.info("[CHAT] calling tool_loop.run...")
     result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)
+    log.info("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
 
     full_response = result.get("accumulated", "") or text
     if full_response:
@@ -470,6 +474,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         "session_id": engine.SESSION_ID,
         "full_response": full_response,
     })
+    log.info("[CHAT] sent done id=%s response_len=%d", msg_id, len(full_response))
 
     # 后台自学习：从本轮对话抽取持久记忆（不阻塞响应）
     try:

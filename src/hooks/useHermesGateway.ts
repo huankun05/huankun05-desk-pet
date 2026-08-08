@@ -234,12 +234,14 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       // 通过 WebSocket 发送
       const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
-      client.sendChat(content, {
+      log.info('[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d', assistantId, content.slice(0, 80), mode, frontendTools.length);
+      const sentMsgId = client.sendChat(content, {
         mode,
         frontendTools,
         disabledTools: getDisabledTools(),
         onToken: (token) => {
           if (abortedRef.current) return;
+          log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
           currentResponseRef.current += token;
           setMessages((prev) =>
             prev.map((m) =>

@@ -83,6 +83,7 @@ export class HermesGatewayClient {
     };
 
     this.ws.onmessage = (ev) => {
+      log.info('[WS->MSG] raw=%s', ev.data.slice(0, 200));
       try {
         const data = JSON.parse(ev.data);
         this.handleMessage(data);
