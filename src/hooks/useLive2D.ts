@@ -1,5 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { isTauriEnv } from '../utils/tauriEnv';
+import { listen } from '@tauri-apps/api/event';
 import {
   initLive2D,
   loadModelFromPath,
@@ -27,6 +28,7 @@ import { FPS_TIERS } from '../settings/appearanceConfig';
 import {
   getModelKey,
   resolveVisualForModel,
+  isVisualEnabled,
 } from '../services/live2d/visualMapping';
 
 interface UseLive2DOptions {
@@ -248,14 +250,19 @@ export function useLive2D({
     if (isLoading) return;
     // emotion 由 MainPetApp 直传 EmotionType；resolveVisualForModel 按模型选映射
     const resolved = resolveVisualForModel(emotion, modelKey);
+    // 被停用的表情/动作不参与情绪表达（回退到基础态）
+    const exprRaw = resolved.expression ?? '';
+    const expr = isVisualEnabled(modelKey, exprRaw) ? exprRaw : '';
     // 用户自定义映射（emotionState.expressionMap）作为覆盖层
     const customExpr = customMap && customMap[emotion];
-    const expr = customExpr ?? resolved.expression ?? '';
-    lastExpressionRef.current = expr;
-    setExpression(expr);
+    const finalExpr = customExpr ?? expr;
+    lastExpressionRef.current = finalExpr;
+    setExpression(finalExpr);
     // 情绪 → 身体动作：仅对带动作的模型生效（如 hiyori）；nahida 无动作则 motion 为 null
-    if (resolved.motion) {
-      triggerAnimation(resolved.motion, 3000);
+    const motion =
+      resolved.motion && isVisualEnabled(modelKey, resolved.motion) ? resolved.motion : null;
+    if (motion) {
+      triggerAnimation(motion, 3000);
     }
   }, [emotion, isLoading, customMap, modelKey]);
 
@@ -283,6 +290,43 @@ export function useLive2D({
     };
   }, [isLoading]);
 
+  // 跨窗口预览：设置页「表情与动作」管理页通过 Tauri 事件请求主窗桌宠播放指定项。
+  // 仅当 modelKey 匹配时才落地，避免把 nahida 表情误发到 hiyori、反之亦然。
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isTauriEnv()) return;
+    let unlistenExpr: (() => void) | undefined;
+    let unlistenMotion: (() => void) | undefined;
+    let cancelled = false;
+
+    void listen<{ expression: string; modelKey: string }>(
+      'deskpet:preview-expression',
+      (e) => {
+        if (e.payload.modelKey && e.payload.modelKey !== modelKey) return;
+        const name = e.payload.expression;
+        setExpression(name === 'Default' ? '' : name);
+      },
+    ).then((fn) => {
+      if (!cancelled) unlistenExpr = fn;
+    });
+
+    void listen<{ name: string; modelKey: string; duration: number }>(
+      'deskpet:preview-motion',
+      (e) => {
+        if (e.payload.modelKey && e.payload.modelKey !== modelKey) return;
+        triggerAnimation(e.payload.name, e.payload.duration ?? 3000);
+      },
+    ).then((fn) => {
+      if (!cancelled) unlistenMotion = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unlistenExpr?.();
+      unlistenMotion?.();
+    };
+  }, [isLoading, modelKey]);
+
   // 待机随机表情：idle/sleepy 时随机播放（按模型选池）
   const idleTimerRef = useRef<number | null>(null);
   useEffect(() => {
@@ -290,10 +334,13 @@ export function useLive2D({
     if (idleTimerRef.current) clearInterval(idleTimerRef.current);
 
     if (emotion === 'idle' || emotion === 'sleepy') {
-      const pool =
+      const basePool =
         customIdle && customIdle.length > 0
           ? customIdle
           : IDLE_EXPRESSIONS_BY_MODEL[modelKey] ?? [''];
+      // 跳过被停用的表情；若全部停用则回退到基础态
+      const filtered = basePool.filter((e) => isVisualEnabled(modelKey, e));
+      const pool = filtered.length > 0 ? filtered : [''];
       // 活力值越高 → 待机动画切换越快（6s ~ 12s）
       const interval = 12000 - energy * 6000;
       idleTimerRef.current = window.setInterval(() => {

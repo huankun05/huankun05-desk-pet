@@ -33,6 +33,12 @@ export function ModelsIndex() {
       description: t('settings.models.emotion_desc'),
       to: '/settings/models/emotion',
     },
+    {
+      icon: 'solar:emoji-funny-circle-bold-duotone',
+      title: t('settings.models.expressions'),
+      description: t('settings.models.expressions_desc'),
+      to: '/settings/models/expressions',
+    },
   ];
 
   return (

@@ -650,6 +650,24 @@
       "mouse_sensitivity": "鼠标追踪灵敏度",
       "mouse_sensitivity_desc": "角色跟随鼠标移动的灵敏度。"
     },
+    "expressions": {
+      "nahida_title": "纳西妲 · 表情",
+      "nahida_note": "该模型仅有烘焙表情，无身体动作。",
+      "hiyori_title": "日寄 · 动作",
+      "hiyori_note": "该模型仅有身体动作，无表情。",
+      "preview": "预览",
+      "preview_hint": "预览会把指令发送到正在运行的桌宠窗口",
+      "preview_sent": "已发送到桌宠",
+      "preview_failed": "发送预览失败",
+      "preview_need_pet": "未检测到桌宠窗口，请先启动桌宠",
+      "type_real": "真实",
+      "type_synthetic": "合成",
+      "mapped_emotions": "关联情绪",
+      "none": "无",
+      "files_count": "{{count}} 个文件",
+      "total_expressions": "共 {{count}} 个表情",
+      "total_motions": "共 {{count}} 组动作"
+    },
     "nav": {
       "appearance": "外观",
       "models": "角色",
@@ -675,6 +693,8 @@
       "behavior_desc": "互动行为、内心独白、主动聊天",
       "emotion": "情绪状态",
       "emotion_desc": "九维情绪、PAD 映射、情绪变化记录",
+      "expressions": "表情与动作",
+      "expressions_desc": "预览与管理表情、动作及情绪映射",
       "related_behavior_hint": "角色的行为表现（互动、内心独白、主动聊天）在独立页面配置。",
       "related_emotion_hint": "角色的情绪与 PAD 映射在独立页面查看与配置。",
       "behavior_section_title": "行为设置",

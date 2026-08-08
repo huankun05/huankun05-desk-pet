@@ -210,3 +210,39 @@ export function stripControlTags(text: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
+
+// ===== 启用 / 停用（持久化到 localStorage） =====
+// 用户在「表情与动作」管理页可停用某个表情/动作，停用后它不会参与情绪表达，
+// 也不会出现在待机随机池里。键格式为 `${modelKey}:${name}`（'' 基础态恒启用）。
+
+const DISABLED_VISUALS_KEY = 'deskpet_disabled_visuals';
+
+/** 读取被停用的视觉项键集合 */
+export function getDisabledVisuals(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISABLED_VISUALS_KEY);
+    if (raw) return new Set<string>(JSON.parse(raw) as string[]);
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
+  return new Set<string>();
+}
+
+/** 该表情/动作当前是否启用（'' 基础态恒为启用） */
+export function isVisualEnabled(modelKey: string, name: string): boolean {
+  if (!name) return true;
+  return !getDisabledVisuals().has(`${modelKey}:${name}`);
+}
+
+/** 设置启用/停用状态并落盘 */
+export function setVisualEnabled(modelKey: string, name: string, enabled: boolean): void {
+  try {
+    const set = getDisabledVisuals();
+    const key = `${modelKey}:${name}`;
+    if (enabled) set.delete(key);
+    else set.add(key);
+    localStorage.setItem(DISABLED_VISUALS_KEY, JSON.stringify(Array.from(set)));
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
+}

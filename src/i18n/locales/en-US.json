@@ -646,6 +646,24 @@
       "mouse_sensitivity": "Mouse Tracking Sensitivity",
       "mouse_sensitivity_desc": "Sensitivity of character following mouse."
     },
+    "expressions": {
+      "nahida_title": "Nahida · Expressions",
+      "nahida_note": "This model has baked expressions only, no body motions.",
+      "hiyori_title": "Hiyori · Motions",
+      "hiyori_note": "This model has body motions only, no expressions.",
+      "preview": "Preview",
+      "preview_hint": "Preview sends the command to the running desktop pet window",
+      "preview_sent": "Sent to desktop pet",
+      "preview_failed": "Failed to send preview",
+      "preview_need_pet": "Desktop pet window not found, please launch the pet first",
+      "type_real": "Baked",
+      "type_synthetic": "Synthetic",
+      "mapped_emotions": "Mapped emotions",
+      "none": "None",
+      "files_count": "{{count}} files",
+      "total_expressions": "{{count}} expressions total",
+      "total_motions": "{{count}} motion groups total"
+    },
     "nav": {
       "appearance": "Appearance",
       "models": "Character",
@@ -671,6 +689,8 @@
       "behavior_desc": "Interactive behavior, inner voice, proactive chat",
       "emotion": "Emotion State",
       "emotion_desc": "9-dimension emotions, PAD mapping, emotion history",
+      "expressions": "Expressions & Motions",
+      "expressions_desc": "Preview and manage expressions, motions and emotion mapping",
       "related_behavior_hint": "Character behavior (interaction, inner voice, proactive chat) is configured on a separate page.",
       "related_emotion_hint": "Character emotion and PAD mapping are viewed and configured on a separate page.",
       "behavior_section_title": "Behavior Settings",
