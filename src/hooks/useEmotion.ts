@@ -3,6 +3,10 @@ import { createStorage } from '../services/storage';
 import { createLogger } from '../utils/logger';
 import { eventBus } from '../services/eventBus';
 import {
+  getNahidaExpression,
+  parseExplicitEmotion,
+} from '../services/live2d/visualMapping';
+import {
   tickDecay,
   applyEmotion,
   getEmotionLabel,
@@ -520,7 +524,9 @@ export function useEmotion() {
 
   const setEmotionFromResponse = useCallback(
     (response: string) => {
-      const detected = analyzeTextEmotion(response);
+      // 优先采用 AI 显式标注的情绪标签（[emotion:xxx]），否则回退关键词猜测
+      const explicit = parseExplicitEmotion(response);
+      const detected = explicit ?? analyzeTextEmotion(response);
       setNewEmotion(detected, 0.8, 'AI 回复');
     },
     [analyzeTextEmotion, setNewEmotion],
@@ -607,20 +613,8 @@ export function useEmotion() {
   }, []);
 
   const getLive2DEmotion = useCallback((e: string): string => {
-    const m: Record<string, string> = {
-      idle: '',
-      happy: 'Happy',
-      sad: 'Sad2',
-      thinking: 'Wink',
-      surprised: 'StarEye',
-      talking: 'MouthChange',
-      angry: 'Angry',
-      shy: 'Shy',
-      excited: 'StarEye',
-      curious: 'Wink',
-      sleepy: 'Default',
-    };
-    return m[e] ?? '';
+    // 走统一的按模型映射（默认 nahida）；供 usePerception 还原表情用
+    return getNahidaExpression(e);
   }, []);
 
   const patHead = useCallback(() => {

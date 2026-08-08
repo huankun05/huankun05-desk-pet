@@ -24,6 +24,10 @@ import {
 import { getWarmedContext } from '../hooks/useSplashInit';
 import { eventBus } from '../services/eventBus';
 import { FPS_TIERS } from '../settings/appearanceConfig';
+import {
+  getModelKey,
+  resolveVisualForModel,
+} from '../services/live2d/visualMapping';
 
 interface UseLive2DOptions {
   modelPath: string;
@@ -60,34 +64,12 @@ interface UseLive2DResult {
   isIdle: boolean;
 }
 
-const expressionMap: Record<string, string> = {
-  // 情绪名 → 表情
-  default: '', // 不设表情 = 模型基础状态（全眼）
-  happy: 'Happy',
-  sad: 'Sad2', // 沮丧失落
-  angry: 'Angry',
-  shy: 'Shy',
-  thinking: 'Wink',
-  surprised: 'StarEye',
-  talking: 'MouthChange',
-  sleepy: 'Default', // Default = Halfeyes 瞌睡半闭眼
-  // 表情文件名直接映射（预览用）
-  '': '',
-  Default: 'Default',
-  Happy: 'Happy',
-  Sad2: 'Sad2',
-  Angry: 'Angry',
-  Shy: 'Shy',
-  Wink: 'Wink',
-  StarEye: 'StarEye',
-  MouthChange: 'MouthChange',
-  HandChange: 'HandChange',
-  Kusa: 'Kusa',
-  black: 'black',
+// 待机时随机播放的表情池（按模型区分；空串 '' = 基础态）
+// nahida 含全部 12 烘焙表情 + 4 个合成新脸，待机时轮换更丰富
+const IDLE_EXPRESSIONS_BY_MODEL: Record<string, string[]> = {
+  nahida: ['', 'HandChange', 'Kusa', 'Wink', 'Shy', 'Speechless', 'Proud', 'Wronged', 'ThinkHard'],
+  hiyori: [''],
 };
-
-// 待机时随机播放的表情（不含 Default/半眼，那是瞌睡用的）
-const IDLE_EXPRESSIONS = ['', 'HandChange', 'Kusa'];
 const _IDLE_ANIM_INTERVAL = 8000;
 
 const MODEL_LOAD_TIMEOUT = 15000; // 模型加载超时 15 秒
@@ -124,6 +106,9 @@ export function useLive2D({
   const modelStatusRef = useRef<ModelStatus>('init');
 
   const isLoading = modelStatus !== 'ready' && modelStatus !== 'error';
+
+  // 由模型路径推导模型 key，决定「情绪 → 表情 / 动作」的映射表
+  const modelKey = getModelKey(modelPath);
 
   // 同步 modelStatus 到 ref（供 timeout 回调使用，避免闭包过期）
   useEffect(() => {
@@ -257,15 +242,22 @@ export function useLive2D({
     return () => cancelAnimationFrame(checkId);
   }, [isLoading, onModelLoaded]);
 
-  // 表情変更（使用自定义映射或默认映射）
+  // 情绪 → 视觉：先按模型解析出表情与动作，再落地
   const lastExpressionRef = useRef('Default');
   useEffect(() => {
     if (isLoading) return;
-    const merged = { ...expressionMap, ...customMap };
-    const name = merged[emotion] ?? 'Default';
-    lastExpressionRef.current = name;
-    setExpression(name);
-  }, [emotion, isLoading, customMap]);
+    // emotion 由 MainPetApp 直传 EmotionType；resolveVisualForModel 按模型选映射
+    const resolved = resolveVisualForModel(emotion, modelKey);
+    // 用户自定义映射（emotionState.expressionMap）作为覆盖层
+    const customExpr = customMap && customMap[emotion];
+    const expr = customExpr ?? resolved.expression ?? '';
+    lastExpressionRef.current = expr;
+    setExpression(expr);
+    // 情绪 → 身体动作：仅对带动作的模型生效（如 hiyori）；nahida 无动作则 motion 为 null
+    if (resolved.motion) {
+      triggerAnimation(resolved.motion, 3000);
+    }
+  }, [emotion, isLoading, customMap, modelKey]);
 
   // ===== eventBus 订阅：接收 BehaviorDecorateStage 发出的视觉装饰事件 =====
   useEffect(() => {
@@ -291,14 +283,17 @@ export function useLive2D({
     };
   }, [isLoading]);
 
-  // 待机随机表情：idle/sleepy 时随机播放（使用自定义池或默认池）
+  // 待机随机表情：idle/sleepy 时随机播放（按模型选池）
   const idleTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (isLoading) return;
     if (idleTimerRef.current) clearInterval(idleTimerRef.current);
 
     if (emotion === 'idle' || emotion === 'sleepy') {
-      const pool = customIdle && customIdle.length > 0 ? customIdle : IDLE_EXPRESSIONS;
+      const pool =
+        customIdle && customIdle.length > 0
+          ? customIdle
+          : IDLE_EXPRESSIONS_BY_MODEL[modelKey] ?? [''];
       // 活力值越高 → 待机动画切换越快（6s ~ 12s）
       const interval = 12000 - energy * 6000;
       idleTimerRef.current = window.setInterval(() => {
@@ -310,7 +305,7 @@ export function useLive2D({
     return () => {
       if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     };
-  }, [emotion, isLoading, customIdle, energy]);
+  }, [emotion, isLoading, customIdle, energy, modelKey]);
 
   // 缩放因子：窗口触底时角色按比例缩小
   useEffect(() => {

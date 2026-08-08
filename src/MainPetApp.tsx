@@ -762,8 +762,6 @@ function MainPetApp() {
     [isTransforming, setPetScale],
   );
 
-  const live2dEmotion = getLive2DEmotion(emotionState.emotion);
-
   const baseViewportAspect = useMemo(() => {
     const w = modelConfig.windowWidth;
     const actualCanvasW = modelInfo?.canvasWidth ?? modelConfig.canvasWidth;
@@ -816,7 +814,7 @@ function MainPetApp() {
         <div className="pet-model">
           <Live2DViewer
             modelPath={currentModelPath}
-            emotion={live2dEmotion}
+            emotion={emotionState.emotion}
             zoomFactor={zoomFactor * (modelConfig.scale ?? 1.0)}
             feetOffset={modelConfig.feetOffset}
             modelWidthRatio={modelConfig.modelWidthRatio ?? 1.0}

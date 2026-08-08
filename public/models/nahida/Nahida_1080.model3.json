@@ -58,6 +58,22 @@
 			{
 				"Name": "MouthChange",
 				"File": "mouthchange.exp3.json"
+			},
+			{
+				"Name": "Speechless",
+				"File": "Speechless.exp3.json"
+			},
+			{
+				"Name": "Proud",
+				"File": "Proud.exp3.json"
+			},
+			{
+				"Name": "Wronged",
+				"File": "Wronged.exp3.json"
+			},
+			{
+				"Name": "ThinkHard",
+				"File": "ThinkHard.exp3.json"
 			}
 		]
 	},
