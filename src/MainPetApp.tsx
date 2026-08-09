@@ -132,6 +132,8 @@ function MainPetApp() {
   const bubbleIdRef = useRef(0);
 
   const [bubble, setBubble] = useState<{ id: number; text: string; duration: number } | null>(null);
+  // 2D 模型是否已真正加载完成：未加载前不显示说话气泡（避免无角色本体时气泡悬空）
+  const [petModelReady, setPetModelReady] = useState(false);
 
   const {
     emotionState,
@@ -210,6 +212,15 @@ function MainPetApp() {
     setBubble(msg);
     setTimeout(() => setBubble((prev) => (prev?.id === msg.id ? null : prev)), dur);
   }, []);
+
+  // 模型真正加载完成：通知 usePetModel 记录尺寸，并解锁说话气泡显示
+  const onPetModelLoaded = useCallback(
+    (info: { canvasWidth: number; canvasHeight: number }) => {
+      handleModelLoaded(info);
+      setPetModelReady(true);
+    },
+    [handleModelLoaded],
+  );
 
   // 本地 RAG 记忆写入（新 Gateway 路径的“写端”）
   const { addToRag } = useRagPersistence();
@@ -404,6 +415,18 @@ function MainPetApp() {
   useEffect(() => {
     document.documentElement.style.setProperty('--fade-opacity', String(appearance.fadeOpacity));
   }, [appearance.fadeOpacity]);
+
+  // 隐藏角色时重置「模型已加载」标记：重新显示会经历一次加载，加载完成前不显示气泡
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!appearance.petVisible) setPetModelReady(false);
+  }, [appearance.petVisible]);
+
+  // 切换模型时重置：新模型加载完成前不显示气泡
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPetModelReady(false);
+  }, [currentModelPath]);
 
   // 系统深浅色（供气泡「跟随主题」模式使用），跟随系统切换实时更新
   const [systemDark, setSystemDark] = useState<boolean>(() => isSystemDark());
@@ -796,8 +819,8 @@ function MainPetApp() {
         } as React.CSSProperties
       }
     >
-      {/* 隐藏角色时连说话气泡一起隐藏（无角色本体，气泡不应悬空显示） */}
-      {appearance.petVisible && (
+      {/* 隐藏角色 / 2D 尚未正式加载完成 时，连说话气泡一起隐藏（避免无角色本体时气泡悬空显示） */}
+      {appearance.petVisible && petModelReady && (
         <div
           className={`bubble-zone ${appearance.bubblePosition === 'bottom' ? 'bubble-zone--bottom' : ''}`}
         >
@@ -837,7 +860,7 @@ function MainPetApp() {
               targetFps={appearance.targetFps}
               adaptiveFps={appearance.adaptiveFps}
               onClickPosition={handlePetClick}
-              onModelLoaded={handleModelLoaded}
+              onModelLoaded={onPetModelLoaded}
               headYRatio={modelConfig.headYRatio ?? 0.35}
             />
           </div>

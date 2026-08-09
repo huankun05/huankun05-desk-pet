@@ -9,6 +9,7 @@
 import { csmVector, iterator } from '@framework/type/csmvector';
 
 import { gl } from './lappglmanager';
+import { decodeTextureCached } from './modelCache';
 
 /**
  * テクスチャ管理クラス
@@ -72,70 +73,103 @@ export class LAppTextureManager {
       }
     }
 
-    // データのオンロードをトリガーにする
-    const img = new Image();
-    img.addEventListener(
-      'load',
-      (): void => {
-        // テクスチャオブジェクトの作成
-        const tex: WebGLTexture = gl.createTexture();
+    // 跨「隐藏/显示」周期的已解码位图缓存：跳过 PNG 解码，仅重新上传到新 GL 上下文。
+    // 隐藏角色时整个 GL 上下文被销毁、纹理删除，但解码后的 ImageBitmap 仍留在内存中，
+    // 重新显示时直接 texImage2D 上传即可（GPU 上传成本远低于解码）。
+    decodeTextureCached(fileName)
+      .then((cached): void => {
+        if (cached) {
+          const tex: WebGLTexture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(
+            gl.TEXTURE_2D,
+            gl.TEXTURE_MIN_FILTER,
+            gl.LINEAR_MIPMAP_LINEAR
+          );
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          if (usePremultiply) {
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+          }
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            cached.bitmap
+          );
+          gl.generateMipmap(gl.TEXTURE_2D);
+          gl.bindTexture(gl.TEXTURE_2D, null);
 
-        // テクスチャを選択
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-
-        // テクスチャにピクセルを書き込む
-        gl.texParameteri(
-          gl.TEXTURE_2D,
-          gl.TEXTURE_MIN_FILTER,
-          gl.LINEAR_MIPMAP_LINEAR
-        );
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-        // Premult処理を行わせる
-        if (usePremultiply) {
-          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+          const textureInfo: TextureInfo = new TextureInfo();
+          if (textureInfo != null) {
+            textureInfo.fileName = fileName;
+            textureInfo.width = cached.width;
+            textureInfo.height = cached.height;
+            textureInfo.id = tex;
+            textureInfo.img = new Image();
+            textureInfo.usePremultply = usePremultiply;
+            this._textures.pushBack(textureInfo);
+          }
+          callback(textureInfo);
+          return;
         }
 
-        // テクスチャにピクセルを書き込む
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          img
+        // fallback：原始的 HTMLImageElement 解码路径（首次加载或缓存缺失时）
+        const img = new Image();
+        img.addEventListener(
+          'load',
+          (): void => {
+            const tex: WebGLTexture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MIN_FILTER,
+              gl.LINEAR_MIPMAP_LINEAR
+            );
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            if (usePremultiply) {
+              gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+            }
+            gl.texImage2D(
+              gl.TEXTURE_2D,
+              0,
+              gl.RGBA,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              img
+            );
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+
+            const textureInfo: TextureInfo = new TextureInfo();
+            if (textureInfo != null) {
+              textureInfo.fileName = fileName;
+              textureInfo.width = img.width;
+              textureInfo.height = img.height;
+              textureInfo.id = tex;
+              textureInfo.img = img;
+              textureInfo.usePremultply = usePremultiply;
+              this._textures.pushBack(textureInfo);
+            }
+            callback(textureInfo);
+          },
+          { passive: true }
         );
-
-        // ミップマップを生成
-        gl.generateMipmap(gl.TEXTURE_2D);
-
-        // テクスチャをバインド
-        gl.bindTexture(gl.TEXTURE_2D, null);
-
-        const textureInfo: TextureInfo = new TextureInfo();
-        if (textureInfo != null) {
-          textureInfo.fileName = fileName;
-          textureInfo.width = img.width;
-          textureInfo.height = img.height;
-          textureInfo.id = tex;
-          textureInfo.img = img;
-          textureInfo.usePremultply = usePremultiply;
-          this._textures.pushBack(textureInfo);
-        }
-
-        callback(textureInfo);
-      },
-      { passive: true }
-    );
-    img.addEventListener(
-      'error',
-      (): void => {
-        console.error('[TextureManager] Failed to load texture:', fileName);
+        img.addEventListener(
+          'error',
+          (): void => {
+            console.error('[TextureManager] Failed to load texture:', fileName);
+            callback(null);
+          },
+          { passive: true }
+        );
+        img.src = fileName;
+      })
+      .catch((err): void => {
+        console.error('[TextureManager] decode cache failed:', fileName, err);
         callback(null);
-      },
-      { passive: true }
-    );
-    img.src = fileName;
+      });
   }
 
   /**
