@@ -387,6 +387,24 @@ fn show_settings_window(app: tauri::AppHandle) -> CmdResult<()> {
     }
 }
 
+/// 聊天面板：强制带到前台（解除最小化 + 显示 + 聚焦）。
+/// 与 show_settings_window 同一套 Rust 窗口 API，保证从最小化态可靠唤回
+/// （纯 JS 的 WebviewWindow.unminimize 在部分 Tauri 版本里对最小化态还原不可靠）。
+#[tauri::command]
+fn show_chat_window(app: tauri::AppHandle) -> CmdResult<()> {
+    if let Some(window) = app.get_webview_window("chat-panel") {
+        // 解除最小化（show 不会取消最小化）
+        let _ = window.unminimize();
+        // 显示（关闭/收起被拦截为 hide，需要重新显示）
+        window.show().map_err(|e| e.to_string())?;
+        // 聚焦到前台
+        window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Chat window not found".into())
+    }
+}
+
 /// 保存数据到本地文件（敏感数据自动 DPAPI 加密）
 #[tauri::command]
 fn save_data(key: String, data: String) -> CmdResult<()> {
@@ -1248,6 +1266,7 @@ pub fn run() {
             is_window_on_screen,
             reset_window_position,
             show_settings_window,
+            show_chat_window,
             get_admin_token,
             shortcuts::get_shortcuts_config,
             shortcuts::save_shortcuts_config,

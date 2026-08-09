@@ -203,31 +203,16 @@ export function usePanelWindows(): PanelWindowsState {
   }, [t]);
 
   const toggleChatPanel = useCallback(async () => {
-    // 已存在则直接置顶显示（预加载隐藏窗口复用，不重建 —— 秒开、省资源）
-    let win = chatWinRef.current;
-    if (!win) {
-      try {
-        win = (await WebviewWindow.getByLabel('chat-panel')) as WebviewWindow | null;
-        if (win) chatWinRef.current = win;
-      } catch {
-        /* ignore */
-      }
+    // 优先走 Rust 命令 show_chat_window：用同一套 Rust 窗口 API 强制置顶，
+    // 可靠地从「最小化 / 隐藏」态唤回（纯 JS 的 unminimize 在最小化态还原不可靠）。
+    // 注意：Rust 命令只在窗口已存在时成功；不存在（预加载未就绪）时回退到 JS 创建。
+    try {
+      await invoke('show_chat_window');
+      return;
+    } catch {
+      /* 窗口尚未创建 → 走 JS 兜底 */
     }
-    if (win) {
-      try {
-        try {
-          await win.unminimize();
-        } catch {
-          /* ignore */
-        }
-        await win.show();
-        await win.setFocus();
-        return;
-      } catch {
-        chatWinRef.current = null;
-      }
-    }
-    // 不存在（预加载尚未就绪）则创建并立即可见
+    // 兜底：预加载尚未就绪时按需创建并立即可见
     try {
       await createChatWindow(true);
     } catch (err) {

@@ -258,10 +258,19 @@ class HermesEngine:
         import threading
 
         chunk_q: asyncio.Queue = asyncio.Queue()
+        t_llm_start = time.time()
 
         def _pump() -> None:
             try:
+                first = True
                 for chunk in llm.chat_stream(messages, tools=tools):
+                    if first:
+                        # 首块到达耗时 = 大模型「首字延迟 TTFT」，是回复慢的唯一代码外瓶颈
+                        log.info(
+                            "[LLM] first chunk after %.2fs (TTFT)",
+                            time.time() - t_llm_start,
+                        )
+                        first = False
                     asyncio.run_coroutine_threadsafe(chunk_q.put(("chunk", chunk)), loop)
             except Exception as exc:  # noqa: BLE001
                 log.warning("[LLM] chat_stream error: %s", exc)
@@ -504,6 +513,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         log.warning("[CHAT] empty text received, ignoring")
         return
     msg_id = data.get("id", f"msg_{time.time()}")
+    t_chat_start = time.time()
     mode = data.get("mode", "chat")
     frontend_tools = data.get("frontend_tools", []) or []
 
@@ -571,11 +581,12 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     )
     _trace("[CHAT] tool_loop created")
     log.info("[CHAT] tool_loop created frontend=%d backend=%d", len(allowed_frontend), len(allowed_backend))
-    log.info("[CHAT] calling tool_loop.run...")
+    # preflight（召回记忆 + 取历史 + 组装消息）耗时，应为微秒级；若此处就很大说明 DB/召回慢
+    log.info("[CHAT] preflight done in %.3fs, calling tool_loop.run...", time.time() - t_chat_start)
     _trace("[CHAT] calling tool_loop.run...")
     result = await tool_loop.run(text, mode, engine._llm_stream, initial_messages=messages)
     _trace("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
-    log.info("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d", list(result.keys()), len(result.get("accumulated", "") or ""))
+    log.info("[CHAT] tool_loop.run finished keys=%s accumulated_len=%d total=%.2fs", list(result.keys()), len(result.get("accumulated", "") or ""), time.time() - t_chat_start)
     log.info("[CHAT] toolCalls=%d toolResults=%d", len(result.get("toolCalls", [])), len(result.get("toolResults", [])))
 
     full_response = result.get("accumulated", "") or text

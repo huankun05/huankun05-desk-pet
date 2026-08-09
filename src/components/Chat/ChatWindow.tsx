@@ -929,24 +929,27 @@ export const ChatWindow = memo(
               );
             })}
 
-            {isLoading && !isStreaming && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--text-muted)',
-                  padding: '4px 16px',
-                }}
-              >
-                <div className="typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+            {isLoading &&
+              messages.length > 0 &&
+              messages[messages.length - 1].role === 'assistant' &&
+              !messages[messages.length - 1].content && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: 'var(--text-muted)',
+                    padding: '4px 16px',
+                  }}
+                >
+                  <div className="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <span style={{ fontSize: '0.85em' }}>{t('chat.thinking')}</span>
                 </div>
-                <span style={{ fontSize: '0.85em' }}>{t('chat.thinking')}</span>
-              </div>
-            )}
+              )}
 
             <div ref={messagesEndRef} />
           </div>
