@@ -2,11 +2,13 @@ import { useState, useRef, forwardRef, useImperativeHandle, useCallback, useEffe
 import { Icon } from '@iconify/react';
 import { useTranslation } from 'react-i18next';
 import { isTauriEnv } from '../../utils/tauriEnv';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export interface ControlsIslandHandle {
   show: () => void;
 }
+
+/** 控制面板自由定位偏移的 localStorage key（{x,y} 相对窗口左上角 px；存在即启用自由定位） */
+const CONTROLS_POS_KEY = 'deskpet_controls_pos';
 
 export interface ModelOption {
   id: string;
@@ -159,6 +161,18 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
     const [showModelPicker, setShowModelPicker] = useState(false);
+    // 控制面板自由定位：相对窗口左上角的偏移（px）。为 null 时使用默认锚定布局（edge/floating）。
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+      try {
+        const raw = localStorage.getItem(CONTROLS_POS_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (typeof p?.x === 'number' && typeof p?.y === 'number') return p;
+      } catch {
+        /* ignore */
+      }
+      return null;
+    });
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dragStateRef = useRef<{
       started: boolean;
@@ -200,42 +214,62 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
       [],
     );
 
-    const startWindowDrag = useCallback(() => {
-      if (!isTauriEnv()) return;
-      try {
-        getCurrentWindow().startDragging();
-      } catch {
-        /* ignore */
-      }
-    }, []);
-
-    const handleMainBtnMouseDown = useCallback(
+    // 自由拖动控制面板：更新相对窗口的偏移并落盘 localStorage。
+    // 拖动窗口（拖宠物）时面板随窗口整体移动（面板在窗口 DOM 内），此处只负责单独摆放面板。
+    const beginPanelDrag = useCallback(
       (e: React.MouseEvent) => {
-        if (!props.isTransforming) return;
         if (!isTauriEnv()) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const container = (e.currentTarget as HTMLElement).closest(
+          '.controls-island',
+        ) as HTMLElement | null;
+        const rect = container ? container.getBoundingClientRect() : null;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        // 起始基准：已有自由偏移则用偏移，否则用当前 DOM 实际位置（兼容从默认布局首次拖出）
+        const baseX =
+          pos?.x ?? (rect ? rect.left : window.innerWidth / 2 - PANEL_W / 2);
+        const baseY = pos?.y ?? (rect ? rect.top : window.innerHeight - 160);
 
         dragStateRef.current = {
+          ...dragStateRef.current,
           started: true,
           moved: false,
-          startX: e.clientX,
-          startY: e.clientY,
+          startX,
+          startY,
           cleanup: null,
         };
 
         const handleMouseMove = (ev: MouseEvent) => {
-          const dx = Math.abs(ev.clientX - dragStateRef.current.startX);
-          const dy = Math.abs(ev.clientY - dragStateRef.current.startY);
+          const dx = Math.abs(ev.clientX - startX);
+          const dy = Math.abs(ev.clientY - startY);
           if (dx > 3 || dy > 3) {
             dragStateRef.current.moved = true;
-            startWindowDrag();
+            setPos({
+              x: Math.max(0, Math.round(baseX + ev.clientX - startX)),
+              y: Math.max(0, Math.round(baseY + ev.clientY - startY)),
+            });
           }
         };
 
         const handleMouseUp = () => {
-          dragStateRef.current.started = false;
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
-          dragStateRef.current.cleanup = null;
+          if (dragStateRef.current.moved) {
+            setPos((p) => {
+              if (p) {
+                try {
+                  localStorage.setItem(CONTROLS_POS_KEY, JSON.stringify(p));
+                } catch {
+                  /* ignore */
+                }
+              }
+              return p;
+            });
+          }
+          dragStateRef.current.started = false;
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -246,7 +280,16 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
           document.removeEventListener('mouseup', handleMouseUp);
         };
       },
-      [props.isTransforming, startWindowDrag],
+      [pos],
+    );
+
+    // 主按钮：按下即进入面板拖动；若未移动则视为点击（展开/收起）。
+    const handleMainBtnMouseDown = useCallback(
+      (e: React.MouseEvent) => {
+        if (!isTauriEnv()) return;
+        beginPanelDrag(e);
+      },
+      [beginPanelDrag],
     );
 
     useEffect(() => {
@@ -409,6 +452,125 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
         </div>
       );
 
+    // 拖动控制面板用的抓手（点击展开后可见，按住拖动即可独立摆放面板）
+    const grip = (
+      <div
+        onMouseDown={beginPanelDrag}
+        title={t('controls.drag_to_move')}
+        style={{
+          width: '100%',
+          height: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'grab',
+          touchAction: 'none',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 30,
+            height: 4,
+            borderRadius: 2,
+            background: 'rgba(148, 163, 184, 0.55)',
+          }}
+        />
+      </div>
+    );
+
+    // ===== 自由定位模式：拖动过后按 pos 绝对定位（可单独摆放，拖窗口时随窗口移动） =====
+    if (pos) {
+      return (
+        <div
+          className="controls-island"
+          style={{
+            position: 'absolute',
+            left: pos.x,
+            top: pos.y,
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 10,
+            pointerEvents: 'none',
+          }}
+          onMouseEnter={show}
+          onMouseLeave={scheduleHide}
+        >
+          {expanded && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                padding: PANEL_PADDING,
+                background: COLORS.bg,
+                backdropFilter: 'blur(12px)',
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: RADIUS,
+                boxShadow: COLORS.shadow,
+                pointerEvents: 'auto',
+                animation: 'fadeInUp 200ms ease-out',
+              }}
+            >
+              {grip}
+              <ButtonGrid
+                buttons={btnList}
+                onBtnClick={onBtnClick}
+                isLocked={props.isLocked}
+              />
+              {modelPicker}
+            </div>
+          )}
+
+          <button
+            onMouseDown={handleMainBtnMouseDown}
+            onClick={handleMainBtnClick}
+            title={expanded ? t('controls.collapse') : t('controls.expand')}
+            style={{
+              width: MAIN_BTN_SIZE,
+              height: MAIN_BTN_SIZE,
+              border: props.isLocked
+                ? `1.5px solid ${COLORS.dangerSoft}`
+                : `1px solid ${COLORS.border}`,
+              borderRadius: '50%',
+              background: props.isLocked ? COLORS.dangerBg : COLORS.bg,
+              backdropFilter: 'blur(12px)',
+              color: props.isLocked ? COLORS.danger : COLORS.text,
+              cursor: 'grab',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: COLORS.shadow,
+              pointerEvents: 'auto',
+              transition: 'all 200ms ease',
+              marginBottom: 10,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.08)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <Icon
+              icon={
+                expanded
+                  ? 'solar:arrow-down-linear'
+                  : props.isLocked
+                    ? 'solar:lock-keyhole-linear'
+                    : 'solar:widget-4-linear'
+              }
+              width={22}
+              height={22}
+            />
+          </button>
+        </div>
+      );
+    }
+
     // ===== Floating 模式：窗口内底部居中 =====
     if (isFloating) {
       return (
@@ -447,6 +609,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
                 animation: 'fadeInUp 200ms ease-out',
               }}
             >
+              {grip}
               <ButtonGrid buttons={btnList} onBtnClick={onBtnClick} isLocked={props.isLocked} />
               {modelPicker}
             </div>
@@ -554,6 +717,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
               cursor: 'default',
             }}
           >
+            {grip}
             <ButtonGrid buttons={btnList} onBtnClick={onBtnClick} isLocked={props.isLocked} />
             {modelPicker}
           </div>

@@ -48,7 +48,8 @@
     "lock": "Lock",
     "exit": "Exit",
     "expand": "Expand controls",
-    "collapse": "Collapse controls"
+    "collapse": "Collapse controls",
+    "drag_to_move": "Drag to move the control panel"
   },
   "chat": {
     "title": "💬 Chat",

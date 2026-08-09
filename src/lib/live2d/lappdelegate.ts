@@ -38,10 +38,17 @@ export class LAppDelegate {
    * クラスのインスタンス（シングルトン）を解放する。
    */
   public static releaseInstance(): void {
-    if (s_instance != null) {
-      s_instance.release();
-    }
+    const inst = s_instance;
+    // 先置空，避免下方 release() 抛异常（如 gl 已为 null）后 s_instance 仍指向半释放的实例，
+    // 导致后续 initLive2D 误判「旧实例仍存活」而再次 destroy → 反复崩溃、模型永远加载不出来。
     s_instance = null;
+    if (inst != null) {
+      try {
+        inst.release();
+      } catch (e) {
+        console.error('[LAppDelegate] release error:', e);
+      }
+    }
   }
 
   /**
@@ -451,10 +458,8 @@ export function initLive2D(
   canvasElement: HTMLCanvasElement,
   externalContext?: WebGLRenderingContext | WebGL2RenderingContext | null,
 ): boolean {
-  // 先销毁旧实例
-  if (s_instance) {
-    destroyLive2D();
-  }
+  // 先销毁旧实例（releaseInstance / releaseInstance 均已幂等，重复调用安全）
+  destroyLive2D();
 
   // 初始化 WebGL；优先复用预热上下文
   LAppGlManager.initFromCanvas(canvasElement, externalContext);
@@ -485,9 +490,8 @@ export function loadModelFromPath(modelPath: string): void {
  * 销毁 Live2D 引擎，释放所有资源
  */
 export function destroyLive2D(): void {
-  if (s_instance) {
-    LAppDelegate.releaseInstance();
-  }
+  // releaseInstance 已幂等：s_instance 为 null 时直接跳过，重复调用安全
+  LAppDelegate.releaseInstance();
   LAppGlManager.releaseInstance();
 }
 

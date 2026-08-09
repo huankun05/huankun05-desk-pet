@@ -87,7 +87,11 @@ export class LAppView {
     this._touchManager = null;
     this._deviceToScreen = null;
 
-    gl.deleteProgram(this._programId);
+    // gl 可能在销毁流程中已被置空（重复释放 / 上下文已丢失），此处需做防御，
+    // 否则 gl 为 null 时 gl.deleteProgram 抛 TypeError，导致整个 initLive2D 失败、模型起不来。
+    if (gl != null && this._programId != null) {
+      gl.deleteProgram(this._programId);
+    }
     this._programId = null;
   }
 

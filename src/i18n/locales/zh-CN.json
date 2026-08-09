@@ -48,7 +48,8 @@
     "lock": "锁定",
     "exit": "退出",
     "expand": "展开控制面板",
-    "collapse": "收起控制面板"
+    "collapse": "收起控制面板",
+    "drag_to_move": "拖动以移动控制面板"
   },
   "chat": {
     "title": "💬 对话",
