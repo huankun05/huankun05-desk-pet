@@ -252,16 +252,33 @@ class HermesEngine:
             yield ""
             return
 
+        # 真·增量流式：在子线程里跑同步生成器，把每个 chunk 推进 asyncio.Queue，
+        # 主协程边收边 yield，避免整体缓冲导致前端长时间空白。
         loop = asyncio.get_running_loop()
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            tokens = await loop.run_in_executor(
-                pool, lambda: list(llm.chat_stream(messages, tools=tools))
-            )
-        log.info("[LLM] chat_stream returned %d tokens/chunks", len(tokens))
-        for i, token in enumerate(tokens):
-            log.info("[LLM] token[%d] type=%s len=%s", i, type(token).__name__, len(token) if isinstance(token, str) else "dict")
-            yield token
+        import threading
+
+        chunk_q: asyncio.Queue = asyncio.Queue()
+
+        def _pump() -> None:
+            try:
+                for chunk in llm.chat_stream(messages, tools=tools):
+                    asyncio.run_coroutine_threadsafe(chunk_q.put(("chunk", chunk)), loop)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("[LLM] chat_stream error: %s", exc)
+                asyncio.run_coroutine_threadsafe(chunk_q.put(("error", str(exc))), loop)
+            finally:
+                asyncio.run_coroutine_threadsafe(chunk_q.put(("stop", None)), loop)
+
+        worker = threading.Thread(target=_pump, daemon=True)
+        worker.start()
+
+        while True:
+            kind, payload = await chunk_q.get()
+            if kind == "stop":
+                break
+            if kind == "error":
+                break
+            yield payload
 
     async def _sync_to_core(self, user_text: str, assistant_text: str) -> None:
         try:
@@ -534,6 +551,7 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     tool_loop = ToolLoop(
         ws=ws,
         session_id=engine.SESSION_ID,
+        msg_id=msg_id,
         frontend_tools=allowed_frontend,
         backend_tools=allowed_backend,
         executor=tool_executor,
@@ -552,10 +570,15 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         full_response = "[DIAGNOSTIC] 后端未检测到可用的 LLM 配置，回复为空。请在 Rust 管理后台或设置页配置 Chat Provider。"
     if full_response:
         engine.append_message("assistant", full_response)
+        # 后台同步到核心后端（不阻塞 done，避免核心抖动时拖慢首字/整轮回复）
         try:
-            await engine._sync_to_core(text, full_response)
-        except Exception:
-            pass
+            asyncio.create_task(engine._sync_to_core(text, full_response))
+        except RuntimeError:
+            # 无运行中的事件循环时（极少路径）退化为同步
+            try:
+                await engine._sync_to_core(text, full_response)
+            except Exception:
+                pass
 
     await ws.send_json({
         "type": "done",

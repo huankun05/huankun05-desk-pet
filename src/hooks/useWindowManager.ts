@@ -458,8 +458,8 @@ export function useWindowManager({
     let timerId: ReturnType<typeof setInterval>;
 
     const check = async () => {
-      // 窗口不可见时跳过：该检测每 100ms 触发一次 IPC，后台空转对常驻应用是显著的
-      // 电量与 CPU 开销，而此时既无鼠标穿透需求、也无悬停淡出需求。
+      // 窗口不可见时跳过：该检测每 200ms 触发一次 IPC，后台空转对常驻应用是显著的
+      // 电量与 CPU 开销，而此时既无鼠标穿透需求、也无悬停淡出需求。200ms 仍足够顺滑。
       if (document.hidden) return;
       try {
         // 获取实际控制面板的 DOM 边界（比硬编码常量更可靠）
@@ -515,7 +515,7 @@ export function useWindowManager({
       }
     };
 
-    timerId = setInterval(check, 100);
+    timerId = setInterval(check, 200);
     return () => {
       clearInterval(timerId);
       appWindow.setIgnoreCursorEvents(false).catch(() => {});

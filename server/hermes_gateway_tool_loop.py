@@ -45,6 +45,7 @@ class ToolLoop:
         self,
         ws: Any,
         session_id: str,
+        msg_id: str = "",
         frontend_tools: list[dict[str, Any]] | None = None,
         backend_tools: list[dict[str, Any]] | None = None,
         max_iterations: int = MAX_TOOL_ITERATIONS,
@@ -52,6 +53,7 @@ class ToolLoop:
     ) -> None:
         self.ws = ws
         self.session_id = session_id
+        self.msg_id = msg_id
         self.frontend_tools = {t["name"]: t for t in (frontend_tools or [])}
         self.backend_tools = {t["name"]: t for t in (backend_tools or [])}
         self.max_iterations = max_iterations
@@ -85,9 +87,9 @@ class ToolLoop:
 
         for _ in range(self.max_iterations):
             tool_calls, text_parts = await self._collect(messages, llm_stream, tools=tools)
+            # 累积每一轮产生的文本（含工具轮的次要说明），保证流式与最终一致
+            accumulated += "".join(text_parts)
             if not tool_calls:
-                # 没有更多工具调用 → 本轮流式文本即最终回复
-                accumulated += "".join(text_parts)
                 break
 
             # 通知前端（展示用）
@@ -237,6 +239,16 @@ class ToolLoop:
             async for chunk in llm_stream(messages, tools=tools):
                 if isinstance(chunk, str):
                     text_parts.append(chunk)
+                    # 实时流式推送 token 给前端，气泡逐字增长
+                    if self.msg_id:
+                        try:
+                            await self.ws.send_json({
+                                "type": "token",
+                                "id": self.msg_id,
+                                "token": chunk,
+                            })
+                        except Exception:  # noqa: BLE001
+                            pass
                 elif isinstance(chunk, dict) and chunk.get("type") == "tool_calls":
                     for call in chunk.get("calls", []):
                         tool_calls.append(ToolCall(

@@ -46,6 +46,16 @@ if (!location.search.includes('panel=')) {
 }
 
 console.time('app-to-model');
+
+// 主窗去白屏：tauri.conf.json 中主窗 visible:false，待 #app-loading 遮罩此刻已在 DOM 即
+// 显示窗口，遮罩瞬间盖住首帧，用户看不到白闪。仅主窗执行（面板窗自行管理可见性）。
+// useWindowManager 仍会在模型定位后再 show() 一次（幂等），双保险。
+if (!location.search.includes('panel=')) {
+  import('@tauri-apps/api/window')
+    .then(({ getCurrentWindow }) => getCurrentWindow().show())
+    .catch(() => {});
+}
+
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element #root not found in DOM');
 ReactDOM.createRoot(rootEl).render(

@@ -99,7 +99,7 @@ function ChatPanelWindow() {
     }
     return 0;
   });
-  const { mode } = useMode();
+  const { mode, toggleMode } = useMode();
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem('deskpet_tts_enabled') !== 'false';
@@ -536,7 +536,6 @@ function ChatPanelWindow() {
 
   // 模式切换：写入 localStorage + 一次弹跳动画作为明确反馈
   const [modePop, setModePop] = useState(false);
-  const { toggleMode } = useMode();
   const handleToggleMode = useCallback(() => {
     toggleMode();
     setModePop(true);
@@ -556,9 +555,10 @@ function ChatPanelWindow() {
   }, []);
 
   const handleCloseWindow = useCallback(() => {
+    // 收起而非销毁：隐藏窗口常驻，再次点击聊天键秒开（与设置窗一致）
     document.body.style.opacity = '0';
     import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) => getCurrentWindow().close())
+      .then(({ getCurrentWindow }) => getCurrentWindow().hide())
       .catch(() => (document.body.style.opacity = '1'));
   }, []);
 
@@ -872,7 +872,7 @@ function ChatPanelWindow() {
           <BarButton icon="solar:star-linear" title={t('chat.favorites_title')} active={showFavorites} onClick={() => setShowFavorites((p) => !p)} />
           <BarButton icon="solar:add-circle-linear" title={t('chat.new_chat')} onClick={handleNewChat} />
           <BarButton icon="solar:info-circle-linear" title="详情面板" active={showDetails} onClick={() => setShowDetails((p) => !p)} />
-          <BarButton icon="solar:close-circle-linear" title={t('app.close', { defaultValue: '关闭' })} onClick={handleCloseWindow} />
+          <BarButton icon="solar:close-circle-linear" title={t('chat.collapse', { defaultValue: '收起' })} onClick={handleCloseWindow} />
 
           {/* 上下文占用进度条（贴底） */}
           <div

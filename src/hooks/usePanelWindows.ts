@@ -20,6 +20,59 @@ export function usePanelWindows(): PanelWindowsState {
   const chatWinRef = useRef<WebviewWindow | null>(null);
   const settingsWinRef = useRef<WebviewWindow | null>(null);
 
+  // 创建聊天面板窗口。visible=false 用于预加载；backgroundColor 消除 WebView 创建瞬间的白闪。
+  const createChatWindow = useCallback(
+    async (visible: boolean): Promise<WebviewWindow | null> => {
+      try {
+        const mainWin = getCurrentWindow();
+        const mainPos = await mainWin.outerPosition();
+        await mainWin.outerSize();
+        let panelW = 850,
+          panelH = 620,
+          panelX: number | undefined,
+          panelY: number | undefined;
+        try {
+          let raw = localStorage.getItem('deskpet_chat_geometry');
+          if (!raw) raw = await invoke<string>('load_data', { key: 'chat_panel_size' });
+          if (raw) {
+            const s = JSON.parse(raw);
+            panelW = s.w || 850;
+            panelH = s.h || 620;
+            panelX = s.x;
+            panelY = s.y;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        const win = new WebviewWindow('chat-panel', {
+          url: '?panel=chat',
+          title: t('window.chat'),
+          width: panelW,
+          height: panelH,
+          x: panelX ?? mainPos.x - panelW - 5,
+          y: panelY ?? Math.max(0, mainPos.y),
+          decorations: false,
+          resizable: true,
+          visible,
+          backgroundColor: '#f2f3f5',
+        });
+        chatWinRef.current = win;
+
+        win.once('tauri://destroyed', () => {
+          if (chatWinRef.current === win) {
+            chatWinRef.current = null;
+          }
+        });
+        return win;
+      } catch (err) {
+        log.error('Failed to create chat panel:', err);
+        return null;
+      }
+    },
+    [t],
+  );
+
   // 预加载设置窗口：应用启动时创建好隐藏，点击时秒开
   useEffect(() => {
     if (!isTauriEnv()) return;
@@ -72,8 +125,28 @@ export function usePanelWindows(): PanelWindowsState {
       }
     };
 
+    // 预加载聊天面板：隐藏创建，点击时秒开（避免每次重建 + 白闪）
+    const preloadChat = async () => {
+      try {
+        const existing = await WebviewWindow.getByLabel('chat-panel');
+        if (existing) {
+          chatWinRef.current = existing;
+          return;
+        }
+        const win = await createChatWindow(false);
+        if (disposed && win) {
+          win.close().catch(() => {});
+        }
+      } catch (err) {
+        log.warn('Chat window preload failed (will create on demand):', err);
+      }
+    };
+
     // 延迟一点启动，避免和主窗口初始化竞争
-    const timer = setTimeout(preload, 800);
+    const timer = setTimeout(() => {
+      preload();
+      preloadChat();
+    }, 800);
 
     return () => {
       disposed = true;
@@ -130,52 +203,37 @@ export function usePanelWindows(): PanelWindowsState {
   }, [t]);
 
   const toggleChatPanel = useCallback(async () => {
-    if (chatWinRef.current) {
+    // 已存在则直接置顶显示（预加载隐藏窗口复用，不重建 —— 秒开、省资源）
+    let win = chatWinRef.current;
+    if (!win) {
       try {
-        await chatWinRef.current.close();
-        chatWinRef.current = null;
+        win = (await WebviewWindow.getByLabel('chat-panel')) as WebviewWindow | null;
+        if (win) chatWinRef.current = win;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (win) {
+      try {
+        try {
+          await win.unminimize();
+        } catch {
+          /* ignore */
+        }
+        await win.show();
+        await win.setFocus();
         return;
       } catch {
         chatWinRef.current = null;
       }
     }
+    // 不存在（预加载尚未就绪）则创建并立即可见
     try {
-      const mainWin = getCurrentWindow();
-      const mainPos = await mainWin.outerPosition();
-      await mainWin.outerSize();
-      let panelW = 850,
-        panelH = 620,
-        panelX: number | undefined,
-        panelY: number | undefined;
-      try {
-        let raw = localStorage.getItem('deskpet_chat_geometry');
-        if (!raw) raw = await invoke<string>('load_data', { key: 'chat_panel_size' });
-        if (raw) {
-          const s = JSON.parse(raw);
-          panelW = s.w || 850;
-          panelH = s.h || 620;
-          panelX = s.x;
-          panelY = s.y;
-        }
-      } catch {
-        /* ignore */
-      }
-
-      const win = new WebviewWindow('chat-panel', {
-        url: '?panel=chat',
-        title: t('window.chat'),
-        width: panelW,
-        height: panelH,
-        x: panelX ?? mainPos.x - panelW - 5,
-        y: panelY ?? Math.max(0, mainPos.y),
-        decorations: false,
-        resizable: true,
-      });
-      chatWinRef.current = win;
+      await createChatWindow(true);
     } catch (err) {
       log.error('Failed to create chat panel:', err);
     }
-  }, [t]);
+  }, [t, createChatWindow]);
 
   const openSettingsPanel = useCallback(async () => {
     if (!isTauriEnv()) return;
