@@ -28,6 +28,7 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let toggle_visible = MenuItem::with_id(app, "toggle-visible", "隐藏", true, None::<&str>)?;
     let open_chat = MenuItem::with_id(app, "open-chat", "打开对话", true, None::<&str>)?;
     let open_settings = MenuItem::with_id(app, "open-settings", "设置", true, None::<&str>)?;
+    let restart_gateway = MenuItem::with_id(app, "restart-gateway", "重启后端", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -37,6 +38,7 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             &toggle_visible,
             &open_chat,
             &open_settings,
+            &restart_gateway,
             &quit,
         ],
     )?;
@@ -105,6 +107,13 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 let state = app.state::<crate::service::ServiceManager>();
                 let _ = crate::service::service_stop_all(state);
                 app.exit(0);
+            }
+            "restart-gateway" => {
+                // 重启是阻塞操作（内含等待端口释放的 sleep），放入独立线程避免卡住菜单
+                let app_clone = app.clone();
+                std::thread::spawn(move || {
+                    let _ = crate::restart_hermes_gateway(&app_clone);
+                });
             }
             _ => {}
         })

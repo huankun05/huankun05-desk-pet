@@ -14,6 +14,71 @@ mod tray;
 mod utils;
 mod wake_word;
 
+/// 重启 Hermes Gateway（端口 8765）。由托盘菜单「重启后端」调用。
+///
+/// 流程：先停止旧进程 → 等待端口释放 → 用与启动时相同的 python 命令重新拉起。
+/// 前端 WebSocket 已具备指数退避自动重连，重启完成后会自动恢复连接。
+pub fn restart_hermes_gateway(app: &tauri::AppHandle) -> Result<(), String> {
+    let hermes_port: u16 = 8765;
+    let hermes_id = format!("service_{}", hermes_port);
+
+    // 1) 先停止旧进程（service_start_raw 注册时也会 kill 同 id 旧进程，但显式先停更稳）
+    {
+        let manager = app.state::<crate::service::ServiceManager>();
+        let _ = crate::service::service_stop_by_id(manager.inner(), &hermes_id);
+    }
+
+    // 2) 等待端口释放（最多 3 秒；旧进程被 kill 后端口通常几百毫秒内释放）
+    let mut waited_ms = 0u64;
+    while crate::service::check_http_health(hermes_port) && waited_ms < 3000 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        waited_ms += 100;
+    }
+
+    // 3) 探测 python 命令（与 setup 中一致：优先项目 venv，否则系统 python/python3）
+    let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .to_string_lossy()
+        .to_string();
+    let venv_python = project_root.replace('\\', "/") + "/venv/Scripts/python.exe";
+    let python_cmd: String = if std::path::Path::new(&venv_python).exists()
+        && std::process::Command::new(&venv_python)
+            .arg("-c")
+            .arg("import fastapi")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+    {
+        venv_python
+    } else if std::process::Command::new("python")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+    {
+        "python".to_string()
+    } else {
+        "python3".to_string()
+    };
+
+    let args = vec![
+        "-m".to_string(),
+        "server.hermes_gateway_server".to_string(),
+        "--port".to_string(),
+        hermes_port.to_string(),
+    ];
+
+    match crate::service::service_start_raw(&python_cmd, &args, &project_root, hermes_port, app) {
+        Ok(_) => {
+            println!("[Hermes Gateway] Restart requested on port {}", hermes_port);
+            Ok(())
+        }
+        Err(e) => Err(format!("重启 Hermes Gateway 失败: {:?}", e)),
+    }
+}
+
 use crate::crypto::*;
 use crate::errors::{AppError, CmdResult};
 use crate::utils::*;
