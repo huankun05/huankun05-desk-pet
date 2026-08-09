@@ -19,7 +19,7 @@ export interface ModelOption {
 interface ControlsIslandProps {
   onSettings: () => void;
   onChat: () => void;
-  onRefresh: () => void;
+  onToggleLive2D: () => void;
   onToggleLock: () => void;
   onToggleFade: () => void;
   onToggleTransform: () => void;
@@ -29,6 +29,8 @@ interface ControlsIslandProps {
   currentMode: 'chat' | 'work';
   isLocked: boolean;
   fadeOnHover: boolean;
+  /** 当前 Live2D 角色是否可见（驱动隐藏按钮的高亮与图标） */
+  petVisible: boolean;
   availableModels?: ModelOption[];
   currentModelId?: string;
   onSwitchModel?: (id: string) => void;
@@ -38,7 +40,7 @@ interface ControlsIslandProps {
 const buttons = [
   { icon: 'solar:settings-linear', label: 'settings' },
   { icon: 'solar:chat-round-dots-linear', label: 'chat' },
-  { icon: 'solar:refresh-circle-linear', label: 'refresh' },
+  { icon: 'solar:eye-closed-linear', label: 'hidepet' },
   { icon: 'solar:cursor-linear', label: 'transform' },
   { icon: 'solar:code-linear', label: 'mode' },
   { icon: 'solar:users-group-rounded-linear', label: 'model' },
@@ -277,8 +279,8 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
         case 'chat':
           props.onChat();
           break;
-        case 'refresh':
-          props.onRefresh();
+        case 'hidepet':
+          props.onToggleLive2D();
           break;
         case 'transform':
           props.onToggleTransform();
@@ -307,6 +309,7 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
       model: showModelPicker,
       fade: props.fadeOnHover,
       lock: props.isLocked,
+      hidepet: !props.petVisible,
     };
 
     const onBtnClick = Object.assign(handleBtnClick, { activeMap });
@@ -314,19 +317,23 @@ export const ControlsIsland = forwardRef<ControlsIslandHandle, ControlsIslandPro
     const btnList = buttons.map((b) => ({
       ...b,
       icon:
-        b.label === 'fade'
-          ? props.fadeOnHover
-            ? 'solar:eye-bold'
-            : 'solar:eye-closed-linear'
-          : b.label === 'lock'
-            ? props.isLocked
-              ? 'solar:lock-keyhole-linear'
-              : 'solar:lock-keyhole-unlocked-linear'
-            : b.label === 'mode'
-              ? props.currentMode === 'work'
-                ? 'solar:code-linear'
-                : 'solar:chat-line-linear'
-              : b.icon,
+        b.label === 'hidepet'
+          ? props.petVisible
+            ? 'solar:eye-closed-linear' // 角色可见：点按隐藏
+            : 'solar:ghost-linear' // 角色已隐藏：点按显示
+          : b.label === 'fade'
+            ? props.fadeOnHover
+              ? 'solar:eye-bold'
+              : 'solar:eye-closed-linear'
+            : b.label === 'lock'
+              ? props.isLocked
+                ? 'solar:lock-keyhole-linear'
+                : 'solar:lock-keyhole-unlocked-linear'
+              : b.label === 'mode'
+                ? props.currentMode === 'work'
+                  ? 'solar:code-linear'
+                  : 'solar:chat-line-linear'
+                : b.icon,
     }));
 
     const modelPicker = showModelPicker &&

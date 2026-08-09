@@ -29,6 +29,7 @@ import {
   APPEARANCE_KEYS,
   DEFAULT_APPEARANCE,
   readAppearance,
+  writeAppearanceConfig,
   bubbleThemeColors,
   isSystemDark,
   type AppearanceConfig,
@@ -748,10 +749,11 @@ function MainPetApp() {
     }
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    setPetScale(1.0);
-    showBubble('已重置缩放', 2000);
-  }, [setPetScale, showBubble]);
+  const handleToggleLive2D = useCallback(() => {
+    const next = !appearance.petVisible;
+    setAppearance((a) => ({ ...a, petVisible: next }));
+    writeAppearanceConfig({ petVisible: next });
+  }, [appearance.petVisible]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -840,7 +842,7 @@ function MainPetApp() {
         ref={controlsIslandRef}
         onSettings={openSettingsPanel}
         onChat={toggleChatPanel}
-        onRefresh={handleRefresh}
+        onToggleLive2D={handleToggleLive2D}
         onToggleLock={toggleLock}
         onToggleFade={toggleFadeOnHover}
         onToggleTransform={toggleTransform}
@@ -850,6 +852,7 @@ function MainPetApp() {
         currentMode={mode}
         isLocked={isLocked}
         fadeOnHover={fadeOnHover}
+        petVisible={appearance.petVisible}
         availableModels={availableModels}
         currentModelId={currentModelId}
         onSwitchModel={(id) => {

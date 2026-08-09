@@ -37,7 +37,7 @@
   "controls": {
     "settings": "设置",
     "chat": "聊天",
-    "refresh": "刷新",
+    "hidepet": "隐藏角色",
     "transform": "变换（缩放/移动）",
     "move": "移动",
     "scale": "缩放",
