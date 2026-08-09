@@ -6,7 +6,8 @@ import { ChatWindow, type ChatWindowHandle, type Message } from './ChatWindow';
 import { ChatAvatar } from './ChatAvatar';
 import { useChatAppearance } from './useChatAppearance';
 import { SlashHelpOverlay } from './SlashHelpOverlay';
-import { FavoritesDrawer } from './FavoritesDrawer';
+import { loadFavorites, toggleFavorite } from './MessageItem';
+import { showToast } from '../../utils/toast';
 import './chat-theme.css';
 import { AudioRecorder } from '../../services/audio/recorder';
 import {
@@ -73,6 +74,69 @@ function BarButton({
       <Icon icon={icon} width={16} height={16} />
     </button>
   );
+}
+
+// 收藏结果操作按钮
+const favBtnStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '4px',
+  padding: '6px',
+  border: '1px solid var(--glass-border)',
+  borderRadius: '8px',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontSize: '12px',
+};
+
+/** 查找结果片段：长文本按关键词窗口化并在匹配处高亮（仿 QQ 搜索结果） */
+function HighlightSnippet({ text, query }: { text: string; query: string }) {
+  const q = query.trim();
+  let display = text;
+  if (q) {
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx >= 0) {
+      const start = Math.max(0, idx - 40);
+      const end = Math.min(text.length, idx + q.length + 80);
+      display = (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+    } else if (text.length > 140) {
+      display = text.slice(0, 140) + '…';
+    }
+  } else if (text.length > 120) {
+    display = text.slice(0, 120) + '…';
+  }
+  if (!q) return <>{display}</>;
+  const lower = display.toLowerCase();
+  const ql = q.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+  while (i < display.length) {
+    const idx = lower.indexOf(ql, i);
+    if (idx === -1) {
+      parts.push(display.slice(i));
+      break;
+    }
+    if (idx > i) parts.push(display.slice(i, idx));
+    parts.push(
+      <mark
+        key={key++}
+        style={{
+          background: 'rgba(245,166,35,0.35)',
+          color: 'inherit',
+          borderRadius: '3px',
+          padding: '0 1px',
+        }}
+      >
+        {display.slice(idx, idx + q.length)}
+      </mark>,
+    );
+    i = idx + q.length;
+  }
+  return <>{parts}</>;
 }
 
 // ===== 对话面板独立窗口 =====
@@ -143,7 +207,18 @@ function ChatPanelWindow() {
   // 详情面板状态
   const [showDetails, setShowDetails] = useState(false);
   const [detailsWidth, setDetailsWidth] = useState<number>(320);
-  const [detailsTab, setDetailsTab] = useState<'info' | 'context' | 'tasks' | 'tools'>('info');
+  const [detailsTab, setDetailsTab] = useState<
+    'info' | 'context' | 'tasks' | 'tools' | 'search' | 'favorites'
+  >('info');
+
+  // 详情面板「查找」筛选状态
+  const [searchTabQuery, setSearchTabQuery] = useState('');
+  const [searchType, setSearchType] = useState<'all' | 'user' | 'assistant'>('all');
+  const [searchDate, setSearchDate] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>(
+    'all',
+  );
+  // 收藏列表刷新计数（消息收藏状态变更后重渲染）
+  const [favTick, setFavTick] = useState(0);
 
   // Slash help overlay state
   const [showSlashHelp, setShowSlashHelp] = useState(false);
@@ -152,7 +227,6 @@ function ChatPanelWindow() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showSessionList, setShowSessionList] = useState(false);
-  const [showFavorites, setShowFavorites] = useState(false);
 
   // Slash 命令列表（直接复用内置命令定义，避免与 useSlashCommands 漂移）
   const slashCommands = BUILTIN_COMMANDS;
@@ -198,7 +272,9 @@ function ChatPanelWindow() {
     _isFirstUpdate = true;
     try {
       localStorage.removeItem('deskpet_context_used');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const updateInfo = () => {
       try {
@@ -227,7 +303,10 @@ function ChatPanelWindow() {
     // 延迟首次读取，给 Gateway 时间写入当前会话的真实值
     const initTimer = setTimeout(updateInfo, 1500);
     const timer = setInterval(updateInfo, 2000);
-    return () => { clearInterval(timer); clearTimeout(initTimer); };
+    return () => {
+      clearInterval(timer);
+      clearTimeout(initTimer);
+    };
   }, []);
 
   // 重置上下文显示（切换/删除/新建会话时调用，避免残留旧 token 数）
@@ -237,7 +316,9 @@ function ChatPanelWindow() {
     try {
       localStorage.removeItem('deskpet_context_used');
       localStorage.removeItem('deskpet_context_total');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   // 注册内置工具并监听 Gateway 下发的前端工具调用
@@ -481,6 +562,74 @@ function ChatPanelWindow() {
     setSessionPage(1);
   };
 
+  // ===== 详情面板「查找消息」：全量检索 + 类型/日期筛选 =====
+  const searchTabResults = useMemo(() => {
+    const q = searchTabQuery.trim().toLowerCase();
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfToday.getDate() - 1);
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // 周日为一周起点
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return messages
+      .filter((m) => {
+        if (m.role === 'system') return false;
+        if (searchType !== 'all' && m.role !== searchType) return false;
+        if (searchDate !== 'all') {
+          const ts = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp);
+          if (searchDate === 'today' && ts < startOfToday) return false;
+          if (searchDate === 'yesterday' && (ts < startOfYesterday || ts >= startOfToday))
+            return false;
+          if (searchDate === 'week' && ts < startOfWeek) return false;
+          if (searchDate === 'month' && ts < startOfMonth) return false;
+        }
+        if (q && !m.content.toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .map((m) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
+      }));
+  }, [messages, searchTabQuery, searchType, searchDate]);
+
+  // ===== 详情面板「收藏」：读取 localStorage 收藏夹（默认当前会话）=====
+  const favorites = useMemo(() => {
+    void favTick;
+    const all = loadFavorites();
+    const list = activeSessionId ? all.filter((f) => f.sessionId === activeSessionId) : all;
+    return [...list].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  }, [favTick, activeSessionId]);
+
+  /** 跳转到某条消息（详情面板查找/收藏结果调用） */
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    chatWindowRef.current?.jumpToMessage(messageId);
+  }, []);
+
+  const handleUnfavorite = useCallback(
+    (item: {
+      messageId: string;
+      sessionId: string;
+      content: string;
+      role: 'user' | 'assistant';
+      timestamp: string;
+    }) => {
+      toggleFavorite(
+        {
+          id: item.messageId,
+          role: item.role,
+          content: item.content,
+          timestamp: new Date(item.timestamp),
+        },
+        item.sessionId,
+      );
+      setFavTick((n) => n + 1);
+    },
+    [],
+  );
+
   // 发送消息：走 Hermes Gateway
   const handleSendMessage = useCallback(
     async (
@@ -553,6 +702,15 @@ function ChatPanelWindow() {
       return next;
     });
   }, []);
+
+  const handleToggleFavorites = useCallback(() => {
+    if (showDetails && detailsTab === 'favorites') {
+      setShowDetails(false);
+    } else {
+      setShowDetails(true);
+      setDetailsTab('favorites');
+    }
+  }, [showDetails, detailsTab]);
 
   const handleMinimize = useCallback(() => {
     // 缩小到任务栏（与收起不同：收起是隐藏常驻、用聊天键再唤出；缩小是最小化到任务栏）
@@ -818,7 +976,9 @@ function ChatPanelWindow() {
         >
           {/* 左侧：头像 + 标题 + 状态 */}
           <ChatAvatar role="assistant" src={appearance.aiAvatar} size={30} />
-          <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+          <div
+            style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: '6px' }}
+          >
             <span
               style={{
                 fontSize: '14px',
@@ -874,13 +1034,45 @@ function ChatPanelWindow() {
             {mode === 'work' ? '工作' : '聊天'}
           </button>
 
-          <BarButton icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'} title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'} active={ttsEnabled} onClick={handleToggleTts} />
-          <BarButton icon="solar:hamburger-menu-linear" title="会话列表" active={showSessionList} onClick={() => setShowSessionList((p) => !p)} />
-          <BarButton icon="solar:star-linear" title={t('chat.favorites_title')} active={showFavorites} onClick={() => setShowFavorites((p) => !p)} />
-          <BarButton icon="solar:add-circle-linear" title={t('chat.new_chat')} onClick={handleNewChat} />
-          <BarButton icon="solar:info-circle-linear" title="详情面板" active={showDetails} onClick={() => setShowDetails((p) => !p)} />
-          <BarButton icon="solar:minimize-square-linear" title={t('chat.minimize', { defaultValue: '缩小' })} onClick={handleMinimize} />
-          <BarButton icon="solar:close-circle-linear" title={t('chat.collapse', { defaultValue: '收起' })} onClick={handleCloseWindow} />
+          <BarButton
+            icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
+            title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'}
+            active={ttsEnabled}
+            onClick={handleToggleTts}
+          />
+          <BarButton
+            icon="solar:hamburger-menu-linear"
+            title="会话列表"
+            active={showSessionList}
+            onClick={() => setShowSessionList((p) => !p)}
+          />
+          <BarButton
+            icon="solar:star-linear"
+            title={t('chat.favorites_title')}
+            active={showDetails && detailsTab === 'favorites'}
+            onClick={handleToggleFavorites}
+          />
+          <BarButton
+            icon="solar:add-circle-linear"
+            title={t('chat.new_chat')}
+            onClick={handleNewChat}
+          />
+          <BarButton
+            icon="solar:info-circle-linear"
+            title="详情面板"
+            active={showDetails}
+            onClick={() => setShowDetails((p) => !p)}
+          />
+          <BarButton
+            icon="solar:minimize-square-linear"
+            title={t('chat.minimize', { defaultValue: '缩小' })}
+            onClick={handleMinimize}
+          />
+          <BarButton
+            icon="solar:close-circle-linear"
+            title={t('chat.collapse', { defaultValue: '收起' })}
+            onClick={handleCloseWindow}
+          />
 
           {/* 上下文占用进度条（贴底） */}
           <div
@@ -967,22 +1159,26 @@ function ChatPanelWindow() {
                   borderBottom: '1px solid var(--border)',
                   display: 'flex',
                   gap: '4px',
+                  flexWrap: 'wrap',
                 }}
               >
-                {(['info', 'context', 'tasks', 'tools'] as const).map((tab) => (
+                {(
+                  [
+                    { key: 'info', label: '信息' },
+                    { key: 'context', label: '上下文' },
+                    { key: 'tasks', label: '任务' },
+                    { key: 'tools', label: '工具' },
+                    { key: 'search', label: t('chat.tab_search', { defaultValue: '查找' }) },
+                    { key: 'favorites', label: t('chat.tab_favorites', { defaultValue: '收藏' }) },
+                  ] as const
+                ).map((tab) => (
                   <button
-                    key={tab}
+                    key={tab.key}
                     type="button"
-                    onClick={() => setDetailsTab(tab)}
-                    className={`chat-chip ${detailsTab === tab ? 'chat-chip--active' : ''}`}
+                    onClick={() => setDetailsTab(tab.key)}
+                    className={`chat-chip ${detailsTab === tab.key ? 'chat-chip--active' : ''}`}
                   >
-                    {tab === 'info'
-                      ? '信息'
-                      : tab === 'context'
-                        ? '上下文'
-                        : tab === 'tasks'
-                          ? '任务'
-                          : '工具'}
+                    {tab.label}
                   </button>
                 ))}
               </div>
@@ -1012,30 +1208,93 @@ function ChatPanelWindow() {
                 )}
                 {detailsTab === 'tasks' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                      >
                         <span style={{ color: 'var(--text-secondary)' }}>用户消息</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.filter(m => m.role === 'user').length}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {messages.filter((m) => m.role === 'user').length}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                      >
                         <span style={{ color: 'var(--text-secondary)' }}>AI 回复</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.filter(m => m.role === 'assistant').length}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {messages.filter((m) => m.role === 'assistant').length}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                      >
                         <span style={{ color: 'var(--text-secondary)' }}>工具调用</span>
-                        <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{messages.reduce((sum, m) => sum + (m.toolCalls?.length || 0), 0)}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                          {messages.reduce((sum, m) => sum + (m.toolCalls?.length || 0), 0)}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                      >
                         <span style={{ color: 'var(--text-secondary)' }}>流式中</span>
-                        <span style={{ fontWeight: 600, color: isStreaming ? 'var(--accent)' : 'var(--text-muted)' }}>{isStreaming ? '是' : '否'}</span>
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: isStreaming ? 'var(--accent)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {isStreaming ? '是' : '否'}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                        }}
+                      >
                         <span style={{ color: 'var(--text-secondary)' }}>总消息数</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{messages.length}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {messages.length}
+                        </span>
                       </div>
                     </div>
                     {messages.length === 0 && (
-                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '20px' }}>
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '11px',
+                          textAlign: 'center',
+                          paddingTop: '20px',
+                        }}
+                      >
                         暂无消息数据
                       </div>
                     )}
@@ -1044,14 +1303,21 @@ function ChatPanelWindow() {
                 {detailsTab === 'tools' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {messages.length === 0 ? (
-                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '20px' }}>
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '11px',
+                          textAlign: 'center',
+                          paddingTop: '20px',
+                        }}
+                      >
                         暂无工具调用记录
                       </div>
                     ) : (
                       messages
-                        .filter(m => m.toolCalls && m.toolCalls.length > 0)
-                        .flatMap(m =>
-                          (m.toolCalls || []).map((tc, i) => ({ ...tc, msgId: m.id, idx: i }))
+                        .filter((m) => m.toolCalls && m.toolCalls.length > 0)
+                        .flatMap((m) =>
+                          (m.toolCalls || []).map((tc, i) => ({ ...tc, msgId: m.id, idx: i })),
                         )
                         .map((tc, i) => (
                           <div
@@ -1064,7 +1330,14 @@ function ChatPanelWindow() {
                               fontSize: '11px',
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginBottom: '4px',
+                              }}
+                            >
                               <span
                                 style={{
                                   width: '6px',
@@ -1079,30 +1352,399 @@ function ChatPanelWindow() {
                                         : 'var(--color-danger)',
                                 }}
                               />
-                              <span style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  color: 'var(--text-primary)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
                                 {tc.name}
                               </span>
-                              <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', flexShrink: 0, fontSize: '10px' }}>
-                                {tc.status === 'running' ? '运行中' : tc.status === 'success' ? '成功' : '失败'}
+                              <span
+                                style={{
+                                  color: 'var(--text-muted)',
+                                  marginLeft: 'auto',
+                                  flexShrink: 0,
+                                  fontSize: '10px',
+                                }}
+                              >
+                                {tc.status === 'running'
+                                  ? '运行中'
+                                  : tc.status === 'success'
+                                    ? '成功'
+                                    : '失败'}
                               </span>
                             </div>
                             {tc.input != null && (
-                              <div style={{ color: 'var(--text-secondary)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
-                                输入: {typeof tc.input === 'string' ? tc.input : String(JSON.stringify(tc.input)).slice(0, 80)}
+                              <div
+                                style={{
+                                  color: 'var(--text-secondary)',
+                                  fontSize: '10px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  opacity: 0.8,
+                                }}
+                              >
+                                输入:{' '}
+                                {typeof tc.input === 'string'
+                                  ? tc.input
+                                  : String(JSON.stringify(tc.input)).slice(0, 80)}
                               </div>
                             )}
                             {tc.output != null && (
-                              <div style={{ color: 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>
-                                输出: {typeof tc.output === 'string' ? tc.output : String(JSON.stringify(tc.output)).slice(0, 80)}
+                              <div
+                                style={{
+                                  color: 'var(--text-muted)',
+                                  fontSize: '10px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  opacity: 0.7,
+                                }}
+                              >
+                                输出:{' '}
+                                {typeof tc.output === 'string'
+                                  ? tc.output
+                                  : String(JSON.stringify(tc.output)).slice(0, 80)}
                               </div>
                             )}
                           </div>
                         ))
                     )}
-                    {messages.filter(m => m.toolCalls && m.toolCalls.length > 0).length === 0 && messages.length > 0 && (
-                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', paddingTop: '10px' }}>
-                        当前会话无工具调用
+                    {messages.filter((m) => m.toolCalls && m.toolCalls.length > 0).length === 0 &&
+                      messages.length > 0 && (
+                        <div
+                          style={{
+                            color: 'var(--text-muted)',
+                            fontSize: '11px',
+                            textAlign: 'center',
+                            paddingTop: '10px',
+                          }}
+                        >
+                          当前会话无工具调用
+                        </div>
+                      )}
+                  </div>
+                )}
+                {detailsTab === 'search' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* 搜索框 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 8px',
+                        background: 'var(--bg-glass)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      <Icon
+                        icon="solar:magnifer-linear"
+                        width={14}
+                        height={14}
+                        style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                      />
+                      <input
+                        autoFocus
+                        value={searchTabQuery}
+                        onChange={(e) => setSearchTabQuery(e.target.value)}
+                        placeholder={t('chat.search_placeholder', { defaultValue: '搜索消息…' })}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          background: 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '12px',
+                          color: 'var(--text-primary)',
+                        }}
+                      />
+                      {searchTabQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTabQuery('')}
+                          title={t('app.close', { defaultValue: '清除' })}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            padding: '0 2px',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 类型筛选 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '2px' }}
+                      >
+                        {t('chat.search_type', { defaultValue: '类型' })}
+                      </span>
+                      {(
+                        [
+                          ['all', t('chat.search_type_all', { defaultValue: '全部' })],
+                          ['user', t('chat.search_type_user', { defaultValue: '我' })],
+                          ['assistant', t('chat.search_type_assistant', { defaultValue: 'AI' })],
+                        ] as const
+                      ).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setSearchType(val)}
+                          className={`chat-chip ${searchType === val ? 'chat-chip--active' : ''}`}
+                          style={{ fontSize: '11px', padding: '2px 8px' }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 日期筛选 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '2px' }}
+                      >
+                        {t('chat.search_date', { defaultValue: '时间' })}
+                      </span>
+                      {(
+                        [
+                          ['all', t('chat.search_date_all', { defaultValue: '全部' })],
+                          ['today', t('chat.search_date_today', { defaultValue: '今天' })],
+                          ['yesterday', t('chat.search_date_yesterday', { defaultValue: '昨天' })],
+                          ['week', t('chat.search_date_week', { defaultValue: '本周' })],
+                          ['month', t('chat.search_date_month', { defaultValue: '本月' })],
+                        ] as const
+                      ).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setSearchDate(val)}
+                          className={`chat-chip ${searchDate === val ? 'chat-chip--active' : ''}`}
+                          style={{ fontSize: '11px', padding: '2px 8px' }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 结果计数 / 提示 */}
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {searchTabQuery.trim() || searchType !== 'all' || searchDate !== 'all'
+                        ? t('chat.search_result_count', {
+                            defaultValue: '找到 {{count}} 条',
+                            count: searchTabResults.length,
+                          })
+                        : t('chat.search_no_result_hint', {
+                            defaultValue: '输入关键词，或选择类型/时间筛选消息',
+                          })}
+                    </div>
+
+                    {/* 结果列表 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {searchTabResults.length === 0 ? (
+                        <div
+                          style={{
+                            color: 'var(--text-muted)',
+                            fontSize: '11px',
+                            textAlign: 'center',
+                            paddingTop: '16px',
+                          }}
+                        >
+                          {t('chat.search_no_result', { defaultValue: '无匹配消息' })}
+                        </div>
+                      ) : (
+                        searchTabResults.slice(0, 300).map((r) => (
+                          <div
+                            key={r.id}
+                            onClick={() => handleJumpToMessage(r.id)}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              background: 'var(--bg-glass)',
+                              border: '1px solid var(--glass-border)',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: '4px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  color:
+                                    r.role === 'user' ? 'var(--accent)' : 'var(--text-secondary)',
+                                }}
+                              >
+                                {r.role === 'user' ? '你' : 'AI'}
+                              </span>
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                {r.timestamp.toLocaleString([], {
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                color: 'var(--text-primary)',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                maxHeight: '120px',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <HighlightSnippet text={r.content} query={searchTabQuery} />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {searchTabResults.length > 300 && (
+                        <div
+                          style={{
+                            fontSize: '10px',
+                            color: 'var(--text-muted)',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {t('chat.search_more_hint', { defaultValue: '仅显示前 300 条' })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {detailsTab === 'favorites' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {favorites.length === 0 ? (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '12px',
+                          textAlign: 'center',
+                          paddingTop: '40px',
+                        }}
+                      >
+                        {t('chat.no_favorites', { defaultValue: '还没有收藏的消息' })}
                       </div>
+                    ) : (
+                      favorites.map((item) => (
+                        <div
+                          key={`${item.sessionId}-${item.messageId}`}
+                          style={{
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '10px',
+                            background: 'var(--bg-glass)',
+                            padding: '10px 12px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginBottom: '6px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color:
+                                  item.role === 'user' ? 'var(--accent)' : 'var(--text-secondary)',
+                              }}
+                            >
+                              {item.role === 'user' ? '你' : 'AI'}
+                            </span>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                              {new Date(item.timestamp).toLocaleString([], {
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <div
+                            onClick={() => handleJumpToMessage(item.messageId)}
+                            style={{
+                              fontSize: '13px',
+                              lineHeight: 1.5,
+                              color: 'var(--text-primary)',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              maxHeight: '160px',
+                              overflowY: 'auto',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {item.content}
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(item.content);
+                                  showToast(
+                                    t('chat.copied', { defaultValue: '已复制' }),
+                                    'success',
+                                  );
+                                } catch {
+                                  showToast('复制失败', 'error');
+                                }
+                              }}
+                              title={t('chat.copy', { defaultValue: '复制' })}
+                              style={favBtnStyle}
+                            >
+                              <Icon icon="solar:copy-linear" width={14} height={14} />
+                            </button>
+                            <button
+                              onClick={() => handleUnfavorite(item)}
+                              title={t('chat.unfavorite')}
+                              style={favBtnStyle}
+                            >
+                              <Icon
+                                icon="solar:star-bold"
+                                width={14}
+                                height={14}
+                                style={{ color: '#f5a623' }}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
@@ -1118,13 +1760,6 @@ function ChatPanelWindow() {
         visible={showSlashHelp}
         onClose={() => setShowSlashHelp(false)}
         onSelect={() => setShowSlashHelp(false)}
-      />
-
-      {/* 收藏查看抽屉 */}
-      <FavoritesDrawer
-        open={showFavorites}
-        onClose={() => setShowFavorites(false)}
-        sessionId={activeSessionId || undefined}
       />
     </div>
   );

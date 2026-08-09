@@ -53,6 +53,8 @@ export interface Message {
 /** 命令式句柄：供父组件（如面板窗 STT）向输入框回填草稿文本 */
 export interface ChatWindowHandle {
   setDraft: (text: string) => void;
+  /** 跳转到指定消息并高亮（详情面板的查找/收藏结果调用） */
+  jumpToMessage: (messageId: string) => void;
 }
 
 /** 日期分隔：今天 / 昨天 / 年月日 */
@@ -245,16 +247,6 @@ export const ChatWindow = memo(
     const [textareaHeight, setTextareaHeight] = useState<string>('auto');
 
     // 命令式句柄：允许父组件（如面板窗的 STT 结果）回填草稿文本到输入框
-    useImperativeHandle(
-      ref,
-      () => ({
-        setDraft: (text: string) => {
-          setInput(text);
-          requestAnimationFrame(() => textareaRef.current?.focus());
-        },
-      }),
-      [setInput],
-    );
     const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
     const [quotedReply, setQuotedReply] = useState<
       { messageId: string; content: string; role: 'user' | 'assistant' } | undefined
@@ -334,6 +326,26 @@ export const ChatWindow = memo(
     const STEP_VISIBLE = 50;
     const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
     const prevScrollHeightRef = useRef(0);
+
+    // 命令式句柄：供父组件（面板窗 STT 回填 / 详情面板查找·收藏跳转）调用。
+    // 必须置于 setVisibleCount / setHighlightedId 声明之后，满足 react-hooks/immutability。
+    useImperativeHandle(
+      ref,
+      () => ({
+        setDraft: (text: string) => {
+          setInput(text);
+          requestAnimationFrame(() => textareaRef.current?.focus());
+        },
+        jumpToMessage: (messageId: string) => {
+          const idx = messages.findIndex((m) => m.id === messageId);
+          if (idx < 0) return;
+          // 扩大渲染窗口，确保目标消息已渲染（更早的消息可能还在窗口外）
+          setVisibleCount((c) => Math.max(c, messages.length - idx));
+          setHighlightedId(messageId);
+        },
+      }),
+      [setInput, messages],
+    );
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
       // 流式中不加载更早：与强制滚底的 RAF 循环冲突，避免滚动位置被拉回
@@ -515,6 +527,29 @@ export const ChatWindow = memo(
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }
     }, [messages]);
+
+    // 打开/切换会话时定位到最新消息：挂载、会话切换、以及当前会话从空变有（初始加载）都强制滚到底部。
+    // 注意：仅在「加载时刻」触发一次，不与流式 RAF 滚动冲突（流式期间 pending 始终为 false）。
+    const pendingScrollBottomRef = useRef(true);
+    const lastSessionRef = useRef<string | undefined>(undefined);
+    const prevMsgLenRef = useRef(0);
+    useLayoutEffect(() => {
+      if (lastSessionRef.current !== sessionId) {
+        lastSessionRef.current = sessionId;
+        setVisibleCount(INITIAL_VISIBLE);
+        pendingScrollBottomRef.current = true;
+      }
+      // 当前会话首次加载（空 → 有）也要滚到底
+      if (prevMsgLenRef.current === 0 && messages.length > 0) {
+        pendingScrollBottomRef.current = true;
+      }
+      prevMsgLenRef.current = messages.length;
+      if (pendingScrollBottomRef.current) {
+        const el = messagesContainerRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+        pendingScrollBottomRef.current = false;
+      }
+    }, [messages, sessionId]);
 
     // 流式输出时持续滚动（RAF 代替 100ms setInterval，按帧节流）
     useEffect(() => {
@@ -1148,7 +1183,15 @@ export const ChatWindow = memo(
           {/* 工具条 + 输入框 + 发送按钮（单行 QQ 风格） */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
             {/* 左侧工具按钮组 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flexShrink: 0, paddingBottom: '1px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1px',
+                flexShrink: 0,
+                paddingBottom: '1px',
+              }}
+            >
               <ToolButton
                 icon="solar:paperclip-linear"
                 title={t('chat.attachment', { defaultValue: '附件' })}
