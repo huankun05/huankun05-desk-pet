@@ -8,7 +8,9 @@
     "n_messages": "{{count}} 条",
     "delete": "删除",
     "error_api_key": "错误: {{message}}。请在设置中检查 API Key。",
-    "close": "关闭"
+    "close": "关闭",
+    "prev": "上一步",
+    "next": "下一步"
   },
   "menu": {
     "unlock": "🔓 解锁",
@@ -150,8 +152,14 @@
     "search_date_week": "本周",
     "search_date_month": "本月",
     "search_result_count": "找到 {{count}} 条",
-    "search_no_result_hint": "输入关键词，或选择类型/时间筛选消息",
-    "search_more_hint": "仅显示前 300 条"
+    "search_no_result_hint": "输入关键词，或选择类型与日期筛选消息",
+    "search_more_hint": "仅显示前 300 条",
+    "calendar": "日历",
+    "calendar_reset": "全部时间",
+    "calendar_day_count": "{{count}} 条",
+    "calendar_pick_hint": "点击带圆点的日期，查看当天消息",
+    "favorited": "已收藏",
+    "unfavorited": "已取消收藏"
   },
   "settings": {
     "title": "⚙️ 设置",

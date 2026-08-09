@@ -517,14 +517,16 @@ export const ChatWindow = memo(
       return () => window.removeEventListener('keydown', onKeyDown);
     }, [searchOpen]);
 
-    // 自动滚动到底部（流式输出时持续滚动）
+    // 自动滚动到底部（新增消息 / 流式输出时）。
+    // 关键：用 behavior:'auto'（瞬时、无动画），与 QQ 一致——打开会话直接停在最新消息，
+    // 而不是从顶部「平滑滚动」到底部。加载/切换会话的瞬时定位由下方 useLayoutEffect 负责。
     useEffect(() => {
       const container = messagesContainerRef.current;
       if (!container) return;
       const isNearBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight < 100;
       if (isNearBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
       }
     }, [messages]);
 
@@ -956,35 +958,12 @@ export const ChatWindow = memo(
                     }}
                     onRetry={() => onSendMessage(message.content)}
                     onQuote={handleQuote}
-                    sessionId={sessionId}
                     appearance={messageAppearance}
                     highlighted={message.id === highlightedId}
                   />
                 </Fragment>
               );
             })}
-
-            {isLoading &&
-              messages.length > 0 &&
-              messages[messages.length - 1].role === 'assistant' &&
-              !messages[messages.length - 1].content && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: 'var(--text-muted)',
-                    padding: '4px 16px',
-                  }}
-                >
-                  <div className="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                  <span style={{ fontSize: '0.85em' }}>{t('chat.thinking')}</span>
-                </div>
-              )}
 
             <div ref={messagesEndRef} />
           </div>

@@ -8,7 +8,9 @@
     "n_messages": "{{count}} msgs",
     "delete": "Delete",
     "error_api_key": "Error: {{message}}. Please check your API Key in Settings.",
-    "close": "Close"
+    "close": "Close",
+    "prev": "Previous",
+    "next": "Next"
   },
   "menu": {
     "unlock": "🔓 Unlock",
@@ -146,8 +148,14 @@
     "search_date_week": "This week",
     "search_date_month": "This month",
     "search_result_count": "{{count}} found",
-    "search_no_result_hint": "Enter a keyword, or filter by type/date",
-    "search_more_hint": "Showing first 300 results"
+    "search_no_result_hint": "Enter a keyword, or filter by type and date",
+    "search_more_hint": "Showing first 300 results",
+    "calendar": "Calendar",
+    "calendar_reset": "All time",
+    "calendar_day_count": "{{count}}",
+    "calendar_pick_hint": "Tap a marked date to view that day's messages",
+    "favorited": "Favorited",
+    "unfavorited": "Removed from favorites"
   },
   "settings": {
     "title": "⚙️ Settings",

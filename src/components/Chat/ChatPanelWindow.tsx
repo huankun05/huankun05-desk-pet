@@ -6,7 +6,7 @@ import { ChatWindow, type ChatWindowHandle, type Message } from './ChatWindow';
 import { ChatAvatar } from './ChatAvatar';
 import { useChatAppearance } from './useChatAppearance';
 import { SlashHelpOverlay } from './SlashHelpOverlay';
-import { loadFavorites, toggleFavorite } from './MessageItem';
+import { loadFavorites, toggleFavorite, isFavorite } from './MessageItem';
 import { showToast } from '../../utils/toast';
 import './chat-theme.css';
 import { AudioRecorder } from '../../services/audio/recorder';
@@ -139,6 +139,178 @@ function HighlightSnippet({ text, query }: { text: string; query: string }) {
   return <>{parts}</>;
 }
 
+/** 月份天数 + 某月首日星期（周日=0） */
+function getMonthMatrix(year: number, month: number): { blanks: number; days: number } {
+  const firstDay = new Date(year, month, 1).getDay();
+  const days = new Date(year, month + 1, 0).getDate();
+  return { blanks: firstDay, days };
+}
+
+/**
+ * 消息日历（仿 QQ 聊天记录日历）：
+ * - 有消息的日期下方带圆点标记
+ * - 可切换上/下月
+ * - 点击某天即筛选当天消息（selected 高亮）
+ */
+function MessageCalendar({
+  dayMap,
+  selected,
+  onSelect,
+}: {
+  dayMap: Map<string, number>;
+  selected: Date | null;
+  onSelect: (d: Date) => void;
+}) {
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(() => now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => now.getMonth());
+  const { t } = useTranslation();
+
+  const { blanks, days } = getMonthMatrix(viewYear, viewMonth);
+  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+
+  const shiftMonth = (delta: number) => {
+    let m = viewMonth + delta;
+    let y = viewYear;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    } else if (m > 11) {
+      m = 0;
+      y += 1;
+    }
+    setViewMonth(m);
+    setViewYear(y);
+  };
+
+  const cells: React.ReactNode[] = [];
+  for (let i = 0; i < blanks; i++) {
+    cells.push(<div key={`blank-${i}`} />);
+  }
+  for (let d = 1; d <= days; d++) {
+    const key = `${viewYear}-${viewMonth}-${d}`;
+    const hasMsg = dayMap.has(key);
+    const count = dayMap.get(key) || 0;
+    const isSelected =
+      !!selected &&
+      selected.getFullYear() === viewYear &&
+      selected.getMonth() === viewMonth &&
+      selected.getDate() === d;
+    const isToday =
+      now.getFullYear() === viewYear && now.getMonth() === viewMonth && now.getDate() === d;
+    cells.push(
+      <button
+        key={`day-${d}`}
+        type="button"
+        title={hasMsg ? `${t('chat.calendar_day_count', { count })}` : undefined}
+        onClick={() => onSelect(new Date(viewYear, viewMonth, d))}
+        style={{
+          position: 'relative',
+          height: '30px',
+          border: 'none',
+          borderRadius: '8px',
+          background: isSelected ? 'var(--accent)' : 'transparent',
+          color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)',
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: isToday || isSelected ? 600 : 400,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onMouseEnter={(e) => {
+          if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)';
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        {d}
+        {hasMsg && !isSelected && (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: '3px',
+              width: '4px',
+              height: '4px',
+              borderRadius: '50%',
+              background: 'var(--accent)',
+            }}
+          />
+        )}
+      </button>,
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--glass-border)',
+        borderRadius: '10px',
+        background: 'var(--bg-glass)',
+        padding: '8px',
+      }}
+    >
+      {/* 月份导航 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '6px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => shiftMonth(-1)}
+          title={t('app.prev', { defaultValue: '上个月' })}
+          style={favBtnStyle}
+        >
+          <Icon icon="solar:alt-arrow-left-linear" width={14} height={14} />
+        </button>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+          {viewYear} 年 {viewMonth + 1} 月
+        </span>
+        <button
+          type="button"
+          onClick={() => shiftMonth(1)}
+          title={t('app.next', { defaultValue: '下个月' })}
+          style={favBtnStyle}
+        >
+          <Icon icon="solar:alt-arrow-right-linear" width={14} height={14} />
+        </button>
+      </div>
+      {/* 星期表头 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: '2px',
+          marginBottom: '2px',
+        }}
+      >
+        {weekDays.map((w) => (
+          <div
+            key={w}
+            style={{
+              textAlign: 'center',
+              fontSize: '10px',
+              color: 'var(--text-muted)',
+              padding: '2px 0',
+            }}
+          >
+            {w}
+          </div>
+        ))}
+      </div>
+      {/* 日期网格 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+        {cells}
+      </div>
+    </div>
+  );
+}
+
 // ===== 对话面板独立窗口 =====
 function ChatPanelWindow() {
   const { t } = useTranslation();
@@ -214,9 +386,9 @@ function ChatPanelWindow() {
   // 详情面板「查找」筛选状态
   const [searchTabQuery, setSearchTabQuery] = useState('');
   const [searchType, setSearchType] = useState<'all' | 'user' | 'assistant'>('all');
-  const [searchDate, setSearchDate] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>(
-    'all',
-  );
+  // 日期筛选：all = 不过滤；calendar = 选中某一天（searchCalendarDate）
+  const [searchDate, setSearchDate] = useState<'all' | 'calendar'>('all');
+  const [searchCalendarDate, setSearchCalendarDate] = useState<Date | null>(null);
   // 收藏列表刷新计数（消息收藏状态变更后重渲染）
   const [favTick, setFavTick] = useState(0);
 
@@ -562,27 +734,28 @@ function ChatPanelWindow() {
     setSessionPage(1);
   };
 
-  // ===== 详情面板「查找消息」：全量检索 + 类型/日期筛选 =====
+  // ===== 详情面板「查找消息」：全量检索 + 类型/日历日期筛选 =====
   const searchTabResults = useMemo(() => {
     const q = searchTabQuery.trim().toLowerCase();
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfToday.getDate() - 1);
-    const startOfWeek = new Date(startOfToday);
-    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()); // 周日为一周起点
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // 选中某一天 → 当天 00:00 ~ 次日 00:00 区间
+    let dayStart: Date | null = null;
+    let dayEnd: Date | null = null;
+    if (searchDate === 'calendar' && searchCalendarDate) {
+      dayStart = new Date(
+        searchCalendarDate.getFullYear(),
+        searchCalendarDate.getMonth(),
+        searchCalendarDate.getDate(),
+      );
+      dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayStart.getDate() + 1);
+    }
     return messages
       .filter((m) => {
         if (m.role === 'system') return false;
         if (searchType !== 'all' && m.role !== searchType) return false;
-        if (searchDate !== 'all') {
+        if (dayStart && dayEnd) {
           const ts = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp);
-          if (searchDate === 'today' && ts < startOfToday) return false;
-          if (searchDate === 'yesterday' && (ts < startOfYesterday || ts >= startOfToday))
-            return false;
-          if (searchDate === 'week' && ts < startOfWeek) return false;
-          if (searchDate === 'month' && ts < startOfMonth) return false;
+          if (ts < dayStart || ts >= dayEnd) return false;
         }
         if (q && !m.content.toLowerCase().includes(q)) return false;
         return true;
@@ -593,7 +766,19 @@ function ChatPanelWindow() {
         content: m.content,
         timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
       }));
-  }, [messages, searchTabQuery, searchType, searchDate]);
+  }, [messages, searchTabQuery, searchType, searchDate, searchCalendarDate]);
+
+  // 有消息的日期集合（用于日历标记点）：key = 'Y-M-D'
+  const messageDayMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of messages) {
+      if (m.role === 'system') continue;
+      const d = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [messages]);
 
   // ===== 详情面板「收藏」：读取 localStorage 收藏夹（默认当前会话）=====
   const favorites = useMemo(() => {
@@ -702,15 +887,6 @@ function ChatPanelWindow() {
       return next;
     });
   }, []);
-
-  const handleToggleFavorites = useCallback(() => {
-    if (showDetails && detailsTab === 'favorites') {
-      setShowDetails(false);
-    } else {
-      setShowDetails(true);
-      setDetailsTab('favorites');
-    }
-  }, [showDetails, detailsTab]);
 
   const handleMinimize = useCallback(() => {
     // 缩小到任务栏（与收起不同：收起是隐藏常驻、用聊天键再唤出；缩小是最小化到任务栏）
@@ -1047,18 +1223,12 @@ function ChatPanelWindow() {
             onClick={() => setShowSessionList((p) => !p)}
           />
           <BarButton
-            icon="solar:star-linear"
-            title={t('chat.favorites_title')}
-            active={showDetails && detailsTab === 'favorites'}
-            onClick={handleToggleFavorites}
-          />
-          <BarButton
             icon="solar:add-circle-linear"
             title={t('chat.new_chat')}
             onClick={handleNewChat}
           />
           <BarButton
-            icon="solar:info-circle-linear"
+            icon="solar:menu-dots-linear"
             title="详情面板"
             active={showDetails}
             onClick={() => setShowDetails((p) => !p)}
@@ -1517,39 +1687,47 @@ function ChatPanelWindow() {
                       ))}
                     </div>
 
-                    {/* 日期筛选 */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '2px' }}
-                      >
-                        {t('chat.search_date', { defaultValue: '时间' })}
-                      </span>
-                      {(
-                        [
-                          ['all', t('chat.search_date_all', { defaultValue: '全部' })],
-                          ['today', t('chat.search_date_today', { defaultValue: '今天' })],
-                          ['yesterday', t('chat.search_date_yesterday', { defaultValue: '昨天' })],
-                          ['week', t('chat.search_date_week', { defaultValue: '本周' })],
-                          ['month', t('chat.search_date_month', { defaultValue: '本月' })],
-                        ] as const
-                      ).map(([val, label]) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setSearchDate(val)}
-                          className={`chat-chip ${searchDate === val ? 'chat-chip--active' : ''}`}
-                          style={{ fontSize: '11px', padding: '2px 8px' }}
+                    {/* 日期筛选：仿 QQ 聊天记录日历 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            marginRight: '2px',
+                          }}
                         >
-                          {label}
+                          {t('chat.calendar', { defaultValue: '日历' })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchDate('all');
+                            setSearchCalendarDate(null);
+                          }}
+                          className={`chat-chip ${searchDate === 'all' ? 'chat-chip--active' : ''}`}
+                          style={{ fontSize: '11px', padding: '2px 8px', marginLeft: 'auto' }}
+                        >
+                          {t('chat.calendar_reset', { defaultValue: '全部时间' })}
                         </button>
-                      ))}
+                      </div>
+                      <MessageCalendar
+                        dayMap={messageDayMap}
+                        selected={searchCalendarDate}
+                        onSelect={(d) => {
+                          setSearchCalendarDate(d);
+                          setSearchDate('calendar');
+                        }}
+                      />
+                      {searchDate === 'calendar' && searchCalendarDate && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {`${searchCalendarDate.getFullYear()}-${searchCalendarDate.getMonth() + 1}-${searchCalendarDate.getDate()} · `}
+                          {t('chat.calendar_day_count', {
+                            defaultValue: '{{count}} 条',
+                            count: searchTabResults.length,
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* 结果计数 / 提示 */}
@@ -1578,59 +1756,105 @@ function ChatPanelWindow() {
                           {t('chat.search_no_result', { defaultValue: '无匹配消息' })}
                         </div>
                       ) : (
-                        searchTabResults.slice(0, 300).map((r) => (
-                          <div
-                            key={r.id}
-                            onClick={() => handleJumpToMessage(r.id)}
-                            style={{
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              background: 'var(--bg-glass)',
-                              border: '1px solid var(--glass-border)',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                            }}
-                          >
+                        searchTabResults.slice(0, 300).map((r) => {
+                          const fav = activeSessionId ? isFavorite(r.id, activeSessionId) : false;
+                          return (
                             <div
+                              key={r.id}
+                              onClick={() => handleJumpToMessage(r.id)}
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: '4px',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                background: 'var(--bg-glass)',
+                                border: '1px solid var(--glass-border)',
+                                cursor: 'pointer',
+                                fontSize: '12px',
                               }}
                             >
-                              <span
+                              <div
                                 style={{
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  color:
-                                    r.role === 'user' ? 'var(--accent)' : 'var(--text-secondary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  marginBottom: '4px',
+                                  gap: '6px',
                                 }}
                               >
-                                {r.role === 'user' ? '你' : 'AI'}
-                              </span>
-                              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                {r.timestamp.toLocaleString([], {
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
+                                <span
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    color:
+                                      r.role === 'user' ? 'var(--accent)' : 'var(--text-secondary)',
+                                  }}
+                                >
+                                  {r.role === 'user' ? '你' : 'AI'}
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                    {r.timestamp.toLocaleString([], {
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title={t('chat.favorites_title')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!activeSessionId) return;
+                                      const added = toggleFavorite(
+                                        {
+                                          id: r.id,
+                                          role: r.role,
+                                          content: r.content,
+                                          timestamp: r.timestamp,
+                                        },
+                                        activeSessionId,
+                                      );
+                                      setFavTick((n) => n + 1);
+                                      showToast(
+                                        added
+                                          ? t('chat.favorited', { defaultValue: '已收藏' })
+                                          : t('chat.unfavorited', { defaultValue: '已取消收藏' }),
+                                        'success',
+                                      );
+                                    }}
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: fav ? '#f5a623' : 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: '2px',
+                                    }}
+                                  >
+                                    <Icon
+                                      icon={fav ? 'solar:star-bold' : 'solar:star-linear'}
+                                      width={13}
+                                      height={13}
+                                    />
+                                  </button>
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  color: 'var(--text-primary)',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  maxHeight: '120px',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <HighlightSnippet text={r.content} query={searchTabQuery} />
+                              </div>
                             </div>
-                            <div
-                              style={{
-                                color: 'var(--text-primary)',
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                                maxHeight: '120px',
-                                overflow: 'hidden',
-                              }}
-                            >
-                              <HighlightSnippet text={r.content} query={searchTabQuery} />
-                            </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                       {searchTabResults.length > 300 && (
                         <div

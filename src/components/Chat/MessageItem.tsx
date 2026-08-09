@@ -135,7 +135,6 @@ interface MessageItemProps {
   onRetry?: () => void;
   onDelete?: () => void;
   onQuote?: (message: ChatMessage) => void;
-  sessionId?: string;
   appearance?: MessageAppearance;
   /** 消息搜索命中高亮 */
   highlighted?: boolean;
@@ -163,7 +162,11 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
   }
   if (mdError) {
     // Markdown 渲染失败时回退纯文本，确保内容始终可见
-    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'inherit' }}>{content}</span>;
+    return (
+      <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'inherit' }}>
+        {content}
+      </span>
+    );
   }
   return (
     <ErrorBoundary onError={() => setMdError(true)}>
@@ -176,11 +179,7 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
 
 /** 轻量错误边界：捕获子组件渲染异常，显示 fallback */
 function ErrorBoundary({ children, onError }: { children: React.ReactNode; onError: () => void }) {
-  return (
-    <CatchError onError={onError}>
-      {children}
-    </CatchError>
-  );
+  return <CatchError onError={onError}>{children}</CatchError>;
 }
 
 class CatchError extends React.Component<
@@ -296,7 +295,6 @@ export function MessageItem({
   onRetry,
   onDelete,
   onQuote,
-  sessionId,
   appearance = DEFAULT_APPEARANCE,
   highlighted = false,
 }: MessageItemProps) {
@@ -304,7 +302,6 @@ export function MessageItem({
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
   const isTouchRef = useRef(false);
-  const [fav, setFav] = useState(() => (sessionId ? isFavorite(message.id, sessionId) : false));
 
   const handleCopy = async () => {
     try {
@@ -313,11 +310,6 @@ export function MessageItem({
     } catch {
       showToast('复制失败', 'error');
     }
-  };
-
-  const handleFavorite = () => {
-    if (!sessionId) return;
-    setFav(toggleFavorite(message, sessionId));
   };
 
   const radius = appearance.bubbleRadius;
@@ -411,7 +403,9 @@ export function MessageItem({
             background: isUser ? 'var(--bubble-user-bg, #12b7f5)' : 'var(--bubble-ai-bg, #ffffff)',
             // 双层 fallback：CSS 变量 → 硬编码颜色（覆盖 App.css 全局 :root { color: #fff }）
             color: isUser ? 'var(--bubble-user-text, #ffffff)' : 'var(--bubble-ai-text, #1f2329)',
-            border: isUser ? '1px solid transparent' : '1px solid var(--glass-border, rgba(15,23,42,0.08))',
+            border: isUser
+              ? '1px solid transparent'
+              : '1px solid var(--glass-border, rgba(15,23,42,0.08))',
             boxShadow: 'var(--shadow-sm)',
             lineHeight: 1.5,
             wordBreak: 'break-word',
@@ -485,19 +479,6 @@ export function MessageItem({
             }}
           >
             <Icon icon="solar:copy-linear" width={15} height={15} />
-          </button>
-          <button
-            onClick={handleFavorite}
-            title={fav ? '取消收藏' : '收藏'}
-            style={hoverBtn(fav ? { color: '#f5a623' } : undefined)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--bg-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <Icon icon={fav ? 'solar:star-bold' : 'solar:star-linear'} width={15} height={15} />
           </button>
           {pinned && (
             <button
