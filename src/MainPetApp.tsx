@@ -809,33 +809,36 @@ function MainPetApp() {
         onMouseLeave={() => !isLocked && setIsHovering(false)}
         style={{
           transform: appearance.mirror ? 'scaleX(-1)' : undefined,
-          opacity: appearance.petVisible ? 1 : 0,
+          // 隐藏时整块区域不再拦截鼠标（2D 已卸载），点击可穿透到下方
           pointerEvents: appearance.petVisible ? 'auto' : 'none',
         }}
       >
-        <div className="pet-model">
-          <Live2DViewer
-            modelPath={currentModelPath}
-            emotion={emotionState.emotion}
-            zoomFactor={zoomFactor * (modelConfig.scale ?? 1.0)}
-            feetOffset={modelConfig.feetOffset}
-            modelWidthRatio={modelConfig.modelWidthRatio ?? 1.0}
-            baseViewportAspect={baseViewportAspect}
-            modelCanvasW={modelInfo?.canvasWidth ?? 750}
-            modelCanvasH={modelInfo?.canvasHeight ?? 1080}
-            energy={emotionState.personality.energy}
-            expressionMap={emotionState.expressionMap}
-            idleExpressions={emotionState.idleExpressions}
-            idleTimeout={modelConfig.idleTimeout ?? 5}
-            mouseSensitivity={modelConfig.mouseSensitivity ?? 1.0}
-            renderPaused={!appearance.petVisible}
-            targetFps={appearance.targetFps}
-            adaptiveFps={appearance.adaptiveFps}
-            onClickPosition={handlePetClick}
-            onModelLoaded={handleModelLoaded}
-            headYRatio={modelConfig.headYRatio ?? 0.35}
-          />
-        </div>
+        {/* 隐藏角色：直接卸载 Live2D，把 2D 图像从桌面彻底移除（而非仅设 opacity:0 透明留 DOM） */}
+        {appearance.petVisible && (
+          <div className="pet-model">
+            <Live2DViewer
+              modelPath={currentModelPath}
+              emotion={emotionState.emotion}
+              zoomFactor={zoomFactor * (modelConfig.scale ?? 1.0)}
+              feetOffset={modelConfig.feetOffset}
+              modelWidthRatio={modelConfig.modelWidthRatio ?? 1.0}
+              baseViewportAspect={baseViewportAspect}
+              modelCanvasW={modelInfo?.canvasWidth ?? 750}
+              modelCanvasH={modelInfo?.canvasHeight ?? 1080}
+              energy={emotionState.personality.energy}
+              expressionMap={emotionState.expressionMap}
+              idleExpressions={emotionState.idleExpressions}
+              idleTimeout={modelConfig.idleTimeout ?? 5}
+              mouseSensitivity={modelConfig.mouseSensitivity ?? 1.0}
+              renderPaused={false}
+              targetFps={appearance.targetFps}
+              adaptiveFps={appearance.adaptiveFps}
+              onClickPosition={handlePetClick}
+              onModelLoaded={handleModelLoaded}
+              headYRatio={modelConfig.headYRatio ?? 0.35}
+            />
+          </div>
+        )}
       </div>
 
       <ControlsIsland
