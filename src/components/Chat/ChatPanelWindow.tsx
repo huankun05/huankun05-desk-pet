@@ -389,6 +389,8 @@ function ChatPanelWindow() {
   // 日期筛选：all = 不过滤；calendar = 选中某一天（searchCalendarDate）
   const [searchDate, setSearchDate] = useState<'all' | 'calendar'>('all');
   const [searchCalendarDate, setSearchCalendarDate] = useState<Date | null>(null);
+  const [searchCalendarOpen, setSearchCalendarOpen] = useState(false);
+  const searchCalendarRef = useRef<HTMLDivElement>(null);
   // 收藏列表刷新计数（消息收藏状态变更后重渲染）
   const [favTick, setFavTick] = useState(0);
 
@@ -779,6 +781,18 @@ function ChatPanelWindow() {
     }
     return map;
   }, [messages]);
+
+  // 点击浮层外部（含其它 Tab 内容）自动收起日历，且不改变下方布局
+  useEffect(() => {
+    if (!searchCalendarOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (searchCalendarRef.current && !searchCalendarRef.current.contains(e.target as Node)) {
+        setSearchCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [searchCalendarOpen]);
 
   // ===== 详情面板「收藏」：读取 localStorage 收藏夹（默认当前会话）=====
   const favorites = useMemo(() => {
@@ -1229,12 +1243,12 @@ function ChatPanelWindow() {
           />
           <BarButton
             icon="solar:menu-dots-linear"
-            title="详情面板"
+            title={t('chat.more', { defaultValue: '更多' })}
             active={showDetails}
             onClick={() => setShowDetails((p) => !p)}
           />
           <BarButton
-            icon="solar:minimize-square-linear"
+            icon="solar:minimize-linear"
             title={t('chat.minimize', { defaultValue: '缩小' })}
             onClick={handleMinimize}
           />
@@ -1330,6 +1344,10 @@ function ChatPanelWindow() {
                   display: 'flex',
                   gap: '4px',
                   flexWrap: 'wrap',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 2,
+                  background: 'var(--bg-surface)',
                 }}
               >
                 {(
@@ -1687,23 +1705,31 @@ function ChatPanelWindow() {
                       ))}
                     </div>
 
-                    {/* 日期筛选：仿 QQ 聊天记录日历 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {/* 日期筛选：仿 QQ 聊天记录日历（浮层弹出，不挤占下方消息） */}
+                    <div
+                      ref={searchCalendarRef}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        position: 'relative',
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            color: 'var(--text-muted)',
-                            marginRight: '2px',
-                          }}
+                        <button
+                          type="button"
+                          onClick={() => setSearchCalendarOpen((o) => !o)}
+                          className={`chat-chip ${searchCalendarOpen || searchDate === 'calendar' ? 'chat-chip--active' : ''}`}
+                          style={{ fontSize: '11px', padding: '2px 8px' }}
                         >
                           {t('chat.calendar', { defaultValue: '日历' })}
-                        </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
                             setSearchDate('all');
                             setSearchCalendarDate(null);
+                            setSearchCalendarOpen(false);
                           }}
                           className={`chat-chip ${searchDate === 'all' ? 'chat-chip--active' : ''}`}
                           style={{ fontSize: '11px', padding: '2px 8px', marginLeft: 'auto' }}
@@ -1711,14 +1737,37 @@ function ChatPanelWindow() {
                           {t('chat.calendar_reset', { defaultValue: '全部时间' })}
                         </button>
                       </div>
-                      <MessageCalendar
-                        dayMap={messageDayMap}
-                        selected={searchCalendarDate}
-                        onSelect={(d) => {
-                          setSearchCalendarDate(d);
-                          setSearchDate('calendar');
-                        }}
-                      />
+
+                      {/* 浮层日历：绝对定位覆盖在消息上方，开关不改变下方布局 */}
+                      {searchCalendarOpen && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            position: 'absolute',
+                            zIndex: 20,
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: '4px',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '10px',
+                            boxShadow: 'var(--shadow-md)',
+                            padding: '8px',
+                          }}
+                        >
+                          <MessageCalendar
+                            dayMap={messageDayMap}
+                            selected={searchCalendarDate}
+                            onSelect={(d) => {
+                              setSearchCalendarDate(d);
+                              setSearchDate('calendar');
+                              setSearchCalendarOpen(false);
+                            }}
+                          />
+                        </div>
+                      )}
+
                       {searchDate === 'calendar' && searchCalendarDate && (
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                           {`${searchCalendarDate.getFullYear()}-${searchCalendarDate.getMonth() + 1}-${searchCalendarDate.getDate()} · `}

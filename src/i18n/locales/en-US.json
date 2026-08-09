@@ -53,6 +53,7 @@
   "chat": {
     "title": "💬 Chat",
     "new_chat": "New Chat",
+    "more": "More",
     "minimize": "Minimize",
     "collapse": "Collapse",
     "welcome_hi": "Hi! I'm your desktop assistant.",

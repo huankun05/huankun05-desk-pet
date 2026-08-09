@@ -135,6 +135,7 @@ interface MessageItemProps {
   onRetry?: () => void;
   onDelete?: () => void;
   onQuote?: (message: ChatMessage) => void;
+  sessionId?: string;
   appearance?: MessageAppearance;
   /** 消息搜索命中高亮 */
   highlighted?: boolean;
@@ -295,6 +296,7 @@ export function MessageItem({
   onRetry,
   onDelete,
   onQuote,
+  sessionId,
   appearance = DEFAULT_APPEARANCE,
   highlighted = false,
 }: MessageItemProps) {
@@ -302,6 +304,7 @@ export function MessageItem({
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
   const isTouchRef = useRef(false);
+  const [fav, setFav] = useState(() => (sessionId ? isFavorite(message.id, sessionId) : false));
 
   const handleCopy = async () => {
     try {
@@ -310,6 +313,11 @@ export function MessageItem({
     } catch {
       showToast('复制失败', 'error');
     }
+  };
+
+  const handleFavorite = () => {
+    if (!sessionId) return;
+    setFav(toggleFavorite(message, sessionId));
   };
 
   const radius = appearance.bubbleRadius;
@@ -366,28 +374,38 @@ export function MessageItem({
           minWidth: 0,
         }}
       >
-        {/* 引用预览：QQ 里引用挂在气泡上方 */}
+        {/* 引用预览：单行内联（你/AI: 内容），仿 QQ 引用条 */}
         {message.quoted && (
           <div
             style={{
               marginBottom: '4px',
-              padding: '5px 9px',
-              borderRadius: '8px',
-              background: 'var(--bg-hover)',
-              borderLeft: '2px solid var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
               fontSize: '11px',
+              lineHeight: 1.4,
               color: 'var(--text-muted)',
               maxWidth: '100%',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
             }}
           >
-            <span style={{ opacity: 0.8 }}>{message.quoted.role === 'user' ? '你' : 'AI'}：</span>
+            <span
+              style={{
+                flexShrink: 0,
+                borderLeft: '2px solid var(--accent)',
+                paddingLeft: '4px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {message.quoted.role === 'user' ? '你' : 'AI'}：
+            </span>
             <span
               style={{
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
+                whiteSpace: 'nowrap',
               }}
             >
               {message.quoted.content}
@@ -464,7 +482,22 @@ export function MessageItem({
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              <Icon icon="solar:chat-square-quote-linear" width={15} height={15} />
+              <Icon icon="solar:reply-linear" width={15} height={15} />
+            </button>
+          )}
+          {sessionId && (
+            <button
+              onClick={handleFavorite}
+              title={fav ? '取消收藏' : '收藏'}
+              style={hoverBtn(fav ? { color: '#f5a623' } : undefined)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Icon icon={fav ? 'solar:star-bold' : 'solar:star-linear'} width={15} height={15} />
             </button>
           )}
           <button

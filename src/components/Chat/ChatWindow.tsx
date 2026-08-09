@@ -958,6 +958,7 @@ export const ChatWindow = memo(
                     }}
                     onRetry={() => onSendMessage(message.content)}
                     onQuote={handleQuote}
+                    sessionId={sessionId}
                     appearance={messageAppearance}
                     highlighted={message.id === highlightedId}
                   />
