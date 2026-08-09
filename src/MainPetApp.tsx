@@ -796,11 +796,14 @@ function MainPetApp() {
         } as React.CSSProperties
       }
     >
-      <div
-        className={`bubble-zone ${appearance.bubblePosition === 'bottom' ? 'bubble-zone--bottom' : ''}`}
-      >
-        <ChatBubble message={bubble} onComplete={() => setBubble(null)} />
-      </div>
+      {/* 隐藏角色时连说话气泡一起隐藏（无角色本体，气泡不应悬空显示） */}
+      {appearance.petVisible && (
+        <div
+          className={`bubble-zone ${appearance.bubblePosition === 'bottom' ? 'bubble-zone--bottom' : ''}`}
+        >
+          <ChatBubble message={bubble} onComplete={() => setBubble(null)} />
+        </div>
+      )}
 
       <div
         className={`pet-zone ${isLocked ? 'locked' : ''} ${isTransforming ? 'moving' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}
