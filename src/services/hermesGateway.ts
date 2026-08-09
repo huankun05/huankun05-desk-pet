@@ -196,6 +196,17 @@ export class HermesGatewayClient {
     }
   }
 
+  /** 清空 Gateway 服务端的会话上下文（新建对话时调用，确保 AI 从零开始） */
+  resetConversation(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'reset' }));
+    } else {
+      // WS 未就绪则排队，连接成功后发送；失败不影响本地新建会话
+      this.messageQueue.push(JSON.stringify({ type: 'reset' }));
+      this.connect();
+    }
+  }
+
   /** 请求账号用量/余额 */
   fetchUsage(): void {
     const payload = JSON.stringify({ type: 'account_usage' });

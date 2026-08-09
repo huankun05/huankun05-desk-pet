@@ -51,6 +51,7 @@
   "chat": {
     "title": "💬 Chat",
     "new_chat": "New Chat",
+    "minimize": "Minimize",
     "welcome_hi": "Hi! I'm your desktop assistant.",
     "welcome_start": "Say something to get started!",
     "llm_not_configured": "No AI model configured yet. Set one up in Settings first~",

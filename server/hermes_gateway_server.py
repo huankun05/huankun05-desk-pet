@@ -436,6 +436,19 @@ def create_app() -> FastAPI:
                     await _handle_chat(ws, engine, data)
                     continue
 
+                if msg_type == "reset":
+                    # 新建对话：清空 Gateway 服务端的会话上下文（单一 desk-pet-main 会话），
+                    # 否则 AI 会一直沿用全部历史，导致“新建对话”名存实亡。
+                    try:
+                        engine._db.clear_messages(engine.SESSION_ID)
+                        await ws.send_json(
+                            {"type": "reset", "ok": True, "session_id": engine.SESSION_ID}
+                        )
+                    except Exception as exc:
+                        log.warning("reset conversation failed: %s", exc)
+                        await ws.send_json({"type": "error", "message": f"reset failed: {exc}"})
+                    continue
+
                 await ws.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
 
         except WebSocketDisconnect:

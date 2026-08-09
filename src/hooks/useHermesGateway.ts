@@ -314,6 +314,12 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     const session = createSession();
     sessionRef.current = session;
     setMessages([]);
+    // 真正的新对话：清空 Gateway 服务端的会话上下文，避免 AI 沿用旧历史
+    try {
+      getHermesGatewayClient().resetConversation();
+    } catch {
+      /* ignore — 本地会话已新建，Gateway 上下文重置失败不阻塞 UI */
+    }
   }, []);
 
   // 切换会话：换 sessionRef 并加载该会话消息

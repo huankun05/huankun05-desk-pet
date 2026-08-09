@@ -51,6 +51,7 @@
   "chat": {
     "title": "💬 对话",
     "new_chat": "新建对话",
+    "minimize": "缩小",
     "welcome_hi": "你好！我是你的桌面助手。",
     "welcome_start": "说点什么开始对话吧！",
     "llm_not_configured": "还没有配置 AI 大模型，先在设置里填一下吧~",
