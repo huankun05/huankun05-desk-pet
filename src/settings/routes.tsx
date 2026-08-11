@@ -463,7 +463,7 @@ export const settingsTree: SettingsEntry[] = [
         title: '长期记忆',
         subtitle: 'Long-Term Memory',
         description: '记忆开关、混合检索与 LLM 增强抽取',
-        icon: 'solar:brain-bold-duotone',
+        icon: 'solar:book-bold-duotone',
         settingsEntry: true,
         order: 1,
         path: '/settings/memory/long-term',

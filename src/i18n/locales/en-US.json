@@ -1265,7 +1265,7 @@
     },
     "memoryview": {
       "title": "Memory View",
-      "desc": "View conversation history, facts, and preferences",
+      "desc": "View facts and user preferences",
       "archive_hint": "Persistent conversation archives are managed by the brain's Session Archive",
       "archive_go": "Go to Session Archive →",
       "tab_conversations": "Conversations",
@@ -1297,6 +1297,14 @@
       "saved": "Saved",
       "deleted": "Deleted",
       "cleared": "Cleared",
+      "manual_add": "Manual add (record or edit memory)",
+      "add_fact_placeholder": "Add a fact to remember…",
+      "add_fact_btn": "Add fact",
+      "add_pref_key_placeholder": "Preference key, e.g. theme",
+      "add_pref_value_placeholder": "Value (JSON, e.g. \"dark\" or {\"a\":1})",
+      "add_pref_btn": "Add preference",
+      "key_required": "Please enter a key",
+      "added": "Added",
       "invalid_json": "Invalid JSON, please check input"
     }
   },

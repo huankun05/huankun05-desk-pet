@@ -311,7 +311,7 @@ export function PluginMarketPage() {
           ) : networkError ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
               <Icon
-                icon="solar:wi-fi-router-off-bold-duotone"
+                icon="solar:home-wifi-bold-duotone"
                 className="mb-3 h-10 w-10 text-neutral-300"
               />
               <span className="text-sm font-medium text-neutral-600">{networkError}</span>
@@ -470,7 +470,7 @@ export function PluginMarketPage() {
           ) : networkError ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
               <Icon
-                icon="solar:wi-fi-router-off-bold-duotone"
+                icon="solar:home-wifi-bold-duotone"
                 className="mb-3 h-10 w-10 text-neutral-300"
               />
               <span className="text-sm font-medium text-neutral-600">{networkError}</span>

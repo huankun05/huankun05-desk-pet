@@ -231,13 +231,6 @@ export function LongTermPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => navigate('/settings/memory/view?tab=rag')}
-                className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-[var(--primary-600)] transition-colors hover:bg-[var(--primary-50)]"
-              >
-                {t('settings.memory.view_details', { defaultValue: '查看详情' })}
-              </button>
-              <button
-                type="button"
                 onClick={handleWipeRAG}
                 className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-500"
               >

@@ -1269,7 +1269,7 @@
     },
     "memoryview": {
       "title": "记忆查看",
-      "desc": "查看对话历史、事实记忆和用户偏好",
+      "desc": "查看事实记忆与用户偏好",
       "archive_hint": "对话的持久档案由大脑「会话档案」统一管理",
       "archive_go": "前往会话档案 →",
       "tab_conversations": "对话历史",
@@ -1301,6 +1301,14 @@
       "saved": "已保存",
       "deleted": "已删除",
       "cleared": "已清空",
+      "manual_add": "手动添加（补记 / 篡改记忆）",
+      "add_fact_placeholder": "添加一条要记住的事实…",
+      "add_fact_btn": "添加事实",
+      "add_pref_key_placeholder": "偏好键名，如 theme",
+      "add_pref_value_placeholder": "偏好值（JSON，如 \"dark\" 或 {\"a\":1}）",
+      "add_pref_btn": "添加偏好",
+      "key_required": "请填写键名",
+      "added": "已添加",
       "invalid_json": "JSON 格式无效，请检查输入"
     }
   },

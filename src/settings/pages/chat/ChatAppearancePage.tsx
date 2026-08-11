@@ -440,7 +440,7 @@ export function ChatAppearancePage() {
           <SettingsJumpButton
             to="/settings/appearance/bubble"
             label={t('settings.appearance_section.bubble', { defaultValue: '桌宠气泡' })}
-            icon="solar:chat-square-quote-bold-duotone"
+            icon="solar:document-text-bold-duotone"
             hint={t('settings.chat.jump_pet_bubble_hint', {
               defaultValue: '桌宠头顶飘出的说话气泡（与聊天窗口气泡是两套配置）',
             })}

@@ -257,7 +257,7 @@ export function GeneralPage() {
           <SettingsJumpButton
             to="/settings/appearance/bubble"
             label={t('settings.appearance_section.bubble')}
-            icon="solar:chat-square-quote-bold-duotone"
+            icon="solar:document-text-bold-duotone"
             hint={t('settings.related_bubble_hint')}
           />
           <SettingsJumpButton

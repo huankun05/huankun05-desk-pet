@@ -203,7 +203,7 @@ export function TTSPage() {
             draggingId === config.id ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <Icon icon="solar:grip-vertical-bold" className="text-lg" />
+          <Icon icon="solar:list-bold-duotone" className="text-lg" />
         </div>
         <div
           className={`mt-2.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${

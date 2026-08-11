@@ -17,7 +17,7 @@ export function MemoryIndex() {
       to: '/settings/memory/context',
     },
     {
-      icon: 'solar:brain-bold-duotone',
+      icon: 'solar:book-bold-duotone',
       title: t('settings.memory.long_term'),
       description: t('settings.memory.long_term_desc'),
       to: '/settings/memory/long-term',

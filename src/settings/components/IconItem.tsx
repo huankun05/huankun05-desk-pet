@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router-dom';
 
 interface IconItemProps {
-  /** Solar duotone 图标名（如 solar:palette-duotone） */
+  /** Solar duotone 图标名（如 solar:document-text-bold-duotone） */
   icon: string;
   title: string;
   description: string;
