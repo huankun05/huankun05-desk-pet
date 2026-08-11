@@ -33,6 +33,7 @@ from .embedding import (
 )
 from .librarian import Librarian, SearchResult
 from .scribe import Scribe, ExtractionConfig
+from .memory_service import MemoryService, get_memory_service, reset_memory_service_cache
 
 __all__ = [
     "MemoryFragment",
@@ -59,4 +60,7 @@ __all__ = [
     "SearchResult",
     "Scribe",
     "ExtractionConfig",
+    "MemoryService",
+    "get_memory_service",
+    "reset_memory_service_cache",
 ]

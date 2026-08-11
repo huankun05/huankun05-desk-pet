@@ -26,7 +26,20 @@ export function MemoryViewPage() {
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
-  const { memory, addFact, setPreference, addRule, removeRule, toggleRule } = useMemory();
+  const {
+    memory,
+    addFact,
+    setPreference,
+    addRule,
+    removeRule,
+    toggleRule,
+    updateFact,
+    deleteFact,
+    adjustImportance,
+    updatePreference,
+    deletePreference,
+    updateRule,
+  } = useMemory();
 
   const [tab, setTab] = useState<Tab>(() => {
     const p = searchParams.get('tab');
@@ -52,21 +65,6 @@ export function MemoryViewPage() {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editRuleContent, setEditRuleContent] = useState('');
 
-  function getPersonaId(): string {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pm = (window as any)?.deskpetPersonaManager;
-      if (pm?.getActiveProfile?.()) return pm.getActiveProfile().id;
-    } catch {
-      /* ignore */
-    }
-    return 'default';
-  }
-
-  const memoryKey = `desk_pet_memory_${getPersonaId()}`;
-
-  const reloadMemory = () => window.location.reload();
-
   // ── 事实操作 ──
   const handleAddFact = () => {
     const text = newFactText.trim();
@@ -87,30 +85,20 @@ export function MemoryViewPage() {
 
   const saveEditFact = () => {
     if (!editingFactId) return;
-    const newFacts = memory.facts.map((f) =>
-      f.id === editingFactId ? { ...f, content: editFactContent, importance: editFactImportance } : f,
-    );
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, facts: newFacts }));
+    updateFact(editingFactId, { content: editFactContent, importance: editFactImportance });
     setEditingFactId(null);
     showToast(t('settings.memoryview.saved'), 'success');
-    reloadMemory();
   };
 
   const handleDeleteFact = async (id: string) => {
     const ok = await confirm(t('settings.memoryview.confirm_delete_fact'));
     if (!ok) return;
-    const newFacts = memory.facts.filter((f) => f.id !== id);
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, facts: newFacts }));
+    await deleteFact(id);
     showToast(t('settings.memoryview.deleted'), 'success');
-    reloadMemory();
   };
 
-  const handleAdjustImportance = (id: string, delta: number) => {
-    const newFacts = memory.facts.map((f) =>
-      f.id === id ? { ...f, importance: Math.max(0, Math.min(1, f.importance + delta)) } : f,
-    );
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, facts: newFacts }));
-    reloadMemory();
+  const handleAdjustImportance = async (id: string, delta: number) => {
+    await adjustImportance(id, delta);
   };
 
   // ── 偏好操作 ──
@@ -147,21 +135,16 @@ export function MemoryViewPage() {
       showToast(t('settings.memoryview.invalid_json'), 'error');
       return;
     }
-    const newPrefs = { ...memory.preferences, [editingPrefKey]: parsed };
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, preferences: newPrefs }));
+    updatePreference(editingPrefKey, parsed);
     setEditingPrefKey(null);
     showToast(t('settings.memoryview.saved'), 'success');
-    reloadMemory();
   };
 
   const handleDeletePref = async (key: string) => {
     const ok = await confirm(t('settings.memoryview.confirm_delete_pref'));
     if (!ok) return;
-    const newPrefs = { ...memory.preferences };
-    delete newPrefs[key];
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, preferences: newPrefs }));
+    await deletePreference(key);
     showToast(t('settings.memoryview.deleted'), 'success');
-    reloadMemory();
   };
 
   // ── 规则操作 ──
@@ -182,13 +165,9 @@ export function MemoryViewPage() {
 
   const saveEditRule = () => {
     if (!editingRuleId) return;
-    const newRules = memory.rules.map((r) =>
-      r.id === editingRuleId ? { ...r, content: editRuleContent.trim() } : r,
-    );
-    localStorage.setItem(memoryKey, JSON.stringify({ ...memory, rules: newRules }));
+    updateRule(editingRuleId, { content: editRuleContent.trim() });
     setEditingRuleId(null);
     showToast(t('settings.memoryview.saved'), 'success');
-    reloadMemory();
   };
 
   const handleDeleteRule = async (id: string) => {
@@ -201,9 +180,21 @@ export function MemoryViewPage() {
   const formatDate = (d: Date | string) => new Date(d).toLocaleString();
 
   const tabLabels: { key: Tab; label: string; icon: string }[] = [
-    { key: 'facts', label: t('settings.memoryview.tab_facts'), icon: 'solar:document-bold-duotone' },
-    { key: 'preferences', label: t('settings.memoryview.tab_preferences'), icon: 'solar:settings-bold-duotone' },
-    { key: 'rules', label: t('settings.memoryview.tab_rules'), icon: 'solar:checklist-bold-duotone' },
+    {
+      key: 'facts',
+      label: t('settings.memoryview.tab_facts'),
+      icon: 'solar:document-bold-duotone',
+    },
+    {
+      key: 'preferences',
+      label: t('settings.memoryview.tab_preferences'),
+      icon: 'solar:settings-bold-duotone',
+    },
+    {
+      key: 'rules',
+      label: t('settings.memoryview.tab_rules'),
+      icon: 'solar:checklist-bold-duotone',
+    },
   ];
 
   /* ═══════════════════ 通用：hover 操作按钮组 ═══════════════════ */
@@ -239,7 +230,9 @@ export function MemoryViewPage() {
               type="button"
               onClick={() => setTab(key)}
               className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                active ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
+                active
+                  ? 'bg-white text-neutral-800 shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-800'
               }`}
             >
               <Icon icon={icon} className="text-sm" />
@@ -306,9 +299,13 @@ export function MemoryViewPage() {
                   ) : (
                     <div className="flex items-start gap-3 px-4 py-3 cursor-default select-none">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-neutral-800 leading-relaxed">{fact.content}</div>
+                        <div className="text-sm text-neutral-800 leading-relaxed">
+                          {fact.content}
+                        </div>
                         <div className="flex items-center gap-3 mt-1">
-                          <span className="text-[11px] text-neutral-400">{formatDate(fact.timestamp)}</span>
+                          <span className="text-[11px] text-neutral-400">
+                            {formatDate(fact.timestamp)}
+                          </span>
                           <span
                             className={`text-[11px] font-medium ${
                               fact.importance > 0.7
@@ -325,7 +322,10 @@ export function MemoryViewPage() {
                       <HoverActions>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleAdjustImportance(fact.id, -0.1); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdjustImportance(fact.id, -0.1);
+                          }}
                           className="p-1 rounded text-neutral-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                           title="-10%"
                         >
@@ -333,7 +333,10 @@ export function MemoryViewPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleAdjustImportance(fact.id, 0.1); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAdjustImportance(fact.id, 0.1);
+                          }}
                           className="p-1 rounded text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="+10%"
                         >
@@ -341,7 +344,10 @@ export function MemoryViewPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteFact(fact.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFact(fact.id);
+                          }}
                           className="p-1.5 rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                           title={t('common.delete')}
                         >
@@ -401,7 +407,9 @@ export function MemoryViewPage() {
       {tab === 'preferences' && (
         <Section
           title={t('settings.memoryview.preferences_title')}
-          description={t('settings.memoryview.preferences_desc', { count: String(Object.keys(memory.preferences).length) })}
+          description={t('settings.memoryview.preferences_desc', {
+            count: String(Object.keys(memory.preferences).length),
+          })}
         >
           {Object.keys(memory.preferences).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-sm text-neutral-400">
@@ -419,7 +427,9 @@ export function MemoryViewPage() {
                   {editingPrefKey === key ? (
                     <div className="p-4 space-y-3 bg-neutral-50/50">
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-neutral-500">{t('settings.memoryview.key')}</label>
+                        <label className="mb-1 block text-xs font-medium text-neutral-500">
+                          {t('settings.memoryview.key')}
+                        </label>
                         <input
                           type="text"
                           value={key}
@@ -428,7 +438,9 @@ export function MemoryViewPage() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-neutral-500">{t('settings.memoryview.value')}</label>
+                        <label className="mb-1 block text-xs font-medium text-neutral-500">
+                          {t('settings.memoryview.value')}
+                        </label>
                         <textarea
                           value={editPrefValue}
                           onChange={(e) => setEditPrefValue(e.target.value)}
@@ -456,12 +468,19 @@ export function MemoryViewPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 px-4 py-3 cursor-default select-none">
-                      <span className="text-xs font-medium text-neutral-500 shrink-0 font-mono">{key}</span>
-                      <span className="flex-1 text-sm text-neutral-700 truncate">{JSON.stringify(value)}</span>
+                      <span className="text-xs font-medium text-neutral-500 shrink-0 font-mono">
+                        {key}
+                      </span>
+                      <span className="flex-1 text-sm text-neutral-700 truncate">
+                        {JSON.stringify(value)}
+                      </span>
                       <HoverActions>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDeletePref(key); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePref(key);
+                          }}
                           className="p-1.5 rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                           title={t('common.delete')}
                         >
@@ -562,7 +581,10 @@ export function MemoryViewPage() {
                     <div className="flex items-center gap-3 px-4 py-3 cursor-default select-none">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleRule(rule.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRule(rule.id);
+                        }}
                         className={`shrink-0 w-8 h-5 rounded-full transition-colors ${rule.enabled ? 'bg-emerald-500' : 'bg-neutral-300'} relative`}
                         title={rule.enabled ? t('common.disable') : t('common.enable')}
                       >
@@ -571,13 +593,20 @@ export function MemoryViewPage() {
                         />
                       </button>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-neutral-800 leading-relaxed">{rule.content}</div>
-                        <div className="text-[11px] text-neutral-400 mt-0.5">{formatDate(rule.createdAt)}</div>
+                        <div className="text-sm text-neutral-800 leading-relaxed">
+                          {rule.content}
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5">
+                          {formatDate(rule.createdAt)}
+                        </div>
                       </div>
                       <HoverActions>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteRule(rule.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRule(rule.id);
+                          }}
                           className="p-1.5 rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                           title={t('common.delete')}
                         >

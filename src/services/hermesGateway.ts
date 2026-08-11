@@ -33,6 +33,27 @@ export interface HermesGatewayCallbacks {
   onError?: (error: string) => void;
 }
 
+/** 记忆类别（与后端 core.brain 对齐） */
+export type MemoryCategory = 'fact' | 'preference' | 'rule' | 'feedback' | 'event';
+
+/** 记忆条目（与后端 MemoryFragment.to_api_dict 对齐） */
+export interface MemoryItem {
+  id: number;
+  character_id: string;
+  user_id: string;
+  content: string;
+  category: MemoryCategory;
+  source: string;
+  enabled: boolean;
+  meta: Record<string, unknown>;
+  client_ref: string;
+  importance: number;
+  is_permanent: boolean;
+  access_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export class HermesGatewayClient {
   private ws: WebSocket | null = null;
   private connected = false;
@@ -41,6 +62,10 @@ export class HermesGatewayClient {
   private messageQueue: string[] = [];
   private pendingCallbacks: Map<string, HermesGatewayCallbacks> = new Map();
   private messageIdCounter = 0;
+  /** 记忆请求的 Promise 登记表（按 req_id 解析） */
+  private pendingMemory: Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }> =
+    new Map();
+  private memoryReqCounter = 0;
   private destroyed = false;
 
   /** 是否已连接 */
@@ -123,6 +148,8 @@ export class HermesGatewayClient {
     this.connected = false;
     this.messageQueue = [];
     this.pendingCallbacks.clear();
+    for (const [, p] of this.pendingMemory) p.reject(new Error('disconnected'));
+    this.pendingMemory.clear();
   }
 
   /** 发送聊天消息 */
@@ -253,6 +280,90 @@ export class HermesGatewayClient {
     }
   }
 
+  // ===== 记忆同步（统一收口到 core.brain） =====
+
+  private nextMemoryReqId(): string {
+    return `mem_${++this.memoryReqCounter}_${Date.now()}`;
+  }
+
+  /** 发送一条记忆类请求并等待带 req_id 的响应；断线时排队，超时 8s 兜底。 */
+  private requestMemory(type: string, payload: Record<string, unknown>): Promise<unknown> {
+    const reqId = this.nextMemoryReqId();
+    return new Promise((resolve, reject) => {
+      this.pendingMemory.set(reqId, { resolve, reject });
+      const msg = JSON.stringify({ type, req_id: reqId, ...payload });
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(msg);
+      } else {
+        this.messageQueue.push(msg);
+        this.connect();
+      }
+      setTimeout(() => {
+        if (this.pendingMemory.has(reqId)) {
+          this.pendingMemory.delete(reqId);
+          reject(new Error('memory request timeout'));
+        }
+      }, 8000);
+    });
+  }
+
+  /** 拉取当前角色的全部记忆 */
+  listMemories(characterId: string, userId = 'default'): Promise<MemoryItem[]> {
+    return this.requestMemory('memory:list', { character_id: characterId, user_id: userId }).then(
+      (res) => (res as { items?: MemoryItem[] }).items ?? [],
+    );
+  }
+
+  /** 新增一条记忆（UI 手动添加） */
+  addMemory(payload: {
+    content: string;
+    category: MemoryCategory;
+    character_id: string;
+    user_id?: string;
+    client_ref?: string;
+    importance?: number;
+    is_permanent?: boolean;
+    enabled?: boolean;
+    meta?: Record<string, unknown>;
+  }): Promise<MemoryItem> {
+    return this.requestMemory('memory:add', payload).then((res) => {
+      const r = res as { memory?: MemoryItem; ok?: boolean; error?: string };
+      if (!r.ok || !r.memory) throw new Error(r.error || 'add memory failed');
+      return r.memory;
+    });
+  }
+
+  /** 更新一条记忆（按 id） */
+  updateMemory(
+    id: number,
+    fields: Partial<Pick<MemoryItem, 'content' | 'category' | 'enabled' | 'importance' | 'is_permanent' | 'client_ref' | 'meta'>>,
+  ): Promise<MemoryItem | null> {
+    return this.requestMemory('memory:update', { id, ...fields }).then((res) => {
+      const r = res as { memory?: MemoryItem; ok?: boolean };
+      return r.ok ? (r.memory ?? null) : null;
+    });
+  }
+
+  /** 删除一条记忆（按 id 或 client_ref） */
+  deleteMemory(payload: { id?: number; client_ref?: string }): Promise<boolean> {
+    return this.requestMemory('memory:delete', payload).then((res) => {
+      const r = res as { ok?: boolean };
+      return Boolean(r.ok);
+    });
+  }
+
+  /** 批量同步（前端全量 upsert，按 client_ref 去重） */
+  syncMemories(payload: {
+    items: Array<Partial<MemoryItem> & { content: string; client_ref: string; category: MemoryCategory }>;
+    character_id: string;
+    user_id?: string;
+  }): Promise<number> {
+    return this.requestMemory('memory:sync', payload).then((res) => {
+      const r = res as { saved?: number };
+      return r.saved ?? 0;
+    });
+  }
+
   // ===== 内部 =====
 
   private handleMessage(data: Record<string, unknown>): void {
@@ -329,6 +440,26 @@ export class HermesGatewayClient {
 
     if (msgType === 'tool:execute') {
       this._handleFrontendToolExecute(data as Record<string, unknown>);
+      return;
+    }
+
+    if (msgType === 'memory:list_result') {
+      const reqId = data.req_id as string;
+      const p = reqId ? this.pendingMemory.get(reqId) : undefined;
+      if (p) {
+        this.pendingMemory.delete(reqId);
+        p.resolve({ items: (data.items as MemoryItem[]) || [] });
+      }
+      return;
+    }
+
+    if (msgType === 'memory:result') {
+      const reqId = data.req_id as string;
+      const p = reqId ? this.pendingMemory.get(reqId) : undefined;
+      if (p) {
+        this.pendingMemory.delete(reqId);
+        p.resolve(data);
+      }
       return;
     }
   }

@@ -39,7 +39,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from hermes_gateway_tool_executor import tool_executor
 from hermes_gateway_tool_loop import ToolLoop
 from hermes_gateway_backend_tools import register_backend_tools
-from hermes_gateway_memory import memory_store, extract_memories_async
+from core.brain.memory_service import get_memory_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -290,6 +290,8 @@ class HermesEngine:
             yield payload
 
     async def _sync_to_core(self, user_text: str, assistant_text: str) -> None:
+        """将情绪事件同步到核心后端（记忆沉淀已由本网关统一收口到 core.brain，
+        故此处不再重复向核心 API 推送记忆抽取，避免双写冗余）。"""
         try:
             import httpx
             async with httpx.AsyncClient(base_url=self.core_api_base, timeout=5) as client:
@@ -300,19 +302,6 @@ class HermesEngine:
                             "event": "message:sent",
                             "value": user_text[:200],
                             "source": "hermes-gateway",
-                        },
-                    )
-                except Exception:
-                    pass
-                try:
-                    await client.post(
-                        "/api/core/brain/memories/extract",
-                        json={
-                            "user_text": user_text[:500],
-                            "assistant_text": assistant_text[:500],
-                            "character_id": "default",
-                            "user_id": "default",
-                            "use_llm": False,
                         },
                     )
                 except Exception:
@@ -334,6 +323,11 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         log.info("Hermes Gateway started (port %d)", getattr(app, "_port", 8765))
+        # 启动期一次性迁移旧 hermes_gateway_memory（memories.db）→ core.brain（幂等）
+        try:
+            get_memory_service(character_id="default", user_id="default").migrate_legacy_memories()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("旧记忆迁移失败（可忽略）: %s", exc)
         yield
         log.info("Hermes Gateway stopped")
 
@@ -375,25 +369,44 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/api/gateway/memory")
-    def get_memory(q: str | None = None, limit: int = 300):
-        if q:
-            return {"items": memory_store.recall(q, limit)}
-        return {"items": memory_store.list_all(limit), "count": memory_store.count()}
+    def get_memory(
+        q: str | None = None,
+        category: str | None = None,
+        character_id: str = "default",
+        user_id: str = "default",
+        limit: int = 300,
+    ):
+        svc = get_memory_service(character_id=character_id, user_id=user_id)
+        items = svc.list_memories(category=category) if not q else svc.list_memories()
+        return {"items": items, "count": len(items)}
 
     @app.post("/api/gateway/memory")
     async def add_memory(body: dict):
-        text = (body.get("text") or "").strip()
+        text = (body.get("text") or body.get("content") or "").strip()
         if not text:
             return {"error": "text is required"}
-        mid = memory_store.add(
-            text, body.get("category", "fact"), body.get("source", "manual")
+        svc = get_memory_service(
+            character_id=body.get("character_id", "default"),
+            user_id=body.get("user_id", "default"),
         )
-        return {"id": mid}
+        try:
+            mem = svc.add_memory(
+                text,
+                category=body.get("category", "fact"),
+                source=body.get("source", "ui"),
+                importance=float(body.get("importance", 0.5)),
+                is_permanent=bool(body.get("is_permanent", False)),
+                client_ref=body.get("client_ref", ""),
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}
+        return {"id": mem["id"], "memory": mem}
 
     @app.delete("/api/gateway/memory/{mid}")
-    def del_memory(mid: int):
-        memory_store.delete(mid)
-        return {"ok": True}
+    def del_memory(mid: int, character_id: str = "default", user_id: str = "default"):
+        svc = get_memory_service(character_id=character_id, user_id=user_id)
+        ok = svc.delete_memory(mid)
+        return {"ok": bool(ok)}
 
     @app.post("/api/gateway/chat")
     async def chat_rest(body: dict):
@@ -458,6 +471,26 @@ def create_app() -> FastAPI:
                         await ws.send_json({"type": "error", "message": f"reset failed: {exc}"})
                     continue
 
+                if msg_type == "memory:list":
+                    await _handle_memory_list(ws, data)
+                    continue
+
+                if msg_type == "memory:sync":
+                    await _handle_memory_sync(ws, data)
+                    continue
+
+                if msg_type == "memory:add":
+                    await _handle_memory_add(ws, data)
+                    continue
+
+                if msg_type == "memory:update":
+                    await _handle_memory_update(ws, data)
+                    continue
+
+                if msg_type == "memory:delete":
+                    await _handle_memory_delete(ws, data)
+                    continue
+
                 await ws.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
 
         except WebSocketDisconnect:
@@ -487,24 +520,144 @@ def _filter_tools(
     return [t for t in tools if t.get("name") in allowed_set]
 
 
-async def _learn(engine: HermesEngine, user_text: str, assistant_text: str) -> None:
-    """自学习：从一轮对话中抽取持久记忆并入库。失败静默降级。"""
+async def _learn(
+    engine: HermesEngine,
+    user_text: str,
+    assistant_text: str,
+    character_id: str = "default",
+    user_id: str = "default",
+) -> None:
+    """自学习：从一轮对话中抽取持久记忆并入库（离线规则抽取，无网络依赖）。
+
+    统一收口到 core.brain.memory_service，避免与旧 hermes_gateway_memory 双写。
+    """
     if not assistant_text or not user_text:
         return
-    conversation = f"用户: {user_text}\n助手: {assistant_text}"
     try:
-        memories = await extract_memories_async(conversation, engine._llm_stream)
+        svc = get_memory_service(character_id=character_id, user_id=user_id)
+        saved = svc.extract_and_store(user_text, assistant_text, use_llm=False)
+        if saved:
+            log.info("自学习：本轮抽取并保存 %d 条记忆", len(saved))
     except Exception as exc:  # noqa: BLE001
         log.warning("自学习抽取异常: %s", exc)
+
+
+def _resolve_ids(data: dict) -> tuple[str, str]:
+    """从消息体中解析 character_id / user_id（缺省 default）。"""
+    return (data.get("character_id") or "default", data.get("user_id") or "default")
+
+
+async def _handle_memory_list(ws: WebSocket, data: dict) -> None:
+    character_id, user_id = _resolve_ids(data)
+    svc = get_memory_service(character_id=character_id, user_id=user_id)
+    items = svc.list_memories()
+    await ws.send_json({
+        "type": "memory:list_result",
+        "items": items,
+        "character_id": character_id,
+        "user_id": user_id,
+        "req_id": data.get("req_id"),
+    })
+
+
+async def _handle_memory_sync(ws: WebSocket, data: dict) -> None:
+    """批量 upsert（前端全量同步）。每条需携带稳定 client_ref 以便去重。"""
+    character_id, user_id = _resolve_ids(data)
+    svc = get_memory_service(character_id=character_id, user_id=user_id)
+    payload = data.get("items") or []
+    saved = 0
+    for it in payload:
+        client_ref = it.get("client_ref") or ""
+        content = (it.get("content") or "").strip()
+        if not content or not client_ref:
+            continue
+        try:
+            svc.upsert_memory(
+                content,
+                client_ref=client_ref,
+                category=it.get("category", "fact"),
+                source="ui",
+                enabled=it.get("enabled", True),
+                importance=float(it.get("importance", 0.5)),
+                is_permanent=it.get("is_permanent", False),
+                meta=it.get("meta"),
+            )
+            saved += 1
+        except Exception as exc:  # noqa: BLE001
+            log.warning("memory:sync 单条失败: %s", exc)
+    await ws.send_json({
+        "type": "memory:result",
+        "action": "sync",
+        "saved": saved,
+        "req_id": data.get("req_id"),
+    })
+
+
+async def _handle_memory_add(ws: WebSocket, data: dict) -> None:
+    character_id, user_id = _resolve_ids(data)
+    svc = get_memory_service(character_id=character_id, user_id=user_id)
+    content = (data.get("content") or data.get("text") or "").strip()
+    if not content:
+        await ws.send_json({"type": "memory:result", "action": "add", "ok": False,
+                            "error": "content required", "req_id": data.get("req_id")})
         return
-    if not memories:
+    try:
+        mem = svc.add_memory(
+            content,
+            category=data.get("category", "fact"),
+            source=data.get("source", "ui"),
+            enabled=data.get("enabled", True),
+            importance=float(data.get("importance", 0.5)),
+            is_permanent=data.get("is_permanent", False),
+            client_ref=data.get("client_ref", ""),
+            meta=data.get("meta"),
+        )
+    except ValueError as exc:
+        await ws.send_json({"type": "memory:result", "action": "add", "ok": False,
+                            "error": str(exc), "req_id": data.get("req_id")})
         return
-    added = 0
-    for m in memories:
-        if memory_store.add(m["text"], m.get("category", "fact"), source="chat") > 0:
-            added += 1
-    if added:
-        log.info("自学习：本轮抽取并保存 %d 条记忆", added)
+    await ws.send_json({"type": "memory:result", "action": "add", "ok": True,
+                        "memory": mem, "req_id": data.get("req_id")})
+
+
+async def _handle_memory_update(ws: WebSocket, data: dict) -> None:
+    character_id, user_id = _resolve_ids(data)
+    svc = get_memory_service(character_id=character_id, user_id=user_id)
+    frag_id = data.get("id")
+    if frag_id is None:
+        await ws.send_json({"type": "memory:result", "action": "update", "ok": False,
+                            "error": "id required", "req_id": data.get("req_id")})
+        return
+    fields = {
+        k: v for k, v in data.items()
+        if k in ("content", "category", "source", "enabled", "importance",
+                 "is_permanent", "client_ref", "meta")
+    }
+    try:
+        mem = svc.update_memory(frag_id, **fields)
+    except Exception as exc:  # noqa: BLE001
+        await ws.send_json({"type": "memory:result", "action": "update", "ok": False,
+                            "error": str(exc), "req_id": data.get("req_id")})
+        return
+    await ws.send_json({"type": "memory:result", "action": "update", "ok": mem is not None,
+                        "memory": mem, "req_id": data.get("req_id")})
+
+
+async def _handle_memory_delete(ws: WebSocket, data: dict) -> None:
+    character_id, user_id = _resolve_ids(data)
+    svc = get_memory_service(character_id=character_id, user_id=user_id)
+    frag_id = data.get("id")
+    client_ref = data.get("client_ref")
+    if frag_id is not None:
+        ok = svc.delete_memory(frag_id)
+    elif client_ref:
+        ok = svc.delete_by_client_ref(client_ref)
+    else:
+        await ws.send_json({"type": "memory:result", "action": "delete", "ok": False,
+                            "error": "id or client_ref required", "req_id": data.get("req_id")})
+        return
+    await ws.send_json({"type": "memory:result", "action": "delete", "ok": bool(ok),
+                        "req_id": data.get("req_id")})
 
 
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
@@ -533,13 +686,19 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     engine.append_message("user", text)
     _trace("[CHAT] user message appended")
 
-    # Build initial prompt：召回成长记忆并注入（仿 Hermes <memory-context> 协议）
+    # Build initial prompt：统一记忆注入（core.brain 单源：规则+偏好+语义召回）
     system_content = cfg["system_prompt"]
-    _trace("[CHAT] recalling memories...")
-    recalled = memory_store.recall(text, limit=6)
-    _trace("[CHAT] recalled=%d", len(recalled))
-    if recalled:
-        mem_block = "\n".join(f"- {m['text']}" for m in recalled)
+    character_id = data.get("character_id") or "default"
+    user_id = data.get("user_id") or "default"
+    _trace("[CHAT] building memory injection...")
+    try:
+        svc = get_memory_service(character_id=character_id, user_id=user_id)
+        mem_block = svc.build_injection_prompt(query=text, top_k=6)
+    except Exception as exc:
+        log.warning("记忆注入构建失败: %s", exc)
+        mem_block = ""
+    _trace("[CHAT] mem_block_len=%d", len(mem_block))
+    if mem_block:
         system_content += (
             "\n\n<memory-context>\n以下是关于用户已记住的信息，请自然运用，不要重复确认：\n"
             f"{mem_block}\n</memory-context>"
@@ -614,7 +773,9 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
 
     # 后台自学习：从本轮对话抽取持久记忆（不阻塞响应）
     try:
-        asyncio.create_task(_learn(engine, text, full_response))
+        asyncio.create_task(
+            _learn(engine, text, full_response, character_id=character_id, user_id=user_id)
+        )
     except RuntimeError:
         # 无运行中的事件循环时跳过（如 REST 调用路径）
         pass
