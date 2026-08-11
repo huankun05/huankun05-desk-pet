@@ -1265,12 +1265,12 @@
     },
     "memoryview": {
       "title": "Memory View",
-      "desc": "View facts and user preferences",
+      "desc": "View facts, preferences and rules",
       "archive_hint": "Persistent conversation archives are managed by the brain's Session Archive",
       "archive_go": "Go to Session Archive →",
-      "tab_conversations": "Conversations",
       "tab_facts": "Facts",
       "tab_preferences": "Preferences",
+      "tab_rules": "Rules",
       "conversations_title": "Conversation History",
       "conversations_desc": "Last {{count}} messages",
       "facts_title": "Fact Memory",
@@ -1305,7 +1305,13 @@
       "add_pref_btn": "Add preference",
       "key_required": "Please enter a key",
       "added": "Added",
-      "invalid_json": "Invalid JSON, please check input"
+      "invalid_json": "Invalid JSON, please check input",
+      "rules_title": "Rules & Conventions",
+      "rules_desc": "{{count}} rules set",
+      "empty_rules": "No rules yet",
+      "confirm_delete_rule": "Delete this rule?",
+      "add_rule_placeholder": "Add a new rule or convention…",
+      "add_rule_btn": "Add rule"
     }
   },
   "status": {

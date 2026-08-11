@@ -1269,12 +1269,12 @@
     },
     "memoryview": {
       "title": "记忆查看",
-      "desc": "查看事实记忆与用户偏好",
+      "desc": "查看事实记忆、用户偏好与约定规则",
       "archive_hint": "对话的持久档案由大脑「会话档案」统一管理",
       "archive_go": "前往会话档案 →",
-      "tab_conversations": "对话历史",
       "tab_facts": "事实记忆",
       "tab_preferences": "用户偏好",
+      "tab_rules": "约定规则",
       "conversations_title": "对话历史",
       "conversations_desc": "最近 {{count}} 条对话",
       "facts_title": "事实记忆",
@@ -1309,7 +1309,13 @@
       "add_pref_btn": "添加偏好",
       "key_required": "请填写键名",
       "added": "已添加",
-      "invalid_json": "JSON 格式无效，请检查输入"
+      "invalid_json": "JSON 格式无效，请检查输入",
+      "rules_title": "约定规则",
+      "rules_desc": "已设定 {{count}} 条规则",
+      "empty_rules": "暂无约定规则",
+      "confirm_delete_rule": "确定要删除这条约定规则吗？",
+      "add_rule_placeholder": "新增一条约定或规则…",
+      "add_rule_btn": "添加规则"
     }
   },
   "status": {
