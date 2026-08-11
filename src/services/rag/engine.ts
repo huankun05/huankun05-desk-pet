@@ -320,6 +320,11 @@ export class RAGEngine {
     return this.docs.size;
   }
 
+  /** 获取所有文档（只读快照，用于展示） */
+  getAllDocuments(): RAGDocument[] {
+    return Array.from(this.docs.values());
+  }
+
   // ===== 检索 =====
 
   /**

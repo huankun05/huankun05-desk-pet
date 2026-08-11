@@ -27,13 +27,7 @@ export function AppearanceIndex() {
       to: '/settings/appearance/bubble',
     },
     {
-      icon: 'solar:mirror-bold-duotone',
-      title: t('settings.appearance_section.display'),
-      description: t('settings.appearance_section.display_desc'),
-      to: '/settings/appearance/display',
-    },
-    {
-      icon: 'solar:gauge-bold-duotone',
+      icon: 'solar:monitor-bold-duotone',
       title: t('settings.appearance_section.performance'),
       description: t('settings.appearance_section.performance_desc'),
       to: '/settings/appearance/performance',

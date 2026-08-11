@@ -727,7 +727,7 @@
     },
     "models": {
       "live2d": "Live2D Models",
-      "live2d_desc": "Model switching, parameter adjustment",
+      "live2d_desc": "Model switching, parameter adjustment & display",
       "behavior": "Behavior",
       "behavior_desc": "Interactive behavior, inner voice, proactive chat",
       "emotion": "Emotion State",

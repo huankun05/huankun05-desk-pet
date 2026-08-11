@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { useMemory } from '../../../hooks/useMemory';
 import { Section, SliderRow, useToast, useConfirm } from '../../components';
@@ -10,8 +10,9 @@ import {
   deleteMemory,
   type MemoryItem,
 } from '../../../services/gatewayApi';
+import { getRAGEngine } from '../../../services/rag/engine';
 
-type Tab = 'conversations' | 'facts' | 'preferences' | 'growth';
+type Tab = 'conversations' | 'facts' | 'preferences' | 'growth' | 'rag';
 
 const CATEGORY_LABEL: Record<string, string> = {
   preference: '偏好',
@@ -28,11 +29,40 @@ const CATEGORY_LABEL: Record<string, string> = {
 export function MemoryViewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { memory, clearMemory } = useMemory();
 
-  const [tab, setTab] = useState<Tab>('conversations');
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab');
+    if (t === 'conversations' || t === 'facts' || t === 'preferences' || t === 'growth' || t === 'rag') return t;
+    return 'conversations';
+  });
+
+  // --- RAG 文档状态（解决 LongTermPage 18条→MemoryViewPage 0条的数据源断裂） ---
+  const [ragDocs, setRagDocs] = useState<{ id: string; content: string; importance: number; createdAt: Date }[]>([]);
+  const [ragLoading, setRagLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      const engine = getRAGEngine();
+      const docs = engine.getAllDocuments().map((d) => ({
+        id: d.id,
+        content: d.content.length > 120 ? d.content.slice(0, 120) + '…' : d.content,
+        importance: d.importance,
+        createdAt: d.createdAt,
+      }));
+      // 按重要性降序
+      docs.sort((a, b) => b.importance - a.importance);
+      setRagDocs(docs);
+    } catch {
+      /* RAG 引擎可能未初始化 */
+      setRagDocs([]);
+    } finally {
+      setRagLoading(false);
+    }
+  }, []);
 
   // --- 成长记忆状态 ---
   const [growthItems, setGrowthItems] = useState<MemoryItem[]>([]);
@@ -212,6 +242,11 @@ export function MemoryViewPage() {
       key: 'growth' as Tab,
       label: t('settings.memory.growth.title', { defaultValue: '成长记忆' }),
       icon: 'solar:graph-new-bold-duotone',
+    },
+    {
+      key: 'rag' as Tab,
+      label: t('settings.memoryview.tab_rag', { defaultValue: 'RAG 文档' }),
+      icon: 'solar:brain-bold-duotone',
     },
   ] as const;
 
@@ -589,6 +624,66 @@ export function MemoryViewPage() {
               </ul>
             )}
           </div>
+        </Section>
+      )}
+
+      {/* ===== RAG 文档（长期记忆向量库） ===== */}
+      {tab === 'rag' && (
+        <Section
+          title={t('settings.memoryview.rag_title', { defaultValue: 'RAG 文档' })}
+          description={t('settings.memoryview.rag_desc', {
+            defaultValue: '长期记忆向量库中的文档（来自对话自动抽取），与上方对话/事实/偏好为不同数据源。',
+            count: String(ragDocs.length),
+          })}
+        >
+          {ragLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-neutral-500">
+              <Icon icon="solar:restart-bold" className="text-lg animate-spin" />
+              <span>{t('common.loading')}</span>
+            </div>
+          ) : ragDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-sm text-neutral-400">
+              <Icon icon="solar:brain-bold-duotone" className="text-3xl mb-2" />
+              <span>{t('settings.memoryview.empty_rag', { defaultValue: 'RAG 文档为空，多进行对话后系统会自动抽取关键信息。' })}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {/* 统计条 */}
+              <div className="flex items-center gap-4 px-4 py-2 bg-neutral-50 rounded-lg mb-2 text-xs text-neutral-500">
+                <span>共 {ragDocs.length} 条文档</span>
+                <span>·</span>
+                <span>重要性 &gt; 0.7: {ragDocs.filter((d) => d.importance > 0.7).length} 条</span>
+                <span>·</span>
+                <span>由 RAG 引擎自动从对话中抽取并持久化</span>
+              </div>
+              {ragDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-start gap-3 px-4 py-3 border-b border-neutral-100"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-neutral-800 whitespace-pre-wrap break-words">{doc.content}</div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-xs text-neutral-400">
+                        {doc.createdAt.toLocaleString()}
+                      </span>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          doc.importance > 0.7
+                            ? 'bg-green-100 text-green-700'
+                            : doc.importance > 0.4
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-neutral-100 text-neutral-500'
+                        }`}
+                      >
+                        {(doc.importance * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       )}
     </div>

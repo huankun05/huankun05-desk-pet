@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
-import { Section, SliderRow, useToast } from '../../components';
+import { Section, SliderRow, SettingRow, Switch, useToast } from '../../components';
 import { fetchWithTimeout } from '../../../utils/fetch';
+import { readAppearance, writeAppearanceConfig } from '../../appearanceConfig';
 
 interface ModelInfo {
   id: string;
@@ -73,6 +74,9 @@ export function Live2DPage() {
   const [loading, setLoading] = useState(true);
   const [params, setParams] = useState<ParamConfig>(() => loadParams());
 
+  // 角色外观（镜像/显隐）——从 Appearance/display 合并入此页
+  const [displayCfg, setDisplayCfg] = useState(() => readAppearance());
+
   useEffect(() => {
     let cancelled = false;
     fetchWithTimeout('/models/index.json', {}, 5000)
@@ -120,6 +124,11 @@ export function Live2DPage() {
     const next = { ...params, ...patch };
     setParams(next);
     saveParams(next);
+  };
+
+  const updateDisplay = (patch: Parameters<typeof writeAppearanceConfig>[0]) => {
+    setDisplayCfg((prev) => ({ ...prev, ...patch }));
+    writeAppearanceConfig(patch);
   };
 
   return (
@@ -251,6 +260,28 @@ export function Live2DPage() {
           formatter={(v) => v.toFixed(1)}
           onChange={(v) => updateParam({ mouseSensitivity: v })}
         />
+      </Section>
+
+      {/* ===== 角色外观（原 Appearance/display 合并） ===== */}
+      <Section
+        title={t('settings.display.character')}
+        description={t('settings.display.character_desc')}
+      >
+        <SettingRow
+          title={t('settings.display.mirror')}
+          description={t('settings.display.mirror_desc')}
+        >
+          <Switch checked={displayCfg.mirror} onChange={() => updateDisplay({ mirror: !displayCfg.mirror })} />
+        </SettingRow>
+        <SettingRow
+          title={t('settings.display.visible')}
+          description={t('settings.display.visible_desc')}
+        >
+          <Switch
+            checked={displayCfg.petVisible}
+            onChange={() => updateDisplay({ petVisible: !displayCfg.petVisible })}
+          />
+        </SettingRow>
       </Section>
     </div>
   );

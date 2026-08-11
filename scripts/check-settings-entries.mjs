@@ -29,7 +29,11 @@ const PAGES_DIR = 'src/settings/pages';
 const ALLOWLIST_NO_ENTRY = {};
 
 /** B) 允许只有 loader、不在 settingsTree 中声明的路径（key = 路径，value = 原因） */
-const ALLOWLIST_ORPHAN = {};
+const ALLOWLIST_ORPHAN = {
+  // 角色外观（镜像/显隐）已合并到 /settings/models/live2d 页面内作为 Section
+  // 保留 loader 以支持旧书签/深链访问，不再出现在导航树中
+  '/settings/appearance/display': 'merged into Live2DPage',
+};
 
 const routesSrc = readFileSync(ROUTES_FILE, 'utf8');
 

@@ -731,7 +731,7 @@
     },
     "models": {
       "live2d": "Live2D 模型",
-      "live2d_desc": "模型切换、参数调整",
+      "live2d_desc": "模型切换、参数调整与角色外观",
       "behavior": "角色行为",
       "behavior_desc": "互动行为、内心独白、主动聊天",
       "emotion": "情绪状态",
