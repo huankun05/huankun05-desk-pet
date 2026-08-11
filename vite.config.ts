@@ -68,7 +68,6 @@ export default defineConfig(async () => ({
             'i18next',
             'i18next-browser-languagedetector',
           ],
-          'vendor-vosk': ['vosk-browser'],
           'vendor-iconify': ['@iconify/react', '@iconify-json/solar'],
         },
       },
