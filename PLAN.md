@@ -36,9 +36,9 @@
 
 | 问题 | 严重度 | 说明 |
 |------|--------|------|
-| **自动化测试覆盖不足** | 🟡 中等 | 记忆系统 E2E 测试 + 前端 3 个 Vitest 测试；Provider/行为/Rust 单元测试仍较少 |
+| **自动化测试覆盖不足** | 🟡 中等 | 已补充 PersonalityPage + useHermesGateway 单测；Provider/行为/Rust 单元测试仍可继续扩展 |
 | **大文件单体** | 🟢 已优化 | App.tsx 从 959→830 行，useChatPipeline 从 484→437 行，manager.ts 从 903→675 行 |
-| **服务无自动恢复** | 🟡 中等 | Python 服务崩溃后需手动重启（Provider 有 starting 状态过渡，但无自动重试） |
+| **服务无自动恢复** | 🟢 已优化 | Rust `start_service_watcher` 已具备 crash 检测 + 指数退避自动重启，Python 服务崩溃后自动恢复 |
 | **Tauri 打包发布** | 🟡 中等 | CI 已配置（lint/typecheck/test/build），但尚未生成/分发安装包 |
 | **内存泄漏与错误处理** | 🟢 已优化 | Phase 5 全面修复：定时器/监听器泄漏、fetch 超时、Pipeline 错误隔离、localStorage 保护 |
 
