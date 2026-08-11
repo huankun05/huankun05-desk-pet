@@ -308,7 +308,7 @@ core_values: [...]
 | S3 | **人格基线接入 Session** | `server/core/session.py` | HEXACO 计算 PAD 基线，设置为 EmotionState baseline | 3h | ✅ 已完成 |
 | S4 | **人格动态漂移** | `server/core/soul/drift.py` | 长期互动 → 人格微变化，基线约束 ±0.3 | 4h | ✅ 核心算法 + API 完成 |
 | S5 | **Soul API 端点** | FastAPI 路由 | `GET /soul/personality` `POST /soul/drift` | 2h | ✅ API 完成 |
-| S6 | **人格可视化** | PersonalityView → React | ❌ **前端页面缺失**：人格 HEXACO 后端在，但无可视化 UI（原 admin `PersonalityView` 随管理后台清理删除后未重建） | 3h | 🔲 未实现 |
+| S6 | **人格可视化** | PersonalityView → React | ✅ 已完成：`src/settings/pages/models/PersonalityPage.tsx`，HEXACO 雷达图 + PAD 基线 + 人格描述，路由 `/settings/models/personality` | 3h | ✅ 已完成 |
 
 #### Phase 8d: 时间系统升级（Time）
 
