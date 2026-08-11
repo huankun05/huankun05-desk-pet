@@ -107,7 +107,22 @@ class MemoryService:
         client_ref: str = "",
         meta: dict | None = None,
     ) -> dict[str, Any]:
-        """新增一条记忆，返回 API 字典。"""
+        """新增（或按 client_ref 幂等更新）一条记忆，返回 API 字典。
+
+        当提供 client_ref 时改为 upsert：内容相同引用只会产生一条记忆，
+        重连/重试不会重复入库。
+        """
+        if client_ref:
+            return self.upsert_memory(
+                content,
+                client_ref=client_ref,
+                category=category,
+                source=source,
+                enabled=enabled,
+                importance=importance,
+                is_permanent=is_permanent,
+                meta=meta,
+            )
         content = (content or "").strip()
         if not content:
             raise ValueError("content 不能为空")
@@ -312,6 +327,9 @@ class MemoryService:
         for it in items:
             content = str(it.get("content") or "").strip()
             if not content:
+                continue
+            # 内容去重：避免空闲自学习重跑或重复对话轮次产生重复记忆
+            if self.store.has_identical_content(content, self.character_id, self.user_id):
                 continue
             frag = MemoryFragment(
                 content=content,

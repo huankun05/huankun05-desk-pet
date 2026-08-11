@@ -40,6 +40,7 @@ from hermes_gateway_tool_executor import tool_executor
 from hermes_gateway_tool_loop import ToolLoop
 from hermes_gateway_backend_tools import register_backend_tools
 from core.brain.memory_service import get_memory_service
+from core.brain.learning_scheduler import LearningScheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +48,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("hermes-gateway")
+
+# 模块级空闲自学习调度器（由 create_app 实例化并绑定到 app.state / 本全局）。
+learning_scheduler: "LearningScheduler | None" = None
 
 # 额外文件日志：诊断用，确保 Tauri 管道外也能落盘
 _trace_logger = logging.getLogger("hermes-gateway-trace")
@@ -317,8 +321,14 @@ class HermesEngine:
 def create_app() -> FastAPI:
     from contextlib import asynccontextmanager
 
+    global learning_scheduler
+
     engine: HermesEngine = HermesEngine()
     register_backend_tools(tool_executor)
+
+    # 空闲自学习调度器：聊天后入队，网关空闲时后台批量抽取记忆。
+    # llm_provider 惰性取引擎 LLM；空闲且可用时用 LLM 抽取，否则离线规则。
+    learning_scheduler = LearningScheduler(llm_provider=lambda: engine._get_llm())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -328,8 +338,20 @@ def create_app() -> FastAPI:
             get_memory_service(character_id="default", user_id="default").migrate_legacy_memories()
         except Exception as exc:  # noqa: BLE001
             log.warning("旧记忆迁移失败（可忽略）: %s", exc)
-        yield
-        log.info("Hermes Gateway stopped")
+        # 启动空闲自学习后台协程
+        scheduler_task = learning_scheduler.start() if learning_scheduler else None
+        try:
+            yield
+        finally:
+            if learning_scheduler is not None:
+                learning_scheduler.stop()
+            if scheduler_task is not None:
+                scheduler_task.cancel()
+                try:
+                    await scheduler_task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+            log.info("Hermes Gateway stopped")
 
     app = FastAPI(title="Hermes Gateway", version="1.1.0", lifespan=lifespan)
 
@@ -417,6 +439,9 @@ def create_app() -> FastAPI:
         full = ""
         async for token in engine.chat_stream(text, mode=mode):
             full += token
+        # REST 聊天也入队空闲自学习（无角色上下文，使用 default 作用域）
+        if learning_scheduler is not None and full:
+            learning_scheduler.enqueue("default", "default", text, full)
         return {"response": full, "session_id": engine.SESSION_ID}
 
     # ========================================================
@@ -520,28 +545,6 @@ def _filter_tools(
     return [t for t in tools if t.get("name") in allowed_set]
 
 
-async def _learn(
-    engine: HermesEngine,
-    user_text: str,
-    assistant_text: str,
-    character_id: str = "default",
-    user_id: str = "default",
-) -> None:
-    """自学习：从一轮对话中抽取持久记忆并入库（离线规则抽取，无网络依赖）。
-
-    统一收口到 core.brain.memory_service，避免与旧 hermes_gateway_memory 双写。
-    """
-    if not assistant_text or not user_text:
-        return
-    try:
-        svc = get_memory_service(character_id=character_id, user_id=user_id)
-        saved = svc.extract_and_store(user_text, assistant_text, use_llm=False)
-        if saved:
-            log.info("自学习：本轮抽取并保存 %d 条记忆", len(saved))
-    except Exception as exc:  # noqa: BLE001
-        log.warning("自学习抽取异常: %s", exc)
-
-
 def _resolve_ids(data: dict) -> tuple[str, str]:
     """从消息体中解析 character_id / user_id（缺省 default）。"""
     return (data.get("character_id") or "default", data.get("user_id") or "default")
@@ -628,8 +631,15 @@ async def _handle_memory_update(ws: WebSocket, data: dict) -> None:
         await ws.send_json({"type": "memory:result", "action": "update", "ok": False,
                             "error": "id required", "req_id": data.get("req_id")})
         return
+    # 兼容两种 payload：前端把 fields 展开到顶层 {id, ...fields}，
+    # 也兼容显式嵌套 {id, fields: {...}}。
+    raw_fields: dict = dict(data.get("fields") or {})
+    for k, v in data.items():
+        if k in ("content", "category", "source", "enabled", "importance",
+                 "is_permanent", "client_ref", "meta"):
+            raw_fields.setdefault(k, v)
     fields = {
-        k: v for k, v in data.items()
+        k: v for k, v in raw_fields.items()
         if k in ("content", "category", "source", "enabled", "importance",
                  "is_permanent", "client_ref", "meta")
     }
@@ -771,14 +781,10 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     })
     log.info("[CHAT] sent done id=%s response_len=%d", msg_id, len(full_response))
 
-    # 后台自学习：从本轮对话抽取持久记忆（不阻塞响应）
-    try:
-        asyncio.create_task(
-            _learn(engine, text, full_response, character_id=character_id, user_id=user_id)
-        )
-    except RuntimeError:
-        # 无运行中的事件循环时跳过（如 REST 调用路径）
-        pass
+    # 聊天结束 → 入队空闲自学习调度器：后台协程在网关空闲时抽取记忆，
+    # 完全不阻塞本轮响应（满足「聊天结束后，空余时间自行进行自学习」）。
+    if learning_scheduler is not None and full_response:
+        learning_scheduler.enqueue(character_id, user_id, text, full_response)
 
 
 # ============================================================

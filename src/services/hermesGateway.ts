@@ -64,8 +64,10 @@ export class HermesGatewayClient {
   private pendingCallbacks: Map<string, HermesGatewayCallbacks> = new Map();
   private messageIdCounter = 0;
   /** 记忆请求的 Promise 登记表（按 req_id 解析） */
-  private pendingMemory: Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }> =
-    new Map();
+  private pendingMemory: Map<
+    string,
+    { resolve: (v: unknown) => void; reject: (e: unknown) => void }
+  > = new Map();
   private memoryReqCounter = 0;
   private destroyed = false;
 
@@ -341,7 +343,12 @@ export class HermesGatewayClient {
   /** 更新一条记忆（按 id） */
   updateMemory(
     id: number,
-    fields: Partial<Pick<MemoryItem, 'content' | 'category' | 'enabled' | 'importance' | 'is_permanent' | 'client_ref' | 'meta'>>,
+    fields: Partial<
+      Pick<
+        MemoryItem,
+        'content' | 'category' | 'enabled' | 'importance' | 'is_permanent' | 'client_ref' | 'meta'
+      >
+    >,
   ): Promise<MemoryItem | null> {
     return this.requestMemory('memory:update', { id, ...fields }).then((res) => {
       const r = res as { memory?: MemoryItem; ok?: boolean };
@@ -359,7 +366,9 @@ export class HermesGatewayClient {
 
   /** 批量同步（前端全量 upsert，按 client_ref 去重） */
   syncMemories(payload: {
-    items: Array<Partial<MemoryItem> & { content: string; client_ref: string; category: MemoryCategory }>;
+    items: Array<
+      Partial<MemoryItem> & { content: string; client_ref: string; category: MemoryCategory }
+    >;
     character_id: string;
     user_id?: string;
   }): Promise<number> {

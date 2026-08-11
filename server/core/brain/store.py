@@ -416,6 +416,32 @@ class MemoryStore:
                 unique.append(t)
         return unique
 
+    @staticmethod
+    def _normalize_content(content: str) -> str:
+        """归一化记忆内容用于去重比较（去空白 + 转小写）。"""
+        import re
+
+        return re.sub(r"\s+", "", (content or "").strip().lower())
+
+    def has_identical_content(
+        self, content: str, character_id: str | None = None, user_id: str | None = None
+    ) -> bool:
+        """判断指定角色/用户下是否已存在「内容相同」的记忆（归一化后比较）。
+
+        用于抽取入库前去重，避免空闲自学习重跑或重复对话轮次产生重复记忆。
+        """
+        cid = character_id or self.character_id
+        uid = user_id or self.user_id
+        norm = self._normalize_content(content)
+        if not norm:
+            return False
+        with get_db() as db:
+            rows = db.execute(
+                "SELECT content FROM memory_fragments WHERE character_id = ? AND user_id = ?",
+                (cid, uid),
+            ).fetchall()
+        return any(self._normalize_content(r["content"]) == norm for r in rows)
+
     def touch(self, frag_id: int) -> None:
         """记录一次访问。"""
         with get_db() as db:
