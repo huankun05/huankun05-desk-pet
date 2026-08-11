@@ -7,6 +7,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeProvider } from './theme';
 import './iconify';
 import './index.css';
+import { interactTTS } from './services/audio/interact-tts';
+import { collectAllPresetTexts } from './data/idleMessages';
 
 // ═══════════════════════════════════════════════════════════════
 // Live2D 模型文件预加载 — 在 React 渲染前提前发起请求
@@ -46,6 +48,10 @@ if (!location.search.includes('panel=')) {
 }
 
 console.time('app-to-model');
+
+// 预热预制台词 TTS：仅当启用时生效。首次生成后由 IndexedDB 持久化，
+// 之后启动直接从本地恢复，避免重复调用 TTS 服务（节省 API 成本与启动耗时）。
+interactTTS.prewarm(collectAllPresetTexts()).catch(() => undefined);
 
 // 主窗去白屏：tauri.conf.json 中主窗 visible:false，待 #app-loading 遮罩此刻已在 DOM 即
 // 显示窗口，遮罩瞬间盖住首帧，用户看不到白闪。仅主窗执行（面板窗自行管理可见性）。

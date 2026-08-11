@@ -18,7 +18,7 @@ export function IndexPage() {
     },
     {
       order: 2,
-      icon: 'solar:chat-round-dots-bold-duotone',
+      icon: 'solar:document-text-bold-duotone',
       title: t('settings.nav.chat'),
       description: t('settings.index.chat_desc'),
       to: '/settings/chat',

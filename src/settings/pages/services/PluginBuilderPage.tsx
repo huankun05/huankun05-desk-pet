@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
-import { Section, Switch, useToast } from '../../components';
+import { Switch, useToast } from '../../components';
 import {
   generatePluginCode,
   generateManifest,
@@ -141,10 +141,11 @@ export function PluginBuilderPage() {
 
       {/* 第 1 步：基本信息 */}
       {step === 1 && (
-        <Section
-          title={t('settings.market.step1_title')}
-          description={t('settings.market.step1_desc')}
-        >
+        <div className="space-y-4">
+          <div className="mb-2 px-1">
+            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step1_title')}</h2>
+            <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step1_desc')}</p>
+          </div>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-neutral-700">
@@ -226,15 +227,16 @@ export function PluginBuilderPage() {
               {t('common.next')}
             </button>
           </div>
-        </Section>
+        </div>
       )}
 
       {/* 第 2 步：权限和功能 */}
       {step === 2 && (
-        <Section
-          title={t('settings.market.step2_title')}
-          description={t('settings.market.step2_desc')}
-        >
+        <div className="space-y-4">
+          <div className="mb-2 px-1">
+            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step2_title')}</h2>
+            <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step2_desc')}</p>
+          </div>
           <div className="space-y-6">
             <div>
               <label className="mb-2 block text-sm font-medium text-neutral-700">
@@ -296,15 +298,16 @@ export function PluginBuilderPage() {
               {t('common.next')}
             </button>
           </div>
-        </Section>
+        </div>
       )}
 
       {/* 第 3 步：生成代码 */}
       {step === 3 && (
-        <Section
-          title={t('settings.market.step3_title')}
-          description={t('settings.market.step3_desc')}
-        >
+        <div className="space-y-4">
+          <div className="mb-2 px-1">
+            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step3_title')}</h2>
+            <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step3_desc')}</p>
+          </div>
           {!showPreview ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Icon icon="solar:code-bold-duotone" className="mb-4 h-16 w-16 text-neutral-300" />
@@ -355,7 +358,7 @@ export function PluginBuilderPage() {
               {t('common.prev')}
             </button>
           </div>
-        </Section>
+        </div>
       )}
     </div>
   );

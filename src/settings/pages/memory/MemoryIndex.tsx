@@ -7,7 +7,7 @@ import { IconItem } from '../../components';
 export function MemoryIndex() {
   const { t } = useTranslation();
 
-  // 顺序：策略在前（上下文 → 长期记忆 → 规则），内容在后（查看 → 会话 → 数据 → 备份）
+  // 顺序：策略在前（上下文 → 长期记忆 → 规则），内容在后（查看 → 会话 → 数据与备份）
   // 注意：本列表与 routes.tsx 的 settingsTree 需保持同步，新增页面时两处都要加。
   const entries = [
     {
@@ -42,21 +42,9 @@ export function MemoryIndex() {
     },
     {
       icon: 'solar:archive-bold-duotone',
-      title: t('settings.memory.data'),
-      description: t('settings.memory.data_desc'),
+      title: t('settings.memory.data_backup'),
+      description: t('settings.memory.data_backup_desc'),
       to: '/settings/memory/data',
-    },
-    {
-      icon: 'solar:cloud-upload-bold-duotone',
-      title: t('settings.memory.backup.title'),
-      description: t('settings.memory.backup.entry_desc'),
-      to: '/settings/memory/backup',
-    },
-    {
-      icon: 'solar:graph-new-bold-duotone',
-      title: t('settings.memory.growth.title'),
-      description: t('settings.memory.growth.desc'),
-      to: '/settings/memory/growth',
     },
   ];
 

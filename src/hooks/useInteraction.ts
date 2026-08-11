@@ -1,9 +1,11 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { getIdleMessage, randomPick, INTERACT_MESSAGES } from '../data/idleMessages';
+import { getIdleMessage, randomPick, getActualInteractMessages } from '../data/idleMessages';
 import { aiService } from '../services/ai';
 import { eventBus } from '../services/eventBus';
 import type { Personality } from './useEmotion';
 import { loadBehaviorConfig } from '../services/behavior/behaviorConfig';
+import { loadInteractionConfig } from '../settings/pages/models/InteractionPage';
+import { interactTTS } from '../services/audio/interact-tts';
 
 interface UseInteractionOptions {
   onPatHead: () => void;
@@ -66,6 +68,27 @@ export function useInteraction({
   const lastInteractRef = useRef<number>(0);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastSmartChatRef = useRef<number>(0);
+  // 点击语言冷却：cooldown 期间内不重复触发语言气泡（动作仍触发）
+  const lastBubbleTimeRef = useRef<number>(0);
+  const CLICK_BUBBLE_COOLDOWN_MS = 3000;
+
+  // 配置/消息内存缓存：点击路径不再每次读 localStorage
+  const cooldownMsRef = useRef<number>(loadInteractionConfig().clickCooldownMs || CLICK_BUBBLE_COOLDOWN_MS);
+  const interactMsgsRef = useRef(getActualInteractMessages());
+
+  // 监听设置变更（跨窗口 storage + 本窗口 focus），刷新缓存
+  useEffect(() => {
+    const refresh = () => {
+      cooldownMsRef.current = loadInteractionConfig().clickCooldownMs || CLICK_BUBBLE_COOLDOWN_MS;
+      interactMsgsRef.current = getActualInteractMessages();
+    };
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
 
   const [_internalBubble, setInternalBubble] = useState<{
     id: number;
@@ -81,6 +104,8 @@ export function useInteraction({
       } else {
         setInternalBubble({ id: ++bubbleIdRef.current, text, duration });
       }
+      // 尝试播放预制台词 TTS（异步，不阻塞）
+      interactTTS.tryPlay(text);
     },
     [externalShowBubble],
   );
@@ -137,24 +162,38 @@ export function useInteraction({
       const recentClicks = clicksRef.current.filter((c) => now - c.time < 2000);
       if (recentClicks.length >= 5) {
         onTooMuchClick();
-        showBubble(randomPick(INTERACT_MESSAGES.tooMuchClick));
+        showBubble(randomPick(interactMsgsRef.current.tooMuchClick));
         clicksRef.current = [];
         return;
       }
 
+      // 点击语言冷却：从内存缓存读取（默认 3 秒）
+      const cooldownMs = cooldownMsRef.current;
+      const canShowBubble = now - lastBubbleTimeRef.current >= cooldownMs;
+
       const favMod = getFavorabilityModifier();
+      const msgs = interactMsgsRef.current;
 
       if (relativeY < 0.4) {
         onPatHead();
-        showBubble(favMod.prefix + randomPick(INTERACT_MESSAGES.headPat));
+        if (canShowBubble) {
+          lastBubbleTimeRef.current = now;
+          showBubble(favMod.prefix + randomPick(msgs.headPat));
+        }
         eventBus.emit('interaction:pat', { target: 'head', count: recentClicks.length });
       } else if (relativeY < 0.7) {
         onTapBody();
-        showBubble(favMod.prefix + randomPick(INTERACT_MESSAGES.bodyTap));
+        if (canShowBubble) {
+          lastBubbleTimeRef.current = now;
+          showBubble(favMod.prefix + randomPick(msgs.bodyTap));
+        }
         eventBus.emit('interaction:tap', { target: 'body', intensity: recentClicks.length / 5 });
       } else {
         onStepFoot();
-        showBubble(randomPick(INTERACT_MESSAGES.stepFoot), 3000);
+        if (canShowBubble) {
+          lastBubbleTimeRef.current = now;
+          showBubble(randomPick(msgs.stepFoot), 3000);
+        }
         eventBus.emit('interaction:step', { target: 'feet' });
       }
     },

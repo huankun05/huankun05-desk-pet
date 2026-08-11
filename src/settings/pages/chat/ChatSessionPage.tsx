@@ -287,11 +287,12 @@ export function ChatSessionPage() {
             {sessions.map((session) => (
               <div
                 key={session.id}
-                onClick={() => setViewingSession(session)}
+                onDoubleClick={() => setViewingSession(session)}
                 className="group flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-4 py-3.5 last:border-b-0 hover:bg-neutral-50 active:bg-neutral-100"
+                title={t('settings.chat.view_detail', { defaultValue: '双击查看对话' })}
               >
                 <Icon
-                  icon="solar:chat-round-dots-bold-duotone"
+                  icon="solar:document-text-bold-duotone"
                   className="shrink-0 text-xl text-neutral-300 group-hover:text-neutral-400 transition-colors"
                 />
                 <div className="min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -467,7 +468,7 @@ export function ChatSessionPage() {
             <div className="flex shrink-0 items-center border-b border-neutral-100 px-5 py-4">
               <div className="flex items-center gap-2 text-xs text-neutral-400">
                 <Icon
-                  icon="solar:chat-round-dots-bold-duotone"
+                  icon="solar:document-text-bold-duotone"
                   className="text-base text-[var(--primary-400)]"
                 />
                 <span>

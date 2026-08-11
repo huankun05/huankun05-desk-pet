@@ -9,7 +9,7 @@ export function ServicesIndex() {
 
   const entries = [
     {
-      icon: 'solar:chat-round-dots-bold-duotone',
+      icon: 'solar:document-text-bold-duotone',
       title: t('settings.services_section.llm'),
       description: t('settings.services_section.llm_desc'),
       to: '/settings/services/llm',

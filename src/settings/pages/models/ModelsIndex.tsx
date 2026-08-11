@@ -39,6 +39,12 @@ export function ModelsIndex() {
       description: t('settings.models.expressions_desc'),
       to: '/settings/models/expressions',
     },
+    {
+      icon: 'solar:document-text-bold-duotone',
+      title: t('settings.models.interaction'),
+      description: t('settings.models.interaction_desc'),
+      to: '/settings/models/interaction',
+    },
   ];
 
   return (

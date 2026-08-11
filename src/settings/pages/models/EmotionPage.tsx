@@ -55,6 +55,31 @@ const MOOD_NOTES: Record<string, string> = {
   neutral: '情绪平稳，和你在一起的日常就很安心。',
 };
 
+/** 触发源翻译（eventBus key → 可读标签） */
+const TRIGGER_LABELS: Record<string, string> = {
+  'interaction:pat': '摸头',
+  'interaction:tap': '点身体',
+  'interaction:step': '踩脚',
+  'idle:long': '久未互动',
+  'smart_chat': '主动闲聊',
+  'emotion:external': '外部事件',
+};
+
+/** ISO 时间戳 → 相对时间（如 "3秒前"、"2分钟前"） */
+function formatAgo(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 0) return '刚刚';
+    if (diff < 1000) return '刚刚';
+    if (diff < 60_000) return `${Math.floor(diff / 1000)}秒前`;
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}分钟前`;
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}小时前`;
+    return `${Math.floor(diff / 86400_000)}天前`;
+  } catch {
+    return '';
+  }
+}
+
 /** 折线图维度配色 */
 const LINE_COLORS: Record<string, string> = {
   pleasure: '#6366f1',
@@ -380,10 +405,16 @@ export function EmotionPage() {
       <Section title={t('settings.emotion.recent')} description={t('settings.emotion.recent_desc')}>
         {emotion?.recent_history && emotion.recent_history.length > 0 ? (
           <ul className="divide-y divide-neutral-100">
-            {emotion.recent_history.map((h, i) => (
+            {emotion.recent_history.map((h, i) => {
+              // 去掉 [desk-pet] 前缀，翻译剩余部分
+              const rawTrigger = (h.trigger ?? '').replace(/^\[desk-pet\]\s*/, '');
+              const triggerLabel = TRIGGER_LABELS[rawTrigger] ?? rawTrigger;
+              // 相对时间
+              const ago = h.timestamp ? formatAgo(h.timestamp) : '';
+              return (
               <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div className="min-w-0">
-                  <div className="truncate text-sm text-neutral-700">{h.trigger}</div>
+                  <div className="truncate text-sm text-neutral-700">{triggerLabel}</div>
                   {h.dimensions && Object.keys(h.dimensions).length > 0 && (
                     <div className="mt-0.5 flex flex-wrap gap-1">
                       {Object.entries(h.dimensions).map(([d, v]) => (
@@ -397,11 +428,12 @@ export function EmotionPage() {
                     </div>
                   )}
                 </div>
-                <span className="shrink-0 text-xs text-neutral-300">
-                  {h.timestamp ? h.timestamp.slice(5, 16).replace('T', ' ') : ''}
+                <span className="shrink-0 text-xs text-neutral-300" title={h.timestamp?.slice(5, 16).replace('T', ' ') ?? ''}>
+                  {ago}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <div className="px-4 py-6 text-center text-sm text-neutral-400">

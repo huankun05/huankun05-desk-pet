@@ -228,13 +228,22 @@ export function LongTermPage() {
               <span className="text-sm text-neutral-700">{t('settings.memory.rag_doc_count')}</span>
               <span className="text-sm font-medium text-neutral-800">{ragDocCount}</span>
             </div>
-            <button
-              type="button"
-              onClick={handleWipeRAG}
-              className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-500"
-            >
-              {t('settings.memory.rag_wipe')}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/settings/memory/view')}
+                className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-[var(--primary-600)] transition-colors hover:bg-[var(--primary-50)]"
+              >
+                {t('settings.memory.view_details', { defaultValue: '查看详情' })}
+              </button>
+              <button
+                type="button"
+                onClick={handleWipeRAG}
+                className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-500"
+              >
+                {t('settings.memory.rag_wipe')}
+              </button>
+            </div>
           </div>
 
           <p className="text-xs text-neutral-400 pt-1">{t('settings.memory.rag_hint')}</p>

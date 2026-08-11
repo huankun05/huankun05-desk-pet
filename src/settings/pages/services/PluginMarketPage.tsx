@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { Section, Modal, useToast } from '../../components';
 import {
@@ -25,6 +26,7 @@ type TabType = 'plugins' | 'mcp-presets';
  */
 export function PluginMarketPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [registry, setRegistry] = useState<Awaited<ReturnType<typeof fetchRegistry>> | null>(null);
@@ -243,7 +245,7 @@ export function PluginMarketPage() {
           onClick={() => {
             setPendingPluginTab('builder');
             emitPluginTabSwitch('builder');
-            window.location.hash = '#/settings/extensions/plugins';
+            navigate('/settings/extensions/plugins', { replace: true });
           }}
           className="flex h-9 items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-600 transition-colors hover:bg-neutral-50"
           title={t('settings.market.build_plugin')}

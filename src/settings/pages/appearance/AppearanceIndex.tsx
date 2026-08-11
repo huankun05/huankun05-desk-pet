@@ -21,7 +21,7 @@ export function AppearanceIndex() {
       to: '/settings/appearance/interaction',
     },
     {
-      icon: 'solar:chat-square-quote-bold-duotone',
+      icon: 'solar:document-text-bold-duotone',
       title: t('settings.appearance_section.bubble'),
       description: t('settings.appearance_section.bubble_desc'),
       to: '/settings/appearance/bubble',

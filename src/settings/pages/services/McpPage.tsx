@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { Section, Switch, Modal, useToast, useConfirm } from '../../components';
 import {
@@ -34,6 +35,7 @@ const EMPTY_FORM: EditForm = {
 
 export function McpPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const [servers, setServers] = useState<McpServerConfig[]>([]);
@@ -332,7 +334,7 @@ export function McpPage() {
             onClick={() => {
               setPendingPluginTab('market');
               emitPluginTabSwitch('market');
-              window.location.hash = '#/settings/extensions/plugins';
+              navigate('/settings/extensions/plugins', { replace: true });
             }}
             className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--primary-200)] bg-[var(--primary-50)] py-2.5 text-sm text-[var(--primary-600)] hover:bg-[var(--primary-100)] transition-colors"
           >
