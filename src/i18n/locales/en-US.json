@@ -1311,7 +1311,13 @@
       "empty_rules": "No rules yet",
       "confirm_delete_rule": "Delete this rule?",
       "add_rule_placeholder": "Add a new rule or convention…",
-      "add_rule_btn": "Add rule"
+      "add_rule_btn": "Add rule",
+      "add_facts_title": "Add Fact Memory",
+      "add_facts_desc": "Add a standalone point above; double-click any entry to edit",
+      "add_pref_title": "Add Preference",
+      "add_pref_desc": "Key + JSON value; double-click an entry to edit",
+      "add_rule_title": "Add Rule",
+      "add_rule_desc": "Add a behavior convention; toggle on/off anytime"
     }
   },
   "status": {

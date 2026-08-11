@@ -23,12 +23,6 @@ export function MemoryIndex() {
       to: '/settings/memory/long-term',
     },
     {
-      icon: 'solar:clipboard-list-bold-duotone',
-      title: t('settings.memory.rules'),
-      description: t('settings.memory.rules_desc'),
-      to: '/settings/memory/rules',
-    },
-    {
       icon: 'solar:eye-bold-duotone',
       title: t('settings.memoryview.title'),
       description: t('settings.memoryview.desc'),

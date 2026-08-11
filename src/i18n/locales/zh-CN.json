@@ -1315,7 +1315,13 @@
       "empty_rules": "暂无约定规则",
       "confirm_delete_rule": "确定要删除这条约定规则吗？",
       "add_rule_placeholder": "新增一条约定或规则…",
-      "add_rule_btn": "添加规则"
+      "add_rule_btn": "添加规则",
+      "add_facts_title": "补充事实记忆",
+      "add_facts_desc": "在上方列表中单独添加一条要点；双击任意条目可编辑",
+      "add_pref_title": "补充用户偏好",
+      "add_pref_desc": "键名 + JSON 值，双击已有条目可编辑",
+      "add_rule_title": "补充约定规则",
+      "add_rule_desc": "新增一条行为约定，可随时启用或停用"
     }
   },
   "status": {

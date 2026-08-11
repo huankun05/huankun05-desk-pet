@@ -16,7 +16,7 @@ type Tab = 'facts' | 'preferences' | 'rules';
  *  - 约定规则：与桌宠的行为约定、反馈条款等
  *
  * 交互设计：
- *  - 列表在上，添加框在下
+ *  - 列表区块在上，添加区块在下（独立卡片，中间留间距）
  *  - 双击条目进入编辑模式
  *  - hover 显示操作按钮（删除 / 调整重要性）
  */
@@ -249,13 +249,12 @@ export function MemoryViewPage() {
         })}
       </div>
 
-      {/* ═══════════════════ 事实记忆 ═══════════════════ */}
+      {/* ═══════════════════ 事实记忆：列表区块 ═══════════════════ */}
       {tab === 'facts' && (
         <Section
           title={t('settings.memoryview.facts_title')}
           description={t('settings.memoryview.facts_desc', { count: String(memory.facts.length) })}
         >
-          {/* 列表 */}
           {memory.facts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-sm text-neutral-400">
               <Icon icon="solar:document-bold-duotone" className="text-3xl mb-2" />
@@ -270,7 +269,6 @@ export function MemoryViewPage() {
                   onDoubleClick={() => startEditFact(fact.id)}
                 >
                   {editingFactId === fact.id ? (
-                    /* 编辑态 */
                     <div className="p-4 space-y-3 bg-neutral-50/50">
                       <textarea
                         value={editFactContent}
@@ -306,7 +304,6 @@ export function MemoryViewPage() {
                       </div>
                     </div>
                   ) : (
-                    /* 展示态：双击编辑 + hover 操作 */
                     <div className="flex items-start gap-3 px-4 py-3 cursor-default select-none">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-neutral-800 leading-relaxed">{fact.content}</div>
@@ -326,7 +323,6 @@ export function MemoryViewPage() {
                         </div>
                       </div>
                       <HoverActions>
-                        {/* 重要性 +/- */}
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleAdjustImportance(fact.id, -0.1); }}
@@ -343,7 +339,6 @@ export function MemoryViewPage() {
                         >
                           <Icon icon="solar:add-circle-linear" className="text-base" />
                         </button>
-                        {/* 删除 */}
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleDeleteFact(fact.id); }}
@@ -359,9 +354,17 @@ export function MemoryViewPage() {
               ))}
             </div>
           )}
+        </Section>
+      )}
 
-          {/* 添加框（底部） */}
-          <div className="mt-4 space-y-2 border-t border-neutral-100 pt-3">
+      {/* ═══════════════════ 事实记忆：添加区块（独立，与列表分离） ═══════════════════ */}
+      {tab === 'facts' && (
+        <Section
+          className="mt-4"
+          title={t('settings.memoryview.add_facts_title')}
+          description={t('settings.memoryview.add_facts_desc')}
+        >
+          <div className="space-y-2 px-4 pb-1">
             <textarea
               value={newFactText}
               onChange={(e) => setNewFactText(e.target.value)}
@@ -394,7 +397,7 @@ export function MemoryViewPage() {
         </Section>
       )}
 
-      {/* ═══════════════════ 用户偏好 ═══════════════════ */}
+      {/* ═══════════════════ 用户偏好：列表区块 ═══════════════════ */}
       {tab === 'preferences' && (
         <Section
           title={t('settings.memoryview.preferences_title')}
@@ -471,9 +474,17 @@ export function MemoryViewPage() {
               ))}
             </div>
           )}
+        </Section>
+      )}
 
-          {/* 添加框（底部） */}
-          <div className="mt-4 space-y-2 border-t border-neutral-100 pt-3">
+      {/* ═══════════════════ 用户偏好：添加区块（独立，与列表分离） ═══════════════════ */}
+      {tab === 'preferences' && (
+        <Section
+          className="mt-4"
+          title={t('settings.memoryview.add_pref_title')}
+          description={t('settings.memoryview.add_pref_desc')}
+        >
+          <div className="space-y-2 px-4 pb-1">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -502,7 +513,7 @@ export function MemoryViewPage() {
         </Section>
       )}
 
-      {/* ═══════════════════ 约定规则 ═══════════════════ */}
+      {/* ═══════════════════ 约定规则：列表区块 ═══════════════════ */}
       {tab === 'rules' && (
         <Section
           title={t('settings.memoryview.rules_title')}
@@ -549,7 +560,6 @@ export function MemoryViewPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 px-4 py-3 cursor-default select-none">
-                      {/* 启用/禁用开关 */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); toggleRule(rule.id); }}
@@ -580,9 +590,17 @@ export function MemoryViewPage() {
               ))}
             </div>
           )}
+        </Section>
+      )}
 
-          {/* 添加框（底部） */}
-          <div className="mt-4 space-y-2 border-t border-neutral-100 pt-3">
+      {/* ═══════════════════ 约定规则：添加区块（独立，与列表分离） ═══════════════════ */}
+      {tab === 'rules' && (
+        <Section
+          className="mt-4"
+          title={t('settings.memoryview.add_rule_title')}
+          description={t('settings.memoryview.add_rule_desc')}
+        >
+          <div className="space-y-2 px-4 pb-1">
             <input
               type="text"
               value={newRuleContent}

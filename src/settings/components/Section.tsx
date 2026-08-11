@@ -7,6 +7,8 @@ interface SectionProps {
   description?: string;
   /** 具体设置项（通常为多个 SettingRow） */
   children: ReactNode;
+  /** 附加 className（用于覆盖/追加外层 section 的间距等） */
+  className?: string;
 }
 
 /**
@@ -17,9 +19,9 @@ interface SectionProps {
  * 描述：text-xs text-neutral-400
  * 卡片：白色背景，圆角 12px，边框
  */
-export function Section({ title, description, children }: SectionProps) {
+export function Section({ title, description, children, className }: SectionProps) {
   return (
-    <section className="mb-6">
+    <section className={`mb-6 ${className ?? ''}`.trim()}>
       {(title || description) && (
         <div className="mb-2 px-1">
           {title && <h2 className="text-sm font-semibold text-neutral-700">{title}</h2>}
