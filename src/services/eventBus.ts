@@ -22,6 +22,8 @@ type EventMap = {
   'perception:face_expr': { expression: string; intensity: number };
   // 感知服务连接丢失（例如达到最大重连次数后放弃）
   'perception:disconnected': { reason: string; attempts: number };
+  // 离线模式切换（手动 / 浏览器自动）
+  'offline:changed': { offline: boolean; source: 'manual' | 'browser' };
   // 模型视觉装饰事件
   'expression:change': { expression: string; emotion: string; intensity: number };
   'param:update': { key: string; value: number };

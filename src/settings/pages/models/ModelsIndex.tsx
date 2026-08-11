@@ -34,6 +34,12 @@ export function ModelsIndex() {
       to: '/settings/models/emotion',
     },
     {
+      icon: 'solar:user-circle-bold-duotone',
+      title: t('settings.models.personality'),
+      description: t('settings.models.personality_desc'),
+      to: '/settings/models/personality',
+    },
+    {
       icon: 'solar:emoji-funny-circle-bold-duotone',
       title: t('settings.models.expressions'),
       description: t('settings.models.expressions_desc'),

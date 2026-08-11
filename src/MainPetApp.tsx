@@ -55,6 +55,7 @@ import { computeOrbDefaultPos, getMainRect } from './utils/orbPosition';
 import { showToast } from './utils/toast';
 import { setLogLevel as setGlobalLogLevel } from './utils/logger';
 import { startWatchdog, registerService } from './services/provider/watchdog';
+import { isOfflineModeEnabled } from './services/provider/watchdog';
 import { IDLE_THRESHOLDS } from './services/idle/constants';
 import { getBehaviorRegistry, PetContextImpl, EventType } from './services/behavior';
 import { useStartupQueue } from './hooks/useStartupQueue';
@@ -540,6 +541,11 @@ function MainPetApp() {
     proactiveScheduler.onTrigger((trigger: ProactiveTrigger) => {
       const scene = trigger.scene;
       showBubble(`💭 ${scene.label}`, 3000);
+
+      if (isOfflineModeEnabled()) {
+        showBubble('现在处于离线模式，暂时不能陪你聊天了。', 4000);
+        return;
+      }
 
       const emotionCtx = emotionCtxRef.current;
       if (!emotionCtx) return;

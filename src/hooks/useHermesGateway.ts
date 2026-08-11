@@ -18,6 +18,7 @@ import { eventBus } from '../services/eventBus';
 import { createLogger } from '../utils/logger';
 import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
+import { isOfflineModeEnabled } from '../services/provider/watchdog';
 import { providerManager } from '../services/provider/manager';
 import { toolRegistry } from '../services/tools/registry';
 import { getDisabledTools } from '../services/tools/toolManagement';
@@ -174,6 +175,11 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     ) => {
       const session = sessionRef.current;
       if (!session) return;
+
+      if (isOfflineModeEnabled()) {
+        showToast(t('settings.system.offline_mode_hint'), 'warning');
+        return;
+      }
 
       abortedRef.current = false;
       currentResponseRef.current = '';
