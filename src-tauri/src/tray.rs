@@ -29,6 +29,7 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let open_chat = MenuItem::with_id(app, "open-chat", "打开对话", true, None::<&str>)?;
     let open_settings = MenuItem::with_id(app, "open-settings", "设置", true, None::<&str>)?;
     let restart_gateway = MenuItem::with_id(app, "restart-gateway", "重启后端", true, None::<&str>)?;
+    let reset_orb = MenuItem::with_id(app, "reset-orb", "重置悬浮球", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -39,6 +40,7 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             &open_chat,
             &open_settings,
             &restart_gateway,
+            &reset_orb,
             &quit,
         ],
     )?;
@@ -107,6 +109,10 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 let state = app.state::<crate::service::ServiceManager>();
                 let _ = crate::service::service_stop_all(state);
                 app.exit(0);
+            }
+            "reset-orb" => {
+                // 通知前端把悬浮球重置到角色（主窗）旁边的默认位置
+                let _ = app.emit("tray:reset-orb", ());
             }
             "restart-gateway" => {
                 // 重启是阻塞操作（内含等待端口释放的 sleep），放入独立线程避免卡住菜单
@@ -185,18 +191,28 @@ pub fn get_lock_state() -> bool {
 #[tauri::command]
 pub fn hide_to_tray(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
-        window.hide().map_err(|e| e.to_string())
+        window.hide().map_err(|e| e.to_string())?;
     } else {
-        Err("Window not found".into())
+        return Err("Window not found".into());
     }
+    // 悬浮球独立窗口随主窗一起隐藏，避免残留漂浮
+    if let Some(orb) = app.get_webview_window("controls") {
+        let _ = orb.hide();
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn show_from_tray(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())
+        window.set_focus().map_err(|e| e.to_string())?;
     } else {
-        Err("Window not found".into())
+        return Err("Window not found".into());
     }
+    // 悬浮球独立窗口随主窗一起恢复显示
+    if let Some(orb) = app.get_webview_window("controls") {
+        let _ = orb.show();
+    }
+    Ok(())
 }

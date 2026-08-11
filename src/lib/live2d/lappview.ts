@@ -241,8 +241,17 @@ export class LAppView {
    *
    * @param deviceY デバイスY座標
    */
-  public transformScreenY(deviceY: number): number {
+  public   transformScreenY(deviceY: number): number {
     return this._deviceToScreen.transformY(deviceY);
+  }
+
+  /**
+   * デバイスピクセル → NDC([-1,1]) 変換行列を取得する。
+   * 命中テスト（キャラクターの実包囲ボックス判定）で、クリック座標を
+   * モデル頂点と同じ NDC 空間に変換するために使用する。
+   */
+  public getDeviceToScreen(): CubismMatrix44 {
+    return this._deviceToScreen;
   }
 
   _touchManager: TouchManager; // タッチマネージャー

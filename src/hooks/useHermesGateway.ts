@@ -216,17 +216,25 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
         emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: userMessage }).catch(() => {});
       }
 
-      // 占位助手消息
-      const assistantId = nextMsgId();
-      assistantMessageIdRef.current = assistantId;
-      latestAssistantIdRef.current = assistantId;
-      const assistantMessage: Message = {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
+      // 占位助手消息：不再提前占位，等首 token 到达后再插入消息，
+      // 避免输入前出现空白气泡 + 打字动画。
+      let assistantId = '';
+      let placeholderCreated = false;
+
+      const appendAssistant = (content: string) => {
+        if (placeholderCreated) return;
+        placeholderCreated = true;
+        assistantId = nextMsgId();
+        assistantMessageIdRef.current = assistantId;
+        latestAssistantIdRef.current = assistantId;
+        const assistantMessage: Message = {
+          id: assistantId,
+          role: 'assistant',
+          content,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
       };
-      setMessages((prev) => [...prev, assistantMessage]);
 
       setIsLoading(true);
       setIsStreaming(true);
@@ -241,31 +249,39 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
         disabledTools: getDisabledTools(),
         onToken: (token) => {
           if (abortedRef.current) return;
+          if (!placeholderCreated) {
+            appendAssistant(token);
+            currentResponseRef.current = token;
+          } else {
+            currentResponseRef.current += token;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
+              ),
+            );
+          }
           log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
-          currentResponseRef.current += token;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
-            ),
-          );
           options?.onToken?.(token);
         },
         onDone: async (fullResponse) => {
           if (abortedRef.current) return;
-          const finalMsg: Message = {
-            id: assistantId,
-            role: 'assistant',
-            content: fullResponse,
-            timestamp: new Date(),
-          };
-          // 仅当当前仍是发起回复的会话时才落盘/更新 UI，防止切会话后串写
-          if (sessionRef.current?.id === session.id) {
-            saveMessage(finalMsg);
-            setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+          if (!placeholderCreated) {
+            appendAssistant(fullResponse);
+          } else {
+            const finalMsg: Message = {
+              id: assistantId,
+              role: 'assistant',
+              content: fullResponse,
+              timestamp: new Date(),
+            };
+            if (sessionRef.current?.id === session.id) {
+              saveMessage(finalMsg);
+              setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+            }
           }
           // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
           if (isTauriEnv()) {
-            emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: finalMsg }).catch(() => {});
+            emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: { id: assistantId, role: 'assistant', content: fullResponse, timestamp: new Date() } }).catch(() => {});
           }
           setIsLoading(false);
           setIsStreaming(false);
@@ -293,13 +309,17 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           }
         },
         onError: (error) => {
-          const errorMsg: Message = {
-            id: assistantId,
-            role: 'assistant',
-            content: t('app.error_api_key', { message: error }),
-            timestamp: new Date(),
-          };
-          setMessages((prev) => prev.map((m) => (m.id === assistantId ? errorMsg : m)));
+          if (!placeholderCreated) {
+            appendAssistant(t('app.error_api_key', { message: error }));
+          } else {
+            const errorMsg: Message = {
+              id: assistantId,
+              role: 'assistant',
+              content: t('app.error_api_key', { message: error }),
+              timestamp: new Date(),
+            };
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? errorMsg : m)));
+          }
           setIsLoading(false);
           setIsStreaming(false);
           showToast(t('app.error_api_key', { message: error }), 'error');

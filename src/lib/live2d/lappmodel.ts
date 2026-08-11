@@ -39,7 +39,7 @@ import {
 
 import * as LAppDefine from './lappdefine';
 import { frameBuffer, LAppDelegate } from './lappdelegate';
-import { canvas, gl } from './lappglmanager';
+import { canvas, gl, readCanvasAlphaAt } from './lappglmanager';
 import { LAppPal } from './lapppal';
 import { TextureInfo } from './lapptexturemanager';
 import {
@@ -940,11 +940,125 @@ export class LAppModel extends CubismUserModel {
     if (this._state == LoadStep.CompleteSetup) {
       matrix.multiplyByMatrix(this._modelMatrix);
 
+      // 缓存完整 MVP（投影 × 视图 × 模型矩阵）并据此计算「真实角色包围盒」，
+      // 供点击/拖拽命中测试使用。比"画布尺寸估算"精确（贴合呼吸/动作/头部运动），
+      // 且不依赖脆弱的 WebGL readPixels。
+      this._lastMvp.setMatrix(matrix.getArray());
+      this._updateCharacterBounds();
+
       this.getRenderer().setMvpMatrix(matrix);
 
       this.doDraw();
     }
   }
+
+  /**
+   * 遍历所有 drawable 的顶点（模型局部坐标），经完整 MVP 变换到 NDC([-1,1]) 空间，
+   * 求其最小轴对齐包围盒（AABB），缓存为 _charNdcBounds。
+   * 每帧调用，开销可忽略（仅一次顶点遍历，几千次矩阵变换）。
+   */
+  private _updateCharacterBounds(): void {
+    const model = this.getModel();
+    if (!model) return;
+    const m = this._lastMvp;
+    // 完整 2D 仿射（与着色器 mvp×vec4(x,y,0,1) 严格一致）：
+    //   ndcX = tr[0]*x + tr[4]*y + tr[12]
+    //   ndcY = tr[1]*x + tr[5]*y + tr[13]
+    // ⚠️ 不能用 transformX/transformY（其实现忽略 Y 分量），否则 MVP 含任何
+    //   非对角项（如 viewMatrix 旋转）时包围盒会算错，导致命中测试严重偏移。
+    const tr = m.getArray();
+    const a00 = tr[0];
+    const a01 = tr[4];
+    const a03 = tr[12];
+    const a10 = tr[1];
+    const a11 = tr[5];
+    const a13 = tr[13];
+    const n = model.getDrawableCount();
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const verts = model.getDrawableVertexPositions(i);
+      if (!verts || verts.length === 0) continue;
+      const cnt = verts.length / 2;
+      for (let k = 0; k < cnt; k++) {
+        const lx = verts[k * 2];
+        const ly = verts[k * 2 + 1];
+        const vx = a00 * lx + a01 * ly + a03;
+        const vy = a10 * lx + a11 * ly + a13;
+        if (vx < minX) minX = vx;
+        if (vx > maxX) maxX = vx;
+        if (vy < minY) minY = vy;
+        if (vy > maxY) maxY = vy;
+      }
+    }
+    if (minX <= maxX && minY <= maxY) {
+      this._charNdcBounds = { minX, maxX, minY, maxY };
+    }
+  }
+
+  /**
+   * 取得角色在 NDC 空间的包围盒（屏幕坐标体系）。
+   * 模型未就绪时返回 null（调用方应降级为"算命中"以免误伤）。
+   */
+  public getCharacterNdcBounds(): {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } | null {
+    return this._charNdcBounds;
+  }
+
+  /**
+   * 判断给定 CSS 像素坐标（相对 canvas 左上角）是否落在角色本体上。
+   * 用于点击/拖拽命中：落在透明边距或四周空白 → 返回 false（不触发角色/不拖窗）。
+   *
+   * 两道防线（顺序重要）：
+   *   第一道 —— 几何包围盒（数学确定，零开销，不依赖 readPixels）。
+   *     由「顶点 × 完整 MVP」求得的 NDC 包围盒，点击坐标用 gl 视口变换逆映射到同一 NDC。
+   *     落在包围盒外（画布外缘空白/窗口 toolbar/bubble 区）→ 直接穿透。
+   *     ⚠️ 这是"根治点空白触发角色"的主力，即使像素读取失效也成立。
+   *   第二道 —— 像素级精确判定（角色本体 vs 内部镂空）。
+   *     仅当 readPixels 可用（_pixelBroken=false）时启用；若本 webview 下
+   *     readPixels 不可用（自检发现模型中心也读不到 alpha），则整道禁用，
+   *     回退为"包围盒内一律算命中"，保证点击始终可用（绝不永久穿透点不了）。
+   *
+   * @param cssX 相对 canvas 左上角的 CSS X（调用方务必传入 canvas 相对坐标！）
+   * @param cssY 相对 canvas 左上角的 CSS Y
+   * @returns 命中角色本体返回 true；否则 false
+   */
+  public isPointOverCharacter(cssX: number, cssY: number): boolean {
+    // ── 第一道：几何包围盒（永远运行，数学可靠）──
+    // 仅用于排除「画布外缘空白 / toolbar / bubble 区」——这些区域点击本就不应触发角色。
+    // 注意：本函数只用于「是否触发角色反应/拖动」（DOM 层），绝不用于整窗穿透决策，
+    // 因此即使像素判定在本 webview 失效，最坏也只是「画布内空白多触发一次角色反应」，
+    // 不会让整窗穿透导致「点不了」。
+    const b = this._charNdcBounds;
+    const rectW = canvas.clientWidth || canvas.width;
+    const rectH = canvas.clientHeight || canvas.height;
+    if (rectW > 0 && rectH > 0) {
+      const nx = (cssX / rectW) * 2 - 1;
+      const ny = 1 - (cssY / rectH) * 2;
+      if (b) {
+        const PAD = 0.06;
+        if (nx < b.minX - PAD || nx > b.maxX + PAD || ny < b.minY - PAD || ny > b.maxY + PAD) {
+          return false; // 画布外缘空白：确定不命中角色
+        }
+      } else {
+        return true; // 包围盒未就绪：兜底算命中，避免误拦角色点击/拖动
+      }
+    }
+
+    // ── 第二道：像素级判定（fail-safe，仅决定「是否触发角色反应」）──
+    // 画布内：有像素（角色实体）→ 命中；透明边距 → 不命中。
+    // readPixels 若不可用 / 读到 -1 → 兜底命中（保留角色响应，宁可多触发也不误拦）。
+    const a = readCanvasAlphaAt(cssX, cssY);
+    if (a < 0) return true; // gl 不可用：兜底命中
+    return a > this._hitAlphaThreshold;
+  }
+
 
   public async hasMocConsistencyFromFile() {
     CSM_ASSERT(this._modelSetting.getModelFileName().localeCompare(``));
@@ -1098,6 +1212,19 @@ export class LAppModel extends CubismUserModel {
   // 缓存的模型 canvas 尺寸（绕过 getCanvasWidth/Height 的 1×1 bug）
   cachedCanvasW: number = 0;
   cachedCanvasH: number = 0;
+
+  // 完整 MVP（投影 × 视图 × 模型矩阵）缓存，供命中测试把模型顶点变换到 NDC
+  _lastMvp: CubismMatrix44 = new CubismMatrix44();
+  // 角色在 NDC 空间的真实包围盒（每帧由 _updateCharacterBounds 计算）
+  _charNdcBounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } | null = null;
+
+  // 像素 alpha 阈值：低于此值视为透明（空白），高于视为角色实体（命中）
+  _hitAlphaThreshold: number = 8;
 
   /**
    * 设置外部口型开合度（0~1），用于 TTS 唇形同步。

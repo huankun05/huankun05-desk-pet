@@ -12,7 +12,7 @@ LLM 对话模块
 import os
 import json
 import time
-from typing import Generator
+from typing import Any, Generator
 from loguru import logger
 
 # 尝试导入 openai（API 模式需要）
@@ -199,6 +199,7 @@ class LLMChat:
             return "[LLM 未初始化，请配置 API Key]"
 
         try:
+            t0 = time.time()
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -206,15 +207,18 @@ class LLMChat:
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
                 temperature=kwargs.get("temperature", self.temperature),
                 top_p=kwargs.get("top_p", self.top_p),
+                extra_body=self._extra_body(),
             )
+            logger.info("[LLM] _chat_api request sent in %.2fs", time.time() - t0)
             if stream:
-                # 流式模式下取第一个 chunk 的完整内容
                 full_text = ""
                 for chunk in response:
                     if chunk.choices[0].delta.content:
                         full_text += chunk.choices[0].delta.content
+                logger.info("[LLM] _chat_api stream done in %.2fs", time.time() - t0)
                 return full_text
             else:
+                logger.info("[LLM] _chat_api done in %.2fs", time.time() - t0)
                 return response.choices[0].message.content
         except Exception as e:
             logger.error(f"API 调用失败: {e}")
@@ -227,6 +231,7 @@ class LLMChat:
             return
 
         try:
+            t0 = time.time()
             create_kwargs: dict = {
                 "model": self.model,
                 "messages": messages,
@@ -234,10 +239,12 @@ class LLMChat:
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
                 "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p),
+                "extra_body": self._extra_body(),
             }
             if tools:
                 create_kwargs["tools"] = tools
             response = self._client.chat.completions.create(**create_kwargs)
+            logger.info("[LLM] _chat_api_stream request sent in %.2fs", time.time() - t0)
 
             # 聚合流式增量 tool_calls（OpenAI 按 index 分片返回）
             accumulated: dict[int, dict[str, str]] = {}
@@ -263,6 +270,7 @@ class LLMChat:
                             if getattr(fn, "arguments", None):
                                 slot["arguments"] += fn.arguments
 
+            logger.info("[LLM] _chat_api_stream done in %.2fs", time.time() - t0)
             if accumulated:
                 calls = []
                 for slot in accumulated.values():
@@ -277,6 +285,17 @@ class LLMChat:
         except Exception as e:
             logger.error(f"API 流式调用失败: {e}")
             yield f"[LLM 调用失败: {e}]"
+
+    def _extra_body(self) -> dict[str, Any] | None:
+        """Provider-specific extra parameters.
+
+        StepFun: reduce reasoning effort so responses are faster, matching Hermes behavior.
+        """
+        provider = (getattr(self, "api_provider", "") or "").strip().lower()
+        model = (getattr(self, "model", "") or "").strip().lower()
+        if provider == "stepfun" or model.startswith("step-"):
+            return {"reasoning_effort": "low"}
+        return None
 
     # ==================== 本地模式 ====================
 

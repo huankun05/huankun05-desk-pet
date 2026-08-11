@@ -6,7 +6,6 @@ import { settingsStorage } from '../services/storage/settingsStorage';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { createLogger } from '../utils/logger';
 import { useStorageEvent } from './useStorageEvent';
-import type { ControlsIslandHandle } from '../components/Pet/ControlsIsland';
 
 const log = createLogger('WindowManager');
 
@@ -65,13 +64,11 @@ export interface WindowManagerState {
 export interface UseWindowManagerOptions {
   modelConfig: ModelConfigShape;
   modelInfo: { canvasWidth: number; canvasHeight: number } | null;
-  controlsIslandRef: React.RefObject<ControlsIslandHandle | null>;
 }
 
 export function useWindowManager({
   modelConfig,
   modelInfo,
-  controlsIslandRef: _controlsIslandRef,
 }: UseWindowManagerOptions): WindowManagerState {
   const [petScale, setPetScale] = useState(() => settingsStorage.get().petScale);
   const [edgeSnap, setEdgeSnap] = useState(() => settingsStorage.get().edgeSnap);
@@ -446,36 +443,25 @@ export function useWindowManager({
   useEffect(() => {
     if (!isTauriEnv()) return;
     const appWindow = getCurrentWindow();
-    if (!isLocked) {
-      appWindow.setIgnoreCursorEvents(false).catch(() => {});
-      return;
-    }
-    appWindow.setIgnoreCursorEvents(true).catch(() => {});
 
-    const MARGIN = 20;
-    let lastInteractive = false;
+    // ── 点击穿透策略（2026-08-11 重写，fail-safe 版）──────────────────────
+    // 锁定态：整窗穿透（角色仅展示，点击透传下方窗口/桌面）。
+    // 变换态：整窗「捕获」——保证角色一定可点击、可拖动。
+    // 解锁且非变换：整窗「捕获」——保证角色一定能点、能拖（止血关键）。
+    //   点击是否「触发角色反应 / 拖动角色」由 DOM 层 isPointOverCharacter 判定
+    //   （几何排除画布外缘 + 画布内像素判定，fail-safe：判定失败也只是多触发
+    //   一次角色反应，绝不会让整窗穿透导致「点不了」）。
+    // ⚠️ 历史教训：曾用 isPointOverCharacter 动态切换 setIgnoreCursorEvents 实现
+    //   「空白穿透桌面」，但 readPixels 在透明 webview 读不到可靠 alpha → 整窗被
+    //   设穿透 → 解锁后完全点不了。故解锁态一律捕获，「空白穿透桌面」已移除。
+    appWindow.setIgnoreCursorEvents(isLocked).catch(() => {});
+
+    // hover 淡出：仅 fadeOnHover 时检测鼠标是否在窗口内
     let lastHovering = false;
-    let timerId: ReturnType<typeof setInterval>;
-
+    let lastIgnore = isLocked; // 记录上一次实际设置的穿透状态，避免每帧重复调用
     const check = async () => {
-      // 窗口不可见时跳过：该检测每 200ms 触发一次 IPC，后台空转对常驻应用是显著的
-      // 电量与 CPU 开销，而此时既无鼠标穿透需求、也无悬停淡出需求。200ms 仍足够顺滑。
       if (document.hidden) return;
       try {
-        // 获取实际控制面板的 DOM 边界（比硬编码常量更可靠）
-        const island = document.querySelector('.controls-island') as HTMLElement | null;
-        let xMin = 0,
-          xMax = 0,
-          yMin = 0,
-          yMax = 0;
-        if (island) {
-          const rect = island.getBoundingClientRect();
-          xMin = rect.left - MARGIN;
-          xMax = rect.right + MARGIN;
-          yMin = rect.top - MARGIN;
-          yMax = rect.bottom + MARGIN;
-        }
-
         const info = await invoke<{
           cursor_x: number;
           cursor_y: number;
@@ -489,38 +475,53 @@ export function useWindowManager({
         const localY = (info.cursor_y - info.window_y) / dpr;
         const winW = info.window_w / dpr;
         const winH = info.window_h / dpr;
+        const inWindow = localX >= 0 && localX <= winW && localY >= 0 && localY <= winH;
 
-        const overControlsIsland =
-          localX >= xMin && localX <= xMax && localY >= yMin && localY <= yMax;
-        const interactive = overControlsIsland;
-        if (interactive !== lastInteractive) {
-          lastInteractive = interactive;
-          appWindow
-            .setIgnoreCursorEvents(!interactive)
-            .catch((err) => console.warn('[WindowManager] window operation failed:', err));
+        // ── 透明边距点击穿透 ──
+        let desiredIgnore: boolean;
+        if (isTransforming) {
+          desiredIgnore = false; // 变换/拖窗：整窗捕获
+        } else if (isLocked) {
+          desiredIgnore = true; // 锁定：整窗穿透
+        } else {
+          // 解锁非变换：整窗「捕获」——保证角色一定可点击、可拖动（止血）。
+          // ⚠️ 历史教训（2026-08-11）：曾用 isPointOverCharacter 动态切换
+          // setIgnoreCursorEvents 实现「空白穿透桌面」，但 readPixels 在透明
+          // webview 下读不到可靠 alpha，命中判定误判 → 整窗被设为穿透 →
+          // 「解锁后一点都点不了」。故解锁态一律捕获；点击是否「触发角色反应」
+          // 交由 DOM 层几何+像素命中（fail-safe：判定失败也只是多触发一次反应，
+          // 绝不会让整窗穿透点不了）。「空白穿透桌面」因依赖不可靠的像素穿透，
+          // 已移除，后续如需可单独攻坚 readPixels 在透明 webview 的可靠读取。
+          desiredIgnore = false;
         }
+        if (desiredIgnore !== lastIgnore) {
+          lastIgnore = desiredIgnore;
+          appWindow.setIgnoreCursorEvents(desiredIgnore).catch(() => {});
+        }
+
         if (fadeOnHoverRef.current) {
-          const inWindow = localX >= 0 && localX <= winW && localY >= 0 && localY <= winH;
-          const hovering = inWindow && !overControlsIsland;
-          if (hovering !== lastHovering) {
-            lastHovering = hovering;
-            setIsHovering(hovering);
+          const shouldHover = inWindow;
+          if (shouldHover !== lastHovering) {
+            lastHovering = shouldHover;
+            setIsHovering(shouldHover);
           }
         } else if (lastHovering) {
           lastHovering = false;
           setIsHovering(false);
         }
       } catch (err) {
-        log.warn('Lock check failed:', err);
+        log.warn('Lock hover check failed:', err);
       }
     };
 
-    timerId = setInterval(check, 200);
+    const intervalId = setInterval(check, 200);
+
     return () => {
-      clearInterval(timerId);
+      clearInterval(intervalId);
+      // 卸载/回到锁定：恢复整窗捕获，避免残留穿透状态
       appWindow.setIgnoreCursorEvents(false).catch(() => {});
     };
-  }, [isLocked]);
+  }, [isLocked, isTransforming]);
 
   useEffect(() => {
     if (!isTauriEnv()) return;

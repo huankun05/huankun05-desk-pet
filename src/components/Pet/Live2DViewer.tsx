@@ -1,4 +1,5 @@
 import { useLive2D } from '../../hooks/useLive2D';
+import { isPointOverCharacter } from '../../lib/live2d';
 import { useRef, useEffect, memo, useState } from 'react';
 
 interface Live2DViewerProps {
@@ -88,6 +89,21 @@ export const Live2DViewer = memo(function Live2DViewer({
   }, [modelStatus]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    // ── 真实角色包围盒命中测试（基于 Cubism 模型矩阵，100% 贴合实际渲染）──
+    // 点在角色本体范围外（透明边距/四周空白）→ 直接 return，
+    // 不触发 handleClick（角色反应/语音），也不传 onClickPosition。
+    // 彻底根治"点空白也触发角色"。零像素读取、不依赖画布尺寸估算。
+    try {
+      const cssX = e.clientX - rect.left;
+      const cssY = e.clientY - rect.top;
+      if (!isPointOverCharacter(cssX, cssY)) return;
+    } catch {
+      /* 命中测试失败时降级：允许点击通过 */
+    }
+
+    // 通过命中测试 → 触发角色交互
     try {
       handleClick();
     } catch (err) {
@@ -95,34 +111,15 @@ export const Live2DViewer = memo(function Live2DViewer({
     }
     if (onClickPosition) {
       try {
-        const rect = e.currentTarget.getBoundingClientRect();
         const rawY = (e.clientY - rect.top) / rect.height;
         const rawX = (e.clientX - rect.left) / rect.width;
 
-        const modelAspect = modelCanvasH / modelCanvasW;
         const scaledModelHeight = rect.height * zoomFactor;
         const feetOffsetPx = feetOffset * rect.height;
         const characterTop = rect.height - scaledModelHeight + feetOffsetPx;
         const characterHeight = scaledModelHeight;
-        const characterWidth = scaledModelHeight / modelAspect;
-        const characterLeft = (rect.width - characterWidth) / 2;
 
-        const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
-        const TOLERANCE = characterWidth * 0.15; // 左右容错 15%
-
-        // 检测点击是否在角色区域附近（上下延伸 20%，左右延伸容错）
-        const inVerticalRange =
-          clickY >= characterTop - characterHeight * 0.2 &&
-          clickY <= characterTop + characterHeight * 1.2;
-        const inHorizontalRange =
-          clickX >= characterLeft - TOLERANCE &&
-          clickX <= characterLeft + characterWidth + TOLERANCE;
-
-        // 超出角色区域太远则不触发交互
-        if (!inVerticalRange || !inHorizontalRange) {
-          return;
-        }
 
         let adjustedY: number;
         if (characterHeight > 0) {

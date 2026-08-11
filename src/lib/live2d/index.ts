@@ -27,6 +27,8 @@ export {
   setModelCanvasSize,
   setBaseViewportAspect,
   getModelInfo,
+  getCharacterNdcBounds,
+  isPointOverCharacter,
   setModelLoadCallbacks,
   setMouthOpenY,
   setIdleState,

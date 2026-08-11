@@ -1,9 +1,14 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriEnv } from '../utils/tauriEnv';
+import {
+  loadSavedOrbPos,
+  computeOrbDefaultPos,
+  getMainRect,
+} from '../utils/orbPosition';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('PanelWindows');
@@ -12,6 +17,7 @@ export interface PanelWindowsState {
   toggleStatusPanel: () => Promise<void>;
   toggleChatPanel: () => Promise<void>;
   openSettingsPanel: () => Promise<void>;
+  openControlsOrb: () => Promise<void>;
 }
 
 export function usePanelWindows(): PanelWindowsState {
@@ -19,6 +25,7 @@ export function usePanelWindows(): PanelWindowsState {
   const statusWinRef = useRef<WebviewWindow | null>(null);
   const chatWinRef = useRef<WebviewWindow | null>(null);
   const settingsWinRef = useRef<WebviewWindow | null>(null);
+  const controlsWinRef = useRef<WebviewWindow | null>(null);
 
   // 创建聊天面板窗口。visible=false 用于预加载；backgroundColor 消除 WebView 创建瞬间的白闪。
   const createChatWindow = useCallback(
@@ -292,9 +299,92 @@ export function usePanelWindows(): PanelWindowsState {
     }
   }, []);
 
+  // 同步创建锁：在 await 之前即设为 true，彻底封死 StrictMode 双调用竞态
+  // （StrictMode 在 dev 下会 mount→cleanup→mount，两次 mount 之间若第一次卡在 await，
+  //   ref 仍为 null → 第二次也通过守卫 → 创建两个窗口。此锁在进入函数瞬间即设。）
+  const creatingRef = useRef(false);
+
+  const openControlsOrb = useCallback(async () => {
+    if (!isTauriEnv()) return;
+    try {
+      // ── 同步守卫（三层）防止重复创建 ──
+      // ① 已有窗口引用
+      if (controlsWinRef.current) {
+        try { await controlsWinRef.current.show(); } catch { /* ignore */ }
+        return;
+      }
+      // ② 正在创建中（StrictMode 第二次 mount 或快速重复点击）
+      if (creatingRef.current) return;
+      creatingRef.current = true;
+
+      // 异步守卫：防止多个并发调用绕过同步守卫（如热更新后残留旧窗）
+      const existing = await WebviewWindow.getByLabel('controls');
+      if (existing) {
+        controlsWinRef.current = existing;
+        creatingRef.current = false;
+        try { await existing.show(); } catch { /* ignore */ }
+        return;
+      }
+
+      // 优先恢复上次保存的位置（deskpet_orb_pos，逻辑像素屏幕坐标），
+      // 与 ControlsOrb 的 restorePos / onMoved 写入保持一致。
+      // 若保存值越界（例如早期调试残留的无效坐标）→ 回退到「贴角色」默认位，
+      // 避免悬浮球被开到可视区域之外而永远看不见。
+      let dftX: number;
+      let dftY: number;
+      const saved = loadSavedOrbPos();
+      if (saved) {
+        dftX = saved.x;
+        dftY = saved.y;
+      } else {
+        const main = await getMainRect();
+        const d = await computeOrbDefaultPos(main);
+        dftX = d.x;
+        dftY = d.y;
+      }
+
+      const win = new WebviewWindow('controls', {
+        url: '?panel=controls',
+        title: '控制',
+        // 窗口尺寸 = 收起态（仅小圆）。展开面板时由 ControlsOrb 用 setSize 动态放大，
+        // 绝不再开 300×420 大窗口——否则透明区会整片捕获点击、视觉上像一圈窗框阴影。
+        width: 60,
+        height: 60,
+        x: dftX,
+        y: dftY,
+        transparent: true,
+        decorations: false,
+        shadow: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        visible: true,
+        focus: false,
+      });
+
+      // 诊断：窗口创建若失败，Tauri 会以异步事件抛出，try/catch 抓不到，必须监听
+      win.once('tauri://error', (e) => {
+        log.error('[controls] window creation failed:', e);
+      });
+      win.once('tauri://created', () => {
+        log.info('[controls] orb window created & visible');
+      });
+
+      win.once('tauri://destroyed', () => {
+        controlsWinRef.current = null;
+        creatingRef.current = false;
+      });
+      controlsWinRef.current = win;
+      creatingRef.current = false;
+    } catch (err) {
+      creatingRef.current = false;
+      log.warn('Failed to create controls orb window:', err);
+    }
+  }, []);
+
   return {
     toggleStatusPanel,
     toggleChatPanel,
     openSettingsPanel,
+    openControlsOrb,
   };
 }

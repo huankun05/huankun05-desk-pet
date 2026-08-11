@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+
+import { emit, listen } from '@tauri-apps/api/event';
 import i18n from './i18n';
 import { Live2DViewer } from './components/Pet/Live2DViewer';
-import { ControlsIsland, type ControlsIslandHandle } from './components/Pet/ControlsIsland';
 import { ChatBubble } from './components/Bubble/ChatBubble';
+import {
+  type ControlsStatePayload,
+  type ControlsActionPayload,
+} from './components/Pet/ControlsOrb';
 
 import { useInteraction } from './hooks/useInteraction';
 import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
@@ -42,9 +47,11 @@ import { safetyChecker } from './services/safety';
 import { registerBuiltinTools } from './services/tools/builtins';
 import { eventBus } from './services/eventBus';
 import { useBrainBridge } from './hooks/useBrainBridge';
+import { isPointOverCharacter } from './lib/live2d';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
+import { computeOrbDefaultPos, getMainRect } from './utils/orbPosition';
 import { showToast } from './utils/toast';
 import { setLogLevel as setGlobalLogLevel } from './utils/logger';
 import { startWatchdog, registerService } from './services/provider/watchdog';
@@ -127,7 +134,6 @@ function MainPetApp() {
     return () => unlisteners.forEach((u) => u());
   }, []);
 
-  const controlsIslandRef = useRef<ControlsIslandHandle>(null);
   const emotionCtxRef = useRef<EmotionState | null>(null);
   const bubbleIdRef = useRef(0);
 
@@ -175,7 +181,6 @@ function MainPetApp() {
 
   const {
     setPetScale,
-    controlsEdge,
     isLocked,
     toggleLock,
     isTransforming,
@@ -188,7 +193,6 @@ function MainPetApp() {
   } = useWindowManager({
     modelConfig,
     modelInfo,
-    controlsIslandRef,
   });
 
   const { t } = useTranslation();
@@ -270,7 +274,7 @@ function MainPetApp() {
     onSetTalkingEmotion: setTalkingEmotion,
   });
 
-  const { toggleChatPanel, openSettingsPanel } = usePanelWindows();
+  const { toggleChatPanel, openSettingsPanel, openControlsOrb } = usePanelWindows();
 
   // "一起看"模式：Ctrl+Shift+S 触发
   const { isWatching, toggleWatch } = useWatchTogether({
@@ -411,6 +415,11 @@ function MainPetApp() {
     [],
   );
 
+  // 最新 petVisible 快照（供跨窗状态使用）
+  const petVisibleRef = useRef(appearance.petVisible);
+
+  // ── 悬浮球：无碰撞，z 序最高、可盖在角色之上（拖拽/吸附/展开逻辑见 ControlsOrb.tsx）──
+
   // 悬停淡出透明度：由外观配置驱动 CSS 变量，设置窗调整后主窗实时生效
   useEffect(() => {
     document.documentElement.style.setProperty('--fade-opacity', String(appearance.fadeOpacity));
@@ -420,6 +429,7 @@ function MainPetApp() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!appearance.petVisible) setPetModelReady(false);
+    petVisibleRef.current = appearance.petVisible;
   }, [appearance.petVisible]);
 
   // 切换模型时重置：新模型加载完成前不显示气泡
@@ -746,6 +756,22 @@ function MainPetApp() {
         return;
       if (!isTauriEnv()) return;
       if (!appearance.dragEnabled) return;
+
+      // ★ 真实角色包围盒命中测试：仅当按下位置落在角色本体（含边缘缓冲）才允许拖动角色。
+      // .pet-model 100% 覆盖窗口，点空白也会触发 mousedown，必须拦截，
+      // 否则「点角色周围空白」会拖动整个角色窗口（空白误触）。
+      // 与 Live2DViewer.handleCanvasClick 共用同一套基于 Cubism 模型矩阵的命中测试，保持一致。
+      try {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const clickX = e.clientX - rect.left;
+          const clickY = e.clientY - rect.top;
+          if (!isPointOverCharacter(clickX, clickY)) return; // 空白区：不拖动角色
+        }
+      } catch {
+        /* ignore */
+      }
+
       try {
         getCurrentWindow().startDragging();
       } catch {
@@ -761,6 +787,11 @@ function MainPetApp() {
       // 读取关闭行为配置：minimize_to_tray 则隐藏到托盘，exit 则真正退出
       const behavior = localStorage.getItem('deskpet_close_behavior') || 'minimize_to_tray';
       if (behavior === 'exit') {
+        // 退出前先关闭悬浮球独立窗口，避免主窗关闭后它残留
+        import('@tauri-apps/api/webviewWindow')
+          .then(({ WebviewWindow }) => WebviewWindow.getByLabel('controls'))
+          .then((w) => w?.close().catch(() => {}))
+          .catch(() => {});
         // 调用 Rust 侧退出（会停止所有服务）
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().close();
@@ -777,6 +808,155 @@ function MainPetApp() {
     setAppearance((a) => ({ ...a, petVisible: next }));
     writeAppearanceConfig({ petVisible: next });
   }, [appearance.petVisible]);
+
+  // 启动悬浮球独立窗口（常驻，可拖到屏幕任意位置）
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    openControlsOrb();
+  }, [openControlsOrb]);
+
+  // 悬浮球 z 序最高：启动一次把悬浮球提到最上层。
+  // ⚠️ 注意：绝不在主窗 onFocusChanged 里 re-raise 悬浮球！
+  //   两窗都是 alwaysOnTop，主窗获焦时若去 toggle 悬浮球，会与「悬浮球失焦自我提价」互抢，
+  //   鼠标在悬浮球/角色边界来回移动时焦点反复横跳 → 每秒多次 off→on toggle → 疯狂闪烁。
+  //   正确做法：悬浮球自己「失焦那刻」才自我提价（见 ControlsOrb.tsx），离散事件、不进循环。
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    // 启动：确保悬浮球在最上层（一次性，无闪烁）
+    void WebviewWindow.getByLabel('controls')
+      .then((c) => {
+        if (c) c.setAlwaysOnTop(true).catch(() => {});
+      })
+      .catch(() => {});
+  }, []);
+
+  // 托盘「重置悬浮球」：把球移动到角色（主窗）旁边的默认位，并置顶，
+  // 让球始终可见（无碰撞，球可以自由停在角色旁边或之上）。
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let unlisten: (() => void) | undefined;
+    listen('tray:reset-orb', async () => {
+      try {
+        const controls = await WebviewWindow.getByLabel('controls').catch(() => null);
+        if (!controls) return;
+        // 即使此前被隐藏（如最小化到托盘）也一并显示，确保重置后用户能看到球
+        try {
+          await controls.show();
+        } catch {
+          /* ignore */
+        }
+        const main = await getMainRect();
+        const d = await computeOrbDefaultPos(main);
+        await controls.setPosition(new LogicalPosition(d.x, d.y)).catch(() => {});
+        // ★ toggle 技巧：先 off 再 on 强制把球提升到所有置顶窗（含角色）之上
+        controls.setAlwaysOnTop(false).then(() => controls.setAlwaysOnTop(true)).catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    })
+      .then((u) => {
+        unlisten = u;
+      })
+      .catch(() => {});
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // 跨窗通信：接收悬浮球窗口的动作并派发到本地 handler
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let unlisten: (() => void) | undefined;
+    listen<ControlsActionPayload>('controls:action', (e) => {
+      const a = e.payload;
+      switch (a.type) {
+        case 'settings':
+          openSettingsPanel();
+          break;
+        case 'chat':
+          toggleChatPanel();
+          break;
+        case 'hidepet':
+          handleToggleLive2D();
+          break;
+        case 'transform':
+          toggleTransform();
+          break;
+        case 'mode':
+          handleToggleMode();
+          break;
+        case 'fade':
+          toggleFadeOnHover();
+          break;
+        case 'lock':
+          toggleLock();
+          break;
+        case 'exit':
+          handleClose();
+          break;
+        case 'switchModel':
+          if (a.payload) switchModel(a.payload);
+          break;
+      }
+    })
+      .then((u) => {
+        unlisten = u;
+      })
+      .catch(() => {});
+    return () => {
+      unlisten?.();
+    };
+  }, [
+    openSettingsPanel,
+    toggleChatPanel,
+    handleToggleLive2D,
+    toggleTransform,
+    handleToggleMode,
+    toggleFadeOnHover,
+    toggleLock,
+    handleClose,
+    switchModel,
+  ]);
+
+  // 跨窗通信：状态变更时把最新快照广播给悬浮球窗口
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    const payload: ControlsStatePayload = {
+      petVisible: appearance.petVisible,
+      isLocked,
+      isTransforming,
+      mode,
+      fadeOnHover,
+      currentModelId,
+      availableModels,
+    };
+    emit('controls:state', payload).catch(() => {});
+  }, [appearance.petVisible, isLocked, isTransforming, mode, fadeOnHover, currentModelId, availableModels]);
+
+  // 跨窗通信：悬浮球窗口挂载后请求一次当前状态，立即回发
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let unlisten: (() => void) | undefined;
+    listen<null>('controls:request-state', () => {
+      const payload: ControlsStatePayload = {
+        petVisible: appearance.petVisible,
+        isLocked,
+        isTransforming,
+        mode,
+        fadeOnHover,
+        currentModelId,
+        availableModels,
+      };
+      emit('controls:state', payload).catch(() => {});
+    })
+      .then((u) => {
+        unlisten = u;
+      })
+      .catch(() => {});
+    return () => {
+      unlisten?.();
+    };
+  }, [appearance.petVisible, isLocked, isTransforming, mode, fadeOnHover, currentModelId, availableModels]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -830,18 +1010,23 @@ function MainPetApp() {
 
       <div
         className={`pet-zone ${isLocked ? 'locked' : ''} ${isTransforming ? 'moving' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}
-        onMouseDown={handlePetMouseDown}
-        onMouseEnter={() => !isLocked && setIsHovering(true)}
-        onMouseLeave={() => !isLocked && setIsHovering(false)}
         style={{
           transform: appearance.mirror ? 'scaleX(-1)' : undefined,
-          // 隐藏时整块区域不再拦截鼠标（2D 已卸载），点击可穿透到下方
-          pointerEvents: appearance.petVisible ? 'auto' : 'none',
+          // ★ 整个 pet-zone 不拦截鼠标（空白区域穿透到桌面/下方窗口）
+          //   仅 .pet-model（实际角色渲染区）设 pointerEvents:auto 捕获交互
+          //   旧版这里设 auto 导致整个窗口矩形都捕获点击——包括角色周围大量空白
+          pointerEvents: 'none',
         }}
       >
         {/* 隐藏角色：直接卸载 Live2D，把 2D 图像从桌面彻底移除（而非仅设 opacity:0 透明留 DOM） */}
         {appearance.petVisible && (
-          <div className="pet-model">
+          <div
+            className="pet-model"
+            onMouseDown={handlePetMouseDown}
+            onMouseEnter={() => !isLocked && setIsHovering(true)}
+            onMouseLeave={() => !isLocked && setIsHovering(false)}
+            style={{ pointerEvents: 'auto' }}
+          >
             <Live2DViewer
               modelPath={currentModelPath}
               emotion={emotionState.emotion}
@@ -866,29 +1051,6 @@ function MainPetApp() {
           </div>
         )}
       </div>
-
-      <ControlsIsland
-        ref={controlsIslandRef}
-        onSettings={openSettingsPanel}
-        onChat={toggleChatPanel}
-        onToggleLive2D={handleToggleLive2D}
-        onToggleLock={toggleLock}
-        onToggleFade={toggleFadeOnHover}
-        onToggleTransform={toggleTransform}
-        onToggleMode={handleToggleMode}
-        onExit={handleClose}
-        isTransforming={isTransforming}
-        currentMode={mode}
-        isLocked={isLocked}
-        fadeOnHover={fadeOnHover}
-        petVisible={appearance.petVisible}
-        availableModels={availableModels}
-        currentModelId={currentModelId}
-        onSwitchModel={(id) => {
-          switchModel(id);
-        }}
-        edge={controlsEdge}
-      />
     </div>
   );
 }

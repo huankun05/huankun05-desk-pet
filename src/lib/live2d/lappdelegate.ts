@@ -637,6 +637,38 @@ export function getModelInfo(): { canvasWidth: number; canvasHeight: number } | 
 }
 
 /**
+ * 取得角色在 NDC 空间的真实包围盒（供点击/拖拽命中测试）。
+ * 模型未就绪时返回 null。
+ */
+export function getCharacterNdcBounds(): {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+} | null {
+  const manager = LAppLive2DManager.getInstance();
+  const model = manager.getModel(0) as { getCharacterNdcBounds?: () => unknown } | undefined;
+  if (!model || typeof model.getCharacterNdcBounds !== 'function') return null;
+  return model.getCharacterNdcBounds() as {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } | null;
+}
+
+/**
+ * 判断 CSS 坐标（相对 canvas 左上角）是否落在角色本体包围盒内。
+ * 用于根治"点空白也触发角色"：透明边距/四周空白返回 false。
+ */
+export function isPointOverCharacter(cssX: number, cssY: number): boolean {
+  const manager = LAppLive2DManager.getInstance();
+  const model = manager.getModel(0) as { isPointOverCharacter?: (x: number, y: number) => boolean } | undefined;
+  if (!model || typeof model.isPointOverCharacter !== 'function') return true;
+  return model.isPointOverCharacter(cssX, cssY);
+}
+
+/**
  * 设置模型加载回调
  */
 export function setModelLoadCallbacks(

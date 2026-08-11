@@ -60,12 +60,17 @@
 
   <body>
     <script>
-      // 独立面板窗口（status/chat/settings）：在 React 渲染前设置背景色，防止白闪
-      // 聊天面板用浅色底，其他面板用白色
+      // 独立面板窗口（status/chat/settings/controls）：在 React 渲染前设置背景色，防止白闪
+      // 悬浮球窗口必须第一时间设透明（Windows DWM 在首次合成后不易回退到透明）
       if (location.search.includes('panel=')) {
-        var bg = location.search.includes('panel=chat') ? '#f2f3f5' : '#ffffff';
-        document.documentElement.style.backgroundColor = bg;
-        document.body.style.backgroundColor = bg;
+        if (location.search.includes('panel=controls')) {
+          document.documentElement.style.backgroundColor = 'transparent';
+          document.body.style.backgroundColor = 'transparent';
+        } else {
+          var bg = location.search.includes('panel=chat') ? '#f2f3f5' : '#ffffff';
+          document.documentElement.style.backgroundColor = bg;
+          document.body.style.backgroundColor = bg;
+        }
         // 面板窗不渲染 Live2D：#app-loading 已由上方 document.write 守卫跳过，无需遮罩
       }
       // 安全兜底：若模型加载异常导致 onReady 未触发，18s 后也淡出遮罩，避免永久空白
