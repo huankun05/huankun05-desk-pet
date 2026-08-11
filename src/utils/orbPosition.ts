@@ -1,4 +1,6 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { invoke } from '@tauri-apps/api/core';
+import { isTauriEnv } from './tauriEnv';
 
 /**
  * 悬浮球窗口尺寸（逻辑像素）。
@@ -12,8 +14,10 @@ export const ORB_COLLAPSED_H = 60;
 export const ORB_EXPANDED_W = 176;
 export const ORB_EXPANDED_H = 272;
 
-/** 悬浮球位置持久化 key（绝对屏幕坐标，逻辑像素） */
-export const ORB_POS_KEY = 'deskpet_orb_pos';
+/** 悬浮球位置持久化 key（Rust save_data/load_data，绝对屏幕坐标，逻辑像素） */
+export const ORB_POS_RUST_KEY = 'orb_pos';
+/** 悬浮球位置记忆开关 key（localStorage，与角色 windowPosMemory 一致） */
+export const ORB_POS_MEMORY_KEY = 'deskpet_orb_pos_memory';
 /** 默认贴角色放置时的间隙（逻辑像素） */
 export const ORB_GAP = 8;
 
@@ -118,10 +122,23 @@ export async function computeOrbDefaultPos(
   return { x: right - orbW - 40, y: bottom - orbH - 40 };
 }
 
-/** 读取已保存位置；无效（越界 / 格式错 / 缺失）则返回 null */
-export function loadSavedOrbPos(): { x: number; y: number } | null {
+/** 是否开启悬浮球位置记忆（localStorage 开关，默认开启，与角色 windowPosMemory 一致） */
+export function isOrbPosMemoryEnabled(): boolean {
   try {
-    const raw = localStorage.getItem(ORB_POS_KEY);
+    return localStorage.getItem(ORB_POS_MEMORY_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 读取已保存的悬浮球位置（统一走 Rust save_data/load_data，存于应用数据目录，
+ * 不受 localStorage 清理影响）。无效（未开启记忆 / 越界 / 格式错 / 缺失）则返回 null。
+ */
+export async function loadOrbPos(): Promise<{ x: number; y: number } | null> {
+  if (!isOrbPosMemoryEnabled() || !isTauriEnv()) return null;
+  try {
+    const raw = await invoke<string>('load_data', { key: ORB_POS_RUST_KEY });
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (typeof p?.x === 'number' && typeof p?.y === 'number' && isOnScreen(p.x, p.y)) {
@@ -131,6 +148,16 @@ export function loadSavedOrbPos(): { x: number; y: number } | null {
     /* ignore */
   }
   return null;
+}
+
+/** 持久化悬浮球位置（统一走 Rust save_data；记忆关闭或非 Tauri 环境时静默跳过）。 */
+export async function saveOrbPos(x: number, y: number): Promise<void> {
+  if (!isOrbPosMemoryEnabled() || !isTauriEnv()) return;
+  try {
+    await invoke('save_data', { key: ORB_POS_RUST_KEY, data: JSON.stringify({ x, y }) });
+  } catch {
+    /* ignore */
+  }
 }
 
 /** 读取主窗（角色）的矩形（逻辑像素）。找不到主窗时返回 null */
@@ -163,4 +190,3 @@ export function clampToScreen(
     y: Math.min(Math.max(y, top), Math.max(top, bottom - h)),
   };
 }
-

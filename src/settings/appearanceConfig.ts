@@ -37,6 +37,7 @@ export const APPEARANCE_KEYS = {
   clickFeedback: 'deskpet_click_feedback',
   dragEnabled: 'deskpet_drag_enabled',
   windowPosMemory: 'deskpet_window_pos_memory',
+  orbPosMemory: 'deskpet_orb_pos_memory',
   showFps: 'deskpet_show_fps',
   fadeOpacity: 'deskpet_fadeOpacity',
   targetFps: 'deskpet_target_fps',
@@ -99,6 +100,8 @@ export interface AppearanceConfig {
   dragEnabled: boolean;
   /** 是否记忆窗口位置（开机恢复上次位置） */
   windowPosMemory: boolean;
+  /** 是否记忆悬浮球位置（开机恢复上次位置，与 windowPosMemory 一致） */
+  orbPosMemory: boolean;
   /** 是否显示 FPS 悬浮指示 */
   showFps: boolean;
   /** 鼠标悬停时角色的淡出透明度 (0~1)，驱动 CSS 变量 --fade-opacity */
@@ -126,6 +129,7 @@ export const DEFAULT_APPEARANCE: AppearanceConfig = {
   clickFeedback: true,
   dragEnabled: true,
   windowPosMemory: true,
+  orbPosMemory: true,
   showFps: false,
   fadeOpacity: 0.15,
   targetFps: 60,
@@ -167,6 +171,7 @@ export function readAppearance(): AppearanceConfig {
     clickFeedback: bool(APPEARANCE_KEYS.clickFeedback, DEFAULT_APPEARANCE.clickFeedback),
     dragEnabled: bool(APPEARANCE_KEYS.dragEnabled, DEFAULT_APPEARANCE.dragEnabled),
     windowPosMemory: bool(APPEARANCE_KEYS.windowPosMemory, DEFAULT_APPEARANCE.windowPosMemory),
+    orbPosMemory: bool(APPEARANCE_KEYS.orbPosMemory, DEFAULT_APPEARANCE.orbPosMemory),
     showFps: bool(APPEARANCE_KEYS.showFps, DEFAULT_APPEARANCE.showFps),
     fadeOpacity: num(APPEARANCE_KEYS.fadeOpacity, DEFAULT_APPEARANCE.fadeOpacity),
     targetFps: num(APPEARANCE_KEYS.targetFps, DEFAULT_APPEARANCE.targetFps),
@@ -196,6 +201,7 @@ export function writeAppearanceConfig(patch: Partial<AppearanceConfig>): void {
   writeStorage(APPEARANCE_KEYS.clickFeedback, String(next.clickFeedback));
   writeStorage(APPEARANCE_KEYS.dragEnabled, String(next.dragEnabled));
   writeStorage(APPEARANCE_KEYS.windowPosMemory, String(next.windowPosMemory));
+  writeStorage(APPEARANCE_KEYS.orbPosMemory, String(next.orbPosMemory));
   writeStorage(APPEARANCE_KEYS.showFps, String(next.showFps));
   writeStorage(APPEARANCE_KEYS.fadeOpacity, String(next.fadeOpacity));
   writeStorage(APPEARANCE_KEYS.targetFps, String(next.targetFps));

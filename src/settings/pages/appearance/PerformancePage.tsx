@@ -64,6 +64,15 @@ export function PerformancePage() {
             onChange={() => update({ windowPosMemory: !cfg.windowPosMemory })}
           />
         </SettingRow>
+        <SettingRow
+          title={t('settings.performance.orb_pos_memory')}
+          description={t('settings.performance.orb_pos_memory_desc')}
+        >
+          <Switch
+            checked={cfg.orbPosMemory}
+            onChange={() => update({ orbPosMemory: !cfg.orbPosMemory })}
+          />
+        </SettingRow>
       </Section>
     </div>
   );

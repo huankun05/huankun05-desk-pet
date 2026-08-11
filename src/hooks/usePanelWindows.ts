@@ -4,11 +4,7 @@ import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriEnv } from '../utils/tauriEnv';
-import {
-  loadSavedOrbPos,
-  computeOrbDefaultPos,
-  getMainRect,
-} from '../utils/orbPosition';
+import { loadOrbPos, computeOrbDefaultPos, getMainRect } from '../utils/orbPosition';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('PanelWindows');
@@ -310,7 +306,11 @@ export function usePanelWindows(): PanelWindowsState {
       // ── 同步守卫（三层）防止重复创建 ──
       // ① 已有窗口引用
       if (controlsWinRef.current) {
-        try { await controlsWinRef.current.show(); } catch { /* ignore */ }
+        try {
+          await controlsWinRef.current.show();
+        } catch {
+          /* ignore */
+        }
         return;
       }
       // ② 正在创建中（StrictMode 第二次 mount 或快速重复点击）
@@ -322,7 +322,11 @@ export function usePanelWindows(): PanelWindowsState {
       if (existing) {
         controlsWinRef.current = existing;
         creatingRef.current = false;
-        try { await existing.show(); } catch { /* ignore */ }
+        try {
+          await existing.show();
+        } catch {
+          /* ignore */
+        }
         return;
       }
 
@@ -332,7 +336,7 @@ export function usePanelWindows(): PanelWindowsState {
       // 避免悬浮球被开到可视区域之外而永远看不见。
       let dftX: number;
       let dftY: number;
-      const saved = loadSavedOrbPos();
+      const saved = await loadOrbPos();
       if (saved) {
         dftX = saved.x;
         dftY = saved.y;

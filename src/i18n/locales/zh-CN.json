@@ -549,7 +549,8 @@
       "watchdog_desc": "自动监控并恢复崩溃的后端服务。",
       "watchdog_enabled": "启用服务看门狗",
       "offline_mode": "离线模式",
-      "offline_mode_desc": "禁用 AI 功能，保留 Live2D 与基础交互。"
+      "offline_mode_desc": "禁用 AI 功能，保留 Live2D 与基础交互。",
+      "offline_mode_hint": "当前离线模式下已禁用 AI 功能"
     },
     "about": {
       "app_info": "应用信息",
@@ -636,7 +637,9 @@
       "window_title": "窗口行为",
       "window_desc": "窗口位置与启动表现。",
       "window_pos_memory": "记忆窗口位置",
-      "window_pos_memory_desc": "记住上次拖动到的位置，下次启动时自动恢复。"
+      "window_pos_memory_desc": "记住上次拖动到的位置，下次启动时自动恢复。",
+      "orb_pos_memory": "记忆悬浮球位置",
+      "orb_pos_memory_desc": "记住悬浮球上次停靠的位置，下次启动时自动恢复（与窗口位置共用同一套记忆开关风格）。"
     },
     "theme": "主题",
     "theme_desc": "选择一个喜欢的预设配色，影响整个界面的主色调。",
@@ -736,6 +739,8 @@
       "behavior_desc": "互动行为、内心独白、主动聊天",
       "emotion": "情绪状态",
       "emotion_desc": "九维情绪、PAD 映射、情绪变化记录",
+      "personality": "人格画像",
+      "personality_desc": "HEXACO 六维人格、PAD 基线、人格描述",
       "expressions": "表情与动作",
       "expressions_desc": "预览与管理表情、动作及情绪映射",
       "interaction": "交互消息",
@@ -1322,6 +1327,40 @@
       "add_pref_desc": "键名 + JSON 值，双击已有条目可编辑",
       "add_rule_title": "补充约定规则",
       "add_rule_desc": "新增一条行为约定，可随时启用或停用"
+    },
+    "personality": {
+      "title": "人格画像",
+      "desc": "HEXACO 六维人格、情绪基线映射、人格描述",
+      "hexaco_title": "六维人格",
+      "hexaco_desc": "0.0 ~ 1.0，0.5 为平均水平；越高越偏向右侧描述",
+      "pad_title": "PAD 情绪基线",
+      "pad_desc": "人格对愉悦/唤醒/支配的基线影响（±0.3 范围内）",
+      "desc_title": "人格解读",
+      "desc_desc": "基于当前维度生成的文字总结",
+      "no_data": "暂无人格数据",
+      "refresh": "刷新",
+      "online": "在线",
+      "offline": "离线",
+      "updated_at": "更新于",
+      "honesty_humility": "诚实-谦逊",
+      "emotionality": "情绪性",
+      "extraversion": "外向性",
+      "agreeableness": "宜人性",
+      "conscientiousness": "尽责性",
+      "openness": "开放性",
+      "honesty_humility_desc": "真诚、公平、忠诚 vs 贪婪、傲慢、狡诈",
+      "emotionality_desc": "多愁善感、依赖 vs 冷静、独立、无畏",
+      "extraversion_desc": "社交、活跃、自信 vs 内向、沉默、被动",
+      "agreeableness_desc": "宽容、合作、温和 vs 易怒、好斗、挑剔",
+      "conscientiousness_desc": "严谨、自律、可靠 vs 随意、马虎、冲动",
+      "openness_desc": "好奇、创新、想象 vs 保守、传统、务实",
+      "recent_title": "人格漂移记录",
+      "recent_desc": "近期人格微调历史（可选）",
+      "no_drift": "暂无漂移记录",
+      "desc_balanced": "各维度较为均衡，属于典型的中间型人格",
+      "desc_sep": "；",
+      "desc_top": "你在「{{name}}」上很突出（{{value}}）",
+      "desc_bottom": "在「{{name}}」上相对较弱（{{value}}）"
     }
   },
   "status": {

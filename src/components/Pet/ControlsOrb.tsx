@@ -5,8 +5,8 @@ import { getCurrentWindow, LogicalPosition, LogicalSize } from '@tauri-apps/api/
 import { emit, listen } from '@tauri-apps/api/event';
 import { isTauriEnv } from '../../utils/tauriEnv';
 import {
-  ORB_POS_KEY,
-  loadSavedOrbPos,
+  loadOrbPos,
+  saveOrbPos,
   computeOrbDefaultPos,
   getMainRect,
   ORB_COLLAPSED_W,
@@ -39,15 +39,7 @@ export interface ControlsStatePayload {
 
 /** 悬浮球 → 主窗 的动作 */
 export type ControlsActionType =
-  | 'settings'
-  | 'chat'
-  | 'hidepet'
-  | 'transform'
-  | 'mode'
-  | 'fade'
-  | 'lock'
-  | 'exit'
-  | 'switchModel';
+  'settings' | 'chat' | 'hidepet' | 'transform' | 'mode' | 'fade' | 'lock' | 'exit' | 'switchModel';
 
 export interface ControlsActionPayload {
   type: ControlsActionType;
@@ -163,11 +155,7 @@ export default function ControlsOrb() {
     }, 300);
     win.setPosition(new LogicalPosition(x, y)).catch(() => {});
     if (persist) {
-      try {
-        localStorage.setItem(ORB_POS_KEY, JSON.stringify({ x, y }));
-      } catch {
-        /* ignore */
-      }
+      void saveOrbPos(x, y);
     }
   }, []);
 
@@ -251,7 +239,8 @@ export default function ControlsOrb() {
     // ═══════════════════════════════════════════
 
     // ① 创建时 toggle 一次
-    win.setAlwaysOnTop(false)
+    win
+      .setAlwaysOnTop(false)
       .then(() => win.setAlwaysOnTop(true))
       .catch(() => {});
 
@@ -261,7 +250,7 @@ export default function ControlsOrb() {
       try {
         let x: number;
         let y: number;
-        const saved = loadSavedOrbPos();
+        const saved = await loadOrbPos();
         if (saved) {
           x = saved.x;
           y = saved.y;
@@ -275,11 +264,7 @@ export default function ControlsOrb() {
         savedYRef.current = y;
         const edge = snapOrbToEdge(x, ORB_COLLAPSED_W);
         if (edge) dockRef.current = edge;
-        try {
-          localStorage.setItem(ORB_POS_KEY, JSON.stringify({ x, y }));
-        } catch {
-          /* ignore */
-        }
+        void saveOrbPos(x, y);
       } catch {
         /* ignore */
       }
@@ -294,7 +279,7 @@ export default function ControlsOrb() {
           const x = e.payload.x / dpr;
           const y = e.payload.y / dpr;
           savedYRef.current = y;
-          localStorage.setItem(ORB_POS_KEY, JSON.stringify({ x, y }));
+          void saveOrbPos(x, y);
           // debounce：拖拽中持续触发，松手静止后才处理一次（避免拖拽途中抖动）
           if (snapTimer.current) clearTimeout(snapTimer.current);
           snapTimer.current = window.setTimeout(() => {
@@ -541,8 +526,7 @@ export default function ControlsOrb() {
               : b.icon,
   }));
 
-  const modelPicker =
-    showModelPicker &&
+  const modelPicker = showModelPicker &&
     state.availableModels &&
     state.availableModels.length > 0 && (
       <div
