@@ -13,6 +13,7 @@
 
 import { createLogger } from '../utils/logger';
 import { eventBus } from './eventBus';
+import { personaManager } from './persona';
 
 const log = createLogger('HermesGateway');
 
@@ -156,6 +157,10 @@ export class HermesGatewayClient {
   sendChat(text: string, callbacks?: HermesGatewayCallbacks, mode?: 'work' | 'chat'): string {
     const msgId = `msg_${++this.messageIdCounter}_${Date.now()}`;
     const payload: Record<string, unknown> = { type: 'chat', text, id: msgId };
+    // 携带当前活跃角色 id，确保对话记忆注入与设置页处于同一作用域（否则规则/偏好不会被注入）
+    const pid = personaManager.getActiveProfile()?.id ?? 'default';
+    payload.character_id = pid;
+    payload.user_id = 'default';
     if (mode) payload.mode = mode;
     if (callbacks?.frontendTools && callbacks.frontendTools.length > 0) {
       payload.frontend_tools = callbacks.frontendTools;
