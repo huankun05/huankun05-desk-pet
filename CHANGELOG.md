@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
 ### Added
 
 - **Gateway Tool Loop**: 新增服务端多轮工具执行链路，backend tools + frontend tools 混合执行；Gateway 直接驱动 LLM tool_calls 多轮循环，前端不再单独维护 tool loop。
@@ -34,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **人格可视化页面（PersonalityPage）**: 新增 `src/settings/pages/models/PersonalityPage.tsx`，基于 HEXACO 六维人格展示雷达图、PAD 基线与人格描述；新增路由 `/settings/models/personality` 与 ModelsIndex 卡片；补充 `PersonalityPage.test.tsx` 单测。 (`src/settings/pages/models/PersonalityPage.tsx`, `src/settings/routes.tsx`, `src/settings/pages/models/ModelsIndex.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+- **离线降级阻断**: 在 `useHermesGateway.ts sendMessage`、`MainPetApp.tsx proactiveScheduler`、`services/ai.ts` 3 个 AI 入口增加 `isOfflineModeEnabled()` 检查；断网时 AI 功能静默禁用并弹出 toast/气泡提示；`eventBus` 新增 `offline:changed` 事件类型。 (`src/hooks/useHermesGateway.ts`, `src/MainPetApp.tsx`, `src/services/eventBus.ts`, `src/services/ai.ts`)
+- **测试覆盖补充**: 新增 `useHermesGateway.test.ts` 覆盖离线模式拦截与 `sendMessage` 行为；新增 `PersonalityPage.test.tsx` 覆盖页面渲染与 i18n。 (`src/hooks/useHermesGateway.test.ts`, `src/settings/pages/models/PersonalityPage.test.tsx`)
+- **双引擎残留清理**: 全项目搜索确认 `useChatPipeline` / `ChatPipeline` 零引用，旧双引擎代码彻底清除。
 - **修复聊天设置错误跳转**: 原 `ChatGeneralPage` 误跳 `/settings/appearance/bubble`，已删除并以 `ChatAppearancePage` 取代；同步将 `GeneralPage` 中 `/settings/chat/general` 修正为 `/settings/chat/appearance`，并在外观页明确提示「聊天窗口外观与桌宠气泡、全局主题互不影响」
 - **`createStorage` 改为每次 set 立即写盘**: 移除原 1s 防抖，避免窗口关闭时配置丢失（`storage.test.ts` 同步更新断言为「无防抖」）
 - **国际化补齐**: 新增 72 个 `settings.chat.*` 键（中英文对称）、`app.close`、`chat.attachment`；移除 6 个废弃键（`general_title` 等）
@@ -190,6 +195,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-06-23
 
+- **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
 ### Added
 
 #### Core
