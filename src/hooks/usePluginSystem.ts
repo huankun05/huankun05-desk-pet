@@ -19,6 +19,8 @@ export interface UsePluginSystemOptions {
   emotionState: EmotionState;
   applyAdminUpdate: (update: Partial<EmotionState>) => void;
   handleSendMessage: (message: string) => void;
+  /** 注入助手消息（不走 LLM），插件 say() 应走此路径 */
+  injectAssistantMessage?: (content: string) => void;
   showBubble: (text: string, duration?: number) => void;
 }
 
@@ -26,6 +28,7 @@ export function usePluginSystem({
   emotionState,
   applyAdminUpdate,
   handleSendMessage,
+  injectAssistantMessage,
   showBubble,
 }: UsePluginSystemOptions): void {
   // 用 ref 持有所有外部依赖，避免 effect 反复重建插件上下文
@@ -34,10 +37,11 @@ export function usePluginSystem({
     emotionState,
     applyAdminUpdate,
     handleSendMessage,
+    injectAssistantMessage,
     showBubble,
   });
   useEffect(() => {
-    refs.current = { emotionState, applyAdminUpdate, handleSendMessage, showBubble };
+    refs.current = { emotionState, applyAdminUpdate, handleSendMessage, injectAssistantMessage, showBubble };
   });
 
   useEffect(() => {
@@ -50,7 +54,13 @@ export function usePluginSystem({
 
     const pluginCtx = createPluginContext({
       say: (message) => {
-        refs.current.handleSendMessage(message);
+        // 插件说话应显示为角色（assistant）消息，而非用户消息
+        // 优先走 injectAssistantMessage；降级到 handleSendMessage（兼容旧调用方）
+        if (refs.current.injectAssistantMessage) {
+          refs.current.injectAssistantMessage(message);
+        } else {
+          refs.current.handleSendMessage(message);
+        }
       },
       showBubble: (message, duration) => {
         refs.current.showBubble(message, duration);

@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **自学习成长能力（仿 Hermes）**: 新增 `server/hermes_gateway_memory.py` 记忆主仓库（独立 `data/memories.db`，类别 preference/fact/feedback/rule，支持 add/recall/list/delete/clear），每轮对话后异步用 LLM 抽取值得记住的事实写库；`_handle_chat` 在生成前召回相关记忆并注入 `<memory-context>` 块进 system prompt。新增 `GET/POST/DELETE /api/gateway/memory` 与 `GET /api/gateway/mode-tools` REST 端点。
 - **工具 / 技能 / MCP 可视化管理**: 新增设置页「扩展 → 工具」（`/settings/extensions/tools`，`ToolsPage.tsx`），分组列出前端/后端/MCP 工具，每项可开关启用/禁用（禁用态存 `localStorage.deskpet_disabled_tools`，经 `src/services/tools/toolManagement.ts`，后端 `_handle_chat` 双层过滤），并显示 chat/work 可用性徽章；含技能/MCP/插件入口。
 - **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
+- **聊天窗口 AI 状态条**: `ChatWindow` 顶部新增 AI 状态指示（正在思考 / 正在回复 / 正在调用工具：联网搜索·获取时间…），订阅 `eventBus` 的 `hermes:token` / `tool:call` / `tool:result` / `hermes:done`，悬浮窗与面板共用；含中英文 i18n 与 `.ai-status-bar` 主题样式。 (`src/components/Chat/ChatWindow.tsx`, `src/components/Chat/chat-theme.css`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
 
 ### Changed
 
@@ -50,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **i18n 归位**: 上述四项文案从 `settings.models` 下迁移至 `settings.memory` 命名空间（`zh-CN.json` / `en-US.json` 各 49 key 对齐）
 
 ### Fixed
+
+- **角色说话被误判为用户消息（聊天 role 契约 bug）**: 插件（`DailyGreeting` / `Pomodoro` / `WaterReminder` / `EyeCare` / `SedentaryReminder` / `WatchTogether`）通过 `say()` 开口时，原实现误走 `handleSendMessage`（`role: 'user'`），导致角色的问候/提醒/评论显示在右侧蓝色「用户」气泡里（如「晚安~明天又是美好的一天！」被当成用户发的）。新增 `useHermesGateway.injectAssistantMessage()`（直接创建 `role: 'assistant'` 消息、持久化并跨窗同步），`usePluginSystem` 的 `say` 改为优先走该路径。 (`src/hooks/useHermesGateway.ts`, `src/hooks/usePluginSystem.ts`, `src/MainPetApp.tsx`)
+- **聊天回复过慢**: 聊天模式向 StepFun 传入过宽的 `web_search` 描述（「某个概念是什么」过宽）且 system prompt 缺工具使用约束，导致闲聊（如「你好」）也被模型强制先调工具再生成。收紧 `web_search` 描述（只用于实时/最新信息，并显式列出「不要用于」场景）+ 新增「默认不调用工具，仅实时信息才用」的 system prompt 原则。 (`server/hermes_gateway_server.py`, `server/hermes_gateway_tool_loop.py`, `src/services/tools/builtins.ts`)
+- **发送消息光标闪动**: 移除流式消息末尾的 `▋` 闪动光标（纯视觉噪音，无信息量）。 (`src/components/Chat/MessageItem.tsx`, `src/index.css`)
 
 - **Embedding 添加失败**: 修复 ProviderManager 不支持 embedding 类型导致添加失败的问题
 - **zh-CN.json 解析错误**: 修复 Vite 报 `position 5310` JSON 语法错误，恢复应用正常加载

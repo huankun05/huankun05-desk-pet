@@ -265,7 +265,7 @@ function MainPetApp() {
     [addToRag],
   );
 
-  const { isStreaming, sendMessage, interruptResponse } = useHermesGateway(hermesOptions);
+  const { isStreaming, sendMessage, interruptResponse, injectAssistantMessage } = useHermesGateway(hermesOptions);
 
   useVoiceInteraction({
     isStreaming,
@@ -475,6 +475,7 @@ function MainPetApp() {
     emotionState,
     applyAdminUpdate,
     handleSendMessage: sendMessage,
+    injectAssistantMessage,
     showBubble,
   });
 

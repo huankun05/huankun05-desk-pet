@@ -125,7 +125,23 @@ Desk Pet 是基于 **Tauri 2.0** 的桌面宠物应用：React 19 + TypeScript �
 显示 (气泡 + 对话面板) + 语音播放
 ```
 
-#### 1.2.2 MCP 工具调用
+#### 1.2.2 消息角色契约（重要，防回归）
+
+聊天消息只有两种角色，必须严格区分，否则会出现「角色说的话变成用户消息」的 UI bug：
+
+- **`role: 'user'`** —— 仅用户真实输入：手动打字、语音通话/语音助手的语音转写结果。
+  唯一入口是 `useHermesGateway.handleSendMessage` 及其公开别名 `sendMessage`。
+- **`role: 'assistant'`** —— AI 回复，以及**一切由桌宠 / 2D 模型 / 插件主动说出的话**。
+
+插件（`DailyGreeting` / `Pomodoro` / `WaterReminder` / `EyeCare` / `SedentaryReminder` / `WatchTogether`）
+通过 `pluginContext.say()` 开口，必须走 `injectAssistantMessage()`（直接创建 `role: 'assistant'` 消息、
+持久化并跨窗同步），**严禁**复用 `handleSendMessage`（会被当成用户消息，显示为右侧蓝色气泡）。
+`usePluginSystem` 已把 `say` 绑定到 `injectAssistantMessage`。
+
+> ⚠️ 回归陷阱：任何「让角色/模型主动开口」的新功能，都要用 `injectAssistantMessage`，
+> 不要走用户发送通道；否则会出现「晚安~」之类的话被算成用户发的。
+
+#### 1.2.3 MCP 工具调用
 
 ```
 LLM 返回 tool_calls

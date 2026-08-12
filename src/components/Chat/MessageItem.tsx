@@ -436,9 +436,6 @@ export function MessageItem({
           }}
         >
           <MessageContent content={message.content} isStreaming={message.isStreaming} />
-          {message.isStreaming && (
-            <span style={{ opacity: 0.5, animation: 'blink 1s infinite' }}>▋</span>
-          )}
           <Attachments attachments={message.attachments} />
         </div>
 

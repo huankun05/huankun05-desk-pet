@@ -82,6 +82,8 @@ export interface HermesGatewayState {
   /** 切换到指定会话并加载其消息 */
   loadSession: (sessionId: string) => void;
   setGatewayEnabled: (enabled: boolean) => void;
+  /** 注入助手消息（不走 LLM），供插件 say() 等使用 */
+  injectAssistantMessage: (content: string) => void;
 }
 
 export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatewayState {
@@ -404,6 +406,23 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     setMessages((prev) => mergeSyncedMessage(prev, payload, sessionRef.current?.id));
   }, []);
 
+  /** 注入一条助手消息（不走 LLM/Gateway），供插件 say() 等场景使用 */
+  const injectAssistantMessage = useCallback((content: string) => {
+    const session = sessionRef.current;
+    if (!session) return;
+    const msg: Message = {
+      id: nextMsgId(),
+      role: 'assistant',
+      content,
+      timestamp: new Date(),
+    };
+    saveMessage(msg);
+    setMessages((prev) => [...prev, msg]);
+    if (isTauriEnv()) {
+      emit(MSG_SYNC_EVENT, { sessionId: session.id, msg }).catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     if (!isTauriEnv()) return;
     let disposed = false;
@@ -435,5 +454,6 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     newChat: handleNewChat,
     loadSession: handleLoadSession,
     setGatewayEnabled,
+    injectAssistantMessage,
   };
 }

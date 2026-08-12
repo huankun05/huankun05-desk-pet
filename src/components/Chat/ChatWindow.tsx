@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { MessageItem } from './MessageItem';
 import { aiService } from '../../services/ai';
+import { eventBus } from '../../services/eventBus';
 import { openSettingsAt } from '../../utils/openSettings';
 import { useSlashCommands, SLASH_COMMANDS_CHANGED } from '../../hooks/useSlashCommands';
 import { useChatAppearance } from './useChatAppearance';
@@ -301,6 +302,19 @@ export const ChatWindow = memo(
     const [searchHit, setSearchHit] = useState(0);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
+    // AI 响应状态（思考 / 回复 / 调用工具），驱动聊天窗口顶部状态条
+    const [aiPhase, setAiPhase] = useState<'idle' | 'thinking' | 'replying' | 'tool'>('idle');
+    const [toolLabel, setToolLabel] = useState('');
+    const toolFriendlyName = useCallback((name: string): string => {
+      const map: Record<string, string> = {
+        web_search: '联网搜索',
+        get_current_time: '获取时间',
+        save_to_desktop: '保存文件',
+        system_info: '系统信息',
+      };
+      return map[name] ?? name;
+    }, []);
+
     const searchResults = useMemo(() => {
       const q = searchQuery.trim().toLowerCase();
       if (!q) return [] as number[];
@@ -355,6 +369,43 @@ export const ChatWindow = memo(
       }),
       [setInput, messages],
     );
+
+    // isStreaming 翻转时重置 / 清除顶部状态条
+    useEffect(() => {
+      if (isStreaming) {
+        setAiPhase((p) => (p === 'idle' ? 'thinking' : p));
+      } else {
+        setAiPhase('idle');
+        setToolLabel('');
+      }
+    }, [isStreaming]);
+
+    // 订阅 Gateway 事件，细化状态条：思考 → 回复 → 调用工具 → 回复
+    useEffect(() => {
+      const offToken = eventBus.on('hermes:token', () => {
+        setAiPhase((p) => (p === 'thinking' || p === 'tool' ? 'replying' : p));
+      });
+      const offCall = eventBus.on('tool:call', (p) => {
+        setAiPhase('tool');
+        setToolLabel(toolFriendlyName(p.name));
+      });
+      const offResult = eventBus.on('tool:result', (p) => {
+        setToolLabel(`${toolFriendlyName(p.name)} 完成`);
+        window.setTimeout(() => {
+          setAiPhase((cur) => (cur === 'tool' ? 'replying' : cur));
+        }, 700);
+      });
+      const offDone = eventBus.on('hermes:done', () => {
+        setAiPhase('idle');
+        setToolLabel('');
+      });
+      return () => {
+        offToken();
+        offCall();
+        offResult();
+        offDone();
+      };
+    }, [toolFriendlyName, t]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
       // 流式中不加载更早：与强制滚底的 RAF 循环冲突，避免滚动位置被拉回
@@ -690,6 +741,23 @@ export const ChatWindow = memo(
           color: 'var(--text-primary)',
         }}
       >
+        {/* AI 响应状态条（聊天窗口顶部） */}
+        {aiPhase !== 'idle' && (
+          <div
+            className={`ai-status-bar${aiPhase === 'tool' ? ' ai-status-bar--tool' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="ai-status-bar__dot" />
+            <span className="ai-status-bar__text">
+              {aiPhase === 'tool'
+                ? t('chat.ai_status_tool', { name: toolLabel || '…', defaultValue: '正在调用工具…' })
+                : aiPhase === 'replying'
+                  ? t('chat.ai_status_replying', { defaultValue: '正在回复…' })
+                  : t('chat.ai_status_thinking', { defaultValue: '正在思考…' })}
+            </span>
+          </div>
+        )}
         {/* 消息列表 */}
         <div
           style={{

@@ -129,7 +129,7 @@ export function registerBuiltinTools(): void {
   toolRegistry.register({
     name: 'web_search',
     description:
-      '在网上搜索信息。当用户询问"最新的新闻"、"某个概念是什么"、"搜索一下"等场景时使用此工具。返回前 5 条结果的标题、链接和摘要。',
+      '联网搜索工具。仅在用户明确需要「实时 / 最新」信息时调用，例如：今日新闻、天气、股价、赛事比分、近期发生的事件、或你无法确定准确性的时事与事实。\n【不要调用】闲聊问候、情感陪伴、观点交流、或使用常识即可回答的问题——这类情况直接自然回复，不要搜索。返回前 5 条结果的标题、链接和摘要。',
     parameters: {
       query: {
         type: 'string',
