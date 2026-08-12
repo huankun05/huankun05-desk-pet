@@ -21,6 +21,7 @@ import {
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
 import { useHermesGateway } from '../../hooks/useHermesGateway';
+import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { useMode } from '../../hooks/useMode';
 import { SlashCommand, BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
@@ -374,6 +375,12 @@ function ChatPanelWindow() {
         });
       }
     },
+  });
+
+  // 语音通话（QQ 式）：用到时由网关按需拉起本地 STT/TTS 服务
+  const voiceCall = useVoiceCall({
+    sendMessage,
+    showError: (m) => showToast(m, 'error'),
   });
 
   // 详情面板状态
@@ -1300,6 +1307,9 @@ function ChatPanelWindow() {
               onRecordStop={handleRecordStop}
               isRecording={isRecording}
               sttAvailable={sttAvailable}
+              callState={voiceCall.state}
+              callSeconds={voiceCall.seconds}
+              onToggleCall={voiceCall.toggle}
               sessionId={activeSessionId || undefined}
               gatewayReady={gatewayReady}
               currentModel={currentModel}

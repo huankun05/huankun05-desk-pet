@@ -125,6 +125,12 @@ interface ChatWindowProps {
   isRecording?: boolean;
   /** STT 服务是否可用（控制录音按钮显示） */
   sttAvailable?: boolean;
+  /** 语音通话状态（QQ 式语音通话） */
+  callState?: string;
+  /** 通话秒数 */
+  callSeconds?: number;
+  /** 切换语音通话（开/关） */
+  onToggleCall?: () => void;
   /** 当前会话 ID（用于收藏等） */
   sessionId?: string;
   // TTS 按钮已移至头部栏（ChatPanelWindow），以下保留接口兼容性但不再使用
@@ -230,6 +236,9 @@ export const ChatWindow = memo(
       onRecordStop,
       isRecording = false,
       sttAvailable = false,
+      callState = 'idle',
+      callSeconds = 0,
+      onToggleCall,
       sessionId,
       gatewayReady = false,
       currentModel,
@@ -1160,6 +1169,74 @@ export const ChatWindow = memo(
             </div>
           )}
 
+          {/* 语音通话条（QQ 式语音通话状态） */}
+          {callState && callState !== 'idle' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '8px 12px',
+                background: 'var(--bg-secondary, #f3f4f6)',
+                borderTop: '1px solid var(--border, #e5e7eb)',
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background:
+                    callState === 'speaking'
+                      ? '#2f9e44'
+                      : callState === 'listening'
+                        ? '#1971c2'
+                        : callState === 'error'
+                          ? '#e03131'
+                          : '#f08c00',
+                }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+                {callState === 'connecting'
+                  ? t('chat.voice_connecting', { defaultValue: '连接中…' })
+                  : callState === 'incall'
+                    ? t('chat.voice_incall', { defaultValue: '通话中' })
+                    : callState === 'listening'
+                      ? t('chat.voice_listening', { defaultValue: '聆听中…' })
+                      : callState === 'speaking'
+                        ? t('chat.voice_speaking', { defaultValue: '说话中…' })
+                        : t('chat.voice_error', { defaultValue: '语音出错了' })}
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  color: 'var(--text-secondary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {`${Math.floor(callSeconds / 60)
+                  .toString()
+                  .padStart(2, '0')}:${(callSeconds % 60).toString().padStart(2, '0')}`}
+              </span>
+              <button
+                type="button"
+                onClick={onToggleCall}
+                style={{
+                  marginLeft: 'auto',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 12px',
+                  background: 'var(--color-danger, #e03131)',
+                  color: '#fff',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('chat.voice_hangup', { defaultValue: '挂断' })}
+              </button>
+            </div>
+          )}
+
           {/* 工具条 + 输入框 + 发送按钮（单行 QQ 风格） */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
             {/* 左侧工具按钮组 */}
@@ -1176,6 +1253,14 @@ export const ChatWindow = memo(
                 icon="solar:paperclip-linear"
                 title={t('chat.attachment', { defaultValue: '附件' })}
                 onClick={() => fileInputRef.current?.click()}
+              />
+              <ToolButton
+                icon={callState && callState !== 'idle' ? 'solar:phone-bold' : 'solar:phone-linear'}
+                title={t('chat.voice_call', { defaultValue: '语音通话' })}
+                active={
+                  callState === 'incall' || callState === 'listening' || callState === 'speaking'
+                }
+                onClick={() => onToggleCall?.()}
               />
               {sttAvailable && (
                 <ToolButton

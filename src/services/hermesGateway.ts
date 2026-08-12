@@ -241,6 +241,17 @@ export class HermesGatewayClient {
     }
   }
 
+  /** 语音通话：按需拉起/释放本地 STT/TTS 服务（像 QQ 语音通话：用时才启动） */
+  sendVoice(action: 'start' | 'stop'): void {
+    const payload = JSON.stringify({ type: 'voice', action });
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(payload);
+    } else {
+      this.messageQueue.push(payload);
+      this.connect();
+    }
+  }
+
   /** 请求账号用量/余额 */
   fetchUsage(): void {
     const payload = JSON.stringify({ type: 'account_usage' });
@@ -384,6 +395,11 @@ export class HermesGatewayClient {
     const msgType = data.type as string;
 
     if (msgType === 'pong') return;
+
+    if (msgType === 'voice') {
+      eventBus.emit('hermes:voice', data);
+      return;
+    }
 
     if (msgType === 'token') {
       const token = data.token as string;

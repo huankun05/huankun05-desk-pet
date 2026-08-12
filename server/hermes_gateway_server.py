@@ -41,6 +41,7 @@ from hermes_gateway_tool_loop import ToolLoop
 from hermes_gateway_backend_tools import register_backend_tools
 from core.brain.memory_service import get_memory_service
 from core.brain.learning_scheduler import LearningScheduler
+from voice_services import ensure_voice_services, stop_voice_services
 
 logging.basicConfig(
     level=logging.INFO,
@@ -430,20 +431,6 @@ def create_app() -> FastAPI:
         ok = svc.delete_memory(mid)
         return {"ok": bool(ok)}
 
-    @app.post("/api/gateway/chat")
-    async def chat_rest(body: dict):
-        text = body.get("text", "")
-        if not text:
-            return {"error": "text is required"}
-        mode = body.get("mode", "chat")
-        full = ""
-        async for token in engine.chat_stream(text, mode=mode):
-            full += token
-        # REST 聊天也入队空闲自学习（无角色上下文，使用 default 作用域）
-        if learning_scheduler is not None and full:
-            learning_scheduler.enqueue("default", "default", text, full)
-        return {"response": full, "session_id": engine.SESSION_ID}
-
     # ========================================================
     # WebSocket
     # ========================================================
@@ -514,6 +501,10 @@ def create_app() -> FastAPI:
 
                 if msg_type == "memory:delete":
                     await _handle_memory_delete(ws, data)
+                    continue
+
+                if msg_type == "voice":
+                    await _handle_voice(ws, data)
                     continue
 
                 await ws.send_json({"type": "error", "message": f"Unknown type: {msg_type}"})
@@ -668,6 +659,29 @@ async def _handle_memory_delete(ws: WebSocket, data: dict) -> None:
         return
     await ws.send_json({"type": "memory:result", "action": "delete", "ok": bool(ok),
                         "req_id": data.get("req_id")})
+
+
+async def _handle_voice(ws: WebSocket, data: dict) -> None:
+    """语音服务按需拉起/释放（像 QQ 语音通话：用到时才启动本地推理服务）。"""
+    action = data.get("action", "start")
+    try:
+        if action == "stop":
+            result = stop_voice_services()
+            await ws.send_json({"type": "voice", "action": "stop", "result": result})
+            return
+        # start / ensure：在后台线程拉起 STT + Edge TTS（必需），GPT-SoVITS（可选），避免阻塞事件循环
+        statuses = await asyncio.to_thread(ensure_voice_services)
+        all_ready = bool(statuses.get("all_ready", False))
+        services = {k: v for k, v in statuses.items() if k != "all_ready"}
+        await ws.send_json({
+            "type": "voice",
+            "action": "start",
+            "all_ready": all_ready,
+            "services": services,
+        })
+    except Exception as exc:  # noqa: BLE001
+        log.error("voice handler error: %s", exc)
+        await ws.send_json({"type": "voice", "action": action, "error": str(exc)})
 
 
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:

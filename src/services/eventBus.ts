@@ -43,6 +43,7 @@ type EventMap = {
   'hermes:done': { fullResponse: string; msgId?: string };
   'hermes:history': { sessionId: string; messages: Array<Record<string, unknown>> };
   'hermes:error': { message: string; msgId?: string };
+  'hermes:voice': Record<string, unknown>;
   'hermes:skill': { command: string; args: string; behaviorEvent: string };
   // Service Watchdog events
   'service:recovered': { name: string; port: number };

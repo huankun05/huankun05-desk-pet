@@ -25,6 +25,8 @@ export interface RecorderOptions {
   onStateChange?: (state: RecordState) => void;
   /** 实时音频回调（用于流式 STT，预留） */
   onAudioChunk?: (chunk: Float32Array) => void;
+  /** 静音自动停止后的音频回调（返回 WAV 数据），供语音通话循环使用 */
+  onAutoStop?: (audio: ArrayBuffer) => void;
 }
 
 export class AudioRecorder {
@@ -40,6 +42,8 @@ export class AudioRecorder {
   private silenceThreshold = 0.01;
   private onStateChange?: (state: RecordState) => void;
   private onAudioChunk?: (chunk: Float32Array) => void;
+  /** 静音自动停止后的音频回调；语音通话循环通过它拿到一段语音去识别 */
+  onAutoStop?: (audio: ArrayBuffer) => void;
   private silenceCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options?: RecorderOptions) {
@@ -48,6 +52,7 @@ export class AudioRecorder {
     if (options?.silenceThreshold) this.silenceThreshold = options.silenceThreshold;
     this.onStateChange = options?.onStateChange;
     this.onAudioChunk = options?.onAudioChunk;
+    this.onAutoStop = options?.onAutoStop;
   }
 
   /**
@@ -224,7 +229,9 @@ export class AudioRecorder {
     this.silenceTimer = setTimeout(() => {
       if (this.state === 'recording') {
         log.info('Silence detected, auto-stopping recording');
-        this.stop();
+        void this.stop().then((buf) => {
+          if (buf) this.onAutoStop?.(buf);
+        });
       }
     }, this.silenceTimeout);
   }
