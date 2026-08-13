@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **设置重组：记忆相关项迁出行为页**: 将「上下文管理」「本地长期记忆（RAG）」「LLM 增强记忆抽取」「混合检索」四项从 `BehaviorPage`（角色行为）迁移至独立的「记忆体」分区，新增 `ContextPage`（`/settings/memory/context`）与 `LongTermPage`（`/settings/memory/long-term`）；行为页不再保留跳转入口，记忆体索引页与环境变量配置同步更新。混合检索摘要卡片原位于 `BehaviorPage`，现归属 `LongTermPage`
 - **i18n 归位**: 上述四项文案从 `settings.models` 下迁移至 `settings.memory` 命名空间（`zh-CN.json` / `en-US.json` 各 49 key 对齐）
 
+- **市场页重构（去嵌套 + 归入扩展）**: 原「市场」为设置树顶级独立项，且页内「插件」tab 直接套用 `PluginMarketPage`（其自身还有「插件 / MCP 预设」二级 tab），导致双层嵌套、插件与 MCP 预设混显。现改为：①`MarketplaceIndex` 完全重写，三个顶级 tab（插件 / MCP 预设 / 技能）各自独立渲染内容，零嵌套；②市场从顶级移入「扩展」板块（`settingsTree` 的 extensions children，order 4），`ExtensionsIndex` 列表补充「市场」入口卡片；③「扩展 → 插件」保留「去市场」跳转卡片。 (`src/settings/pages/marketplace/MarketplaceIndex.tsx`, `src/settings/pages/extensions/ExtensionsIndex.tsx`, `src/settings/pages/extensions/PluginsPage.tsx`, `src/settings/routes.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+
 ### Fixed
 
 - **角色说话被误判为用户消息（聊天 role 契约 bug）**: 插件（`DailyGreeting` / `Pomodoro` / `WaterReminder` / `EyeCare` / `SedentaryReminder` / `WatchTogether`）通过 `say()` 开口时，原实现误走 `handleSendMessage`（`role: 'user'`），导致角色的问候/提醒/评论显示在右侧蓝色「用户」气泡里（如「晚安~明天又是美好的一天！」被当成用户发的）。新增 `useHermesGateway.injectAssistantMessage()`（直接创建 `role: 'assistant'` 消息、持久化并跨窗同步），`usePluginSystem` 的 `say` 改为优先走该路径。 (`src/hooks/useHermesGateway.ts`, `src/hooks/usePluginSystem.ts`, `src/MainPetApp.tsx`)

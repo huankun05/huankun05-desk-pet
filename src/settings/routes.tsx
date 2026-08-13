@@ -68,6 +68,7 @@ const pageComponentLoaders: Record<string, () => Promise<{ default: ComponentTyp
   '/settings/extensions/wake-word': () => import('./pages/services/WakeWordPage'),
   '/settings/extensions/plugins': () => import('./pages/extensions/PluginsPage'),
   '/settings/extensions/tools': () => import('./pages/extensions/ToolsPage'),
+  '/settings/marketplace': () => import('./pages/marketplace/MarketplaceIndex'),
   '/settings/memory': () => import('./pages/memory/MemoryIndex'),
   '/settings/memory/context': () => import('./pages/memory/ContextPage'),
   '/settings/memory/long-term': () => import('./pages/memory/LongTermPage'),
@@ -151,7 +152,7 @@ const settingsRootMeta: SettingsMeta = {
  *     /  (index - 扩展二级入口)
  *     /mcp  (MCP 服务器)
  *     /wake-word  (语音唤醒)
- *     /plugins  (插件：市场 / 已安装 / 自写)
+ *     /plugins  (已安装插件管理；市场已独立为 /settings/marketplace)
  *   /memory
  *     /  (index - 记忆体二级入口)
  *     /context  (上下文管理：短期对话窗口)
@@ -406,7 +407,7 @@ export const settingsTree: SettingsEntry[] = [
   {
     title: '扩展',
     subtitle: 'Extensions',
-    description: 'MCP、语音唤醒与插件',
+    description: 'MCP、语音唤醒、插件与市场',
     icon: 'solar:widget-5-bold-duotone',
     settingsEntry: true,
     order: 4,
@@ -433,7 +434,7 @@ export const settingsTree: SettingsEntry[] = [
       {
         title: '插件',
         subtitle: 'Plugins',
-        description: '市场、已安装与自写插件',
+        description: '已安装插件管理',
         icon: 'solar:plug-circle-bold-duotone',
         settingsEntry: true,
         order: 2,
@@ -447,6 +448,15 @@ export const settingsTree: SettingsEntry[] = [
         settingsEntry: true,
         order: 3,
         path: '/settings/extensions/tools',
+      },
+      {
+        title: '市场',
+        subtitle: 'Marketplace',
+        description: '浏览与安装插件、MCP 预设与技能扩展',
+        icon: 'solar:shop-bold-duotone',
+        settingsEntry: true,
+        order: 4,
+        path: '/settings/marketplace',
       },
     ],
   },

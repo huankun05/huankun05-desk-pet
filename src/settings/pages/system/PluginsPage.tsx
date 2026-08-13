@@ -161,7 +161,11 @@ export function PluginsPage() {
                     }}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="text-2xl shrink-0">{plugin.icon || '📦'}</div>
+                      {plugin.icon && plugin.icon.includes(':') ? (
+                        <Icon icon={plugin.icon} className="text-2xl shrink-0" />
+                      ) : (
+                        <div className="text-2xl shrink-0">{plugin.icon || '📦'}</div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-neutral-800">

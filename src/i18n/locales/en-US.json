@@ -824,6 +824,15 @@
       "market": "Marketplace",
       "market_desc": "Browse and install plugins & MCP presets"
     },
+    "marketplace": {
+      "title": "Marketplace",
+      "description": "Discover and install plugins, MCP presets & skill extensions",
+      "tab_plugins": "Plugins",
+      "tab_mcp": "MCP Presets",
+      "tab_skills": "Skills",
+      "coming_soon": "Coming Soon",
+      "coming_soon_desc": "Skills marketplace is under construction"
+    },
     "market": {
       "tab_plugins": "Plugins",
       "tab_mcp": "MCP Presets",
@@ -1088,7 +1097,9 @@
       "saved": "Saved",
       "save_config": "Save Config",
       "config": "Configure",
-      "configure": "Configure"
+      "configure": "Configure",
+      "go_market": "Browse Plugin Marketplace",
+      "go_market_desc": "Discover and install new plugins, MCP presets & skill extensions"
     },
     "shortcuts": {
       "section_title": "Global Shortcuts",

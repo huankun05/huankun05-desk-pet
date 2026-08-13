@@ -828,6 +828,15 @@
       "market": "插件市场",
       "market_desc": "浏览、安装插件与 MCP 预设"
     },
+    "marketplace": {
+      "title": "市场",
+      "description": "发现并安装插件、MCP 预设与技能扩展",
+      "tab_plugins": "插件",
+      "tab_mcp": "MCP 预设",
+      "tab_skills": "技能",
+      "coming_soon": "敬请期待",
+      "coming_soon_desc": "Skills 市场正在建设中，即将上线"
+    },
     "market": {
       "tab_plugins": "插件",
       "tab_mcp": "MCP 预设",
@@ -1092,7 +1101,9 @@
       "save_config": "保存配置",
       "config": "配置",
       "configure": "配置",
-      "related_mcp_hint": "插件可附带并注册 MCP 服务器，在此统一管理。"
+      "related_mcp_hint": "插件可附带并注册 MCP 服务器，在此统一管理。",
+      "go_market": "浏览插件市场",
+      "go_market_desc": "发现并安装新插件、MCP 预设与技能扩展"
     },
     "shortcuts": {
       "section_title": "全局快捷键",
