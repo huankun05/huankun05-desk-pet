@@ -92,6 +92,8 @@ export function useWindowManager({
   const initialPosRestoredRef = useRef(false);
   const windowShownRef = useRef(false);
   const fadeOnHoverRef = useRef(fadeOnHover);
+  // 吸附动画进行中的标志（顶层，供 onMoved / updatePlacement / snapToEdge 共用）
+  const isSnappingRef = useRef(false);
 
   useEffect(() => {
     fadeOnHoverRef.current = fadeOnHover;
@@ -141,6 +143,45 @@ export function useWindowManager({
     return { x, y };
   }, []);
 
+  /** 边缘吸附动画（顶层复用）：把窗口平滑移动到 (targetX,targetY) 并吸附到边线，
+   *  动画结束后保存最终位置——确保下次启动恢复到「吸附后」的坐标，而非吸附前的释放点。 */
+  const snapToEdge = useCallback((targetX: number, targetY: number) => {
+    if (!isTauriEnv()) return;
+    if (!winMetricsRef.current) return;
+    const win = getCurrentWindow();
+    isSnappingRef.current = true;
+    const startX = winMetricsRef.current.pos.x;
+    const startY = winMetricsRef.current.pos.y;
+    const duration = 250;
+    const startTime = performance.now();
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      const currentX = startX + (targetX - startX) * easeProgress;
+      const currentY = startY + (targetY - startY) * easeProgress;
+      win
+        .setPosition(new LogicalPosition(currentX, currentY))
+        .catch((err) => console.warn('[WindowManager] setPosition failed:', err));
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        if (winMetricsRef.current) {
+          winMetricsRef.current.pos = { x: targetX, y: targetY };
+        }
+        isSnappingRef.current = false;
+        // ★ 保存吸附后的最终位置
+        if (windowPosMemoryRef.current) {
+          invoke('save_data', {
+            key: 'main_window_pos',
+            data: JSON.stringify({ x: targetX, y: targetY }),
+          }).catch(() => {});
+        }
+      }
+    };
+    requestAnimationFrame(animate);
+  }, []);
+
   useEffect(() => {
     if (!isTauriEnv()) return;
     let unlistenMoved: (() => void) | undefined;
@@ -157,11 +198,10 @@ export function useWindowManager({
         updatePlacement();
       });
 
-      let saveTimer: ReturnType<typeof setTimeout> | null = null;
-      let placementTimer: ReturnType<typeof setTimeout> | null = null;
-      const isSnappingRef = { current: false };
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    let placementTimer: ReturnType<typeof setTimeout> | null = null;
 
-      const updatePlacement = () => {
+    const updatePlacement = () => {
         if (isSnappingRef.current) return;
         const currentEdgeSnap = settingsStorage.get().edgeSnap;
         if (currentEdgeSnap === false) {
@@ -188,43 +228,12 @@ export function useWindowManager({
 
         if (newEdge !== 'none' && newEdge !== controlsEdge) {
           const targetX = newEdge === 'left' ? screenLeft : screenLeft + screenW - m.width;
-          smoothSnapToEdge(targetX, m.pos.y);
+          snapToEdge(targetX, m.pos.y);
         }
         setControlsEdge((prev) => (prev === newEdge ? prev : newEdge));
       };
 
-      const smoothSnapToEdge = (targetX: number, targetY: number) => {
-        if (!winMetricsRef.current) return;
-        isSnappingRef.current = true;
-        const startX = winMetricsRef.current.pos.x;
-        const startY = winMetricsRef.current.pos.y;
-        const duration = 250;
-        const startTime = performance.now();
-
-        const animate = (currentTime: number) => {
-          const elapsed = currentTime - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-          const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-          const currentX = startX + (targetX - startX) * easeProgress;
-          const currentY = startY + (targetY - startY) * easeProgress;
-
-          win
-            .setPosition(new LogicalPosition(currentX, currentY))
-            .catch((err) => console.warn('[WindowManager] setPosition failed:', err));
-
-          if (progress < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            if (winMetricsRef.current) {
-              winMetricsRef.current.pos = { x: targetX, y: targetY };
-            }
-            isSnappingRef.current = false;
-          }
-        };
-
-        requestAnimationFrame(animate);
-      };
+      // 边缘吸附动画已抽到顶层 snapToEdge（useCallback），onMoved 与恢复时共用。
 
       win
         .onMoved((e) => {
@@ -265,7 +274,7 @@ export function useWindowManager({
     return () => {
       unlistenMoved?.();
     };
-  }, [controlsEdge]);
+  }, [controlsEdge, snapToEdge]);
 
   useEffect(() => {
     if (!isTauriEnv()) return;
@@ -345,10 +354,14 @@ export function useWindowManager({
             initialEdge = 'none';
           }
           setControlsEdge(initialEdge);
+          // ★ 恢复的位置若贴边，重新吸附到边线（与运行时一致），避免「差一截」的错位
+          if (edgeSnap && initialEdge !== 'none') {
+            snapToEdge(clamped.x, clamped.y);
+          }
         }
       })
       .catch(() => {});
-  }, [modelConfig, modelInfo, petScale, clampWindowPosition, edgeSnap, windowPosMemory]);
+  }, [modelConfig, modelInfo, petScale, clampWindowPosition, edgeSnap, windowPosMemory, snapToEdge]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {

@@ -25,8 +25,8 @@ import { EdgeTTSProvider } from './tts/edge';
 import type { EdgeTTSConfig } from './tts/edge';
 import { GPTSoVitsProvider } from './tts/gptsovits';
 import type { GPTSoVitsConfig } from './tts/gptsovits';
-import { VoxCPMProvider } from './tts/voxcpm';
-import type { VoxCPMConfig } from './tts/voxcpm';
+import { CosyVoiceProvider } from './tts/cosyvoice';
+import type { CosyVoiceConfig } from './tts/cosyvoice';
 import { PiperTTSProvider } from './tts/piper';
 import type { PiperTTSConfig } from './tts/piper';
 import { FunASRProvider } from './stt/funasr';
@@ -100,14 +100,14 @@ providerRegistry.registerTTSProvider(
   (config) => new GPTSoVitsProvider(config as GPTSoVitsConfig),
 );
 
-// TTS: VoxCPM2（离线高质量备选）
+// TTS: CosyVoice V3（纳西妲微调，当前主力离线引擎，需 GPU）
 providerRegistry.registerTTSProvider(
-  'voxcpm',
+  'cosyvoice',
   {
-    displayName: 'VoxCPM2',
-    description: '离线高质量 TTS（⭐⭐⭐⭐），RTF 1.4x',
+    displayName: 'CosyVoice V3（纳西妲微调）',
+    description: '阿里 CosyVoice V3 + 纳西妲微调，本地离线高质声音克隆，需 GPU',
   },
-  (config) => new VoxCPMProvider(config as VoxCPMConfig),
+  (config) => new CosyVoiceProvider(config as CosyVoiceConfig),
 );
 
 // STT: FunASR Paraformer（主力识别）
@@ -488,7 +488,9 @@ export class ProviderManager {
    */
   updateProvider(
     id: string,
-    updates: Partial<ChatProviderConfig | TTSProviderConfig | STTProviderConfig>,
+    updates: Partial<
+      ChatProviderConfig | TTSProviderConfig | STTProviderConfig | EmbeddingProviderConfig
+    >,
   ): void {
     const idx = this.state.configs.findIndex((c) => (c as ProviderConfig).id === id);
     if (idx === -1) return;

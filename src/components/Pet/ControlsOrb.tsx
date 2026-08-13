@@ -263,7 +263,15 @@ export default function ControlsOrb() {
         await win.setPosition(new LogicalPosition(x, y)).catch(() => {});
         savedYRef.current = y;
         const edge = snapOrbToEdge(x, ORB_COLLAPSED_W);
-        if (edge) dockRef.current = edge;
+        if (edge) {
+          // ★ 恢复的位置本就贴边 → 直接应用「半隐藏停靠」布局（隐藏阴影、贴合边线），
+          //   否则要等用户碰一下才会吸附。
+          dockRef.current = edge;
+          applyDockLayout();
+        } else {
+          dockRef.current = null;
+          setHideShadow(false);
+        }
         void saveOrbPos(x, y);
       } catch {
         /* ignore */

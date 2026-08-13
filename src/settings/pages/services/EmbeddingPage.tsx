@@ -1,29 +1,30 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
-import { Section, Modal, useToast, useConfirm, ProviderStatusBadge } from '../../components';
+import { Section, useToast, useConfirm, ProviderStatusBadge } from '../../components';
 import { providerManager } from '../../../services/provider/manager';
 import {
   OllamaEmbeddingProvider,
   OpenAIEmbeddingProvider,
 } from '../../../services/provider/embedding';
 import type { EmbeddingProviderConfig } from '../../../services/provider/types';
+import { ServiceSetupGuide, type SetupEngineInfo } from '../../components/ServiceSetupGuide';
+import { ServiceWizard } from '../../components/ServiceWizard';
+
+type FormShape = Omit<EmbeddingProviderConfig, 'id' | 'type'>;
+
+const defaultForm: FormShape = {
+  name: '',
+  enable: true,
+  apiBase: 'http://localhost:11434',
+  model: 'nomic-embed-text',
+};
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
 interface TestResult {
   status: TestStatus;
   message?: string;
 }
-
-const inputClass =
-  'w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-100)]';
-
-const defaultForm: Omit<EmbeddingProviderConfig, 'id' | 'type'> = {
-  name: '',
-  enable: true,
-  apiBase: 'http://localhost:11434',
-  model: 'nomic-embed-text',
-};
 
 export function EmbeddingPage() {
   const { t } = useTranslation();
@@ -38,10 +39,13 @@ export function EmbeddingPage() {
     return first?.id ?? null;
   });
   const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<Omit<EmbeddingProviderConfig, 'id' | 'type'>>(defaultForm);
+  const [editingConfig, setEditingConfig] = useState<EmbeddingProviderConfig | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
+
+  const embeddingEngines: SetupEngineInfo[] = [
+    { typeName: 'embedding', displayName: t('settings.services.embedding'), needsWeights: false },
+  ];
 
   const loadConfigs = () => {
     const all = providerManager.listProviders('embedding') as EmbeddingProviderConfig[];
@@ -54,58 +58,49 @@ export function EmbeddingPage() {
   };
 
   const openAddModal = () => {
-    setEditingId(null);
-    setForm({ ...defaultForm });
+    setEditingConfig(null);
     setShowModal(true);
   };
-
   const openEditModal = (config: EmbeddingProviderConfig) => {
-    setEditingId(config.id);
-    setForm({
-      name: config.name,
-      enable: config.enable,
-      apiBase: config.apiBase ?? '',
-      model: config.model ?? '',
-      apiKey: config.apiKey,
-    });
+    setEditingConfig(config);
     setShowModal(true);
   };
-
   const closeModal = () => {
     setShowModal(false);
-    setEditingId(null);
+    setEditingConfig(null);
   };
 
-  const handleSave = () => {
-    if (!form.name.trim()) {
-      showToast(t('settings.services.validation_required'), 'warning');
-      return;
-    }
-
-    if (!(form.apiBase ?? '').trim()) {
-      showToast(t('settings.services.validation_required'), 'warning');
-      return;
-    }
-
+  const wizardSave = (cfg: FormShape, editingId: string | null): boolean => {
     if (editingId) {
-      providerManager.updateProvider(editingId, form);
+      providerManager.updateProvider(editingId, cfg as Partial<EmbeddingProviderConfig>);
     } else {
       const newConfig: EmbeddingProviderConfig = {
-        ...form,
+        ...cfg,
         id: `embedding-${crypto.randomUUID()}`,
         type: 'embedding',
-      };
+      } as EmbeddingProviderConfig;
       const ok = providerManager.addProvider(newConfig);
       if (!ok) {
         showToast(t('settings.services.add_failed'), 'error');
-        return;
+        return false;
       }
       setActiveId(newConfig.id);
     }
-
     loadConfigs();
     showToast(t('settings.services.saved'), 'success');
-    closeModal();
+    return true;
+  };
+
+  /** Embedding 校验：按 apiBase 在 Ollama / OpenAI 之间二选一（不走注册表） */
+  const validateEmbedding = async (cfg: EmbeddingProviderConfig): Promise<void> => {
+    await providerManager.ready;
+    const base = (cfg.apiBase || '').replace(/\/+$/, '');
+    const model = cfg.model || 'nomic-embed-text';
+    const provider =
+      base.includes('localhost') || base.includes('127.0.0.1') || base.includes('11434')
+        ? new OllamaEmbeddingProvider({ ...cfg, apiBase: base, model })
+        : new OpenAIEmbeddingProvider({ ...cfg, apiBase: base, model });
+    await provider.validate();
   };
 
   const handleDelete = async (id: string) => {
@@ -132,14 +127,7 @@ export function EmbeddingPage() {
     setTestingId(config.id);
     setTestResults((prev) => ({ ...prev, [id]: { status: 'testing' } }));
     try {
-      await providerManager.ready;
-      const base = (config.apiBase || '').replace(/\/+$/, '');
-      const model = config.model || 'nomic-embed-text';
-      const provider =
-        base.includes('localhost') || base.includes('127.0.0.1') || base.includes('11434')
-          ? new OllamaEmbeddingProvider({ ...config, apiBase: base, model })
-          : new OpenAIEmbeddingProvider({ ...config, apiBase: base, model });
-      await provider.validate();
+      await validateEmbedding(config);
       const msg = t('settings.services.connection_success');
       setTestResults((prev) => ({ ...prev, [id]: { status: 'success', message: msg } }));
       if (opts.toast) showToast(t('settings.services.test_success'), 'success');
@@ -162,9 +150,12 @@ export function EmbeddingPage() {
         <div className="p-4">
           <div className="grid gap-3">
             {configs.length === 0 && (
-              <div className="text-center py-8 text-neutral-400 text-sm">
-                {t('settings.services.no_providers')}
-              </div>
+              <ServiceSetupGuide
+                title={t('settings.services.setup_guide_title')}
+                intro={t('settings.services.setup_guide_intro')}
+                engines={embeddingEngines}
+                onAdd={openAddModal}
+              />
             )}
             {configs.map((config) => (
               <div
@@ -262,79 +253,51 @@ export function EmbeddingPage() {
         </div>
       </Section>
 
-      <Modal
-        isOpen={showModal}
+      <ServiceWizard<FormShape>
+        open={showModal}
         onClose={closeModal}
-        title={
-          editingId ? t('settings.services.edit_provider') : t('settings.services.add_provider')
-        }
-        maxWidth="max-w-lg"
-        footer={
+        addTitle={t('settings.services.add_provider')}
+        editTitle={t('settings.services.edit_provider')}
+        guideTitle={t('settings.services.setup_guide_title')}
+        guideIntro={t('settings.services.setup_guide_intro')}
+        engines={embeddingEngines}
+        types={[]}
+        hideTypeField
+        defaultForm={defaultForm}
+        validate={(cfg) => validateEmbedding(cfg as EmbeddingProviderConfig)}
+        save={wizardSave}
+        editingConfig={editingConfig}
+        idPrefix="embedding"
+        typeValue="embedding"
+        extraFields={(form, patch) => (
           <>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="rounded-lg bg-[var(--primary-500)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-600)]"
-            >
-              {t('settings.save')}
-            </button>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-800">
+                {t('settings.services.model')}
+              </label>
+              <input
+                type="text"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-100)]"
+                value={(form.model as string) ?? ''}
+                onChange={(e) => patch({ model: e.target.value } as Partial<FormShape>)}
+                placeholder="nomic-embed-text"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-800">
+                {t('settings.services.api_key')}
+              </label>
+              <input
+                type="password"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-100)]"
+                value={(form.apiKey as string) ?? ''}
+                onChange={(e) => patch({ apiKey: e.target.value } as Partial<FormShape>)}
+                placeholder="sk-..."
+              />
+            </div>
           </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-800">
-              {t('settings.services.provider_name')}
-            </label>
-            <input
-              type="text"
-              className={inputClass}
-              value={form.name}
-              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder={t('settings.services.my_embedding_provider', '我的 Embedding')}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-800">
-              {t('settings.services.api_address')}
-            </label>
-            <input
-              type="text"
-              className={inputClass}
-              value={form.apiBase}
-              onChange={(e) => setForm((prev) => ({ ...prev, apiBase: e.target.value }))}
-              placeholder="http://localhost:11434"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-800">
-              {t('settings.services.model')}
-            </label>
-            <input
-              type="text"
-              className={inputClass}
-              value={form.model}
-              onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
-              placeholder="nomic-embed-text"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-neutral-800">
-              {t('settings.services.api_key')}
-            </label>
-            <input
-              type="password"
-              className={inputClass}
-              value={form.apiKey ?? ''}
-              onChange={(e) => setForm((prev) => ({ ...prev, apiKey: e.target.value }))}
-              placeholder="sk-..."
-            />
-          </div>
-        </div>
-      </Modal>
+        )}
+      />
     </div>
   );
 }

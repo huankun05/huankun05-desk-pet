@@ -444,6 +444,31 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     };
   }, [upsertRemoteMessage]);
 
+  // 打包后首次运行会自动 bootstrap Python venv（pip 安装 torch/funasr 等，耗时数十秒~数分钟）。
+  // 监听 Rust 侧进度事件并 toast，否则这段时间应用看起来像卡死。
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    const unlistens: Array<() => void> = [];
+    const reg = (event: string, kind: 'info' | 'warning' | 'error' | 'success') =>
+      listen<string>(event, (e) => {
+        showToast(e.payload, kind);
+      })
+        .then((fn) => {
+          if (disposed) fn();
+          else unlistens.push(fn);
+        })
+        .catch(() => {});
+    reg('backend:install-start', 'info');
+    reg('backend:install-step', 'info');
+    reg('backend:install-done', 'success');
+    reg('backend:install-failed', 'error');
+    return () => {
+      disposed = true;
+      unlistens.forEach((u) => u());
+    };
+  }, []);
+
   return {
     messages,
     isLoading,

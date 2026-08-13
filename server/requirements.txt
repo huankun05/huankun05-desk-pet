@@ -47,7 +47,7 @@ peft<0.18.0
 x_transformers
 rotary_embedding_torch
 
-# ── TTS: VoxCPM (推理, 不含 torchcodec/gradio) ──
+# ── TTS: GPT-SoVITS / CosyVoice 推理依赖 ──
 einops
 huggingface-hub>=0.20.0
 safetensors

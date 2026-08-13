@@ -429,19 +429,18 @@ def create_tts(config: dict):
 
     支持的模式:
       - gpt_sovits: GPT-SoVITS v2（当前主力，RTF 0.47x）
-      - voxcpm:     VoxCPM2（备选，音质好但不实时）
       - local:      CosyVoice 2（已废弃，音质不达标）
       - api:        CosyVoice HTTP API
       - edge:       Microsoft Edge TTS（最终降级）
 
     自动降级策略：
-      gpt_sovits/voxcpm 失败 → EdgeTTS
+      gpt_sovits 失败 → EdgeTTS
 
     Args:
         config: 完整的 config.yaml 配置字典
 
     Returns:
-        TTS 实例 (GPTSoVITSTTS / VoxCPMTTS / CosyVoiceTTS / CosyVoiceAPI / EdgeTTS)
+        TTS 实例 (GPTSoVITSTTS / CosyVoiceTTS / CosyVoiceAPI / EdgeTTS)
     """
     tts_cfg = config.get("tts", {})
     mode = tts_cfg.get("mode", "gpt_sovits")
@@ -453,25 +452,7 @@ def create_tts(config: dict):
             tts.init_model()
             return tts
         except Exception as e:
-            logger.warning(f"GPT-SoVITS 不可用 ({e})，尝试 VoxCPM...")
-            try:
-                from modules.tts_voxcpm import VoxCPMTTS
-                tts = VoxCPMTTS(tts_cfg)
-                tts.init_model()
-                return tts
-            except Exception as e2:
-                logger.warning(f"VoxCPM 也不可用 ({e2})，降级到 EdgeTTS")
-                from modules.tts_edge import EdgeTTS
-                return EdgeTTS(tts_cfg)
-
-    elif mode == "voxcpm":
-        try:
-            from modules.tts_voxcpm import VoxCPMTTS
-            tts = VoxCPMTTS(tts_cfg)
-            tts.init_model()
-            return tts
-        except Exception as e:
-            logger.warning(f"VoxCPM 不可用 ({e})，降级到 EdgeTTS")
+            logger.warning(f"GPT-SoVITS 不可用 ({e})，降级到 EdgeTTS")
             from modules.tts_edge import EdgeTTS
             return EdgeTTS(tts_cfg)
 

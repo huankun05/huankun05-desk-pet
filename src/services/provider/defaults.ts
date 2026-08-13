@@ -8,6 +8,6 @@ export const DEFAULT_ENDPOINTS = {
   edge_tts: 'http://localhost:8001',
   piper: 'http://localhost:5000',
   gptsovits: 'http://localhost:9880',
-  voxcpm: 'http://localhost:8000',
+  cosyvoice: 'http://localhost:8003',
   perception_ws: 'ws://127.0.0.1:8765',
 } as const;

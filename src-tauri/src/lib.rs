@@ -5,6 +5,7 @@ use tauri::Emitter;
 use tauri::Manager;
 
 mod admin_server;
+mod backend;
 mod crypto;
 mod errors;
 mod mcp;
@@ -35,33 +36,13 @@ pub fn restart_hermes_gateway(app: &tauri::AppHandle) -> Result<(), String> {
         waited_ms += 100;
     }
 
-    // 3) 探测 python 命令（与 setup 中一致：优先项目 venv，否则系统 python/python3）
-    let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
+    // 3) 解析 python 命令（打包后用 bootstrap 出来的 venv，dev 用项目 venv/系统 python）
+    //    首次运行确保 venv 已就绪（仅打包环境生效，best-effort，不阻塞重启）
+    let _ = crate::backend::ensure_backend(app);
+    let python_cmd = crate::backend::resolve_python(app);
+    let project_root = crate::backend::backend_root(app)
         .to_string_lossy()
         .to_string();
-    let venv_python = project_root.replace('\\', "/") + "/venv/Scripts/python.exe";
-    let python_cmd: String = if std::path::Path::new(&venv_python).exists()
-        && std::process::Command::new(&venv_python)
-            .arg("-c")
-            .arg("import fastapi")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    {
-        venv_python
-    } else if std::process::Command::new("python")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok()
-    {
-        "python".to_string()
-    } else {
-        "python3".to_string()
-    };
 
     let args = vec![
         "-m".to_string(),
@@ -989,7 +970,6 @@ fn get_storage_usage() -> CmdResult<StorageUsage> {
         base.join("public").join("Core"),
         base.join("server").join("models"),
         base.join("server").join("gpt_sovits"),
-        base.join("server").join("voxcpm"),
         base.join("server").join("voiceprint"),
     ];
     let mut models_size: u64 = 0;
@@ -1101,6 +1081,24 @@ fn open_path(path: String) -> CmdResult<()> {
             .map(|x| x.to_path_buf())
             .unwrap_or_else(|| p.to_path_buf())
     };
+    open::that(&target).map_err(|e| AppError::Generic(format!("无法打开路径: {}", e)))?;
+    Ok(())
+}
+
+/// 打开 server 下的某个子目录（如 TTS 引擎的权重目录），不存在则先创建。
+/// subdir 为相对于后端根目录（含 server/ 的目录；打包后为 %APPDATA%/desk-pet/backend）的路径，
+/// 例如 "server/gpt_sovits/GPT_SoVITS/pretrained_models"。
+#[tauri::command]
+fn open_server_dir(app: tauri::AppHandle, subdir: String) -> CmdResult<()> {
+    if subdir.is_empty() {
+        return Err(AppError::Generic("子目录为空".into()));
+    }
+    let base = crate::backend::backend_root(&app);
+    let target = base.join(&subdir);
+    if !target.exists() {
+        std::fs::create_dir_all(&target)
+            .map_err(|e| AppError::Generic(format!("无法创建目录: {}", e)))?;
+    }
     open::that(&target).map_err(|e| AppError::Generic(format!("无法打开路径: {}", e)))?;
     Ok(())
 }
@@ -1223,6 +1221,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(mcp::McpManager::new())
         .manage(service::ServiceManager::new())
         .manage(AdminState {
@@ -1259,6 +1258,7 @@ pub fn run() {
             cleanup_temp,
             get_storage_usage,
             open_path,
+            open_server_dir,
             save_project_data,
             load_project_data,
             check_ollama_installed,
@@ -1335,10 +1335,7 @@ pub fn run() {
                                                     .as_str()
                                                     .unwrap_or(".")
                                                     .to_string();
-                                                let app_root = std::path::Path::new(env!(
-                                                    "CARGO_MANIFEST_DIR"
-                                                ))
-                                                .join("..");
+                                                let app_root = crate::backend::backend_root(&app_handle_for_services);
                                                 let work_dir = if raw_work_dir.is_empty()
                                                     || raw_work_dir == "."
                                                 {
@@ -1396,35 +1393,13 @@ pub fn run() {
                 let app_handle_for_core = app_handle_for_services.clone();
                 let app_handle_for_hermes = app_handle_for_services.clone();
 
-            // 共享 Python 命令探测（避免重复执行两次）
-            let project_root_for_python = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("..")
+            // 共享 Python 命令解析（打包后用 bootstrap venv，dev 用项目 venv/系统 python）
+            // 首次运行确保 venv 就绪（仅打包环境生效，best-effort）
+            let _ = crate::backend::ensure_backend(&app_handle_for_services);
+            let python_cmd_shared = crate::backend::resolve_python(&app_handle_for_services);
+            let project_root_shared = crate::backend::backend_root(&app_handle_for_services)
                 .to_string_lossy()
                 .to_string();
-            let venv_python_shared =
-                project_root_for_python.replace('\\', "/") + "/venv/Scripts/python.exe";
-            let python_cmd_shared: String = if std::path::Path::new(&venv_python_shared).exists()
-                && std::process::Command::new(&venv_python_shared)
-                    .arg("-c")
-                    .arg("import fastapi")
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .status()
-                    .is_ok()
-            {
-                venv_python_shared
-            } else if std::process::Command::new("python")
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_ok()
-            {
-                "python".to_string()
-            } else {
-                "python3".to_string()
-            };
-            let project_root_shared = project_root_for_python.clone();
 
             // Core API 线程
             let core_root = project_root_shared.clone();

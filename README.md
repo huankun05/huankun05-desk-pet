@@ -6,12 +6,14 @@
 
 ```bash
 cd desk-pet
-npm install
+pnpm install
 python -m venv venv
 venv\Scripts\pip install -r server/requirements.txt
 # 如需 CUDA: venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-npm run tauri dev
+pnpm tauri dev
 ```
+
+> 开发模式下后端直接用本地 `venv/` 或系统 Python，不会触发「打包后」的首次自动安装逻辑。
 
 ## 项目结构
 
@@ -24,7 +26,26 @@ desk-pet/
 └── ...
 ```
 
-详见 [PLAN.md](PLAN.md) 完整路线图，[ARCHITECTURE.md](ARCHITECTURE.md) 系统架构。
+详见 [PLAN.md](PLAN.md) 完整路线图，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明。
+
+---
+
+## 打包与后端分发（Python 环境如何解决）
+
+应用打包（`pnpm tauri build`）后，Python 后端按以下方式自洽运行，**无需在包内塞入数 GB 的 venv / 模型权重**：
+
+1. **`server/` 源码随安装包分发** —— 通过 `tauri.conf.json` 的 `bundle.resources = ["../server", "../dist"]`。模型权重（`*.ckpt/*.pth/*.safetensors`、`pretrained_models/`、`models--/`）与 `venv/` 被 `src-tauri/.tauriignore` 剔除，**不进包**。
+2. **首次运行自动落地可写目录** —— Rust `src-tauri/src/backend.rs` 把只读 resource 里的 `server/` 复制到 `%APPDATA%/com.lihuankun.desk-pet/backend/`（只读 resource 不能写 sqlite/日志，必须拷出来；仅首次，标记文件跳过）。
+3. **选择 Python 解释器（按优先级，命中即用）**：
+   - 优先复用本机已有的、装齐全部依赖的 Python（探测 `python`/`python3` 能否 `import torch/funasr/mediapipe/...`）——本机已装齐则**直接复用，绝不重下数 GB**。
+   - 否则在该目录建全新 `venv` 并 `pip install -r requirements.txt`（**仅当目标机器「什么 Python 都没有」时才需联网下载**）。
+4. 管理后台静态页（`dist/admin.html`、`/assets/*`）与所有 `CARGO_MANIFEST_DIR` 写死路径，已全部改为运行时 `resource_dir()` 解析。
+
+> ⚠️ **首次运行前提**：若目标机器无任何可用 Python 环境，首次启动需联网拉取 torch/funasr/mediapipe 等（数 GB，几分钟）。装好后后端落在 `%APPDATA%/com.lihuankun.desk-pet/backend/venv`，之后启动秒起。离线会弹「后端依赖安装失败」，联网重启即可。
+
+### 原生文件夹选择器
+
+设置页「选择权重位置」等需要操作系统原生文件夹对话框。但 Tauri webview 处于沙箱、无法调用 OS 对话框，`<input webkitdirectory>` 只回相对路径。因此使用 **`tauri-plugin-dialog`**（Rust `rfd` 库，调用 OS 原生对话框），是 webview 内拿到**绝对路径**的唯一 sanctioned 方式。相关：`src/utils/pickFolder.ts`、`src-tauri/src/lib.rs`、`src-tauri/capabilities/default.json`。
 
 ---
 
@@ -104,7 +125,7 @@ if __name__ == "__main__":
 | `/voices` | GET | 可用声音列表 | `{"voices": [...]}` |
 | `/health` | GET | 健康检查 | `{"status": "ok"}` |
 
-参考现有实现：`server/edge_tts_server.py`（135行）、`server/voxcpm_server.py`（140行）。
+参考现有实现：`server/edge_tts_server.py`（135行）、`server/cosyvoice_server.py`。
 
 ---
 

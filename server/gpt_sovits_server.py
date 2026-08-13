@@ -92,7 +92,7 @@ def main():
     #   1. GPT-SoVITS 自带 venv（仅开发时存在）
     #   2. 共享项目级 venv (desk-pet/venv/)
     #   3. 当前进程的 Python
-    pet_root = gs_root.parent  # desk-pet/
+    pet_root = gs_root.parent.parent  # desk-pet/  (gs_root=server/gpt_sovits → parent=server → parent.parent=desk-pet)
     shared_venv = pet_root / "venv" / "Scripts" / "python.exe"
     local_venv = gs_root / "venv" / "Scripts" / "python.exe"
 

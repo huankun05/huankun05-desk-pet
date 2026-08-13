@@ -37,12 +37,12 @@ asr:
 
 # TTS 配置
 tts:
-  mode: "gpt_sovits"         # gpt_sovits | voxcpm | local | api | edge
+  mode: "gpt_sovits"         # gpt_sovits | local | api | edge
 
   # GPT-SoVITS v2 配置（当前主力，RTF 0.47x）
   gpt_sovits_root: "gpt_sovits/GPT_SoVITS"
-  gpt_model: "GPT_weights_v2Pro/nahida-e15.ckpt"
-  sovits_model: "SoVITS_weights_v2/nahida_e8_s6464.pth"
+  gpt_model: "pretrained_models/nahida_gpt.ckpt"
+  sovits_model: "pretrained_models/nahida_sovits.pth"
   sovits_config: "GPT_SoVITS/configs/s2.json"
   device: "cuda"
   is_half: true
@@ -62,11 +62,6 @@ tts:
   stream_chunk_ms: 200       # 流式分块时长 (ms)
   prompt_wav: "nahida/slicer_opt_trimmed/trimmed_vo_HSEQ002_11_nahida_12.wav"
   prompt_text: "我没事。最近我的空余时间有不少，又听说奥摩斯港很热闹，就过来到处走走看看。"
-
-  # VoxCPM 配置（备选，音质好但不实时）
-  # model_dir: "../VoxCPM/pretrained_models/VoxCPM2"
-  # cfg_value: 2.0
-  # inference_timesteps: 6
 
 # Speaker ID 配置 (FunASR CAM++)
 speaker_id:

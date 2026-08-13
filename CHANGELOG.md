@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **工具 / 技能 / MCP 可视化管理**: 新增设置页「扩展 → 工具」（`/settings/extensions/tools`，`ToolsPage.tsx`），分组列出前端/后端/MCP 工具，每项可开关启用/禁用（禁用态存 `localStorage.deskpet_disabled_tools`，经 `src/services/tools/toolManagement.ts`，后端 `_handle_chat` 双层过滤），并显示 chat/work 可用性徽章；含技能/MCP/插件入口。
 - **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
 - **聊天窗口 AI 状态条**: `ChatWindow` 顶部新增 AI 状态指示（正在思考 / 正在回复 / 正在调用工具：联网搜索·获取时间…），订阅 `eventBus` 的 `hermes:token` / `tool:call` / `tool:result` / `hermes:done`，悬浮窗与面板共用；含中英文 i18n 与 `.ai-status-bar` 主题样式。 (`src/components/Chat/ChatWindow.tsx`, `src/components/Chat/chat-theme.css`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+- **后端分发模块（打包即能跑）**: 新增 `src-tauri/src/backend.rs`，打包后 `server/` 随 Tauri resource 分发，首次运行复制到 `%APPDATA%/com.lihuankun.desk-pet/backend/`（只读 resource 不可写），并按优先级复用本机已有 Python 或新建 venv 并 `pip install`；`tauri.conf.json` 的 `bundle.resources` 设为 `["../server", "../dist"]`，权重与 venv 由 `.tauriignore` 剔除。 (`src-tauri/src/backend.rs`, `src-tauri/tauri.conf.json`, `src-tauri/.tauriignore`)
+- **服务配置向导 + 空状态指引**: 新增通用 `ServiceWizard`（3 步：选引擎 → 填信息+选权重位置 → 测试连接+完成）与 `ServiceSetupGuide` 空状态指引，统一应用于 TTS / LLM / STT / Embedding 四个服务页；注册 TTS 后自动拉起后端（`serviceLauncher.ts`）。 (`src/settings/components/ServiceWizard.tsx`, `src/settings/components/ServiceSetupGuide.tsx`, `src/services/provider/serviceLauncher.ts`, `src/settings/pages/services/*.tsx`)
+- **原生文件夹选择器**: 引入 `tauri-plugin-dialog`（Rust `rfd` 调用 OS 原生对话框），`src/utils/pickFolder.ts` 封装并守卫 `isTauriEnv()`；Rust 侧注册插件 + `capabilities/default.json` 授予 `dialog:default`/`dialog:allow-open`。 (`src/utils/pickFolder.ts`, `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`, `src-tauri/Cargo.toml`, `package.json`)
+- **CosyVoice TTS 后端**: 新增 `server/cosyvoice_server.py` 与前端适配器 `src/services/provider/tts/cosyvoice.ts`，补全第三套语音合成引擎。
 
 ### Changed
 
@@ -51,12 +55,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **i18n 归位**: 上述四项文案从 `settings.models` 下迁移至 `settings.memory` 命名空间（`zh-CN.json` / `en-US.json` 各 49 key 对齐）
 
 - **市场页重构（去嵌套 + 归入扩展）**: 原「市场」为设置树顶级独立项，且页内「插件」tab 直接套用 `PluginMarketPage`（其自身还有「插件 / MCP 预设」二级 tab），导致双层嵌套、插件与 MCP 预设混显。现改为：①`MarketplaceIndex` 完全重写，三个顶级 tab（插件 / MCP 预设 / 技能）各自独立渲染内容，零嵌套；②市场从顶级移入「扩展」板块（`settingsTree` 的 extensions children，order 4），`ExtensionsIndex` 列表补充「市场」入口卡片；③「扩展 → 插件」保留「去市场」跳转卡片。 (`src/settings/pages/marketplace/MarketplaceIndex.tsx`, `src/settings/pages/extensions/ExtensionsIndex.tsx`, `src/settings/pages/extensions/PluginsPage.tsx`, `src/settings/routes.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
+- **移除 VoxCPM2**: 删除 `server/voxcpm/`（含 conf/src/training 等）、`server/voxcpm_server.py` 与前端适配器 `src/services/provider/tts/voxcpm.ts`；权重与训练代码不再随项目维护。
+- **运行时路径全部去 `CARGO_MANIFEST_DIR`**: gateway 重启 / 启动线程 / provider 自启 / 模型检查 / 管理页静态资源（`dist/admin.html`、`/assets/*`）原先写死构建机路径，已全部改为运行时 `resource_dir()` 解析，并保留 dev 回退。 (`src-tauri/src/lib.rs`, `src-tauri/src/admin_server.rs`)
+- **`manager.updateProvider` 放宽**: 签名纳入 `EmbeddingProviderConfig`，Embedding 编辑态可正常持久化。 (`src/services/provider/manager.ts`)
 
 ### Fixed
 
 - **角色说话被误判为用户消息（聊天 role 契约 bug）**: 插件（`DailyGreeting` / `Pomodoro` / `WaterReminder` / `EyeCare` / `SedentaryReminder` / `WatchTogether`）通过 `say()` 开口时，原实现误走 `handleSendMessage`（`role: 'user'`），导致角色的问候/提醒/评论显示在右侧蓝色「用户」气泡里（如「晚安~明天又是美好的一天！」被当成用户发的）。新增 `useHermesGateway.injectAssistantMessage()`（直接创建 `role: 'assistant'` 消息、持久化并跨窗同步），`usePluginSystem` 的 `say` 改为优先走该路径。 (`src/hooks/useHermesGateway.ts`, `src/hooks/usePluginSystem.ts`, `src/MainPetApp.tsx`)
 - **聊天回复过慢**: 聊天模式向 StepFun 传入过宽的 `web_search` 描述（「某个概念是什么」过宽）且 system prompt 缺工具使用约束，导致闲聊（如「你好」）也被模型强制先调工具再生成。收紧 `web_search` 描述（只用于实时/最新信息，并显式列出「不要用于」场景）+ 新增「默认不调用工具，仅实时信息才用」的 system prompt 原则。 (`server/hermes_gateway_server.py`, `server/hermes_gateway_tool_loop.py`, `src/services/tools/builtins.ts`)
 - **发送消息光标闪动**: 移除流式消息末尾的 `▋` 闪动光标（纯视觉噪音，无信息量）。 (`src/components/Chat/MessageItem.tsx`, `src/index.css`)
+- **角色靠边放置重启位置偏位**: `edgeSnap` 默认开启，拖到边缘会吸附贴边，但吸附动画期间 `onMoved` 被拦截，存的是吸附前的释放点；启动时恢复该点却未重新吸附。现把吸附动画抽为顶层 `snapToEdge`，动画结束保存吸附后最终坐标，启动若贴边则重新 `snapToEdge(...)`。 (`src/hooks/useWindowManager.ts`)
+- **悬浮球启动在边上但不吸附**: `restorePos()` 只设 `dockRef.current = edge` 却未调用 `applyDockLayout()`，半隐藏停靠布局未生效，须等 hover 触发。现贴边时直接 `applyDockLayout()` 应用停靠态，自由态清 `dockRef` 并恢复阴影。 (`src/components/Pet/ControlsOrb.tsx`)
+- **手势/面部识别依赖缺失**: 运行环境缺 `mediapipe`（手势/面部追踪底层库），仅补装 mediapipe 本体（`--no-deps`，复用现有 opencv），未重下 torch/funasr。感知模块 `hand_tracker`/`face_tracker` 现已可正常加载。 (`server/requirements.txt`, 环境侧)
+- **首次运行后端安装进度可见性**: 监听 `backend:install-*` 事件弹 toast，避免打包后首次 `pip install`（torch/funasr 等数 GB）期间看似卡死。 (`src/hooks/useHermesGateway.ts`)
 
 - **Embedding 添加失败**: 修复 ProviderManager 不支持 embedding 类型导致添加失败的问题
 - **zh-CN.json 解析错误**: 修复 Vite 报 `position 5310` JSON 语法错误，恢复应用正常加载

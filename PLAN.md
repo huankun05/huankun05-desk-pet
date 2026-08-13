@@ -19,7 +19,7 @@
 | 维度 | 评价 |
 |------|------|
 | **架构设计** | 三层分离（React / Rust / Python），Provider 插件式抽象，洋葱管道 10 Stage |
-| **AI 集成** | 双 LLM（OpenAI+Ollama）、三 TTS（Edge/GPT-SoVITS/VoxCPM）、双 STT（FunASR/SenseVoice） |
+| **AI 集成** | 双 LLM（OpenAI+Ollama）、三 TTS（Edge/GPT-SoVITS/CosyVoice V3）、双 STT（FunASR/SenseVoice） |
 | **感知服务** | MediaPipe 手部 21 点 + 面部 468 点 + 虹膜追踪 + KNN 手势分类，独立 WebSocket 实时流 |
 | **情感系统** | PAD 三维情绪模型 + 激素系统 + 表达策略；已接入 Session 和 Pipeline，影响 LLM Prompt 与 TTS 风格 |
 | **记忆系统** | MemoryFragment + Ebbinghaus 遗忘曲线 + SQLite 持久化 + FastAPI；Scribe/Librarian 已实现并接入 Session/Pipeline |
@@ -66,7 +66,7 @@
 
 ### Phase 1.4 ~ 1.6: 架构升级
 - [x] Provider 抽象层（Chat/TTS/STT/Embedding + ProviderManager + 配置持久化）
-- [x] 三 TTS（Edge 免费/SoVITS 声音克隆/VoxCPM 最佳音质）+ 双 STT（FunASR/SenseVoice）
+- [x] 三 TTS（Edge 免费/SoVITS 声音克隆/CosyVoice V3 最佳音质）+ 双 STT（FunASR/SenseVoice）
 - [x] 消息管道 + 事件总线 + 会话级 Provider 隔离
 
 ### Phase 1.7 ~ 1.8: 管理后台重制
@@ -675,7 +675,7 @@ desk-pet/
 │   │   └── perception_server.py   # WebSocket 服务入口（默认 :8765）
 │   ├── edge_tts_server.py         # Edge TTS HTTP（port 8001）
 │   ├── gpt_sovits_server.py       # GPT-SoVITS HTTP（port 9880）
-│   ├── voxcpm_server.py           # VoxCPM HTTP（port 8000）
+│   ├── cosyvoice_server.py        # CosyVoice V3 HTTP（port 8003）
 │   └── stt_server.py              # FunASR + SenseVoice（port 8002）
 ├── DEVELOPMENT.md                 # 工程规范文档（含项目规则 + 架构 + 编码规范）
 └── PLAN.md                        # 本文件

@@ -132,10 +132,19 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
 
                 // 管理页面 — 优先使用构建产物（dist/admin.html），否则回退到嵌入的旧版本
                 ("GET", "/") | ("GET", "/index.html") => {
-                    let dist_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("..")
-                        .join("dist")
-                        .join("admin.html");
+                    let dist_path = app
+                        .path()
+                        .resource_dir()
+                        .map(|r| r.join("dist").join("admin.html"))
+                        .unwrap_or_else(|_| PathBuf::new());
+                    let dist_path = if dist_path.exists() {
+                        dist_path
+                    } else {
+                        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("..")
+                            .join("dist")
+                            .join("admin.html")
+                    };
                     let mut html = if dist_path.exists() {
                         fs::read_to_string(&dist_path)
                             .unwrap_or_else(|_| include_str!("../admin.html").to_string())
@@ -1576,7 +1585,7 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                     let port = payload["port"].as_u64().unwrap_or(0) as u16;
 
                     // 解析工作目录：相对路径基于应用根目录
-                    let app_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+                    let app_root = crate::backend::backend_root(&app);
                     let raw_work_dir = payload["workDir"].as_str().unwrap_or("").to_string();
                     let work_dir = if raw_work_dir.is_empty() || raw_work_dir == "." {
                         app_root.to_string_lossy().to_string()
@@ -1694,9 +1703,15 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                         tiny_http::Response::from_string("{\"error\":\"invalid path\"}")
                             .with_status_code(400)
                     } else {
-                        let dist_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                            .join("..")
-                            .join("dist");
+                        let dist_dir = app
+                            .path()
+                            .resource_dir()
+                            .map(|r| r.join("dist"))
+                            .unwrap_or_else(|_| {
+                                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                                    .join("..")
+                                    .join("dist")
+                            });
                         let file_path = dist_dir.join(file_name);
                         // 规范化路径校验，确保最终路径仍在 dist 目录内
                         let canonical_dist = dist_dir.canonicalize().unwrap_or(dist_dir.clone());
@@ -1874,7 +1889,7 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                     let exists = if is_absolute || has_traversal || file_path.is_empty() {
                         false
                     } else {
-                        let app_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+                        let app_root = crate::backend::backend_root(&app);
                         let abs_path = app_root.join(file_path);
                         let canonical_root = app_root.canonicalize().unwrap_or(app_root.clone());
                         let canonical_path = abs_path.canonicalize().unwrap_or(abs_path.clone());
@@ -1888,7 +1903,7 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
 
                 // API: 批量检查 GPT-SoVITS 模型文件
                 ("POST", "/api/models/check-gptsovits") => {
-                    let app_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+                    let app_root = crate::backend::backend_root(&app);
                     let server_root = app_root.join("server");
                     let models: serde_json::Value = {
                         let check = |rel: &str| -> bool {

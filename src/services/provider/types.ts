@@ -137,7 +137,7 @@ export interface TTSResult {
 
 export interface TTSProviderConfig extends ProviderConfig {
   type: 'tts';
-  /** 适配器类型名，如 'edge_tts' / 'gpt_sovits' / 'voxcpm' */
+  /** 适配器类型名，如 'edge_tts' / 'gpt_sovits' / 'cosyvoice' */
   typeName: string;
   /** HTTP 服务地址，如 'http://localhost:8001' */
   apiBase: string;
@@ -147,6 +147,8 @@ export interface TTSProviderConfig extends ProviderConfig {
   speed?: number;
   /** 输出采样率 */
   sampleRate?: number;
+  /** 本地权重目录（绝对路径或相对应用根目录）；用户通过向导「选择权重位置」写入 */
+  weightsPath?: string;
 }
 
 export interface TTSOptions {

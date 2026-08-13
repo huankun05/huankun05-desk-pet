@@ -398,7 +398,7 @@ std::thread::spawn(move || {
 | Pipeline | `src/services/pipeline/` | 消息处理管道编排 (10 Stage) |
 | Provider Manager | `src/services/provider/manager.ts` | Provider 注册/查询/生命周期 |
 | Provider Chat | `src/services/provider/openai/chat.ts` | OpenAI 兼容 Chat API (SSE 流式) |
-| Provider TTS | `src/services/provider/tts/*.ts` | Edge TTS / GPT-SoVITS / VoxCPM |
+| Provider TTS | `src/services/provider/tts/*.ts` | Edge TTS / GPT-SoVITS / CosyVoice V3 |
 | Provider STT | `src/services/provider/stt/*.ts` | FunASR / SenseVoice |
 | **Perception Service** | `src/services/perception/` | **WebSocket 实时手势/面部数据流（独立模块）** |
 | Audio Player | `src/services/audio/player.ts` | Web Audio API 播放队列 + 打断 + 振幅回调 |
@@ -474,7 +474,7 @@ std::thread::spawn(move || {
 | Chat | `openai_chat` | `provider/openai/chat.ts` | OpenAI 兼容接口 (SSE streaming) |
 | TTS | `edge_tts` | `provider/tts/edge.ts` | Edge TTS → edge_tts_server.py:8001 |
 | TTS | `gpt_sovits` | `provider/tts/gptsovits.ts` | GPT-SoVITS v2 声音克隆 → :9880 |
-| TTS | `voxcpm` | `provider/tts/voxcpm.ts` | VoxCPM2 → :8000/8808 |
+| TTS | `cosyvoice` | `provider/tts/cosyvoice.ts` | CosyVoice V3 → :8003 |
 | STT | `funasr` | `provider/stt/funasr.ts` | FunASR Paraformer → stt_server.py:8002 |
 | STT | `sensevoice` | `provider/stt/sensevoice.ts` | SenseVoice 情绪检测 → :8002 |
 
@@ -1166,6 +1166,18 @@ lint → typecheck → test → build → release
 ```
 
 每个 PR 必须通过 CI 检查才能合并。
+
+#### 后端分发与环境自洽（打包后即能跑）
+
+Python 后端（TTS/STT/对话管线/感知）不在安装包内塞 venv 或权重，而是**源码随包分发 + 目标机首次运行自举**：
+
+- **分发**：`tauri.conf.json` 的 `bundle.resources = ["../server", "../dist"]`；`src-tauri/.tauriignore` 剔除权重（`*.ckpt/*.pth/*.safetensors`、`pretrained_models/`、`models--/`）与 `venv/`，不进包。
+- **落地**：首次运行 `src-tauri/src/backend.rs` 把只读 resource 的 `server/` 复制到 `%APPDATA%/com.lihuankun.desk-pet/backend/`（resource 只读，gateway 要写 sqlite/日志必须拷出；标记文件跳过，仅一次）。
+- **选 Python（优先级，命中即用）**：①本机已有装齐依赖的 Python（`find_existing_suitable_python` 探测 `python`/`python3` 能否 `import torch/funasr/mediapipe/...`）→ 直接复用，**绝不重下**；②否则在该目录建 `venv` + `pip install -r requirements.txt`（仅干净机器需联网数 GB）。
+- **路径解析**：`lib.rs` / `admin_server.rs` 中所有原先 `env!("CARGO_MANIFEST_DIR")` 写死路径已改为运行时 `resource_dir()`（dev 留 `CARGO_MANIFEST_DIR/../dist` 回退）。
+- **进度可见**：首次 pip 安装期间 `backend:install-*` 事件驱动前端 toast，避免看似卡死。
+
+> 开发态（`pnpm tauri dev`）`is_packaged()` 为假，直接复用本地 `venv/` 或系统 Python，不触发上述自举逻辑。
 
 ---
 

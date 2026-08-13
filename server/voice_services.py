@@ -52,6 +52,13 @@ SERVICE_DEFS = {
         "args": ["--port", "9880"],
         "health": "/",
     },
+    "tts_cosy": {
+        "name": "CosyVoice V3 TTS",
+        "script": "server/cosyvoice_server.py",
+        "port": 8003,
+        "args": ["--port", "8003"],
+        "health": "/health",
+    },
 }
 
 # voice:start 必须就绪的服务（缺任何一个通话不可用）
