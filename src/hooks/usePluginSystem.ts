@@ -2,13 +2,8 @@ import { useEffect, useRef } from 'react';
 import {
   pluginRegistry,
   createPluginContext,
-  PomodoroPlugin,
-  DailyGreetingPlugin,
-  WaterReminderPlugin,
-  SedentaryReminderPlugin,
-  EyeCarePlugin,
+  registerBuiltinPlugins,
 } from '../services/skills';
-import { WatchTogetherPlugin } from '../plugins/watch-together';
 import { createStorage } from '../services/storage';
 import { settingsStorage } from '../services/storage/settingsStorage';
 import { triggerTapMotion } from '../lib/live2d';
@@ -45,12 +40,7 @@ export function usePluginSystem({
   });
 
   useEffect(() => {
-    pluginRegistry.register(new PomodoroPlugin());
-    pluginRegistry.register(new DailyGreetingPlugin());
-    pluginRegistry.register(new WaterReminderPlugin());
-    pluginRegistry.register(new SedentaryReminderPlugin());
-    pluginRegistry.register(new EyeCarePlugin());
-    pluginRegistry.register(new WatchTogetherPlugin());
+    registerBuiltinPlugins();
 
     const pluginCtx = createPluginContext({
       say: (message) => {

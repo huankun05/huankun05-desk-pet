@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section, SettingRow, Switch } from '../../components';
-import { pluginRegistry } from '../../../services/skills/registry';
+import { pluginRegistry, registerBuiltinPlugins } from '../../../services/skills';
 import { pluginConfigManager } from '../../../services/skills/config';
 import type { PluginMetadata, PluginConfigProperty } from '../../../services/skills/types';
 
@@ -16,6 +16,8 @@ export function PluginsPage() {
 
   const loadPlugins = async () => {
     setIsLoading(true);
+    // 确保内置插件已在当前窗口（设置窗是独立 webview，registry 与主窗不共享）注册
+    registerBuiltinPlugins();
     const metadatas = pluginRegistry.getAllMetadata();
     setPlugins(metadatas);
 

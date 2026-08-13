@@ -63,6 +63,29 @@ export function isOnScreen(
 }
 
 /**
+ * 已保存的悬浮球位置是否「可用」（用于 loadOrbPos 校验）。
+ *
+ * ★ 与 isOnScreen 的区别（2026-08-12 修复）：
+ *   悬浮球支持「半隐藏停靠」——窗口中心压在屏幕边线上，只露出半颗球。
+ *   此时左停靠 x 为负（如 -30）、右停靠 x+w 超出右边界，isOnScreen 会误判为越界，
+ *   导致每次重载/HMR 都回退到默认位置（用户投诉「位置没记住」）。
+ *   这里允许最多露出「一整颗悬浮球」在屏外（覆盖 0.5 停靠 reveal），
+ *   仅拒绝明显无效的垃圾坐标（NaN / 远超出屏幕）。
+ */
+export function isOrbPosPlausible(
+  x: number,
+  y: number,
+  w = ORB_COLLAPSED_W,
+  h = ORB_COLLAPSED_H,
+): boolean {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  const { left, top, right, bottom } = getScreenEdges();
+  const marginX = w;
+  const marginY = h;
+  return x >= left - marginX && x <= right && y >= top - marginY && y <= bottom;
+}
+
+/**
  * 判断悬浮球当前应吸附到哪一侧边（仅左右）。返回 'left' | 'right' | null。
  * 取球中心更靠近、且距离小于阈值的那一侧。
  */
@@ -141,7 +164,7 @@ export async function loadOrbPos(): Promise<{ x: number; y: number } | null> {
     const raw = await invoke<string>('load_data', { key: ORB_POS_RUST_KEY });
     if (!raw) return null;
     const p = JSON.parse(raw);
-    if (typeof p?.x === 'number' && typeof p?.y === 'number' && isOnScreen(p.x, p.y)) {
+    if (typeof p?.x === 'number' && typeof p?.y === 'number' && isOrbPosPlausible(p.x, p.y)) {
       return { x: p.x, y: p.y };
     }
   } catch {
