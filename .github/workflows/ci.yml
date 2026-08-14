@@ -60,6 +60,9 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Ensure frontend dist placeholder
+        run: mkdir -p dist
+
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo check --all-targets --all-features
@@ -128,4 +131,5 @@ jobs:
           workspaces: src-tauri
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
       - run: pnpm run tauri build -- --ci

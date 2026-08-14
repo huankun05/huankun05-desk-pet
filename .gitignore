@@ -45,4 +45,4 @@ server/__pycache__/
 server/**/*.pyc
 server/gpt_sovits
 server/models
-data
+/data/
