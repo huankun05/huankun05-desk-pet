@@ -1,6 +1,18 @@
 # 🐱 Desk Pet — 智能桌面助手
 
+[![CI](https://github.com/huankun05/huankun05-desk-pet/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/huankun05/huankun05-desk-pet/actions/workflows/ci.yml)
+
 基于 Tauri 2.0 + React 19 的桌面宠物/智能助手。Live2D 角色互动 + AI 对话 + 语音合成/识别 + 系统自动化。
+
+## 功能特性
+
+- 🤖 **AI 对话**：支持多种 LLM Provider（StepFun、OpenAI 兼容接口等），可切换。
+- 🎙️ **语音通话**：一键语音通话，STT 识别 → LLM 回复 → TTS 播放，像 QQ 一样自然。
+- 🗣️ **语音合成/识别**：模块化 Provider 架构，支持 Edge TTS、CosyVoice、FunASR 等。
+- 🎭 **Live2D 角色**：程序化表情/动作、呼吸、口型同步、音乐节奏同步。
+- 🧠 **长期记忆**：自动抽取对话中的偏好/事实/规则，下次对话自动回灌。
+- ⚙️ **设置向导**：TTS/STT/LLM/Embedding 四页统一服务配置。
+- 🪟 **多窗口悬浮**：主角色窗、聊天窗、状态窗、控制悬浮球，支持边缘吸附与位置记忆。
 
 ## 快速开始
 
@@ -27,6 +39,17 @@ desk-pet/
 ```
 
 详见 [PLAN.md](PLAN.md) 完整路线图，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明。
+
+## 系统要求
+
+| 环境 | 要求 |
+|------|------|
+| OS | Windows 10/11（当前主要目标平台），Linux/macOS 开发中 |
+| Node | 22+ |
+| pnpm | 8+ |
+| Rust | 1.80+ |
+| Python | 3.10+（后端 LLM/TTS/STT/感知服务） |
+| GPU | 可选；CUDA 可加速 PyTorch 相关服务 |
 
 ---
 
@@ -226,3 +249,9 @@ registry.register('tts', 'mytts', () => new MyTTSProvider());
 | 3 | `src/services/provider/registry.ts` | 注册 `registry.register('tts', 'cosyvoice', ...)` |
 | 4 | `src/services/provider/registry.ts` | 用 `registry.register('tts','cosyvoice', ...)` 注册为内置预设 |
 | ✅ | 完成 | 切换 CosyVoice → 自动启动 → 前端正常合成 |
+
+---
+
+## 许可证
+
+[MIT](LICENSE)
