@@ -23,3 +23,12 @@ export { IdleDetectStage } from './stages/idle-detect';
 // M4：MemoryStage（在线 Hermes 核心）与 RAGStage（离线兜底）合并为统一检索链路
 export { UnifiedMemoryStage } from './stages/unified-memory';
 export { isRAGEnabled, setRAGEnabled } from './stages/rag';
+
+// Phase 12.3：Stage 声明式注册表 + 默认管道
+export {
+  KNOWN_STAGES,
+  DEFAULT_PIPELINE,
+  buildPipeline,
+  createDefaultPipeline,
+} from './registry';
+export type { StageName, StageFactories } from './registry';

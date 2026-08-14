@@ -220,6 +220,15 @@ export class ProviderManager {
   private _ready: Promise<void>;
   private initialized = false;
 
+  /**
+   * 运行时"不健康"标记（Phase 12.1）：id -> 过期时间戳(ms)。
+   * 仅驻留内存、不持久化。provider 实际调用失败后由调用方标记，
+   * 下次选取时自动避开并回退到其他可用实例（Harness 式"健康探针胜出"自愈）。
+   * 带 TTL 过期，使瞬时故障可自动恢复重试。
+   */
+  private unhealthy = new Map<string, number>();
+  private readonly UNHEALTHY_TTL_MS = 5 * 60_000;
+
   constructor() {
     this._ready = this.init();
   }
@@ -535,13 +544,14 @@ export class ProviderManager {
    * @param id - 指定 id，不传则返回活跃 provider
    */
   getChatProvider(id?: string): ChatProvider | null {
-    const targetId = id ?? this.state.activeChatId;
-    if (!targetId) return null;
-    const cached = this.chatSlot.peek(targetId);
-    if (cached) return cached;
-    const config = this.findConfig(targetId, 'chat');
-    if (!config || !config.enable) return null;
-    return this.chatSlot.getOrCreate(targetId, config);
+    if (id) {
+      const cached = this.chatSlot.peek(id);
+      if (cached) return cached;
+      const config = this.findConfig(id, 'chat');
+      if (!config || !config.enable) return null;
+      return this.chatSlot.getOrCreate(id, config);
+    }
+    return this.resolveActive('chat', this.chatSlot, this.state.activeChatId);
   }
 
   /**
@@ -555,13 +565,14 @@ export class ProviderManager {
    * 获取 TTSProvider 实例（按需创建并缓存）
    */
   private getTTSProvider(id?: string): TTSProvider | null {
-    const targetId = id ?? this.state.activeTTSId;
-    if (!targetId) return null;
-    const cached = this.ttsSlot.peek(targetId);
-    if (cached) return cached;
-    const config = this.findConfig(targetId, 'tts');
-    if (!config || !config.enable) return null;
-    return this.ttsSlot.getOrCreate(targetId, config);
+    if (id) {
+      const cached = this.ttsSlot.peek(id);
+      if (cached) return cached;
+      const config = this.findConfig(id, 'tts');
+      if (!config || !config.enable) return null;
+      return this.ttsSlot.getOrCreate(id, config);
+    }
+    return this.resolveActive('tts', this.ttsSlot, this.state.activeTTSId);
   }
 
   /**
@@ -575,13 +586,14 @@ export class ProviderManager {
    * 获取 STTProvider 实例（按需创建并缓存）
    */
   private getSTTProvider(id?: string): STTProvider | null {
-    const targetId = id ?? this.state.activeSTTId;
-    if (!targetId) return null;
-    const cached = this.sttSlot.peek(targetId);
-    if (cached) return cached;
-    const config = this.findConfig(targetId, 'stt');
-    if (!config || !config.enable) return null;
-    return this.sttSlot.getOrCreate(targetId, config);
+    if (id) {
+      const cached = this.sttSlot.peek(id);
+      if (cached) return cached;
+      const config = this.findConfig(id, 'stt');
+      if (!config || !config.enable) return null;
+      return this.sttSlot.getOrCreate(id, config);
+    }
+    return this.resolveActive('stt', this.sttSlot, this.state.activeSTTId);
   }
 
   /**
@@ -661,13 +673,79 @@ export class ProviderManager {
   }
 
   getActiveEmbeddingProvider(id?: string): EmbeddingProvider | null {
-    const targetId = id ?? this.state.activeEmbeddingId;
-    if (!targetId) return null;
-    const cached = this.embeddingSlot.peek(targetId);
-    if (cached) return cached;
-    const config = this.findConfig(targetId, 'embedding');
-    if (!config || !config.enable) return null;
-    return this.embeddingSlot.getOrCreate(targetId, config);
+    if (id) {
+      const cached = this.embeddingSlot.peek(id);
+      if (cached) return cached;
+      const config = this.findConfig(id, 'embedding');
+      if (!config || !config.enable) return null;
+      return this.embeddingSlot.getOrCreate(id, config);
+    }
+    return this.resolveActive('embedding', this.embeddingSlot, this.state.activeEmbeddingId);
+  }
+
+  // ===== 运行时健康标记（Phase 12.1） =====
+
+  /**
+   * 标记某 provider 当前不可用（运行时自愈入口）。
+   *
+   * 典型调用方：TTS 播放失败、STT 识别失败等。标记后，
+   * 后续 `getActiveXxxProvider()` 会避开该 id 并自动回退到下一个可用实例。
+   * 带 TTL 过期，使瞬时故障可在 {@link UNHEALTHY_TTL_MS} 后自动重试。
+   */
+  markUnhealthy(type: ProviderType, id: string): void {
+    this.unhealthy.set(id, Date.now() + this.UNHEALTHY_TTL_MS);
+    log.warn('Provider marked unhealthy (runtime fallback armed)', { type, id });
+  }
+
+  /** 主动清除某 provider 的不健康标记（调用成功后可复位） */
+  markHealthy(type: ProviderType, id: string): void {
+    if (this.unhealthy.delete(id)) {
+      log.info('Provider cleared unhealthy', { type, id });
+    }
+  }
+
+  /** 该 id 当前是否处于"不健康且未过期"状态 */
+  private isUnhealthy(id: string): boolean {
+    const exp = this.unhealthy.get(id);
+    if (exp === undefined) return false;
+    if (Date.now() > exp) {
+      this.unhealthy.delete(id);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * 健康感知解析（同步、无网络）：
+   * active 优先，若其配置禁用 / 创建失败 / 被标记为不健康，则回退到同类型
+   * 下一个 enabled 且未被标记不健康的实例。均无则返回 null。
+   *
+   * 对应 Harness "健康探针胜出"：消费者只认 active 这个"接缝"，
+   * 底层具体 provider 损坏时由运行时自动换路，不污染调用方逻辑。
+   */
+  private resolveActive<T extends Provider>(
+    type: ProviderType,
+    slot: ProviderSlot<T>,
+    activeId: string | null,
+  ): T | null {
+    const candidates: string[] = [];
+    if (activeId) candidates.push(activeId);
+    for (const c of this.state.configs as ProviderConfig[]) {
+      if (c.type === type && c.enable && c.id !== activeId) candidates.push(c.id);
+    }
+    for (const id of candidates) {
+      if (this.isUnhealthy(id)) continue;
+      const config = this.findConfig(id, type);
+      if (!config || !config.enable) continue;
+      try {
+        const provider = slot.getOrCreate(id, config);
+        if (provider) return provider;
+      } catch (err) {
+        log.warn('Provider instantiate failed, skipping', { type, id, error: String(err) });
+        this.unhealthy.set(id, Date.now() + this.UNHEALTHY_TTL_MS);
+      }
+    }
+    return null;
   }
 
   // ===== 会话级覆盖（Phase 1.6 完善） =====

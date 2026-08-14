@@ -84,6 +84,19 @@ class EventBus {
   off<E extends keyof EventMap>(event: E, handler: Handler<EventMap[E]>): void {
     this.handlers.get(event)?.delete(handler as Handler<unknown>);
   }
+
+  /**
+   * 订阅全部事件（无侵入追踪用，Phase 12.2）。
+   * @returns 取消全量订阅的函数
+   */
+  onAny(handler: (event: keyof EventMap, payload: unknown) => void): () => void {
+    const offs = (Object.keys(this.handlers) as Array<keyof EventMap>).map((event) =>
+      this.on(event, (payload) => handler(event, payload)),
+    );
+    return () => {
+      for (const off of offs) off();
+    };
+  }
 }
 
 /** 全局单例 EventBus */

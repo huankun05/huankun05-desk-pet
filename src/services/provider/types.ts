@@ -84,6 +84,15 @@ export interface Provider {
   getType(): ProviderType;
   /** 测试连接是否可用 */
   validate(): Promise<boolean>;
+  /**
+   * 轻量健康探针（可选）。
+   *
+   * 与 validate()（配置校验/连通测试）区分：isAvailable 用于运行时判断
+   * "该 provider 当前能否真正产出结果"。未实现时回退到 validate()。
+   * ProviderManager 借此在 active provider 损坏时自动回退到其他可用实例
+   * （Harness 式"健康探针胜出"自愈，见 PLAN.md Phase 12.1）。
+   */
+  isAvailable?(): Promise<boolean>;
 }
 
 // ===== ChatProvider =====

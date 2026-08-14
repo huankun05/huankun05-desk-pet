@@ -19,24 +19,13 @@ export async function validateProviderConfig(
 ): Promise<void> {
   const tempId = `temp-probe-${crypto.randomUUID()}`;
   const testConfig = { ...config, id: tempId, enable: true };
-  let provider: { validate: () => Promise<boolean> } | null = null;
 
-  if (serviceType === 'chat') {
-    provider = providerRegistry.createChatProvider(
-      testConfig.typeName,
-      testConfig as ChatProviderConfig,
-    );
-  } else if (serviceType === 'tts') {
-    provider = providerRegistry.createTTSProvider(
-      testConfig.typeName,
-      testConfig as TTSProviderConfig,
-    );
-  } else {
-    provider = providerRegistry.createSTTProvider(
-      testConfig.typeName,
-      testConfig as STTProviderConfig,
-    );
-  }
+  const provider =
+    serviceType === 'chat'
+      ? providerRegistry.createChatProvider(testConfig.typeName, testConfig as ChatProviderConfig)
+      : serviceType === 'tts'
+        ? providerRegistry.createTTSProvider(testConfig.typeName, testConfig as TTSProviderConfig)
+        : providerRegistry.createSTTProvider(testConfig.typeName, testConfig as STTProviderConfig);
 
   if (!provider) {
     throw new Error('无法创建该类型的 Provider 适配器');

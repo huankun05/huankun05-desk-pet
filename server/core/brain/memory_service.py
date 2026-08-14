@@ -18,6 +18,7 @@ import json
 import logging
 import sqlite3
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -90,6 +91,7 @@ class MemoryService:
         self.embedder = embedder or get_default_embedder()
         self.librarian = Librarian(store=self.store, embedder=self.embedder, top_k=top_k)
         self._scribe = Scribe(store=self.store, config=ExtractionConfig())
+        self.last_injection: dict | None = None
 
     # ============================================================
     # CRUD
@@ -230,14 +232,20 @@ class MemoryService:
         2. 【用户偏好】启用中的偏好
         3. 【用户反馈】启用中的反馈
         4. 【相关记忆】基于 query 的语义召回（排除上述已注入类别，避免重复）
+
+        可审计性（Phase 12.4）：执行后把本次实际选中的记忆条目 id 写入
+        self.last_injection，并 append 到 data/memory_injections.jsonl（only-append），
+        便于复现"这次到底注入了哪条记忆"。
         """
         blocks: list[str] = []
+        selected_ids: list[str] = []
 
         rules = self.store.list_enabled_rules()
         if rules:
             lines = ["【约定规则】"]
             for i, r in enumerate(rules, 1):
                 lines.append(f"{i}. {r.content}")
+                selected_ids.append(r.id)
             blocks.append("\n".join(lines))
 
         prefs = self.store.list_by_filter(category=CATEGORY_PREFERENCE, enabled=True)
@@ -245,6 +253,7 @@ class MemoryService:
             lines = ["【用户偏好】"]
             for i, p in enumerate(prefs, 1):
                 lines.append(f"{i}. {p.content}")
+                selected_ids.append(p.id)
             blocks.append("\n".join(lines))
 
         feedbacks = self.store.list_by_filter(category=CATEGORY_FEEDBACK, enabled=True)
@@ -252,6 +261,7 @@ class MemoryService:
             lines = ["【用户反馈】"]
             for i, f in enumerate(feedbacks, 1):
                 lines.append(f"{i}. {f.content}")
+                selected_ids.append(f.id)
             blocks.append("\n".join(lines))
 
         if query and query.strip():
@@ -271,9 +281,36 @@ class MemoryService:
                 for i, r in enumerate(related, 1):
                     marker = "（永久）" if r.fragment.is_permanent else ""
                     lines.append(f"{i}. {r.fragment.content}{marker}")
+                    selected_ids.append(r.fragment.id)
                 blocks.append("\n".join(lines))
 
-        return "\n\n".join(blocks)
+        prompt = "\n\n".join(blocks)
+
+        # 记录溯源（可审计）
+        self.last_injection = {
+            "ts": int(time.time() * 1000),
+            "query": query,
+            "selected_ids": selected_ids,
+            "block_count": len(blocks),
+        }
+        self._append_injection_log(self.last_injection)
+
+        return prompt
+
+    def get_last_injection(self) -> dict | None:
+        """返回最近一次 build_injection_prompt 的溯源信息（选中记忆 id 等）。"""
+        return getattr(self, "last_injection", None)
+
+    def _append_injection_log(self, record: dict) -> None:
+        """把注入溯源 append 到 data/memory_injections.jsonl（only-append，best-effort）。"""
+        try:
+            db_dir = Path(get_db_path()).parent
+            db_dir.mkdir(parents=True, exist_ok=True)
+            log_path = db_dir / "memory_injections.jsonl"
+            with log_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("记忆注入溯源落盘失败（忽略）: %s", exc)
 
     # ============================================================
     # 抽取（对话 → 记忆）

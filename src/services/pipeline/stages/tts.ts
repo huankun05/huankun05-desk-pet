@@ -25,12 +25,18 @@ export class TTSStage implements Stage {
     const ttsProvider = this.manager.getSessionTTSProvider(ctx.session.id);
     if (!ttsProvider) return;
 
+    const providerId = ttsProvider.config.id;
     try {
-      const isReachable = await ttsProvider.validate();
+      // 优先 isAvailable()（运行时健康探针），未实现则回退 validate()
+      const isReachable =
+        typeof ttsProvider.isAvailable === 'function'
+          ? await ttsProvider.isAvailable()
+          : await ttsProvider.validate();
       if (!isReachable) {
         log.warn('TTS service unreachable, skipping synthesis', {
           provider: ttsProvider.getName(),
         });
+        this.manager.markUnhealthy('tts', providerId);
         return;
       }
 
@@ -53,6 +59,8 @@ export class TTSStage implements Stage {
       ctx.ttsAudio = ttsResult.audio;
       ctx.ttsSampleRate = ttsResult.sampleRate;
     } catch (ttsErr) {
+      // 合成失败：标记该 provider 不健康，下次 getActiveTTSProvider 自动回退（Phase 12.1）
+      this.manager.markUnhealthy('tts', providerId);
       if (ttsErr instanceof TypeError && ttsErr.message.includes('Failed to fetch')) {
         log.warn('TTS service connection lost during synthesis', {
           provider: ttsProvider.getName(),

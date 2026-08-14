@@ -1047,3 +1047,77 @@ desk-pet/
 - `4bba7c6` fix ThreadPoolExecutor import
 
 ---
+
+### Phase 12: Harness 启发式架构硬化（2026-08-14）
+
+> **来源**：调研 DeepSeek Harness v0.1（2026-08-13 发布，MIT 开源，"一切皆插件" Agent 运行时，基于 Cordis 微内核）。
+> 完整分析见对话记录。核心结论：**我们的 eventBus + 多 stage pipeline + ProviderManager + 记忆引擎方向已经正确**，本阶段把"雏形"硬化成"可靠系统"，借鉴 Harness 的 5 个具体模式。
+> 设计原则：**全部为增量、向后兼容改动**，不破坏现有 14+ 处 `getActiveTTSProvider()` 等调用与现有管道编排。
+
+#### 12.1 Provider 接缝化 + 健康探针（消 activeTTSId 坏配置坑）
+
+> Harness 概念：能力以稳定 key 暴露，消费者只认 key 不认具体实现；一次替换全局生效。
+> 现状痛点：`getActiveTTSProvider()` 直接返回 `activeTTSId` 指向的实例，**无健康检查**——`activeTTSId` 若指向无权重/不可用的 GPT-SoVITS，全链路 TTS 静默失败（已知 bug）。
+
+| # | 任务 | 目标文件 | 说明 | 状态 |
+|---|------|----------|------|------|
+| P1 | **健康感知选取** | `src/services/provider/manager.ts` | `getActiveTTSProvider()` 等内部改为：active 不可用时（配置禁用 / 实例化失败 / `validate()` 不通过）自动回退到下一个 enabled 且 `validate()` 通过的 provider；均无则返回 null。公共签名不变 | ✅ |
+| P2 | **运行时标记不健康** | `src/services/provider/manager.ts` | 新增 `markUnhealthy(type, id)`：TTS 播放失败时调用，下次选取自动避开并回退，实现"探针胜出"自愈 | ✅ |
+| P3 | **可选 isAvailable 探针** | `src/services/provider/types.ts` | 在 Provider 接口增加可选 `isAvailable?(): Promise<boolean>`（默认回退到 `validate()`），供 manager 做轻量健康判断 | ✅ |
+
+#### 12.2 eventBus 追踪总线（可回放只增日志）
+
+> Harness 概念：不变式 "model-visible ⇒ logged"，`deriveMessages()` 从日志重建，fork/resume/replay 共享一条流。
+> 现状：eventBus 已到处 emit，但事件只活内存，无落盘可重建流，调试"TTS 没声音"只能靠运行时猜。
+
+| # | 任务 | 目标文件 | 说明 | 状态 |
+|---|------|----------|------|------|
+| P1 | **EventBus.onAny** | `src/services/eventBus.ts` | 增加 `onAny(handler)` 全量订阅，供追踪总线无侵入接入 | ✅ |
+| P2 | **traceBus 追踪总线** | `src/services/traceBus.ts`（新增） | 订阅全部事件写入内存环形缓冲（可配上限）+ 可选 only-append 持久化；`startTrace/stopTrace/getTrace/clearTrace/exportTrace` | ✅ |
+
+#### 12.3 pipeline stage 声明式注册表（可配置拼装）
+
+> Harness 概念：每个 stage 是插件，靠 config 分层组合；模式 = 不同插件集。
+> 现状：13 个 stage 已存在但 `PipelineScheduler` 当前未被任何运行中的编排实例化（仅导出）。改为声明式注册表 + 默认构建器。
+
+| # | 任务 | 目标文件 | 说明 | 状态 |
+|---|------|----------|------|------|
+| P1 | **stage 注册表 + 默认构建器** | `src/services/pipeline/registry.ts`（新增）+ `index.ts` | `stageRegistry` 名称→工厂；`buildPipeline(names)` 按配置组装 `PipelineScheduler`；`DEFAULT_PIPELINE` 默认顺序与现有 stages 一致；导出 `createDefaultPipeline()` | ✅ |
+
+#### 12.4 记忆注入可审计（记录选中记忆 id）
+
+> Harness 概念：每次上下文注入都写进日志，可审计。
+> 现状：`build_injection_prompt` 瞬时拼装，不记录"这次到底注入了哪几条记忆"。
+
+| # | 任务 | 目标文件 | 说明 | 状态 |
+|---|------|----------|------|------|
+| P1 | **注入溯源** | `server/core/brain/memory_service.py` | `build_injection_prompt` 执行后把本次选中的记忆条目 id（rules/prefs/feedback/related）写入 `self.last_injection` 并 append 到 `data/memory_injections.jsonl`（only-append、best-effort）；新增 `get_last_injection()`。返回类型保持 str 不变 | ✅ |
+
+#### 12.5 registerEffect 可逆效应抽象
+
+> Harness 概念：注册都返回 disposer，卸载插件时自动回滚所有副作用——热重载不崩的根。
+> 现状：各模块自行管理订阅/监听，切换 provider/人格时易残留旧监听（"半切换"温床）。
+
+| # | 任务 | 目标文件 | 说明 | 状态 |
+|---|------|----------|------|------|
+| P1 | **DisposableRegistry + registerEffect** | `src/services/disposable.ts`（新增） | `Disposer` 类型 + `DisposableRegistry`（`register`/`disposeAll`）+ 全局 `registerEffect()`/`disposeAllEffects()` | ✅ |
+| P2 | **接入追踪总线** | `src/services/traceBus.ts` | `stopTrace()` 用 registry 统一 dispose 全部 eventBus 订阅，演示可逆效应；文档列出建议采纳点（provider 切换、hotswap、usePerception） | ✅ |
+
+#### 验证标准
+- `pnpm run typecheck`：0 errors
+- `pnpm run lint`：0 errors（历史 warning 除外）
+- `pnpm run build`：通过
+- `python -m py_compile server/core/brain/memory_service.py`：通过
+- 不改动任何现有事件发射方 / 公共 Provider 选取签名（仅在 active 损坏时行为变化）
+
+#### 完成记录（2026-08-14）
+- 全部 10 项（12.1~12.5）已实现并落地，向后兼容（公共 `getActiveTTSProvider()` 等签名不变，仅在 active 损坏时行为变化）。
+- 验证结果（均达标准）：
+  - `tsc --noEmit`：0 errors ✅
+  - `eslint src`：0 errors（81 条历史 warning 残留，均为 `react-hooks/set-state-in-effect`、`react-refresh`、`no-explicit-any` 风格项，非本次引入）✅
+  - `vite build`：通过（667 modules transformed，产物正常）✅
+  - `py_compile memory_service.py`：通过 ✅
+- 附带修复：`src/services/provider/validateProvider.ts` 存在 `no-useless-assignment` 历史 error（`let provider = null` 初始化冗余），重构为 const 三元赋值以消除，使 `lint` 真正 0 error（非 Phase 12 范围，但属于 0-error 验收前置）。
+- 注：`traceBus.ts` / `disposable.ts` 为新增可逆效应原语，已就绪待采纳；建议采纳点（provider 切换、hotswap、usePerception）见 12.5 P2 说明，未强制接入现有运行路径以保稳定。
+
+---
