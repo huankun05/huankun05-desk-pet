@@ -100,10 +100,7 @@ pub fn resolve_python(app: &tauri::AppHandle) -> String {
     }
 
     // dev：优先项目 venv
-    let proj_venv = dev_root()
-        .join("venv")
-        .join("Scripts")
-        .join("python.exe");
+    let proj_venv = dev_root().join("venv").join("Scripts").join("python.exe");
     if proj_venv.exists() && can_import(&proj_venv, "fastapi") {
         return proj_venv.to_string_lossy().to_string();
     }
@@ -136,7 +133,10 @@ pub fn ensure_backend(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(sys_py) = find_existing_suitable_python() {
         let _ = app.emit(
             "backend:install-done",
-            format!("检测到本机已具备 Python 后端依赖（{}），直接复用，无需下载", sys_py),
+            format!(
+                "检测到本机已具备 Python 后端依赖（{}），直接复用，无需下载",
+                sys_py
+            ),
         );
         return Ok(());
     }
@@ -223,8 +223,16 @@ fn command_ok(cmd: &str, args: &[&str]) -> bool {
 /// 只要缺任意一个（典型如 mediapipe/torch），就不算「可直接复用」。
 fn python_has_all_deps(python: &Path) -> bool {
     const MODS: &[&str] = &[
-        "fastapi", "uvicorn", "torch", "funasr", "mediapipe", "numpy", "cv2",
-        "edge_tts", "loguru", "websockets",
+        "fastapi",
+        "uvicorn",
+        "torch",
+        "funasr",
+        "mediapipe",
+        "numpy",
+        "cv2",
+        "edge_tts",
+        "loguru",
+        "websockets",
     ];
     MODS.iter().all(|m| can_import(python, m))
 }

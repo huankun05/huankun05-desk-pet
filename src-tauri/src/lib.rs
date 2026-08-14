@@ -522,33 +522,33 @@ fn write_file(path: String, content: String, append: Option<bool>) -> CmdResult<
     Ok(())
 }
 
-    /// 删除文件（仅允许项目数据目录内，用于备份滚动清理）
-    #[tauri::command]
-    fn delete_file(path: String) -> CmdResult<()> {
-        let requested = std::path::PathBuf::from(&path);
+/// 删除文件（仅允许项目数据目录内，用于备份滚动清理）
+#[tauri::command]
+fn delete_file(path: String) -> CmdResult<()> {
+    let requested = std::path::PathBuf::from(&path);
 
-        // 限制仅允许项目数据目录及其子目录
-        let data_dir = crate::utils::get_project_data_dir()?;
-        let canonical_data = data_dir.canonicalize().unwrap_or(data_dir.clone());
-        let canonical_req = requested.canonicalize().unwrap_or(requested.clone());
-        if !canonical_req.starts_with(&canonical_data) {
-            return Err(AppError::Generic(
-                "Access denied: path must be within project data directory".to_string(),
-            ));
-        }
-        if !requested.exists() {
-            return Ok(());
-        }
-        if requested.is_dir() {
-            return Err(AppError::Generic("Cannot delete a directory".to_string()));
-        }
-        fs::remove_file(&requested).map_err(|e| format!("Failed to delete file: {}", e))?;
-        Ok(())
+    // 限制仅允许项目数据目录及其子目录
+    let data_dir = crate::utils::get_project_data_dir()?;
+    let canonical_data = data_dir.canonicalize().unwrap_or(data_dir.clone());
+    let canonical_req = requested.canonicalize().unwrap_or(requested.clone());
+    if !canonical_req.starts_with(&canonical_data) {
+        return Err(AppError::Generic(
+            "Access denied: path must be within project data directory".to_string(),
+        ));
     }
+    if !requested.exists() {
+        return Ok(());
+    }
+    if requested.is_dir() {
+        return Err(AppError::Generic("Cannot delete a directory".to_string()));
+    }
+    fs::remove_file(&requested).map_err(|e| format!("Failed to delete file: {}", e))?;
+    Ok(())
+}
 
-    /// 用系统默认浏览器打开 URL
-    #[tauri::command]
-    fn open_url(url: String) -> CmdResult<()> {
+/// 用系统默认浏览器打开 URL
+#[tauri::command]
+fn open_url(url: String) -> CmdResult<()> {
     // 简单校验，避免注入任意 shell 命令
     let lower = url.to_lowercase();
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {
@@ -989,7 +989,7 @@ fn get_storage_usage() -> CmdResult<StorageUsage> {
             });
         }
     }
-    model_items.sort_by(|a, b| b.size.cmp(&a.size));
+    model_items.sort_by_key(|b| std::cmp::Reverse(b.size));
 
     // 用户信息：data 目录总资产减去 temp 与 models
     let data_total = crate::utils::get_dir_size(&data_dir);
@@ -1025,7 +1025,7 @@ fn get_storage_usage() -> CmdResult<StorageUsage> {
             }
         }
     }
-    user_items.sort_by(|a, b| b.size.cmp(&a.size));
+    user_items.sort_by_key(|b| std::cmp::Reverse(b.size));
 
     let categories = vec![
         StorageCategory {
@@ -1335,7 +1335,9 @@ pub fn run() {
                                                     .as_str()
                                                     .unwrap_or(".")
                                                     .to_string();
-                                                let app_root = crate::backend::backend_root(&app_handle_for_services);
+                                                let app_root = crate::backend::backend_root(
+                                                    &app_handle_for_services,
+                                                );
                                                 let work_dir = if raw_work_dir.is_empty()
                                                     || raw_work_dir == "."
                                                 {
@@ -1393,78 +1395,78 @@ pub fn run() {
                 let app_handle_for_core = app_handle_for_services.clone();
                 let app_handle_for_hermes = app_handle_for_services.clone();
 
-            // 共享 Python 命令解析（打包后用 bootstrap venv，dev 用项目 venv/系统 python）
-            // 首次运行确保 venv 就绪（仅打包环境生效，best-effort）
-            let _ = crate::backend::ensure_backend(&app_handle_for_services);
-            let python_cmd_shared = crate::backend::resolve_python(&app_handle_for_services);
-            let project_root_shared = crate::backend::backend_root(&app_handle_for_services)
-                .to_string_lossy()
-                .to_string();
+                // 共享 Python 命令解析（打包后用 bootstrap venv，dev 用项目 venv/系统 python）
+                // 首次运行确保 venv 就绪（仅打包环境生效，best-effort）
+                let _ = crate::backend::ensure_backend(&app_handle_for_services);
+                let python_cmd_shared = crate::backend::resolve_python(&app_handle_for_services);
+                let project_root_shared = crate::backend::backend_root(&app_handle_for_services)
+                    .to_string_lossy()
+                    .to_string();
 
-            // Core API 线程
-            let core_root = project_root_shared.clone();
-            let core_python = python_cmd_shared.clone();
-            std::thread::spawn(move || {
-                let core_port: u16 = 9877;
-                if !service::check_http_health(core_port) {
-                    let args = vec![
-                        "-m".to_string(),
-                        "server.core.api_server".to_string(),
-                        "--port".to_string(),
-                        core_port.to_string(),
-                    ];
-                    match service::service_start_raw(
-                        &core_python,
-                        &args,
-                        &core_root,
-                        core_port,
-                        &app_handle_for_core,
-                    ) {
-                        Ok(info) => {
-                            println!("[Core API] Started: id={}, port={}", info.id, core_port);
+                // Core API 线程
+                let core_root = project_root_shared.clone();
+                let core_python = python_cmd_shared.clone();
+                std::thread::spawn(move || {
+                    let core_port: u16 = 9877;
+                    if !service::check_http_health(core_port) {
+                        let args = vec![
+                            "-m".to_string(),
+                            "server.core.api_server".to_string(),
+                            "--port".to_string(),
+                            core_port.to_string(),
+                        ];
+                        match service::service_start_raw(
+                            &core_python,
+                            &args,
+                            &core_root,
+                            core_port,
+                            &app_handle_for_core,
+                        ) {
+                            Ok(info) => {
+                                println!("[Core API] Started: id={}, port={}", info.id, core_port);
+                            }
+                            Err(e) => {
+                                eprintln!("[Core API] Failed to start: {:?}", e);
+                            }
                         }
-                        Err(e) => {
-                            eprintln!("[Core API] Failed to start: {:?}", e);
-                        }
+                    } else {
+                        println!("[Core API] Already running on port {}", core_port);
                     }
-                } else {
-                    println!("[Core API] Already running on port {}", core_port);
-                }
-            });
+                });
 
-            // Hermes Gateway 线程
-            let hermes_root = project_root_shared.clone();
-            let hermes_python = python_cmd_shared.clone();
-            std::thread::spawn(move || {
-                let hermes_port: u16 = 8765;
-                if !service::check_http_health(hermes_port) {
-                    let args = vec![
-                        "-m".to_string(),
-                        "server.hermes_gateway_server".to_string(),
-                        "--port".to_string(),
-                        hermes_port.to_string(),
-                    ];
-                    match service::service_start_raw(
-                        &hermes_python,
-                        &args,
-                        &hermes_root,
-                        hermes_port,
-                        &app_handle_for_hermes,
-                    ) {
-                        Ok(info) => {
-                            println!(
-                                "[Hermes Gateway] Started: id={}, port={}",
-                                info.id, hermes_port
-                            );
+                // Hermes Gateway 线程
+                let hermes_root = project_root_shared.clone();
+                let hermes_python = python_cmd_shared.clone();
+                std::thread::spawn(move || {
+                    let hermes_port: u16 = 8765;
+                    if !service::check_http_health(hermes_port) {
+                        let args = vec![
+                            "-m".to_string(),
+                            "server.hermes_gateway_server".to_string(),
+                            "--port".to_string(),
+                            hermes_port.to_string(),
+                        ];
+                        match service::service_start_raw(
+                            &hermes_python,
+                            &args,
+                            &hermes_root,
+                            hermes_port,
+                            &app_handle_for_hermes,
+                        ) {
+                            Ok(info) => {
+                                println!(
+                                    "[Hermes Gateway] Started: id={}, port={}",
+                                    info.id, hermes_port
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("[Hermes Gateway] Failed to start: {:?}", e);
+                            }
                         }
-                        Err(e) => {
-                            eprintln!("[Hermes Gateway] Failed to start: {:?}", e);
-                        }
+                    } else {
+                        println!("[Hermes Gateway] Already running on port {}", hermes_port);
                     }
-                } else {
-                    println!("[Hermes Gateway] Already running on port {}", hermes_port);
-                }
-            });
+                });
             });
 
             // 启动管理后台 HTTP 服务器（传入 AppHandle 用于事件通知）

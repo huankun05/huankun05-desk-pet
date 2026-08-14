@@ -51,8 +51,8 @@ fn find_project_root() -> Option<PathBuf> {
 ///
 /// - 开发环境：向上查找到含 package.json / Cargo.toml 的项目根目录
 /// - 打包环境：exe 同级目录
-/// 用于定位 public/、server/ 等模型与资源目录（这些在开发期位于项目根，
-/// 打包后通常随 exe 一起分发在同级目录）。
+///   用于定位 public/、server/ 等模型与资源目录（这些在开发期位于项目根，
+///   打包后通常随 exe 一起分发在同级目录）。
 pub fn get_app_base_dir() -> PathBuf {
     if let Some(root) = find_project_root() {
         return root;

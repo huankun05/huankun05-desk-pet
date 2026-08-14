@@ -28,7 +28,8 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let toggle_visible = MenuItem::with_id(app, "toggle-visible", "隐藏", true, None::<&str>)?;
     let open_chat = MenuItem::with_id(app, "open-chat", "打开对话", true, None::<&str>)?;
     let open_settings = MenuItem::with_id(app, "open-settings", "设置", true, None::<&str>)?;
-    let restart_gateway = MenuItem::with_id(app, "restart-gateway", "重启后端", true, None::<&str>)?;
+    let restart_gateway =
+        MenuItem::with_id(app, "restart-gateway", "重启后端", true, None::<&str>)?;
     let reset_orb = MenuItem::with_id(app, "reset-orb", "重置悬浮球", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
