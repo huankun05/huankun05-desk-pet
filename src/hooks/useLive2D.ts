@@ -308,30 +308,27 @@ export function useLive2D({
     let unlistenMotion: (() => void) | undefined;
     let cancelled = false;
 
-    void listen<{ expression: string; modelKey: string }>(
-      'deskpet:preview-expression',
-      (e) => {
-        if (e.payload.modelKey && e.payload.modelKey !== modelKey) {
-          console.warn(
-            '[Live2D:preview] modelKey 不匹配，忽略。payload=',
-            e.payload.modelKey,
-            '本窗=',
-            modelKey,
-          );
-          void emit('deskpet:preview-ack', {
-            ok: false,
-            reason: 'modelKey-mismatch',
-            payloadModelKey: e.payload.modelKey,
-            myModelKey: modelKey,
-          });
-          return;
-        }
-        const name = e.payload.expression;
-        const finalName = name === 'Default' ? '' : name;
-        setExpression(finalName);
-        void emit('deskpet:preview-ack', { ok: true, applied: finalName, modelKey });
-      },
-    ).then((fn) => {
+    void listen<{ expression: string; modelKey: string }>('deskpet:preview-expression', (e) => {
+      if (e.payload.modelKey && e.payload.modelKey !== modelKey) {
+        console.warn(
+          '[Live2D:preview] modelKey 不匹配，忽略。payload=',
+          e.payload.modelKey,
+          '本窗=',
+          modelKey,
+        );
+        void emit('deskpet:preview-ack', {
+          ok: false,
+          reason: 'modelKey-mismatch',
+          payloadModelKey: e.payload.modelKey,
+          myModelKey: modelKey,
+        });
+        return;
+      }
+      const name = e.payload.expression;
+      const finalName = name === 'Default' ? '' : name;
+      setExpression(finalName);
+      void emit('deskpet:preview-ack', { ok: true, applied: finalName, modelKey });
+    }).then((fn) => {
       if (!cancelled) unlistenExpr = fn;
     });
 
@@ -354,7 +351,11 @@ export function useLive2D({
           return;
         }
         triggerAnimation(e.payload.name, e.payload.duration ?? 3000);
-        void emit('deskpet:preview-ack', { ok: true, applied: `motion:${e.payload.name}`, modelKey });
+        void emit('deskpet:preview-ack', {
+          ok: true,
+          applied: `motion:${e.payload.name}`,
+          modelKey,
+        });
       },
     ).then((fn) => {
       if (!cancelled) unlistenMotion = fn;
@@ -377,7 +378,7 @@ export function useLive2D({
       const basePool =
         customIdle && customIdle.length > 0
           ? customIdle
-          : IDLE_EXPRESSIONS_BY_MODEL[modelKey] ?? [''];
+          : (IDLE_EXPRESSIONS_BY_MODEL[modelKey] ?? ['']);
       // 跳过被停用的表情；若全部停用则回退到基础态
       const filtered = basePool.filter((e) => isVisualEnabled(modelKey, e));
       const pool = filtered.length > 0 ? filtered : [''];

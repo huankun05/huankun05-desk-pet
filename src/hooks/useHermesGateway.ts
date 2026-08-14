@@ -250,7 +250,13 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       // 通过 WebSocket 发送
       const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
-      log.info('[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d', assistantId, content.slice(0, 80), mode, frontendTools.length);
+      log.info(
+        '[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d',
+        assistantId,
+        content.slice(0, 80),
+        mode,
+        frontendTools.length,
+      );
       const sentMsgId = client.sendChat(content, {
         mode,
         frontendTools,
@@ -289,7 +295,15 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           }
           // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
           if (isTauriEnv()) {
-            emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: { id: assistantId, role: 'assistant', content: fullResponse, timestamp: new Date() } }).catch(() => {});
+            emit(MSG_SYNC_EVENT, {
+              sessionId: session.id,
+              msg: {
+                id: assistantId,
+                role: 'assistant',
+                content: fullResponse,
+                timestamp: new Date(),
+              },
+            }).catch(() => {});
           }
           setIsLoading(false);
           setIsStreaming(false);

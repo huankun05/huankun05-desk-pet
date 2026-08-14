@@ -61,7 +61,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Ensure frontend dist placeholder
-        run: mkdir -p dist
+        run: mkdir -p ../dist
 
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features -- -D warnings

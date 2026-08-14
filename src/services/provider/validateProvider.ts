@@ -1,9 +1,5 @@
 import { providerRegistry } from './registry';
-import type {
-  ChatProviderConfig,
-  TTSProviderConfig,
-  STTProviderConfig,
-} from './types';
+import type { ChatProviderConfig, TTSProviderConfig, STTProviderConfig } from './types';
 
 /**
  * 通用 provider 配置校验：用临时 id 创建一个 provider 实例并调用其 validate()。

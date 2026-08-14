@@ -112,7 +112,10 @@ export function DataPage() {
       showToast(t('settings.memory.backup.success'), 'success');
       await loadBackups();
     } catch (e) {
-      showMessage('error', t('settings.memory.backup.failed', { error: e instanceof Error ? e.message : String(e) }));
+      showMessage(
+        'error',
+        t('settings.memory.backup.failed', { error: e instanceof Error ? e.message : String(e) }),
+      );
     } finally {
       setBusy(false);
     }
@@ -130,7 +133,12 @@ export function DataPage() {
     try {
       await restoreBackup(file.path);
     } catch (e) {
-      showMessage('error', t('settings.memory.backup.restore_failed', { error: e instanceof Error ? e.message : String(e) }));
+      showMessage(
+        'error',
+        t('settings.memory.backup.restore_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     }
   };
 
@@ -148,7 +156,12 @@ export function DataPage() {
       showMessage('success', t('settings.memory.backup.deleted'));
       await loadBackups();
     } catch (e) {
-      showMessage('error', t('settings.memory.backup.delete_failed', { error: e instanceof Error ? e.message : String(e) }));
+      showMessage(
+        'error',
+        t('settings.memory.backup.delete_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     }
   };
 
@@ -160,7 +173,12 @@ export function DataPage() {
         await invoke('open_path', { path: base });
       });
     } catch (e) {
-      showMessage('error', t('settings.memory.backup.open_failed', { error: e instanceof Error ? e.message : String(e) }));
+      showMessage(
+        'error',
+        t('settings.memory.backup.open_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     }
   };
 
@@ -187,7 +205,10 @@ export function DataPage() {
       toRemove.forEach((k) => localStorage.removeItem(k));
       showToast(t('settings.data.cleared'), 'success');
     } catch (e) {
-      showToast(t('settings.data.clear_failed', { error: e instanceof Error ? e.message : String(e) }), 'error');
+      showToast(
+        t('settings.data.clear_failed', { error: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setClearing(false);
     }
@@ -196,15 +217,24 @@ export function DataPage() {
   return (
     <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
       {/* ===== 自动备份设置 ===== */}
-      <Section title={t('settings.memory.backup.auto_title')} description={t('settings.memory.backup.auto_desc')}>
+      <Section
+        title={t('settings.memory.backup.auto_title')}
+        description={t('settings.memory.backup.auto_desc')}
+      >
         <div className="p-4 space-y-4">
-          <SettingRow title={t('settings.memory.backup.auto_enable')} description={t('settings.memory.backup.auto_enable_desc')}>
+          <SettingRow
+            title={t('settings.memory.backup.auto_enable')}
+            description={t('settings.memory.backup.auto_enable_desc')}
+          >
             <Switch checked={cfg.enabled} onClick={() => update({ enabled: !cfg.enabled })} />
           </SettingRow>
 
           {cfg.enabled && (
             <>
-              <SettingRow title={t('settings.memory.backup.frequency')} description={t('settings.memory.backup.frequency_desc')}>
+              <SettingRow
+                title={t('settings.memory.backup.frequency')}
+                description={t('settings.memory.backup.frequency_desc')}
+              >
                 <div className="flex gap-1 rounded-lg border border-neutral-200 bg-neutral-50 p-1">
                   {FREQ_OPTIONS.map((opt) => (
                     <button
@@ -223,7 +253,10 @@ export function DataPage() {
                 </div>
               </SettingRow>
 
-              <SettingRow title={t('settings.memory.backup.dir')} description={t('settings.memory.backup.dir_desc')}>
+              <SettingRow
+                title={t('settings.memory.backup.dir')}
+                description={t('settings.memory.backup.dir_desc')}
+              >
                 <div className="flex items-center gap-2 w-full max-w-sm">
                   <input
                     type="text"
@@ -242,20 +275,27 @@ export function DataPage() {
                 </div>
               </SettingRow>
 
-              <SettingRow title={t('settings.memory.backup.keep')} description={t('settings.memory.backup.keep_desc')}>
+              <SettingRow
+                title={t('settings.memory.backup.keep')}
+                description={t('settings.memory.backup.keep_desc')}
+              >
                 <input
                   type="number"
                   min={1}
                   max={50}
                   value={cfg.keepCount}
-                  onChange={(e) => update({ keepCount: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })}
+                  onChange={(e) =>
+                    update({ keepCount: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })
+                  }
                   className="w-24 rounded-lg border border-neutral-200 px-2 py-1.5 text-xs text-neutral-700"
                 />
               </SettingRow>
 
               <p className="text-xs text-neutral-400">
                 {t('settings.memory.backup.last_backup')}：
-                {cfg.lastBackup ? formatTimestamp(cfg.lastBackup) : t('settings.memory.backup.last_never')}
+                {cfg.lastBackup
+                  ? formatTimestamp(cfg.lastBackup)
+                  : t('settings.memory.backup.last_never')}
               </p>
             </>
           )}
@@ -263,7 +303,10 @@ export function DataPage() {
       </Section>
 
       {/* ===== 手动备份 ===== */}
-      <Section title={t('settings.memory.backup.manual_title')} description={t('settings.memory.backup.manual_desc')}>
+      <Section
+        title={t('settings.memory.backup.manual_title')}
+        description={t('settings.memory.backup.manual_desc')}
+      >
         <div className="p-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -297,7 +340,10 @@ export function DataPage() {
       </Section>
 
       {/* ===== 备份列表 ===== */}
-      <Section title={t('settings.memory.backup.list_title')} description={t('settings.memory.backup.list_desc')}>
+      <Section
+        title={t('settings.memory.backup.list_title')}
+        description={t('settings.memory.backup.list_desc')}
+      >
         <div className="p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium text-neutral-700">
@@ -309,7 +355,10 @@ export function DataPage() {
               disabled={loading}
               className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700"
             >
-              <Icon icon="solar:refresh-bold-duotone" className={`text-base ${loading ? 'animate-spin' : ''}`} />
+              <Icon
+                icon="solar:refresh-bold-duotone"
+                className={`text-base ${loading ? 'animate-spin' : ''}`}
+              />
               {t('common.refresh')}
             </button>
           </div>
@@ -321,13 +370,18 @@ export function DataPage() {
             </div>
           ) : (
             backups.map((file) => (
-              <div key={file.name} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-3">
+              <div
+                key={file.name}
+                className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-3"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-500 shrink-0">
                     <Icon icon="solar:archive-bold-duotone" className="text-lg" />
                   </span>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-neutral-800">{formatTimestamp(file.timestamp)}</div>
+                    <div className="text-sm font-medium text-neutral-800">
+                      {formatTimestamp(file.timestamp)}
+                    </div>
                     <div className="text-xs text-neutral-500">{formatFileSize(file.size)}</div>
                   </div>
                 </div>

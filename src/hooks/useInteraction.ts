@@ -73,7 +73,9 @@ export function useInteraction({
   const CLICK_BUBBLE_COOLDOWN_MS = 3000;
 
   // 配置/消息内存缓存：点击路径不再每次读 localStorage
-  const cooldownMsRef = useRef<number>(loadInteractionConfig().clickCooldownMs || CLICK_BUBBLE_COOLDOWN_MS);
+  const cooldownMsRef = useRef<number>(
+    loadInteractionConfig().clickCooldownMs || CLICK_BUBBLE_COOLDOWN_MS,
+  );
   const interactMsgsRef = useRef(getActualInteractMessages());
 
   // 监听设置变更（跨窗口 storage + 本窗口 focus），刷新缓存

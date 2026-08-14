@@ -198,10 +198,10 @@ export function useWindowManager({
         updatePlacement();
       });
 
-    let saveTimer: ReturnType<typeof setTimeout> | null = null;
-    let placementTimer: ReturnType<typeof setTimeout> | null = null;
+      let saveTimer: ReturnType<typeof setTimeout> | null = null;
+      let placementTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const updatePlacement = () => {
+      const updatePlacement = () => {
         if (isSnappingRef.current) return;
         const currentEdgeSnap = settingsStorage.get().edgeSnap;
         if (currentEdgeSnap === false) {
@@ -361,7 +361,15 @@ export function useWindowManager({
         }
       })
       .catch(() => {});
-  }, [modelConfig, modelInfo, petScale, clampWindowPosition, edgeSnap, windowPosMemory, snapToEdge]);
+  }, [
+    modelConfig,
+    modelInfo,
+    petScale,
+    clampWindowPosition,
+    edgeSnap,
+    windowPosMemory,
+    snapToEdge,
+  ]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {

@@ -751,7 +751,10 @@ export const ChatWindow = memo(
             <span className="ai-status-bar__dot" />
             <span className="ai-status-bar__text">
               {aiPhase === 'tool'
-                ? t('chat.ai_status_tool', { name: toolLabel || '…', defaultValue: '正在调用工具…' })
+                ? t('chat.ai_status_tool', {
+                    name: toolLabel || '…',
+                    defaultValue: '正在调用工具…',
+                  })
                 : aiPhase === 'replying'
                   ? t('chat.ai_status_replying', { defaultValue: '正在回复…' })
                   : t('chat.ai_status_thinking', { defaultValue: '正在思考…' })}

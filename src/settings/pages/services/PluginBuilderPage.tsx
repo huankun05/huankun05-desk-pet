@@ -143,7 +143,9 @@ export function PluginBuilderPage() {
       {step === 1 && (
         <div className="space-y-4">
           <div className="mb-2 px-1">
-            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step1_title')}</h2>
+            <h2 className="text-sm font-semibold text-neutral-700">
+              {t('settings.market.step1_title')}
+            </h2>
             <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step1_desc')}</p>
           </div>
           <div className="space-y-4">
@@ -234,7 +236,9 @@ export function PluginBuilderPage() {
       {step === 2 && (
         <div className="space-y-4">
           <div className="mb-2 px-1">
-            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step2_title')}</h2>
+            <h2 className="text-sm font-semibold text-neutral-700">
+              {t('settings.market.step2_title')}
+            </h2>
             <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step2_desc')}</p>
           </div>
           <div className="space-y-6">
@@ -305,7 +309,9 @@ export function PluginBuilderPage() {
       {step === 3 && (
         <div className="space-y-4">
           <div className="mb-2 px-1">
-            <h2 className="text-sm font-semibold text-neutral-700">{t('settings.market.step3_title')}</h2>
+            <h2 className="text-sm font-semibold text-neutral-700">
+              {t('settings.market.step3_title')}
+            </h2>
             <p className="text-xs text-neutral-400 mt-0.5">{t('settings.market.step3_desc')}</p>
           </div>
           {!showPreview ? (

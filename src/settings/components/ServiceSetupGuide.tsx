@@ -61,14 +61,10 @@ export function ServiceSetupGuide({
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-neutral-800">
-                      {e.displayName}
-                    </span>
+                    <span className="text-sm font-medium text-neutral-800">{e.displayName}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        e.needsWeights
-                          ? 'bg-amber-50 text-amber-600'
-                          : 'bg-green-50 text-green-600'
+                        e.needsWeights ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
                       }`}
                     >
                       {e.needsWeights

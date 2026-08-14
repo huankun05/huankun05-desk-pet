@@ -124,9 +124,7 @@ export function getModelKey(modelPath: string): 'nahida' | 'hiyori' | 'unknown' 
   return 'unknown';
 }
 
-const EMOTION_TYPE_SET: ReadonlySet<string> = new Set(
-  Object.keys(NAHIDA_EMOTION_EXPRESSION),
-);
+const EMOTION_TYPE_SET: ReadonlySet<string> = new Set(Object.keys(NAHIDA_EMOTION_EXPRESSION));
 
 export interface ResolvedVisual {
   /** 表情 Name（空串 = 基础态） */
@@ -135,10 +133,7 @@ export interface ResolvedVisual {
   motion: string | null;
 }
 
-export function defaultVisualForEmotion(
-  modelKey: 'nahida' | 'hiyori',
-  emotion: string,
-): string {
+export function defaultVisualForEmotion(modelKey: 'nahida' | 'hiyori', emotion: string): string {
   const base = modelKey === 'hiyori' ? HIYORI_EMOTION_MOTION : NAHIDA_EMOTION_EXPRESSION;
   return base[emotion as EmotionType] ?? '';
 }
@@ -307,11 +302,7 @@ export function getEmotionBinding(modelKey: string, emotion: string): string | u
 }
 
 /** 设置/清除某情绪绑定（visual=null 表示恢复默认静态映射） */
-export function setEmotionBinding(
-  modelKey: string,
-  emotion: string,
-  visual: string | null,
-): void {
+export function setEmotionBinding(modelKey: string, emotion: string, visual: string | null): void {
   try {
     const map = getEmotionBindings();
     const key = `${modelKey}:${emotion}`;

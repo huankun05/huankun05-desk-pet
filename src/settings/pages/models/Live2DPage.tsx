@@ -271,7 +271,10 @@ export function Live2DPage() {
           title={t('settings.display.mirror')}
           description={t('settings.display.mirror_desc')}
         >
-          <Switch checked={displayCfg.mirror} onChange={() => updateDisplay({ mirror: !displayCfg.mirror })} />
+          <Switch
+            checked={displayCfg.mirror}
+            onChange={() => updateDisplay({ mirror: !displayCfg.mirror })}
+          />
         </SettingRow>
         <SettingRow
           title={t('settings.display.visible')}

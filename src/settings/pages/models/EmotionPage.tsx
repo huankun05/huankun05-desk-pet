@@ -61,7 +61,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   'interaction:tap': '点身体',
   'interaction:step': '踩脚',
   'idle:long': '久未互动',
-  'smart_chat': '主动闲聊',
+  smart_chat: '主动闲聊',
   'emotion:external': '外部事件',
 };
 
@@ -412,26 +412,29 @@ export function EmotionPage() {
               // 相对时间
               const ago = h.timestamp ? formatAgo(h.timestamp) : '';
               return (
-              <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-sm text-neutral-700">{triggerLabel}</div>
-                  {h.dimensions && Object.keys(h.dimensions).length > 0 && (
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      {Object.entries(h.dimensions).map(([d, v]) => (
-                        <span
-                          key={d}
-                          className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500"
-                        >
-                          {DIM_LABELS[d] ?? d} {Math.round(Number(v))}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs text-neutral-300" title={h.timestamp?.slice(5, 16).replace('T', ' ') ?? ''}>
-                  {ago}
-                </span>
-              </li>
+                <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-neutral-700">{triggerLabel}</div>
+                    {h.dimensions && Object.keys(h.dimensions).length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {Object.entries(h.dimensions).map(([d, v]) => (
+                          <span
+                            key={d}
+                            className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500"
+                          >
+                            {DIM_LABELS[d] ?? d} {Math.round(Number(v))}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className="shrink-0 text-xs text-neutral-300"
+                    title={h.timestamp?.slice(5, 16).replace('T', ' ') ?? ''}
+                  >
+                    {ago}
+                  </span>
+                </li>
               );
             })}
           </ul>

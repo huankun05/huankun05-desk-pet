@@ -25,10 +25,5 @@ export { UnifiedMemoryStage } from './stages/unified-memory';
 export { isRAGEnabled, setRAGEnabled } from './stages/rag';
 
 // Phase 12.3：Stage 声明式注册表 + 默认管道
-export {
-  KNOWN_STAGES,
-  DEFAULT_PIPELINE,
-  buildPipeline,
-  createDefaultPipeline,
-} from './registry';
+export { KNOWN_STAGES, DEFAULT_PIPELINE, buildPipeline, createDefaultPipeline } from './registry';
 export type { StageName, StageFactories } from './registry';

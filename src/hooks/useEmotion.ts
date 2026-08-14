@@ -2,10 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createStorage } from '../services/storage';
 import { createLogger } from '../utils/logger';
 import { eventBus } from '../services/eventBus';
-import {
-  getNahidaExpression,
-  parseExplicitEmotion,
-} from '../services/live2d/visualMapping';
+import { getNahidaExpression, parseExplicitEmotion } from '../services/live2d/visualMapping';
 import {
   tickDecay,
   applyEmotion,

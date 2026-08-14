@@ -197,7 +197,10 @@ export class InteractTTS {
    * @param texts 待生成的文本数组
    * @param onProgress 进度回调 (completed, total)
    */
-  async pregenerate(texts: string[], onProgress?: (done: number, total: number) => void): Promise<void> {
+  async pregenerate(
+    texts: string[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<void> {
     this.ensureInitialized();
     if (!this.isReady || !this.provider) {
       log.warn('pregenerate: 未就绪');
@@ -276,7 +279,9 @@ export class InteractTTS {
     if (this.cacheLoadPromise) {
       try {
         await this.cacheLoadPromise;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     this.ensureInitialized();
     if (!this.isReady) {
@@ -383,7 +388,9 @@ export class InteractTTS {
           updatedAt: Date.now(),
         }),
       );
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }
 

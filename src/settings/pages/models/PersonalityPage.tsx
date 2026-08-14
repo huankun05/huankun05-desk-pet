@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section } from '../../components';
-import {
-  healthCheck,
-  getPersonality,
-  type PersonalityState,
-} from '../../../services/coreApi';
+import { healthCheck, getPersonality, type PersonalityState } from '../../../services/coreApi';
 
 const DIMS = [
   { key: 'honesty_humility', cn: '诚实-谦逊', en: 'Honesty-Humility', desc: '' },
@@ -55,14 +51,10 @@ export function PersonalityPage() {
     // 后端返回的 pad_baseline 当前不在 PersonalityState 类型里，
     // 这里用规则重新映射，避免类型锁死前端。
     const pleasure =
-      ((data.extraversion ?? 0.5) - 0.5) * 0.6 +
-      ((data.agreeableness ?? 0.5) - 0.5) * 0.3;
-    const arousal =
-      ((data.emotionality ?? 0.5) - 0.5) * 0.2 +
-      ((data.openness ?? 0.5) - 0.5) * 0.3;
+      ((data.extraversion ?? 0.5) - 0.5) * 0.6 + ((data.agreeableness ?? 0.5) - 0.5) * 0.3;
+    const arousal = ((data.emotionality ?? 0.5) - 0.5) * 0.2 + ((data.openness ?? 0.5) - 0.5) * 0.3;
     const dominance =
-      ((data.conscientiousness ?? 0.5) - 0.5) * 0.5 +
-      ((data.extraversion ?? 0.5) - 0.5) * 0.2;
+      ((data.conscientiousness ?? 0.5) - 0.5) * 0.5 + ((data.extraversion ?? 0.5) - 0.5) * 0.2;
     return {
       pleasure: Math.max(-0.3, Math.min(0.3, pleasure)),
       arousal: Math.max(-0.3, Math.min(0.3, arousal)),
@@ -97,9 +89,9 @@ export function PersonalityPage() {
       );
     }
     if (parts.length === 0) {
-      parts.push("各维度较为均衡，属于典型的中间型人格");
+      parts.push('各维度较为均衡，属于典型的中间型人格');
     }
-    return parts.join("；");
+    return parts.join('；');
   }, [data, t, isZh]);
 
   const updatedAt = useMemo(() => {
@@ -115,10 +107,7 @@ export function PersonalityPage() {
 
   return (
     <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
-      <Section
-        title={t('settings.personality.title')}
-        description={t('settings.personality.desc')}
-      >
+      <Section title={t('settings.personality.title')} description={t('settings.personality.desc')}>
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -135,19 +124,17 @@ export function PersonalityPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {health === null
-                ? null
-                : health ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      {t('settings.personality.online')}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-500">
-                      <span className="size-1.5 rounded-full bg-red-500" />
-                      {t('settings.personality.offline')}
-                    </span>
-                  )}
+              {health === null ? null : health ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                  <span className="size-1.5 rounded-full bg-emerald-500" />
+                  {t('settings.personality.online')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-500">
+                  <span className="size-1.5 rounded-full bg-red-500" />
+                  {t('settings.personality.offline')}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => void load()}
@@ -178,9 +165,7 @@ export function PersonalityPage() {
         >
           <div className="space-y-2.5 p-2">
             {DIMS.map((d) => {
-              const value = data
-                ? (data[d.key as keyof PersonalityState] as number)
-                : 0;
+              const value = data ? (data[d.key as keyof PersonalityState] as number) : 0;
               return (
                 <div key={d.key} className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
@@ -229,7 +214,10 @@ export function PersonalityPage() {
                       {isZh ? k.cn : k.en}
                     </span>
                     <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100">
-                      <div className="absolute inset-y-0 left-1/2 bg-neutral-200" style={{ width: 1 }} />
+                      <div
+                        className="absolute inset-y-0 left-1/2 bg-neutral-200"
+                        style={{ width: 1 }}
+                      />
                       <div
                         className="absolute inset-y-0 rounded-full bg-[var(--primary-400)] transition-all duration-500"
                         style={{ left: `${left}%`, width: `${width}%` }}
@@ -256,9 +244,7 @@ export function PersonalityPage() {
             title={t('settings.personality.desc_title')}
             description={t('settings.personality.desc_desc')}
           >
-            <div className="px-4 py-3 text-sm text-neutral-700 leading-relaxed">
-              {description}
-            </div>
+            <div className="px-4 py-3 text-sm text-neutral-700 leading-relaxed">{description}</div>
           </Section>
         </div>
       )}

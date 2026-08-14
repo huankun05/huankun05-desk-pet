@@ -1,9 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  pluginRegistry,
-  createPluginContext,
-  registerBuiltinPlugins,
-} from '../services/skills';
+import { pluginRegistry, createPluginContext, registerBuiltinPlugins } from '../services/skills';
 import { createStorage } from '../services/storage';
 import { settingsStorage } from '../services/storage/settingsStorage';
 import { triggerTapMotion } from '../lib/live2d';
@@ -36,7 +32,13 @@ export function usePluginSystem({
     showBubble,
   });
   useEffect(() => {
-    refs.current = { emotionState, applyAdminUpdate, handleSendMessage, injectAssistantMessage, showBubble };
+    refs.current = {
+      emotionState,
+      applyAdminUpdate,
+      handleSendMessage,
+      injectAssistantMessage,
+      showBubble,
+    };
   });
 
   useEffect(() => {

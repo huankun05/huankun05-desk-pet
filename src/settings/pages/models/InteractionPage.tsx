@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { Section, SettingRow, Switch, SliderRow, useToast } from '../../components';
-import {
-  IDLE_MESSAGES,
-  INTERACT_MESSAGES,
-  type IdleMessage,
-} from '../../../data/idleMessages';
+import { IDLE_MESSAGES, INTERACT_MESSAGES, type IdleMessage } from '../../../data/idleMessages';
 
 // ===== 持久化键 =====
 const INTERACTION_CONFIG_KEY = 'deskpet_interaction_config';
@@ -26,8 +22,11 @@ export const DEFAULT_INTERACTION_CONFIG: InteractionConfig = {
 export function loadInteractionConfig(): InteractionConfig {
   try {
     const raw = localStorage.getItem(INTERACTION_CONFIG_KEY);
-    if (raw) return { ...DEFAULT_INTERACTION_CONFIG, ...(JSON.parse(raw) as Partial<InteractionConfig>) };
-  } catch { /* ignore */ }
+    if (raw)
+      return { ...DEFAULT_INTERACTION_CONFIG, ...(JSON.parse(raw) as Partial<InteractionConfig>) };
+  } catch {
+    /* ignore */
+  }
   return { ...DEFAULT_INTERACTION_CONFIG };
 }
 
@@ -48,7 +47,9 @@ function loadCustomMessages(): CustomMessages {
   try {
     const raw = localStorage.getItem(CUSTOM_MESSAGES_KEY);
     if (raw) return JSON.parse(raw) as CustomMessages;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return {};
 }
 
@@ -152,7 +153,10 @@ export function InteractionPage() {
   // 重置互动消息为默认
   const resetInteractMessages = useCallback(
     (key: keyof typeof INTERACT_MESSAGES) => {
-      const next = { ...customMessages, interact: { ...customMessages.interact, [key]: undefined } };
+      const next = {
+        ...customMessages,
+        interact: { ...customMessages.interact, [key]: undefined },
+      };
       delete next.interact![key];
       setCustomMessages(next);
       saveCustomMessages(next);
@@ -171,7 +175,9 @@ export function InteractionPage() {
     (groupIndex: number, msgIndex: number, value: string) => {
       const current = getIdleMessages();
       const updated = current.map((g, gi) =>
-        gi === groupIndex ? { ...g, messages: g.messages.map((m, mi) => (mi === msgIndex ? value : m)) } : g,
+        gi === groupIndex
+          ? { ...g, messages: g.messages.map((m, mi) => (mi === msgIndex ? value : m)) }
+          : g,
       );
       const next = { ...customMessages, idle: updated };
       setCustomMessages(next);
@@ -266,12 +272,17 @@ export function InteractionPage() {
                           key={i}
                           className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-600"
                         >
-                          <Icon icon="solar:chat-round-line-linear" className="shrink-0 text-neutral-400" />
+                          <Icon
+                            icon="solar:chat-round-line-linear"
+                            className="shrink-0 text-neutral-400"
+                          />
                           <span className="truncate">{msg}</span>
                         </div>
                       ))}
                       {messages.length > 2 && (
-                        <div className="text-xs text-neutral-400 pl-5">还有 {messages.length - 2} 条...</div>
+                        <div className="text-xs text-neutral-400 pl-5">
+                          还有 {messages.length - 2} 条...
+                        </div>
                       )}
                     </div>
                   )}
@@ -461,7 +472,9 @@ export function InteractionPage() {
               <SettingRow title="启用预制台词 TTS" description="需要先配置 TTS 引擎">
                 <Switch
                   checked={config.enableInteractTTS === 1}
-                  onClick={() => updateConfig({ enableInteractTTS: config.enableInteractTTS === 1 ? 0 : 1 })}
+                  onClick={() =>
+                    updateConfig({ enableInteractTTS: config.enableInteractTTS === 1 ? 0 : 1 })
+                  }
                 />
               </SettingRow>
 
@@ -517,7 +530,7 @@ function LLMChatDiagnostic() {
 
       return {
         smartChatEnabled: behavior.enableSmartChat === true,
-        hasApiKey: !!(aiConfig.apiKey),
+        hasApiKey: !!aiConfig.apiKey,
         providerName: aiConfig.provider || '未配置',
         dailyUsed: used,
         dailyLimit: behavior.smartChatDailyLimit ?? 20,
@@ -555,11 +568,7 @@ function LLMChatDiagnostic() {
         status={diagnostic.hasApiKey ? 'ok' : 'error'}
         text={diagnostic.hasApiKey ? '已配置' : '❌ 未配置（在「语言模型」页设置）'}
       />
-      <DiagnosticItem
-        label="当前 Provider"
-        status="info"
-        text={diagnostic.providerName}
-      />
+      <DiagnosticItem label="当前 Provider" status="info" text={diagnostic.providerName} />
       <DiagnosticItem
         label="今日使用量"
         status="info"
@@ -582,9 +591,7 @@ function LLMChatDiagnostic() {
             <Icon icon="solar:danger-triangle-bold" />
             <span className="font-medium">LLM 主动闲聊未就绪</span>
           </div>
-          <p className="text-xs text-amber-500 mt-1 ml-6">
-            请按上方提示完成配置后刷新此页面
-          </p>
+          <p className="text-xs text-amber-500 mt-1 ml-6">请按上方提示完成配置后刷新此页面</p>
         </div>
       )}
     </div>

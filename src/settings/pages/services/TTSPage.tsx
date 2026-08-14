@@ -436,7 +436,9 @@ export function TTSPage() {
                   max="2"
                   className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-100)]"
                   value={(form.speed as number) ?? 1.0}
-                  onChange={(e) => patch({ speed: parseFloat(e.target.value) } as Partial<FormShape>)}
+                  onChange={(e) =>
+                    patch({ speed: parseFloat(e.target.value) } as Partial<FormShape>)
+                  }
                   placeholder="1.0"
                 />
               </div>

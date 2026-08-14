@@ -265,7 +265,8 @@ function MainPetApp() {
     [addToRag],
   );
 
-  const { isStreaming, sendMessage, interruptResponse, injectAssistantMessage } = useHermesGateway(hermesOptions);
+  const { isStreaming, sendMessage, interruptResponse, injectAssistantMessage } =
+    useHermesGateway(hermesOptions);
 
   useVoiceInteraction({
     isStreaming,
@@ -853,7 +854,10 @@ function MainPetApp() {
         const d = await computeOrbDefaultPos(main);
         await controls.setPosition(new LogicalPosition(d.x, d.y)).catch(() => {});
         // ★ toggle 技巧：先 off 再 on 强制把球提升到所有置顶窗（含角色）之上
-        controls.setAlwaysOnTop(false).then(() => controls.setAlwaysOnTop(true)).catch(() => {});
+        controls
+          .setAlwaysOnTop(false)
+          .then(() => controls.setAlwaysOnTop(true))
+          .catch(() => {});
       } catch {
         /* ignore */
       }
@@ -935,7 +939,15 @@ function MainPetApp() {
       availableModels,
     };
     emit('controls:state', payload).catch(() => {});
-  }, [appearance.petVisible, isLocked, isTransforming, mode, fadeOnHover, currentModelId, availableModels]);
+  }, [
+    appearance.petVisible,
+    isLocked,
+    isTransforming,
+    mode,
+    fadeOnHover,
+    currentModelId,
+    availableModels,
+  ]);
 
   // 跨窗通信：悬浮球窗口挂载后请求一次当前状态，立即回发
   useEffect(() => {
@@ -960,7 +972,15 @@ function MainPetApp() {
     return () => {
       unlisten?.();
     };
-  }, [appearance.petVisible, isLocked, isTransforming, mode, fadeOnHover, currentModelId, availableModels]);
+  }, [
+    appearance.petVisible,
+    isLocked,
+    isTransforming,
+    mode,
+    fadeOnHover,
+    currentModelId,
+    availableModels,
+  ]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {

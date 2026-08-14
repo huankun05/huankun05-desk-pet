@@ -21,9 +21,21 @@ import {
 type MarketTab = 'plugins' | 'mcp' | 'skills';
 
 const TABS: { key: MarketTab; labelKey: string; icon: string }[] = [
-  { key: 'plugins', labelKey: 'settings.marketplace.tab_plugins', icon: 'solar:plug-circle-bold-duotone' },
-  { key: 'mcp', labelKey: 'settings.marketplace.tab_mcp', icon: 'solar:server-square-bold-duotone' },
-  { key: 'skills', labelKey: 'settings.marketplace.tab_skills', icon: 'solar:magic-stick-3-bold-duotone' },
+  {
+    key: 'plugins',
+    labelKey: 'settings.marketplace.tab_plugins',
+    icon: 'solar:plug-circle-bold-duotone',
+  },
+  {
+    key: 'mcp',
+    labelKey: 'settings.marketplace.tab_mcp',
+    icon: 'solar:server-square-bold-duotone',
+  },
+  {
+    key: 'skills',
+    labelKey: 'settings.marketplace.tab_skills',
+    icon: 'solar:magic-stick-3-bold-duotone',
+  },
 ];
 
 /**
@@ -99,12 +111,23 @@ export function MarketplaceIndex() {
       if (result.success) {
         showToast(t('settings.market.install_success', { name: plugin.name }), 'success');
       } else if (result.requiresApproval) {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'approval required' }), 'warning');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'approval required' }),
+          'warning',
+        );
       } else {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'unknown' }), 'error');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'unknown' }),
+          'error',
+        );
       }
     } catch (err) {
-      showToast(t('settings.market.install_failed', { error: err instanceof Error ? err.message : String(err) }), 'error');
+      showToast(
+        t('settings.market.install_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+        'error',
+      );
     } finally {
       setInstallingId(null);
     }
@@ -118,12 +141,23 @@ export function MarketplaceIndex() {
       if (result.success) {
         showToast(t('settings.market.install_success', { name: plugin.name }), 'success');
       } else if (result.requiresApproval) {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'approval required' }), 'warning');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'approval required' }),
+          'warning',
+        );
       } else {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'unknown' }), 'error');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'unknown' }),
+          'error',
+        );
       }
     } catch (err) {
-      showToast(t('settings.market.install_failed', { error: err instanceof Error ? err.message : String(err) }), 'error');
+      showToast(
+        t('settings.market.install_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+        'error',
+      );
     } finally {
       setInstallingId(null);
       await loadRegistry();
@@ -151,12 +185,23 @@ export function MarketplaceIndex() {
       if (result.success) {
         showToast(t('settings.market.install_mcp_success', { name: preset.name }), 'success');
       } else if (result.requiresApproval) {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'approval required' }), 'warning');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'approval required' }),
+          'warning',
+        );
       } else {
-        showToast(result.message ?? t('settings.market.install_failed', { error: 'unknown' }), 'error');
+        showToast(
+          result.message ?? t('settings.market.install_failed', { error: 'unknown' }),
+          'error',
+        );
       }
     } catch (err) {
-      showToast(t('settings.market.install_failed', { error: err instanceof Error ? err.message : String(err) }), 'error');
+      showToast(
+        t('settings.market.install_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+        'error',
+      );
     } finally {
       setInstallingId(null);
     }
@@ -166,7 +211,11 @@ export function MarketplaceIndex() {
   const categories: Array<{ key: PluginCategory | 'all'; label: string; icon: string }> = [
     { key: 'all', label: t('settings.market.cat_all'), icon: 'solar:three-squares-bold-duotone' },
     { key: 'feature', label: t('settings.market.cat_feature'), icon: 'solar:star-bold-duotone' },
-    { key: 'behavior', label: t('settings.market.cat_behavior'), icon: 'solar:user-heart-bold-duotone' },
+    {
+      key: 'behavior',
+      label: t('settings.market.cat_behavior'),
+      icon: 'solar:user-heart-bold-duotone',
+    },
     { key: 'tool', label: t('settings.market.cat_tool'), icon: 'solar:sledgehammer-bold-duotone' },
   ];
 
@@ -184,9 +233,7 @@ export function MarketplaceIndex() {
         <h1 className="text-xl font-semibold text-neutral-800">
           {t('settings.marketplace.title')}
         </h1>
-        <p className="text-sm text-neutral-400 mt-1">
-          {t('settings.marketplace.description')}
-        </p>
+        <p className="text-sm text-neutral-400 mt-1">{t('settings.marketplace.description')}</p>
       </div>
 
       {/* 分类 Tab —— 三个顶级 tab，点击后下方直接显示对应内容，无嵌套 */}
@@ -228,12 +275,18 @@ export function MarketplaceIndex() {
             </div>
             <button
               type="button"
-              onClick={() => { loadRegistry(); showToast(t('settings.market.refreshed'), 'success'); }}
+              onClick={() => {
+                loadRegistry();
+                showToast(t('settings.market.refreshed'), 'success');
+              }}
               disabled={loading}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
               title={t('settings.market.refresh')}
             >
-              <Icon icon="solar:refresh-bold-duotone" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <Icon
+                icon="solar:refresh-bold-duotone"
+                className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+              />
             </button>
           </div>
 
@@ -264,14 +317,19 @@ export function MarketplaceIndex() {
             </div>
           ) : networkError ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-              <Icon icon="solar:home-wifi-bold-duotone" className="mb-3 h-10 w-10 text-neutral-300" />
+              <Icon
+                icon="solar:home-wifi-bold-duotone"
+                className="mb-3 h-10 w-10 text-neutral-300"
+              />
               <span className="text-sm font-medium text-neutral-600">{networkError}</span>
               <p className="mt-1 text-xs text-neutral-400">
                 {t('settings.market.network_hint', { defaultValue: '请检查网络连接后点击重试' })}
               </p>
               <button
                 type="button"
-                onClick={() => { loadRegistry(); }}
+                onClick={() => {
+                  loadRegistry();
+                }}
                 className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
               >
                 {t('settings.market.retry', { defaultValue: '重新加载' })}
@@ -303,12 +361,16 @@ export function MarketplaceIndex() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="truncate text-sm font-semibold text-neutral-900">{plugin.name}</h3>
+                          <h3 className="truncate text-sm font-semibold text-neutral-900">
+                            {plugin.name}
+                          </h3>
                           <span className="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
                             v{plugin.version}
                           </span>
                         </div>
-                        <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{plugin.description}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">
+                          {plugin.description}
+                        </p>
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-neutral-400">
                           <span className="flex items-center gap-0.5">
                             <Icon icon="solar:user-bold-duotone" className="h-3 w-3" />
@@ -320,7 +382,10 @@ export function MarketplaceIndex() {
                           </span>
                           {plugin.rating > 0 && (
                             <span className="flex items-center gap-0.5">
-                              <Icon icon="solar:star-bold-duotone" className="h-3 w-3 text-yellow-500" />
+                              <Icon
+                                icon="solar:star-bold-duotone"
+                                className="h-3 w-3 text-yellow-500"
+                              />
                               {plugin.rating.toFixed(1)}
                             </span>
                           )}
@@ -330,14 +395,26 @@ export function MarketplaceIndex() {
                             return (
                               <>
                                 {s.stars > 0 && (
-                                  <span className="flex items-center gap-0.5" title={t('settings.market.likes')}>
-                                    <Icon icon="solar:like-bold-duotone" className="h-3 w-3 text-blue-500" />
+                                  <span
+                                    className="flex items-center gap-0.5"
+                                    title={t('settings.market.likes')}
+                                  >
+                                    <Icon
+                                      icon="solar:like-bold-duotone"
+                                      className="h-3 w-3 text-blue-500"
+                                    />
                                     {s.stars}
                                   </span>
                                 )}
                                 {s.favorites > 0 && (
-                                  <span className="flex items-center gap-0.5" title={t('settings.market.favorites')}>
-                                    <Icon icon="solar:heart-bold-duotone" className="h-3 w-3 text-red-500" />
+                                  <span
+                                    className="flex items-center gap-0.5"
+                                    title={t('settings.market.favorites')}
+                                  >
+                                    <Icon
+                                      icon="solar:heart-bold-duotone"
+                                      className="h-3 w-3 text-red-500"
+                                    />
                                     {s.favorites}
                                   </span>
                                 )}
@@ -350,7 +427,10 @@ export function MarketplaceIndex() {
                     <div className="mt-3 flex items-center justify-between">
                       <div className="flex flex-wrap gap-1">
                         {plugin.permissions.slice(0, 2).map((perm) => (
-                          <span key={perm} className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
+                          <span
+                            key={perm}
+                            className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500"
+                          >
                             {perm}
                           </span>
                         ))}
@@ -367,7 +447,9 @@ export function MarketplaceIndex() {
                           disabled={isSameVersion || installingId === plugin.id}
                           className="rounded-lg border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
                         >
-                          {isSameVersion ? t('settings.market.installed') : t('settings.market.update')}
+                          {isSameVersion
+                            ? t('settings.market.installed')
+                            : t('settings.market.update')}
                         </button>
                       ) : (
                         <button
@@ -408,12 +490,18 @@ export function MarketplaceIndex() {
             </div>
             <button
               type="button"
-              onClick={() => { loadRegistry(); showToast(t('settings.market.refreshed'), 'success'); }}
+              onClick={() => {
+                loadRegistry();
+                showToast(t('settings.market.refreshed'), 'success');
+              }}
               disabled={loading}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-50"
               title={t('settings.market.refresh')}
             >
-              <Icon icon="solar:refresh-bold-duotone" className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <Icon
+                icon="solar:refresh-bold-duotone"
+                className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+              />
             </button>
           </div>
 
@@ -425,11 +513,16 @@ export function MarketplaceIndex() {
             </div>
           ) : networkError ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-              <Icon icon="solar:home-wifi-bold-duotone" className="mb-3 h-10 w-10 text-neutral-300" />
+              <Icon
+                icon="solar:home-wifi-bold-duotone"
+                className="mb-3 h-10 w-10 text-neutral-300"
+              />
               <span className="text-sm font-medium text-neutral-600">{networkError}</span>
               <button
                 type="button"
-                onClick={() => { loadRegistry(); }}
+                onClick={() => {
+                  loadRegistry();
+                }}
                 className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
               >
                 {t('settings.market.retry', { defaultValue: '重新加载' })}
@@ -456,7 +549,9 @@ export function MarketplaceIndex() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-sm font-semibold text-neutral-900">{preset.name}</h3>
+                      <h3 className="truncate text-sm font-semibold text-neutral-900">
+                        {preset.name}
+                      </h3>
                       <p className="mt-0.5 text-xs text-neutral-500">{preset.description}</p>
                       <div className="mt-2 flex flex-wrap gap-1">
                         {preset.envRequired?.map((env) => (
@@ -490,13 +585,18 @@ export function MarketplaceIndex() {
                 <h3 className="text-base font-semibold text-neutral-900">
                   {t('settings.market.mcp_args_title')}
                 </h3>
-                <p className="mt-1 text-xs text-neutral-500">{t('settings.market.mcp_args_desc')}</p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {t('settings.market.mcp_args_desc')}
+                </p>
                 <div className="mt-4 space-y-4">
                   {mcpForm.preset.argsTemplate
                     ?.filter((tpl) => tpl.default === undefined)
                     .map((tpl) =>
                       tpl.type === 'boolean' ? (
-                        <label key={tpl.key} className="flex items-center gap-2 text-sm text-neutral-700">
+                        <label
+                          key={tpl.key}
+                          className="flex items-center gap-2 text-sm text-neutral-700"
+                        >
                           <input
                             type="checkbox"
                             className="h-4 w-4 rounded border-neutral-300 accent-[var(--primary-500)] focus:ring-[var(--primary-100)]"
@@ -504,7 +604,13 @@ export function MarketplaceIndex() {
                             onChange={(e) =>
                               setMcpForm((prev) =>
                                 prev
-                                  ? { ...prev, values: { ...prev.values, [tpl.key]: String(e.target.checked) } }
+                                  ? {
+                                      ...prev,
+                                      values: {
+                                        ...prev.values,
+                                        [tpl.key]: String(e.target.checked),
+                                      },
+                                    }
                                   : prev,
                               )
                             }
@@ -513,7 +619,9 @@ export function MarketplaceIndex() {
                         </label>
                       ) : (
                         <div key={tpl.key}>
-                          <label className="mb-1.5 block text-sm font-medium text-neutral-800">{tpl.label}</label>
+                          <label className="mb-1.5 block text-sm font-medium text-neutral-800">
+                            {tpl.label}
+                          </label>
                           <input
                             type={tpl.type === 'number' ? 'number' : 'text'}
                             className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-100)]"
@@ -521,7 +629,10 @@ export function MarketplaceIndex() {
                             onChange={(e) =>
                               setMcpForm((prev) =>
                                 prev
-                                  ? { ...prev, values: { ...prev.values, [tpl.key]: e.target.value } }
+                                  ? {
+                                      ...prev,
+                                      values: { ...prev.values, [tpl.key]: e.target.value },
+                                    }
                                   : prev,
                               )
                             }

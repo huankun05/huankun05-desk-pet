@@ -122,14 +122,15 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
 
   const pickEngine = (typeName: string) => {
     const meta = types.find((x) => x.typeName === typeName);
-    setForm((prev) => ({
-      ...prev,
-      typeName,
-      name:
-        (prev.name as string)?.trim() || (meta?.displayName ?? typeName),
-      apiBase:
-        (prev.apiBase as string)?.trim() || (defaultEndpoints?.[typeName] ?? ''),
-    }) as T);
+    setForm(
+      (prev) =>
+        ({
+          ...prev,
+          typeName,
+          name: (prev.name as string)?.trim() || (meta?.displayName ?? typeName),
+          apiBase: (prev.apiBase as string)?.trim() || (defaultEndpoints?.[typeName] ?? ''),
+        }) as T,
+    );
     setStep(2);
   };
 
@@ -441,13 +442,14 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
                   {t('settings.services.wizard_browse')}
                 </button>
               </div>
-              {engineReqKey && (() => {
-                const reqKey = engineReqKey(currentType);
-                const reqText = reqKey ? t(reqKey) : '';
-                return reqText !== reqKey ? (
-                  <p className="mt-1 text-xs text-neutral-400">{reqText}</p>
-                ) : null;
-              })()}
+              {engineReqKey &&
+                (() => {
+                  const reqKey = engineReqKey(currentType);
+                  const reqText = reqKey ? t(reqKey) : '';
+                  return reqText !== reqKey ? (
+                    <p className="mt-1 text-xs text-neutral-400">{reqText}</p>
+                  ) : null;
+                })()}
             </div>
           )}
 
@@ -460,7 +462,9 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
           <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 text-sm">
             <div className="flex justify-between py-1">
               <span className="text-neutral-500">{t('settings.services.adapter_type')}</span>
-              <span className="font-medium text-neutral-800">{getTypeNameDisplay(currentType)}</span>
+              <span className="font-medium text-neutral-800">
+                {getTypeNameDisplay(currentType)}
+              </span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-neutral-500">{t('settings.services.provider_name')}</span>

@@ -72,7 +72,13 @@ interface ModelEditorProps {
  * 由外层用 key={selectedModel} 驱动重挂载，切换角色即重新从 localStorage 初始化，
  * 保证「切换下拉后实时更新」。
  */
-function ModelEditor({ modelKey, isNahida, previewEnabled, libOpen, setLibOpen }: ModelEditorProps) {
+function ModelEditor({
+  modelKey,
+  isNahida,
+  previewEnabled,
+  libOpen,
+  setLibOpen,
+}: ModelEditorProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const mk = modelKey as 'nahida' | 'hiyori';
@@ -100,10 +106,7 @@ function ModelEditor({ modelKey, isNahida, previewEnabled, libOpen, setLibOpen }
     [allItems, disabledSet],
   );
 
-  const displayName = useCallback(
-    (name: string) => aliases[name]?.trim() || name,
-    [aliases],
-  );
+  const displayName = useCallback((name: string) => aliases[name]?.trim() || name, [aliases]);
 
   const onBindChange = (emo: string, value: string) => {
     const next = value === '__inherit__' ? null : value;
@@ -189,8 +192,7 @@ function ModelEditor({ modelKey, isNahida, previewEnabled, libOpen, setLibOpen }
             const value = bindings[emo] !== undefined ? bindings[emo] : '__inherit__';
             const defaultName = displayName(defaultVisualForEmotion(mk, emo) || '');
             // 若当前绑定项被停用而下拉里已过滤掉，则临时补回，避免 select 破绽
-            const extra =
-              value !== '__inherit__' && !enabledItems.includes(value) ? [value] : [];
+            const extra = value !== '__inherit__' && !enabledItems.includes(value) ? [value] : [];
             return (
               <div
                 key={emo}
