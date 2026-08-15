@@ -1595,8 +1595,13 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                         raw_work_dir
                     };
 
-                    // 解析命令路径：相对路径（含分隔符）基于 workDir 解析
-                    let resolved_command = if command.contains('/') || command.contains('\\') {
+                    // 解析命令路径：
+                    //  - 绝对路径（含盘符如 F:/... 或 \\server\...）直接使用，便于自定义模型指定自己的 Python；
+                    //  - 含分隔符的相对路径基于 workDir 解析；
+                    //  - 否则按裸命令名交给 PATH 查找。
+                    let resolved_command = if std::path::Path::new(&command).is_absolute() {
+                        command.clone()
+                    } else if command.contains('/') || command.contains('\\') {
                         std::path::Path::new(&work_dir)
                             .join(&command)
                             .to_string_lossy()
