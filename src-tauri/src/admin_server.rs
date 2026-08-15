@@ -130,34 +130,13 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                     .with_header(json_header())
                 }
 
-                // 管理页面 — 优先使用构建产物（dist/admin.html），否则回退到嵌入的旧版本
+                // 管理页面 — 已停用。功能已迁移至应用内设置页（settings）。
+                // 注意：本 HTTP 服务器同时承载 /api/* 控制接口（TTS 等后端按需自动启动/热插拔依赖），
+                // 因此不能整体关闭，仅停用网页 UI，保留控制 API。
                 ("GET", "/") | ("GET", "/index.html") => {
-                    let dist_path = app
-                        .path()
-                        .resource_dir()
-                        .map(|r| r.join("dist").join("admin.html"))
-                        .unwrap_or_else(|_| PathBuf::new());
-                    let dist_path = if dist_path.exists() {
-                        dist_path
-                    } else {
-                        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                            .join("..")
-                            .join("dist")
-                            .join("admin.html")
-                    };
-                    let mut html = if dist_path.exists() {
-                        fs::read_to_string(&dist_path)
-                            .unwrap_or_else(|_| include_str!("../admin.html").to_string())
-                    } else {
-                        include_str!("../admin.html").to_string()
-                    };
-                    let state = app.state::<AdminState>();
-                    let token = state.token.lock().expect("token lock poisoned").clone();
-                    let token_script =
-                        format!("<script>window.__ADMIN_TOKEN__ = '{}';</script>", token);
-                    html = html.replace("</head>", &format!("{}</head>", token_script));
+                    let body = "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>管理面板已停用</title><style>body{font-family:system-ui,-apple-system,'Microsoft YaHei',sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.card{max-width:440px;padding:32px 36px;border-radius:16px;background:#1e293b;text-align:center}h2{margin:0 0 12px;font-size:20px}p{margin:0;color:#94a3b8;line-height:1.6;font-size:14px}</style></head><body><div class=\"card\"><h2>管理面板已停用</h2><p>此网页管理面板已由应用内设置页取代。<br>后端控制接口仍在运行（供 TTS 等服务自动拉起使用）。</p></div></body></html>";
                     let ct = parse_content_type("text/html; charset=utf-8");
-                    tiny_http::Response::from_string(html).with_header(ct)
+                    tiny_http::Response::from_string(body).with_header(ct)
                 }
 
                 // API: 情绪状态
