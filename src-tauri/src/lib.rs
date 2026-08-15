@@ -133,7 +133,7 @@ fn get_cursor_position() -> CmdResult<CursorPosition> {
 
 /// 一次性获取鼠标位置 + 窗口几何信息（用于工具栏穿透检测）
 #[tauri::command]
-fn get_cursor_window_info(app: tauri::AppHandle) -> CmdResult<CursorWindowInfo> {
+fn get_cursor_window_info(_app: tauri::AppHandle) -> CmdResult<CursorWindowInfo> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::POINT;
@@ -142,7 +142,7 @@ fn get_cursor_window_info(app: tauri::AppHandle) -> CmdResult<CursorWindowInfo> 
             let mut point = POINT::default();
             GetCursorPos(&mut point).map_err(|e| format!("GetCursorPos failed: {}", e))?;
 
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = _app.get_webview_window("main") {
                 let pos = window.outer_position().map_err(|e| e.to_string())?;
                 let size = window.outer_size().map_err(|e| e.to_string())?;
                 Ok(CursorWindowInfo {
