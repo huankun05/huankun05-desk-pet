@@ -19,7 +19,7 @@ test.describe('Main App — Basic Render', () => {
 
   test('page title is set', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Tauri/);
+    await expect(page).toHaveTitle(/Desk Pet/);
   });
 });
 
