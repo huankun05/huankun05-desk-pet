@@ -1,7 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { Section, SettingRow, Switch, SliderRow, useToast } from '../../components';
 import { IDLE_MESSAGES, INTERACT_MESSAGES, type IdleMessage } from '../../../data/idleMessages';
+import { interactTTS } from '../../../services/audio/interact-tts';
+import { audioPlayer } from '../../../services/audio/player';
+import { ensureActiveTTSBackend } from '../../../services/provider/ttsBackend';
+import { providerManager } from '../../../services/provider/manager';
+import {
+  INTERACT_AUDIO_DIR,
+  listAudioFiles,
+  readAudioFile,
+  deleteAudioFile,
+  openAudioDir,
+  audioFileNameOf,
+  parseWavSampleRate,
+  getDataDir,
+  type AudioFileEntry,
+} from '../../../services/audio/audioFiles';
 
 // ===== 持久化键 =====
 const INTERACTION_CONFIG_KEY = 'deskpet_interaction_config';
@@ -80,6 +95,107 @@ export function InteractionPage() {
   const [activeTab, setActiveTab] = useState<EditTab>('interact');
   // 编辑中的分组
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  // 音频资源（磁盘 data/audio/interact/）
+  const [audioFiles, setAudioFiles] = useState<AudioFileEntry[]>([]);
+  const [audioDir, setAudioDir] = useState<string | null>(null);
+  const autoGenTimer = useRef<number | null>(null);
+
+  // 刷新磁盘音频列表
+  const refreshAudioFiles = useCallback(async () => {
+    const [files, dir] = await Promise.all([listAudioFiles(INTERACT_AUDIO_DIR), getDataDir()]);
+    setAudioFiles(files);
+    setAudioDir(dir ? `${dir}/${INTERACT_AUDIO_DIR}` : null);
+  }, []);
+
+  useEffect(() => {
+    void refreshAudioFiles();
+  }, [refreshAudioFiles]);
+
+  /** 试听一条消息（无论是否启用预制台词都能播：启用走缓存/合成，未启用临时拉后端合成） */
+  const previewAudio = useCallback(
+    async (text: string) => {
+      const t = (text ?? '').trim();
+      if (!t) return;
+      if (interactTTS.isReady) {
+        interactTTS.tryPlay(t);
+        return;
+      }
+      const ok = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 40000 });
+      if (!ok) {
+        showToast('TTS 后端不可用，请先在「服务 → 语音合成」配置', 'warning');
+        return;
+      }
+      const tts = providerManager.getActiveTTSProvider();
+      if (!tts) {
+        showToast('未配置 TTS 引擎', 'warning');
+        return;
+      }
+      try {
+        const res = await tts.synthesize(t);
+        audioPlayer.enqueue(res.audio, res.sampleRate, `preview-${Date.now()}`);
+      } catch {
+        showToast('语音合成失败', 'error');
+      }
+    },
+    [showToast],
+  );
+
+  /** 新增/编辑消息后防抖自动生成音频（仅 TTS 已启用时；只生成不播放） */
+  const scheduleAutoGen = useCallback((text: string) => {
+    if (!interactTTS.isReady) return;
+    const t = (text ?? '').trim();
+    if (!t) return;
+    if (autoGenTimer.current) window.clearTimeout(autoGenTimer.current);
+    autoGenTimer.current = window.setTimeout(() => {
+      void interactTTS.ensureAudio(t);
+    }, 800);
+  }, []);
+
+  /** 当前全部生效的台词文本集合（默认 + 自定义），用于清理孤儿音频 */
+  const allCurrentTexts = useMemo(() => {
+    const set = new Set<string>();
+    (Object.keys(INTERACT_MESSAGES) as (keyof typeof INTERACT_MESSAGES)[]).forEach((k) =>
+      getInteractMessages(k).forEach((t) => set.add(t)),
+    );
+    getIdleMessages().forEach((g) => g.messages.forEach((t) => set.add(t)));
+    return set;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customMessages]);
+
+  /** 播放磁盘上的音频文件 */
+  const playAudioFile = useCallback(async (name: string) => {
+    const buf = await readAudioFile(`${INTERACT_AUDIO_DIR}/${name}`);
+    if (!buf) return;
+    audioPlayer.enqueue(buf, parseWavSampleRate(buf), `file-${name}`);
+  }, []);
+
+  /** 清理未引用的音频文件（当前台词集合之外） */
+  const cleanupOrphanFiles = useCallback(async () => {
+    const valid = new Set<string>();
+    allCurrentTexts.forEach((t) => valid.add(audioFileNameOf(t)));
+    const orphans = audioFiles.filter((f) => !valid.has(f.name));
+    if (orphans.length === 0) {
+      showToast('没有需要清理的音频', 'info');
+      return;
+    }
+    await Promise.all(
+      orphans.map((f) => deleteAudioFile(`${INTERACT_AUDIO_DIR}/${f.name}`).catch(() => false)),
+    );
+    showToast(`已清理 ${orphans.length} 个未引用音频`, 'success');
+    void refreshAudioFiles();
+  }, [allCurrentTexts, audioFiles, refreshAudioFiles, showToast]);
+
+  /** 重新生成全部预制台词音频（用当前活跃 TTS 模型） */
+  const regenerateAll = useCallback(async () => {
+    showToast('正在重新生成全部预制台词语音...', 'info');
+    await interactTTS.reprewarm();
+    showToast('重新生成完成', 'success');
+    void refreshAudioFiles();
+  }, [refreshAudioFiles, showToast]);
+
+  /** 格式化文件大小 */
+  const formatSize = (n: number): string =>
+    n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(2)} MB`;
 
   // 监听跨窗口同步
   useEffect(() => {
@@ -116,8 +232,9 @@ export function InteractionPage() {
       const next = { ...customMessages, interact: { ...customMessages.interact, [key]: updated } };
       setCustomMessages(next);
       saveCustomMessages(next);
+      scheduleAutoGen(value); // 编辑后自动生成对应音频
     },
-    [customMessages, getInteractMessages],
+    [customMessages, getInteractMessages, scheduleAutoGen],
   );
 
   // 添加互动消息
@@ -130,8 +247,9 @@ export function InteractionPage() {
       };
       setCustomMessages(next);
       saveCustomMessages(next);
+      scheduleAutoGen('新消息');
     },
-    [customMessages, getInteractMessages],
+    [customMessages, getInteractMessages, scheduleAutoGen],
   );
 
   // 删除互动消息
@@ -182,8 +300,9 @@ export function InteractionPage() {
       const next = { ...customMessages, idle: updated };
       setCustomMessages(next);
       saveCustomMessages(next);
+      scheduleAutoGen(value);
     },
-    [customMessages, getIdleMessages],
+    [customMessages, getIdleMessages, scheduleAutoGen],
   );
 
   // 添加闲聊消息
@@ -196,8 +315,9 @@ export function InteractionPage() {
       const next = { ...customMessages, idle: updated };
       setCustomMessages(next);
       saveCustomMessages(next);
+      scheduleAutoGen('新消息');
     },
-    [customMessages, getIdleMessages],
+    [customMessages, getIdleMessages, scheduleAutoGen],
   );
 
   // 删除闲聊消息
@@ -276,7 +396,15 @@ export function InteractionPage() {
                             icon="solar:chat-round-line-linear"
                             className="shrink-0 text-neutral-400"
                           />
-                          <span className="truncate">{msg}</span>
+                          <span className="flex-1 min-w-0 truncate">{msg}</span>
+                          <button
+                            type="button"
+                            onClick={() => void previewAudio(msg)}
+                            title="试听语音"
+                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md border border-indigo-100 text-indigo-400 transition-colors hover:bg-indigo-50"
+                          >
+                            <Icon icon="solar:play-bold" className="text-xs" />
+                          </button>
                         </div>
                       ))}
                       {messages.length > 2 && (
@@ -301,6 +429,14 @@ export function InteractionPage() {
                             className="flex-1 min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none transition-colors focus:border-indigo-300"
                             placeholder={`消息 ${i + 1}`}
                           />
+                          <button
+                            type="button"
+                            onClick={() => void previewAudio(msg)}
+                            title="试听语音"
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-indigo-100 text-indigo-400 transition-colors hover:bg-indigo-50 hover:text-indigo-500"
+                          >
+                            <Icon icon="solar:play-bold" className="text-sm" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeInteractMessage(key, i)}
@@ -386,6 +522,14 @@ export function InteractionPage() {
                             className="flex-1 min-w-0 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none transition-colors focus:border-green-300"
                             placeholder="输入闲聊消息..."
                           />
+                          <button
+                            type="button"
+                            onClick={() => void previewAudio(msg)}
+                            title="试听语音"
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-green-100 text-green-400 transition-colors hover:bg-green-50 hover:text-green-500"
+                          >
+                            <Icon icon="solar:play-bold" className="text-sm" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeIdleMessage(gi, mi)}
@@ -493,6 +637,93 @@ export function InteractionPage() {
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+          </Section>
+
+          <Section
+            title="音频资源"
+            description="预制台词语音文件统一存储在本地 data/audio/interact/ 目录，可在此试听与管理"
+          >
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => void openAudioDir(INTERACT_AUDIO_DIR)}
+                  className="flex items-center gap-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-50"
+                >
+                  <Icon icon="solar:folder-bold" className="text-sm" />
+                  打开文件夹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refreshAudioFiles()}
+                  className="flex items-center gap-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-50"
+                >
+                  <Icon icon="solar:refresh-bold" className="text-sm" />
+                  刷新
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void cleanupOrphanFiles()}
+                  className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-600 transition-colors hover:bg-amber-100"
+                >
+                  <Icon icon="solar:trash-bin-trash-bold" className="text-sm" />
+                  清理未引用音频
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void regenerateAll()}
+                  className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs text-indigo-600 transition-colors hover:bg-indigo-100"
+                >
+                  <Icon icon="solar:refresh-circle-bold" className="text-sm" />
+                  重新生成全部
+                </button>
+              </div>
+
+              {audioDir && (
+                <div className="text-xs text-neutral-400 truncate">📁 {audioDir}</div>
+              )}
+
+              {audioFiles.length === 0 ? (
+                <div className="rounded-lg bg-neutral-50 px-4 py-3 text-xs text-neutral-400">
+                  暂无音频文件（开启「预制台词语音」或编辑/新增消息后会自动生成）
+                </div>
+              ) : (
+                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {audioFiles.map((f) => (
+                    <li
+                      key={f.name}
+                      className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-1.5 text-xs"
+                    >
+                      <Icon icon="solar:music-notes-bold" className="shrink-0 text-neutral-400" />
+                      <span className="flex-1 min-w-0 truncate text-neutral-600 font-mono">
+                        {f.name}
+                      </span>
+                      <span className="shrink-0 text-neutral-400">{formatSize(f.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => void playAudioFile(f.name)}
+                        title="播放"
+                        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md border border-indigo-100 text-indigo-400 transition-colors hover:bg-indigo-50"
+                      >
+                        <Icon icon="solar:play-bold" className="text-xs" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void deleteAudioFile(`${INTERACT_AUDIO_DIR}/${f.name}`).then(() =>
+                            refreshAudioFiles(),
+                          )
+                        }
+                        title="删除"
+                        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md border border-red-100 text-red-400 transition-colors hover:bg-red-50"
+                      >
+                        <Icon icon="solar:trash-bin-minimalistic-bold" className="text-xs" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </Section>

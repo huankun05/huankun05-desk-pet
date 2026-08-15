@@ -15,6 +15,15 @@ import { loadInteractionConfig } from '../../settings/pages/models/InteractionPa
 import { collectAllPresetTexts } from '../../data/idleMessages';
 import { providerManager } from '../provider/manager';
 import { ensureActiveTTSBackend } from '../provider/ttsBackend';
+import {
+  writeAudioFile,
+  readAudioFile,
+  deleteAudioFile,
+  listAudioFiles,
+  audioFileNameOf,
+  parseWavSampleRate,
+  INTERACT_AUDIO_DIR,
+} from './audioFiles';
 
 const log = createLogger('InteractTTS');
 
@@ -343,33 +352,48 @@ export class InteractTTS {
     this.ensureInitialized();
     if (!this.enabled) return;
     if (this.play(text)) return;
-    // 缓存未命中：实时用当前活跃模型合成（覆盖切换模型后旧缓存已清空的情形）
-    void this.synthesizeLive(text);
+    // 缓存未命中：磁盘 → 实时合成（覆盖切换模型后旧缓存已清空的情形）
+    void this.ensureAudio(text).then((ok) => {
+      if (ok) this.play(text);
+    });
   }
 
-  /** 实时合成并播放（缓存未命中 / 模型切换后的兜底），失败静默降级 */
-  private async synthesizeLive(text: string): Promise<void> {
-    if (!this.isReady || !this.provider) return;
+  /**
+   * 确保文本音频可用（生成 + 缓存 + 落盘，不播放）。
+   * 查找顺序：内存缓存 → 磁盘文件（data/audio/interact/）→ 实时合成。
+   * 用于「交互消息新增/编辑后自动生成」与播放前的准备。
+   * @returns 音频是否可用
+   */
+  async ensureAudio(text: string): Promise<boolean> {
+    this.ensureInitialized();
+    if (!this.enabled) return false;
+    if (this.cache.has(text)) return true;
+
+    // 磁盘已有（跨启动复用，无需重新合成）
+    try {
+      const fileBuf = await readAudioFile(`${INTERACT_AUDIO_DIR}/${audioFileNameOf(text)}`);
+      if (fileBuf) {
+        this.setCache(text, fileBuf, parseWavSampleRate(fileBuf));
+        return true;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!this.isReady || !this.provider) return false;
     try {
       const ok = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 40000 });
       if (!ok) {
-        log.warn('实时合成：TTS 后端不可用，跳过', { text: text.slice(0, 30) });
-        return;
+        log.warn('ensureAudio: TTS 后端不可用', { text: text.slice(0, 30) });
+        return false;
       }
       const result = await this.provider.synthesize(text);
       this.setCache(text, result.audio, result.sampleRate);
-      audioPlayer.enqueue(result.audio, result.sampleRate, `interact-${Date.now()}`);
+      return true;
     } catch (err) {
-      log.warn('实时合成失败（交互台词）', { text: text.slice(0, 30), err });
+      log.warn('ensureAudio 合成失败', { text: text.slice(0, 30), err });
+      return false;
     }
-  }
-
-  /** 清除所有缓存（内存 + IndexedDB） */
-  clearCache(): void {
-    this.cache.clear();
-    this.persistCache();
-    idbClear().catch(() => undefined);
-    log.info('缓存已清空');
   }
 
   /** 获取缓存状态 */
@@ -386,6 +410,28 @@ export class InteractTTS {
     return Array.from(this.cache.keys());
   }
 
+  /** 清除所有缓存（内存 + IndexedDB + 磁盘镜像文件） */
+  clearCache(): void {
+    this.cache.clear();
+    this.persistCache();
+    idbClear().catch(() => undefined);
+    void this.clearDiskFiles();
+    log.info('缓存已清空');
+  }
+
+  /** 清空磁盘音频目录（audio/interact/ 下全部 wav），失败静默 */
+  private async clearDiskFiles(): Promise<void> {
+    try {
+      const files = await listAudioFiles(INTERACT_AUDIO_DIR);
+      await Promise.all(
+        files.map((f) => deleteAudioFile(`${INTERACT_AUDIO_DIR}/${f.name}`).catch(() => false)),
+      );
+      if (files.length > 0) log.info('已清理磁盘音频文件', { count: files.length });
+    } catch {
+      /* ignore */
+    }
+  }
+
   // ===== 内部方法 =====
 
   private setCache(text: string, audio: ArrayBuffer, sampleRate: number): void {
@@ -397,6 +443,17 @@ export class InteractTTS {
     });
     // 持久化到 IndexedDB（异步，不阻塞）
     idbPut(text, new Blob([audio], { type: 'audio/wav' }), sampleRate).catch(() => undefined);
+    // 落盘镜像：data/audio/interact/<hash8>-<label>.wav（失败静默，不影响主链路）
+    void this.persistToDisk(text, audio);
+  }
+
+  /** 落盘镜像：规范文件名见 audioFiles.audioFileNameOf（同一文本恒定同名，天然去重） */
+  private async persistToDisk(text: string, audio: ArrayBuffer): Promise<void> {
+    try {
+      await writeAudioFile(`${INTERACT_AUDIO_DIR}/${audioFileNameOf(text)}`, audio);
+    } catch {
+      /* ignore */
+    }
   }
 
   /** LRU 淘汰：超过上限时移除最旧的（同时清理 IndexedDB） */

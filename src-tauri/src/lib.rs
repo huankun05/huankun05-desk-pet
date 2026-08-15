@@ -486,10 +486,57 @@ struct FileEntry {
     size: u64,
 }
 
+/// 写入二进制文件（base64 内容解码后落盘，限制在项目数据目录内）。
+/// 用于 TTS 预制台词音频等二进制资源的规范落盘（data/audio/**）。
+#[tauri::command]
+fn write_audio_file(path: String, base64_content: String) -> CmdResult<()> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+
+    let requested = std::path::PathBuf::from(&path);
+    // 限制仅允许项目数据目录及其子目录
+    let data_dir = crate::utils::get_project_data_dir()?;
+    let canonical_data = data_dir.canonicalize().unwrap_or(data_dir.clone());
+    let canonical_req = requested
+        .parent()
+        .and_then(|p| p.canonicalize().ok())
+        .unwrap_or(canonical_data.clone());
+    if !canonical_req.starts_with(&canonical_data) {
+        return Err(AppError::Generic(
+            "Access denied: path must be within project data directory".to_string(),
+        ));
+    }
+    let bytes = B64
+        .decode(base64_content.trim())
+        .map_err(|e| AppError::Generic(format!("invalid base64 content: {e}")))?;
+    if let Some(parent) = requested.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create dirs: {}", e))?;
+    }
+    fs::write(&requested, &bytes).map_err(|e| format!("Failed to write audio file: {}", e))?;
+    Ok(())
+}
+
+/// 读取二进制文件并返回 base64（限制在项目数据目录内）。
+#[tauri::command]
+fn read_audio_file(path: String) -> CmdResult<String> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+
+    let requested = std::path::PathBuf::from(&path);
+    let data_dir = crate::utils::get_project_data_dir()?;
+    let canonical_data = data_dir.canonicalize().unwrap_or(data_dir.clone());
+    let canonical_req = requested.canonicalize().unwrap_or(requested.clone());
+    if !canonical_req.starts_with(&canonical_data) {
+        return Err(AppError::Generic(
+            "Access denied: path must be within project data directory".to_string(),
+        ));
+    }
+    let bytes = fs::read(&requested)
+        .map_err(|e| AppError::Io(format!("Failed to read audio file: {e}")))?;
+    Ok(B64.encode(bytes))
+}
+
 /// 写入文本文件（限制在项目数据目录内）
 #[tauri::command]
-fn write_file(path: String, content: String, append: Option<bool>) -> CmdResult<()> {
-    let requested = std::path::PathBuf::from(&path);
+fn write_file(path: String, content: String, append: Option<bool>) -> CmdResult<()> {    let requested = std::path::PathBuf::from(&path);
 
     // 限制仅允许项目数据目录及其子目录
     let data_dir = crate::utils::get_project_data_dir()?;
@@ -1241,6 +1288,8 @@ pub fn run() {
             read_clipboard,
             write_file,
             read_file_content,
+            write_audio_file,
+            read_audio_file,
             list_directory,
             delete_file,
             download_and_extract_plugin,
