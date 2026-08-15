@@ -54,6 +54,24 @@ export interface EmotionContext {
 
 export type ProviderType = 'chat' | 'tts' | 'stt' | 'embedding';
 
+/**
+ * 本地服务启动规格（可选）。
+ *
+ * 当 provider 需要在本机拉起一个后台进程（本地 TTS/STT 引擎）时，
+ * 把启动命令/工作目录/端口/环境变量写在这里，而不是依赖全局写死的映射表。
+ * 这样：
+ *  - 每个 provider 都能指定自己要用的 Python 解释器（解决"别人用别的模型/环境"问题）；
+ *  - 支持「自定义 / 其他模型」：用户直接填启动命令即可。
+ * `command` 允许绝对路径（如 `F:/xxx/.venv/Scripts/python.exe`）。
+ */
+export interface ServiceLaunchSpec {
+  command: string;
+  args?: string[];
+  workDir?: string;
+  port?: number;
+  env?: Record<string, string>;
+}
+
 export interface ProviderConfig {
   /** 唯一标识，如 'openai-chat-1' */
   id: string;
@@ -63,6 +81,8 @@ export interface ProviderConfig {
   name: string;
   /** 是否启用 */
   enable: boolean;
+  /** 本地服务启动规格（可选，仅本地引擎需要） */
+  launch?: ServiceLaunchSpec;
 }
 
 /** Provider 适配器元信息（注册时使用） */

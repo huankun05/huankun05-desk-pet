@@ -7,6 +7,7 @@
 
 import type { Stage, MessageContext, PipelineCallbacks } from '../types';
 import type { ProviderManager } from '../../provider/manager';
+import { ensureActiveTTSBackend } from '../../provider/ttsBackend';
 import { createLogger } from '../../../utils/logger';
 
 const log = createLogger('TTSStage');
@@ -21,6 +22,14 @@ export class TTSStage implements Stage {
 
   async process(ctx: MessageContext, _callbacks: PipelineCallbacks): Promise<void> {
     if (!ctx.speakableText) return;
+
+    // 自动拉起活跃 TTS 后端（避免"后端未运行→静默跳过合成"）。
+    // 应用启动预热通常会先拉起；此处兜底，确保任何 speak 路径都能触发。
+    const backendOk = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 30000 });
+    if (!backendOk) {
+      log.warn('TTS 后端不可用，跳过本次合成', { text: ctx.speakableText.slice(0, 30) });
+      return;
+    }
 
     const ttsProvider = this.manager.getSessionTTSProvider(ctx.session.id);
     if (!ttsProvider) return;

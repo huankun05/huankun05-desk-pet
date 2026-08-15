@@ -47,3 +47,8 @@ server/gpt_sovits
 server/models
 server/data/
 /data/
+
+# CosyVoice（项目内自包含 TTS 引擎）：仅忽略「机器强绑定 / 体积巨大」的产物
+# 保留：cosyvoice_server.py、CosyVoice/ 源码、modules/ 适配器、assets/ 参考音频
+server/cosyvoice/.venv/
+server/cosyvoice/models/

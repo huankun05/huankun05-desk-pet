@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -31,9 +32,9 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  const content = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
       onMouseDown={(e) => {
         mouseDownOnBackdrop.current = e.target === e.currentTarget;
       }}
@@ -70,4 +71,6 @@ export function Modal({
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

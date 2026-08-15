@@ -278,7 +278,7 @@ export function AutomationPage() {
       </Section>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <div
             className="bg-white rounded-2xl w-[480px] max-h-[80vh] overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}

@@ -17,16 +17,22 @@ import type { TTSProviderConfig, ProviderMeta } from '../../../services/provider
 import { ServiceSetupGuide, type SetupEngineInfo } from '../../components/ServiceSetupGuide';
 import { ServiceWizard } from '../../components/ServiceWizard';
 import { validateProviderConfig } from '../../../services/provider/validateProvider';
-import { startTTSBackend } from '../../../services/provider/serviceLauncher';
+import { resolveLaunchSpec } from '../../../services/provider/serviceLauncher';
+import { interactTTS } from '../../../services/audio/interact-tts';
+import { switchActiveTTSBackend } from '../../../services/provider/ttsBackend';
 
 /** 各 TTS 引擎的本地权重目录（相对于应用根目录，打包后为 resources）。
  *  用户可在配置页一键打开该目录放入/查看模型权重。 */
 const WEIGHTS_DIRS: Record<string, string> = {
   gpt_sovits: 'server/gpt_sovits/GPT_SoVITS/pretrained_models',
+  piper: 'server/piper/models',
 };
 
+/** 权重已随软件内置、无需用户手动放置的引擎（如 CosyVoice 走参考项目自动加载）*/
+const BUNDLED_TTS_ENGINES = new Set(['cosyvoice']);
+
 /** 需要本地模型权重的 TTS 引擎（决定指引面板显示「需权重」标签）*/
-const LOCAL_TTS_ENGINES = new Set(['gpt_sovits', 'cosyvoice', 'piper']);
+const LOCAL_TTS_ENGINES = new Set(['gpt_sovits', 'piper', 'cosyvoice']);
 
 /** 各 TTS 引擎的默认 API 地址（向导自动填入，用户可改）*/
 const DEFAULT_ENDPOINTS: Record<string, string> = {
@@ -34,6 +40,7 @@ const DEFAULT_ENDPOINTS: Record<string, string> = {
   gpt_sovits: 'http://localhost:9880',
   cosyvoice: 'http://localhost:8003',
   piper: 'http://localhost:5000',
+  custom: '',
 };
 
 type FormShape = Omit<TTSProviderConfig, 'id' | 'type'>;
@@ -75,6 +82,7 @@ export function TTSPage() {
     typeName: m.typeName,
     displayName: m.displayName,
     needsWeights: LOCAL_TTS_ENGINES.has(m.typeName),
+    bundled: BUNDLED_TTS_ENGINES.has(m.typeName),
     weightsDir: WEIGHTS_DIRS[m.typeName],
   }));
 
@@ -126,16 +134,23 @@ export function TTSPage() {
         showToast(t('settings.services.add_failed'), 'error');
         return false;
       }
+      // 新增即设为当前生效的 TTS：注册完就能直接用，不必再去手动点激活
+      // 热插拔：先记录旧后端端口，激活后卸载旧、拉起新
+      const oldCfg = providerManager.getActiveTTSConfig();
+      const oldPort = oldCfg ? (resolveLaunchSpec(oldCfg.typeName, oldCfg.launch)?.port ?? 0) : 0;
+      providerManager.setActiveTTSProvider(newConfig.id);
+      setActiveId(newConfig.id);
+      void switchActiveTTSBackend(oldPort);
+      void interactTTS.reprewarm(); // 切换后用新模型重新预热预制台词
     }
     loadConfigs();
     showToast(t('settings.services.saved'), 'success');
     return true;
   };
 
-  /** 向导「新增成功」后：自动拉起对应后端，实现“选好权重就能直接运行” */
-  const wizardOnAdded = (cfg: FormShape) => {
-    const tn = (cfg.typeName as string) || '';
-    void startTTSBackend(tn).then((ok) => {
+  /** 向导「新增成功」后：复用热插拔流程拉起对应后端（幂等，不重复启动） */
+  const wizardOnAdded = () => {
+    void switchActiveTTSBackend(0).then((ok) => {
       if (ok) showToast(t('settings.services.backend_started'), 'success');
       else showToast(t('settings.services.backend_start_failed'), 'info');
     });
@@ -153,10 +168,15 @@ export function TTSPage() {
     if (config && !config.enable) {
       providerManager.updateProvider(id, { enable: true });
     }
+    // 热插拔：记录旧后端端口，切换后卸载旧、拉起新
+    const oldCfg = providerManager.getActiveTTSConfig();
+    const oldPort = oldCfg ? (resolveLaunchSpec(oldCfg.typeName, oldCfg.launch)?.port ?? 0) : 0;
     providerManager.setActiveTTSProvider(id);
     setActiveId(id);
     showToast(t('settings.services.activated'), 'success');
     if (config) runValidation(config, { toast: false });
+    void switchActiveTTSBackend(oldPort);
+    void interactTTS.reprewarm(); // 切换后用新模型重新预热预制台词
   };
 
   /**
@@ -403,6 +423,7 @@ export function TTSPage() {
         defaultForm={defaultForm}
         defaultEndpoints={DEFAULT_ENDPOINTS}
         localEngines={[...LOCAL_TTS_ENGINES]}
+        bundledEngines={[...BUNDLED_TTS_ENGINES]}
         weightsDirs={WEIGHTS_DIRS}
         validate={(cfg) => validateProviderConfig('tts', cfg as TTSProviderConfig)}
         save={wizardSave}
@@ -410,7 +431,7 @@ export function TTSPage() {
         editingConfig={editingConfig}
         idPrefix="tts"
         typeValue="tts"
-        extraFields={(form, patch) => (
+        extraFields={(form, patch, typeName) => (
           <>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-neutral-800">
@@ -457,6 +478,71 @@ export function TTSPage() {
                 />
               </div>
             </div>
+
+            {typeName === 'custom' && (
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-3">
+                <p className="mb-2 text-xs font-medium text-neutral-700">
+                  {t('settings.services.custom_local_title')}
+                </p>
+                <p className="mb-3 text-xs leading-relaxed text-neutral-500">
+                  {t('settings.services.custom_local_hint')}
+                </p>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none"
+                    value={(form.launch?.command as string) ?? ''}
+                    onChange={(e) =>
+                      patch({
+                        launch: { ...(form.launch || {}), command: e.target.value },
+                      } as Partial<FormShape>)
+                    }
+                    placeholder={t('settings.services.custom_command_ph')}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none"
+                      value={(form.launch?.args as string[])?.join(' ') ?? ''}
+                      onChange={(e) =>
+                        patch({
+                          launch: {
+                            ...(form.launch || {}),
+                            args: e.target.value.split(' ').filter(Boolean),
+                          },
+                        } as Partial<FormShape>)
+                      }
+                      placeholder={t('settings.services.custom_args_ph')}
+                    />
+                    <input
+                      type="number"
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none"
+                      value={(form.launch?.port as number) ?? ''}
+                      onChange={(e) =>
+                        patch({
+                          launch: {
+                            ...(form.launch || {}),
+                            port: parseInt(e.target.value) || undefined,
+                          },
+                        } as Partial<FormShape>)
+                      }
+                      placeholder={t('settings.services.custom_port_ph')}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-[var(--primary-500)] focus:outline-none"
+                    value={(form.launch?.workDir as string) ?? ''}
+                    onChange={(e) =>
+                      patch({
+                        launch: { ...(form.launch || {}), workDir: e.target.value },
+                      } as Partial<FormShape>)
+                    }
+                    placeholder={t('settings.services.custom_workdir_ph')}
+                  />
+                </div>
+              </div>
+            )}
           </>
         )}
       />

@@ -1,11 +1,15 @@
 """
-CosyVoice V3 TTS HTTP Server（纳西妲微调）
-==========================================
+CosyVoice V3 TTS HTTP Server（纳西妲微调，项目内自包含）
+=======================================================
 
-复用参考项目 F:\\Work\\Create\\TTS 的完整代码 + 权重（CosyVoice/ 目录），
-按 PROJECT_ARCHITECTURE.md 的说明：CosyVoice V3 是当前主力离线引擎
-（GPT-SoVITS v2 为备用）。这是 desk_pet 唯一拥有
-完整本地权重的 TTS 引擎。
+模型代码与权重已复制到本项目 server/cosyvoice/ 下，不再依赖任何外部绝对路径：
+
+  server/cosyvoice/
+    CosyVoice/                      # CosyVoice 源码（含 cosyvoice 包、third_party/Matcha-TTS）
+      models/nahida_cv3_finetuned/inference_model/   # 纳西妲微调权重（llm.pt/flow.pt/...）
+    modules/tts_cosyvoice_v3.py     # 适配器
+    assets/nahida/                  # 参考音频（prompt）
+    .venv/                          # 自带 Python 环境（torch 2.4.1+cu121 + cosyvoice）
 
 端点
 ----
@@ -15,10 +19,8 @@ CosyVoice V3 TTS HTTP Server（纳西妲微调）
 
 环境自举
 --------
-CosyVoice V3 依赖特定的 torch(2.4.1+cu121) + cosyvoice 源码，必须与参考项目的
-.venv 一起运行。本脚本启动时会自动 re-exec 到参考 .venv
-（F:\\Work\\Create\\TTS\\.venv\\Scripts\\python.exe），可通过环境变量
-DESKPET_COSY_PYTHON 覆盖。
+优先使用本目录自带的 .venv；可用环境变量 DESKPET_COSY_PYTHON 覆盖；
+若自带 venv 不存在，则退回参考项目 F:\\Work\\Create\\TTS\\.venv 作为兼容回退。
 
 启动: python server/cosyvoice_server.py --port 8003
 """
@@ -36,38 +38,43 @@ logging.basicConfig(
 )
 log = logging.getLogger("cosyvoice-server")
 
-# ===== 路径常量（参考项目 F:\Work\Create\TTS）=====
-REF_ROOT = r"F:/Work/Create/TTS"
-REF_VENV = os.environ.get("DESKPET_COSY_PYTHON") or os.path.join(
-    REF_ROOT, ".venv", "Scripts", "python.exe"
-)
-REF_MODULES = os.path.join(REF_ROOT, "NahidaVoiceAI", "modules")
-COSY_ROOT = os.path.join(REF_ROOT, "CosyVoice")
+# ===== 路径常量（全部相对本脚本所在目录 server/ 下的 cosyvoice/ 子目录，自包含）=====
+HERE = os.path.dirname(os.path.abspath(__file__))          # server/
+CONTENT = os.path.join(HERE, "cosyvoice")                   # server/cosyvoice/（自包含内容根）
+COSY_ROOT = os.path.join(CONTENT, "CosyVoice")              # CosyVoice 源码 + 权重根
+REF_MODULES = os.path.join(CONTENT, "modules")              # tts_cosyvoice_v3.py 所在
+MATCHA = os.path.join(COSY_ROOT, "third_party", "Matcha-TTS")
 INFERENCE_MODEL_DIR = os.path.join(
-    COSY_ROOT, "models", "nahida_cv3_finetuned", "inference_model"
+    CONTENT, "models", "nahida_cv3_finetuned", "inference_model"
 )
-PROMPT_WAV = os.path.join(REF_ROOT, "assets", "nahida", "vo_HSEQ002_11_nahida_12.wav")
+PROMPT_WAV = os.path.join(CONTENT, "assets", "nahida", "vo_HSEQ002_11_nahida_12.wav")
 PROMPT_TEXT = "我没事。最近我的空余时间有不少，又听说奥摩斯港很热闹，就过来到处走走看看。"
 
-# ===== 环境自举：确保用参考 .venv 运行（含正确 torch + cosyvoice 源码）=====
+# ===== 环境自举：优先项目内自带 venv，其次环境变量，最后退回参考项目（兼容）=====
+_LOCAL_VENV = os.path.join(CONTENT, ".venv", "Scripts", "python.exe")
+_REF_VENV = r"F:/Work/Create/TTS/.venv/Scripts/python.exe"
+REF_VENV = os.environ.get("DESKPET_COSY_PYTHON") or (
+    _LOCAL_VENV if os.path.isfile(_LOCAL_VENV) else _REF_VENV
+)
+
 if os.path.isfile(REF_VENV) and os.path.abspath(sys.executable) != os.path.abspath(REF_VENV):
-    log.info("切换到参考 .venv 运行 CosyVoice: %s", REF_VENV)
+    log.info("切换到 CosyVoice venv 运行: %s", REF_VENV)
     try:
         os.execv(REF_VENV, [REF_VENV, *sys.argv])
     except Exception as e:  # noqa: BLE001
-        log.error("re-exec 到参考 .venv 失败: %s", e)
+        log.error("re-exec 到 CosyVoice venv 失败: %s", e)
         # 继续尝试用当前解释器运行（可能失败，但给出明确错误）
 
 
-# ===== 导入参考项目的 CosyVoice V3 模块 =====
-for _p in (REF_MODULES, COSY_ROOT, os.path.join(COSY_ROOT, "third_party", "Matcha-TTS")):
+# ===== 导入 CosyVoice V3 模块（基于脚本所在目录解析）=====
+for _p in (REF_MODULES, COSY_ROOT, MATCHA):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 try:
     from tts_cosyvoice_v3 import CosyVoiceV3TTS
 except Exception as e:  # noqa: BLE001
-    log.error("无法导入参考 CosyVoice V3 模块 (REF_MODULES=%s): %s", REF_MODULES, e)
+    log.error("无法导入 CosyVoice V3 模块 (REF_MODULES=%s): %s", REF_MODULES, e)
     raise
 
 from fastapi import FastAPI, Response, HTTPException
@@ -83,6 +90,7 @@ _load_error: str | None = None
 CONFIG = {
     "tts": {
         "cosyvoice_root": COSY_ROOT,
+        "inference_model_dir": INFERENCE_MODEL_DIR,
         "device": "cuda",
         "fp16": True,
         "prompt_wav": PROMPT_WAV,

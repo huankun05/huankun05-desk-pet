@@ -29,6 +29,8 @@ import { CosyVoiceProvider } from './tts/cosyvoice';
 import type { CosyVoiceConfig } from './tts/cosyvoice';
 import { PiperTTSProvider } from './tts/piper';
 import type { PiperTTSConfig } from './tts/piper';
+import { CustomTTSProvider } from './tts/custom';
+import type { CustomTTSConfig } from './tts/custom';
 import { FunASRProvider } from './stt/funasr';
 import { SenseVoiceProvider } from './stt/sensevoice';
 import { SherpaONNXProvider } from './stt/sherpaonnx';
@@ -138,6 +140,16 @@ providerRegistry.registerTTSProvider(
     description: '轻量本地 TTS，CPU 友好，合成速度快，适合低配置设备',
   },
   (config) => new PiperTTSProvider(config as PiperTTSConfig),
+);
+
+// TTS: 自定义 / 其他模型（通用 HTTP，用户自带任意 TTS 服务）
+providerRegistry.registerTTSProvider(
+  'custom',
+  {
+    displayName: '自定义 / 其他模型',
+    description: '接入你自己部署的任意 TTS 服务（fish-speech / ChatTTS / Bert-VITS2 等），填网址即可',
+  },
+  (config) => new CustomTTSProvider(config as CustomTTSConfig),
 );
 
 // STT: Sherpa ONNX（轻量本地 ASR，多模型支持）
@@ -580,6 +592,19 @@ export class ProviderManager {
    */
   getActiveTTSProvider(): TTSProvider | null {
     return this.getTTSProvider();
+  }
+
+  /**
+   * 获取当前活跃 TTS 的原始配置（含 typeName / launch / apiBase）。
+   * 用于「自动拉起本地 TTS 后端」：拿到启动规格后 POST 管理后台启动。
+   */
+  getActiveTTSConfig(): TTSProviderConfig | null {
+    const id = this.state.activeTTSId;
+    if (!id) return null;
+    const cfg = this.state.configs.find(
+      (c) => (c as ProviderConfig).id === id,
+    ) as TTSProviderConfig | undefined;
+    return cfg ?? null;
   }
 
   /**

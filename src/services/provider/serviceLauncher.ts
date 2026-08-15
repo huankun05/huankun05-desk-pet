@@ -3,26 +3,26 @@
  *
  * 后端服务（TTS 本地引擎等）由 Rust 端 `service.rs` 管理，前端通过管理后台的
  * HTTP 接口启动：POST http://127.0.0.1:9876/api/service/start
- *    body: { id, command, args: string[], workDir, port }
+ *    body: { id, command, args: string[], workDir, port, env }
  *
  * 这里封装「注册 provider 后自动拉起对应后端」的逻辑，让向导实现
- * “填完关键信息 + 选好权重位置 → 直接运行起来”的体验。
+ * “填完关键信息 → 直接运行起来”的体验。
+ *
+ * 启动规格优先取自 provider 自身携带的 `launch`（用户在向导里填的 Python/命令/端口），
+ * 这样每个模型都能用自己合适的环境；缺失时回退到下方的默认映射。
  */
+
+import type { ServiceLaunchSpec } from './types';
 
 const ADMIN_PORT = 9876;
 
-export interface ServiceLaunchSpec {
+/** 解析后的启动规格（带服务 id，用于 POST 给管理后台）。 */
+interface ResolvedLaunchSpec extends ServiceLaunchSpec {
   id: string;
-  command: string;
-  args: string[];
-  workDir: string;
-  port: number;
 }
 
-/** 各 TTS 引擎的后端启动规格（基于应用根目录的相对路径）。
- *  venv 为 desk-pet 共享 Python 环境。cosyvoice 因依赖独立的 torch/cosyvoice
- *  环境，启动能否成功取决于该 venv 是否就绪——属已知 caveat，启动失败仅提示不阻断。 */
-export const TTS_LAUNCH_SPECS: Record<string, ServiceLaunchSpec> = {
+/** 各 TTS 引擎的默认启动规格（仅在没有显式 launch 时作为回退）。 */
+export const TTS_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
   edge_tts: {
     id: 'service_8001',
     command: 'venv/Scripts/python.exe',
@@ -39,19 +39,49 @@ export const TTS_LAUNCH_SPECS: Record<string, ServiceLaunchSpec> = {
   },
   cosyvoice: {
     id: 'service_8003',
-    command: 'venv/Scripts/python.exe',
+    command: 'server/cosyvoice/.venv/Scripts/python.exe',
     args: ['server/cosyvoice_server.py', '--port', '8003'],
     workDir: '.',
     port: 8003,
   },
+  piper: {
+    id: 'service_5000',
+    command: 'venv/Scripts/python.exe',
+    args: ['server/piper_server.py', '--port', '5000'],
+    workDir: '.',
+    port: 5000,
+  },
 };
 
+/** 把 provider 配置解析成启动规格（优先 launch，回退默认映射）。 */
+export function resolveLaunchSpec(
+  typeName: string,
+  launch?: ServiceLaunchSpec,
+): ResolvedLaunchSpec | null {
+  if (launch && launch.command) {
+    const port = launch.port ?? TTS_LAUNCH_SPECS[typeName]?.port ?? 0;
+    return {
+      id: `service_${port || typeName}`,
+      command: launch.command,
+      args: launch.args ?? [],
+      workDir: launch.workDir ?? '.',
+      port,
+      env: launch.env,
+    };
+  }
+  const def = TTS_LAUNCH_SPECS[typeName];
+  return def ? { ...def } : null;
+}
+
 /**
- * 启动指定类型的 TTS 后端。
- * @returns true 表示管理后台返回 ok（已发起启动），false 表示失败或该类型无启动规格。
+ * 按 provider 配置启动其后端（自定义模型也能用——只要填了 launch）。
+ * @returns true 表示管理后台返回 ok（已发起启动）。
  */
-export async function startTTSBackend(typeName: string): Promise<boolean> {
-  const spec = TTS_LAUNCH_SPECS[typeName];
+export async function startProviderService(
+  typeName: string,
+  launch?: ServiceLaunchSpec,
+): Promise<boolean> {
+  const spec = resolveLaunchSpec(typeName, launch);
   if (!spec) return false;
   try {
     const res = await fetch(`http://127.0.0.1:${ADMIN_PORT}/api/service/start`, {
@@ -62,7 +92,41 @@ export async function startTTSBackend(typeName: string): Promise<boolean> {
     const data = (await res.json()) as { ok?: boolean };
     return Boolean(data?.ok);
   } catch (err) {
-    console.warn('[startTTSBackend] 启动请求失败:', err);
+    console.warn('[startProviderService] 启动请求失败:', err);
     return false;
   }
+}
+
+/**
+ * @deprecated 兼容旧调用：仅按类型名启动。
+ */
+export async function startTTSBackend(typeName: string): Promise<boolean> {
+  return startProviderService(typeName);
+}
+
+/** 按服务 id（形如 service_<port>）停止后端，用于热插拔时卸载旧引擎。 */
+export async function stopProviderServiceById(id: string): Promise<boolean> {
+  if (!id) return false;
+  try {
+    const res = await fetch(`http://127.0.0.1:${ADMIN_PORT}/api/service/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = (await res.json()) as { ok?: boolean };
+    return Boolean(data?.ok);
+  } catch (err) {
+    console.warn('[stopProviderService] 停止请求失败:', err);
+    return false;
+  }
+}
+
+/** 按 provider 配置停止其后端（解析出 id 后委托 stopProviderServiceById）。 */
+export async function stopProviderService(
+  typeName: string,
+  launch?: ServiceLaunchSpec,
+): Promise<boolean> {
+  const spec = resolveLaunchSpec(typeName, launch);
+  if (!spec) return false;
+  return stopProviderServiceById(spec.id);
 }

@@ -66,6 +66,10 @@ desk-pet/
 
 > ⚠️ **首次运行前提**：若目标机器无任何可用 Python 环境，首次启动需联网拉取 torch/funasr/mediapipe 等（数 GB，几分钟）。装好后后端落在 `%APPDATA%/com.lihuankun.desk-pet/backend/venv`，之后启动秒起。离线会弹「后端依赖安装失败」，联网重启即可。
 
+### TTS 后端运行架构（自动启动 / 热插拔）
+
+TTS 后端（如 CosyVoice）是独立 Python 进程，由 Rust 后台托管、**按需自动拉起**，并支持在设置里**热插拔切换**模型（停旧后端释放端口/显存 → 拉起新后端）。详见 [docs/tts-backend.md](./docs/tts-backend.md)。
+
 ### 原生文件夹选择器
 
 设置页「选择权重位置」等需要操作系统原生文件夹对话框。但 Tauri webview 处于沙箱、无法调用 OS 对话框，`<input webkitdirectory>` 只回相对路径。因此使用 **`tauri-plugin-dialog`**（Rust `rfd` 库，调用 OS 原生对话框），是 webview 内拿到**绝对路径**的唯一 sanctioned 方式。相关：`src/utils/pickFolder.ts`、`src-tauri/src/lib.rs`、`src-tauri/capabilities/default.json`。

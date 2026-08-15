@@ -1117,6 +1117,18 @@ desk-pet/
   - `eslint src`：0 errors（81 条历史 warning 残留，均为 `react-hooks/set-state-in-effect`、`react-refresh`、`no-explicit-any` 风格项，非本次引入）✅
   - `vite build`：通过（667 modules transformed，产物正常）✅
   - `py_compile memory_service.py`：通过 ✅
+
+#### 12.6 TTS 后端自动启动 + 热插拔切换（2026-08-15）
+
+**现状痛点**：TTS 后端（Python 进程）此前只在「向导保存时」手动启动一次，重启 app 后失效；宠物说话的代码不负责重新拉起 → 全程静默无声音。切换激活模型后旧进程残留、新进程不起，且 `interact-tts.ts` 把旧模型实例/旧声音永久缓存（stale-cache）。
+
+**实现**：
+- `src/services/provider/ttsBackend.ts`：`ensureActiveTTSBackend()`（按需自动启动，含健康探测 + `GET /api/service/list` 去重 + module 级 `inFlight` 锁，防 `service_start_raw` 非幂等重复 kill/spawn）、`switchActiveTTSBackend(oldPort)`（先 `stop` 旧后端释放端口/显存 → 拉起新后端）。
+- `src/services/provider/tts/cosyvoice.ts`：补 `isAvailable()`（要求 `model_loaded && model_exists && !load_error`），修正「模型加载中 `/health` 已返回 200」导致的过早就绪误判。
+- `src/services/provider/serviceLauncher.ts`：新增 `stopProviderService` / `stopProviderServiceById`（`POST /api/service/stop {id:"service_<port>"}`）。
+- 6 个 TTS 调用点（聊天朗读×2、语音通话、唤醒、一起看、预制台词）全部接入按需自动启动；`interact-tts.ts` 改为感知 `activeTTSId` 变化 → 丢弃旧实例 + 清空旧缓存 + 实时合成兜底 + `reprewarm()` 重新预热。
+
+**验证**：admin `start` → 22s 后 `model_loaded:true` → `POST /tts` 合成合法 24kHz WAV → `stop` 端口释放；`tsc --noEmit` 0 errors。详细见 [docs/tts-backend.md](./docs/tts-backend.md)。
 - 附带修复：`src/services/provider/validateProvider.ts` 存在 `no-useless-assignment` 历史 error（`let provider = null` 初始化冗余），重构为 const 三元赋值以消除，使 `lint` 真正 0 error（非 Phase 12 范围，但属于 0-error 验收前置）。
 - 注：`traceBus.ts` / `disposable.ts` 为新增可逆效应原语，已就绪待采纳；建议采纳点（provider 切换、hotswap、usePerception）见 12.5 P2 说明，未强制接入现有运行路径以保稳定。
 

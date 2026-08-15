@@ -36,6 +36,8 @@ export interface ServiceWizardProps<T extends Record<string, unknown>> {
   defaultEndpoints?: Record<string, string>;
   /** 需要本地权重的适配器类型名 */
   localEngines?: string[];
+  /** 权重已随软件内置、无需用户手动放置的适配器类型名 */
+  bundledEngines?: string[];
   /** 各适配器的固定权重目录（相对应用根） */
   weightsDirs?: Record<string, string>;
   /** 隐藏“适配器类型”字段（Embedding 按 apiBase 自动选择实现，无 typeName） */
@@ -73,6 +75,7 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
     defaultForm,
     defaultEndpoints,
     localEngines,
+    bundledEngines,
     weightsDirs,
     hideTypeField,
     extraFields,
@@ -198,6 +201,7 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
 
   const currentType = (form.typeName as string) || types[0]?.typeName || '';
   const isLocal = (localEngines ?? []).includes(currentType);
+  const isBundled = (bundledEngines ?? []).includes(currentType);
   const fixedWeightsDir = weightsDirs?.[currentType];
 
   const renderFooter = () => {
@@ -321,17 +325,21 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-neutral-800">{e.displayName}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          e.needsWeights
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        e.bundled
+                          ? 'bg-blue-50 text-blue-600'
+                          : e.needsWeights
                             ? 'bg-amber-50 text-amber-600'
                             : 'bg-green-50 text-green-600'
-                        }`}
-                      >
-                        {e.needsWeights
+                      }`}
+                    >
+                      {e.bundled
+                        ? t('settings.services.engine_tag_bundled')
+                        : e.needsWeights
                           ? t('settings.services.engine_tag_weights')
                           : t('settings.services.engine_tag_online')}
-                      </span>
+                    </span>
                     </div>
                     {requirement && (
                       <p className="mt-1 text-xs leading-relaxed text-neutral-500">{requirement}</p>
@@ -400,11 +408,23 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
             )}
           </div>
 
-          {isLocal && (
+          {isBundled && (
+            <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+              <Icon icon="solar:check-circle-bold" className="mt-0.5 shrink-0 text-base text-blue-500" />
+              <div className="text-xs leading-relaxed text-blue-700">
+                {t('settings.services.wizard_bundled_note')}
+              </div>
+            </div>
+          )}
+
+          {isLocal && !isBundled && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-neutral-800">
                 {t('settings.services.wizard_weights_dir')}
               </label>
+              <p className="mb-2 text-xs leading-relaxed text-neutral-500">
+                {t('settings.services.wizard_weights_howto')}
+              </p>
               {fixedWeightsDir ? (
                 <div className="flex items-center gap-2">
                   <code className="flex-1 truncate rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">

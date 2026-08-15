@@ -22,7 +22,7 @@ export function SettingsLayout() {
       {/* Layer 1: 窗口标题栏（Tauri 拖拽区） */}
       <div
         data-tauri-drag-region
-        className="h-11 fixed top-0 left-0 right-0 z-100 flex items-center gap-2 px-4 bg-white select-none"
+        className="h-11 fixed top-0 left-0 right-0 z-[100] flex items-center gap-2 px-4 bg-white select-none"
       >
         <div className="flex items-center gap-2 rounded-md px-1.5 py-0.5 transition-colors hover:bg-neutral-100 cursor-pointer">
           <Icon

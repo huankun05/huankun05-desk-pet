@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { providerManager } from '../services/provider/manager';
+import { ensureActiveTTSBackend } from '../services/provider/ttsBackend';
 import { getHermesGatewayClient } from '../services/hermesGateway';
 import { eventBus } from '../services/eventBus';
 import { createLogger } from '../utils/logger';
@@ -85,29 +86,39 @@ export function useVoiceCall({
         resolve();
         return;
       }
-      tts
-        .synthesize(text)
-        .then((res) => {
-          const blob = new Blob([res.audio], { type: 'audio/wav' });
-          const url = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          ttsAudioRef.current = audio;
-          audio.onended = () => {
-            URL.revokeObjectURL(url);
-            ttsAudioRef.current = null;
-            resolve();
-          };
-          audio.onerror = () => {
-            URL.revokeObjectURL(url);
-            ttsAudioRef.current = null;
-            resolve();
-          };
-          return audio.play();
-        })
-        .catch((e) => {
-          log.error('tts synthesize/play failed', e);
+      // 确保活跃 TTS 后端已运行。语音通话里网关 sendVoice('start') 只拉起
+      // Edge TTS(:8001)；若活跃的是 CosyVoice(:8003) 等本地引擎，需在此单独拉起，
+      // 否则首句回话无声、下一轮聆听不触发。应用启动预热通常会先拉起，此处兜底。
+      void ensureActiveTTSBackend({ waitReady: true, timeoutMs: 40000 }).then((ok) => {
+        if (!ok) {
+          log.warn('voice call: TTS 后端不可用，跳过回话');
           resolve();
-        });
+          return;
+        }
+        tts
+          .synthesize(text)
+          .then((res) => {
+            const blob = new Blob([res.audio], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            ttsAudioRef.current = audio;
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              ttsAudioRef.current = null;
+              resolve();
+            };
+            audio.onerror = () => {
+              URL.revokeObjectURL(url);
+              ttsAudioRef.current = null;
+              resolve();
+            };
+            return audio.play();
+          })
+          .catch((e) => {
+            log.error('tts synthesize/play failed', e);
+            resolve();
+          });
+      });
     });
   }, []);
 

@@ -7,6 +7,8 @@ export interface SetupEngineInfo {
   displayName: string;
   /** 是否需要本地模型权重（决定显示「需权重」标签 + 打开权重文件夹按钮）*/
   needsWeights: boolean;
+  /** 权重已随软件内置、无需用户手动放置（如 CosyVoice 走参考项目自动加载）*/
+  bundled?: boolean;
   /** 相对应用根的权重目录（用于 open_server_dir），无则留空 */
   weightsDir?: string;
 }
@@ -64,19 +66,25 @@ export function ServiceSetupGuide({
                     <span className="text-sm font-medium text-neutral-800">{e.displayName}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        e.needsWeights ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
-                      }`}
+                        e.bundled
+                          ? 'bg-blue-50 text-blue-600'
+                          : e.needsWeights
+                            ? 'bg-amber-50 text-amber-600'
+                            : 'bg-green-50 text-green-600'
+                          }`}
                     >
-                      {e.needsWeights
-                        ? t('settings.services.engine_tag_weights')
-                        : t('settings.services.engine_tag_online')}
+                      {e.bundled
+                        ? t('settings.services.engine_tag_bundled')
+                        : e.needsWeights
+                          ? t('settings.services.engine_tag_weights')
+                          : t('settings.services.engine_tag_online')}
                     </span>
                   </div>
                   {requirement && (
                     <p className="mt-1 text-xs leading-relaxed text-neutral-500">{requirement}</p>
                   )}
                 </div>
-                {e.needsWeights && e.weightsDir && onOpenWeights && (
+                {e.needsWeights && !e.bundled && e.weightsDir && onOpenWeights && (
                   <button
                     type="button"
                     onClick={() => onOpenWeights(e.typeName)}

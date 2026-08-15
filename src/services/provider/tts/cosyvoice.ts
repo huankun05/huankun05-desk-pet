@@ -54,9 +54,43 @@ export class CosyVoiceProvider implements TTSProvider {
   }
 
   async validate(): Promise<boolean> {
+    const resp = await this.fetchHealth();
+    if (resp.status >= 500) {
+      throw new Error(`HTTP ${resp.status}：CosyVoice 服务内部错误`);
+    }
+    return true;
+  }
+
+  /**
+   * 运行时健康探针（区别于 validate 的"连通性测试"）：
+   * CosyVoice 服务进程启动后，模型仍在后台加载（首词较慢，约 10~20s），
+   * 期间 /health 立即返回 200 但 model_loaded=false。
+   * 此探针要求模型真正就绪（model_loaded 且权重存在且无加载错误），
+   * 用于"自动拉起后端后等待就绪"的精确判断，避免提前放行导致首句卡顿。
+   */
+  async isAvailable(): Promise<boolean> {
     let resp: Response;
     try {
-      resp = await fetch(`${this.config.apiBase}/health`, {
+      resp = await this.fetchHealth();
+    } catch {
+      return false;
+    }
+    if (!resp.ok) return false;
+    try {
+      const data = (await resp.json()) as {
+        model_loaded?: boolean;
+        model_exists?: boolean;
+        load_error?: string | null;
+      };
+      return Boolean(data.model_loaded) && Boolean(data.model_exists) && !data.load_error;
+    } catch {
+      return false;
+    }
+  }
+
+  private async fetchHealth(): Promise<Response> {
+    try {
+      return await fetch(`${this.config.apiBase}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       });
@@ -69,10 +103,6 @@ export class CosyVoiceProvider implements TTSProvider {
         { cause: err },
       );
     }
-    if (resp.status >= 500) {
-      throw new Error(`HTTP ${resp.status}：CosyVoice 服务内部错误`);
-    }
-    return true;
   }
 
   async getVoices(): Promise<string[]> {
