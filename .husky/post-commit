@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# 自动同步钩子：每次 git commit 后把当前分支推送到 origin。
+# 注意：本仓库 hooksPath=.husky/_（husky 管理），钩子源码必须放 .husky/ 下。
+# 推送失败不影响提交本身（post-commit 返回码被 git 忽略）。
+git push --quiet origin HEAD
