@@ -5,6 +5,8 @@
  * 后续 Phase 4 插件系统可订阅这些事件。
  */
 
+import type { ConsentRequest, ConsentDecision } from './permission/types';
+
 type EventMap = {
   'message:sent': { text: string; sessionId: string };
   'message:response': { text: string; sessionId: string };
@@ -32,6 +34,9 @@ type EventMap = {
   'tool:call': { name: string; args: Record<string, unknown> };
   'tool:result': { name: string; content: string; isError?: boolean };
   'tool:execute': { id: string; name: string; args: Record<string, unknown> };
+  // 权限网关：工具执行前的授权确认（与 ConsentGate 解耦通信）
+  'permission:request': ConsentRequest;
+  'permission:resolve': { requestId: string; decision: ConsentDecision };
   // 交互事件：用户点击/触摸宠物
   'interaction:pat': { target: string; count: number };
   'interaction:tap': { target: string; intensity: number };

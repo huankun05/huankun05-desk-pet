@@ -6,6 +6,7 @@
  */
 
 import type { ToolDefinition, ToolCall, ToolResult, OpenAIToolSchema } from './types';
+import { permissionManager } from '../permission/PermissionManager';
 
 class ToolRegistry {
   private tools = new Map<string, ToolDefinition>();
@@ -83,6 +84,9 @@ class ToolRegistry {
 
   /**
    * 执行工具调用
+   *
+   * 执行前经过 PermissionManager 权限网关：未授权则直接返回「权限未授予」结果，
+   * 不真正执行工具，让 LLM 自然回应。覆盖所有调用路径（前端工具循环 + Gateway tool:execute）。
    */
   async execute(call: ToolCall): Promise<ToolResult> {
     const tool = this.tools.get(call.name);
@@ -92,6 +96,19 @@ class ToolRegistry {
         name: call.name,
         content: `Error: unknown tool '${call.name}'`,
         isError: true,
+      };
+    }
+
+    // ===== 权限网关 =====
+    const auth = await permissionManager.authorize(call.name, call.arguments ?? {}, {
+      source: 'tool',
+    });
+    if (!auth.allowed) {
+      return {
+        callId: call.id,
+        name: call.name,
+        content: `⛔ 权限未授予：${auth.reason ?? '操作被拦截'}`,
+        isError: false,
       };
     }
 

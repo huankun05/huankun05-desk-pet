@@ -46,6 +46,10 @@ import { settingsStorage } from './services/storage/settingsStorage';
 import { safetyChecker } from './services/safety';
 import { registerBuiltinTools } from './services/tools/builtins';
 import { eventBus } from './services/eventBus';
+import { registerGatewayToolExecutor } from './services/tools/executor';
+import { getHermesGatewayClient } from './services/hermesGateway';
+import ConsentGate from './components/ConsentGate';
+import { permissionManager } from './services/permission/PermissionManager';
 import { useBrainBridge } from './hooks/useBrainBridge';
 import { isPointOverCharacter } from './lib/live2d';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
@@ -1010,6 +1014,16 @@ function MainPetApp() {
 
   const bubbleColors = bubbleThemeColors(appearance.bubbleTheme, systemDark);
 
+  // 权限网关：注册 Gateway 下发的前端工具执行器（经权限确认），
+  // 并在应用启动时清空"本次会话全部允许"（仅限本次会话，重启即失效）
+  useEffect(() => {
+    permissionManager.resetSessionTrustOnLaunch();
+    const unsub = registerGatewayToolExecutor((id, name, content, isError) =>
+      getHermesGatewayClient().sendToolResult(id, name, content, isError),
+    );
+    return () => unsub();
+  }, []);
+
   return (
     <div
       className={`app-container ${isLocked ? 'locked' : ''}`}
@@ -1031,6 +1045,9 @@ function MainPetApp() {
           <ChatBubble message={bubble} onComplete={() => setBubble(null)} />
         </div>
       )}
+
+      {/* 权限确认卡（工具执行前的授权弹窗） */}
+      <ConsentGate />
 
       <div
         className={`pet-zone ${isLocked ? 'locked' : ''} ${isTransforming ? 'moving' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}

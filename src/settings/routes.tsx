@@ -69,6 +69,7 @@ const pageComponentLoaders: Record<string, () => Promise<{ default: ComponentTyp
   '/settings/extensions/plugins': () => import('./pages/extensions/PluginsPage'),
   '/settings/extensions/tools': () => import('./pages/extensions/ToolsPage'),
   '/settings/marketplace': () => import('./pages/marketplace/MarketplaceIndex'),
+  '/settings/privacy': () => import('./pages/privacy/PermissionsIndex'),
   '/settings/memory': () => import('./pages/memory/MemoryIndex'),
   '/settings/memory/context': () => import('./pages/memory/ContextPage'),
   '/settings/memory/long-term': () => import('./pages/memory/LongTermPage'),
@@ -461,12 +462,21 @@ export const settingsTree: SettingsEntry[] = [
     ],
   },
   {
+    title: '隐私与权限',
+    subtitle: 'Privacy & Permissions',
+    description: '语音操作授权、能力分级、使用记录',
+    icon: 'solar:shield-check-bold-duotone',
+    settingsEntry: true,
+    order: 5,
+    path: '/settings/privacy',
+  },
+  {
     title: '记忆体',
     subtitle: 'Memory',
     description: '存放记忆的地方，以及策略',
     icon: 'solar:database-bold-duotone',
     settingsEntry: true,
-    order: 5,
+    order: 6,
     path: '/settings/memory',
     children: [
       {
@@ -522,7 +532,7 @@ export const settingsTree: SettingsEntry[] = [
     description: '常规、开发者、关于',
     icon: 'solar:filters-bold-duotone',
     settingsEntry: true,
-    order: 6,
+    order: 7,
     path: '/settings/system',
     children: [
       {
