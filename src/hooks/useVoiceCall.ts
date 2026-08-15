@@ -193,10 +193,11 @@ export function useVoiceCall({
     // 计时
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
 
-    // 让网关按需拉起本地 STT/TTS 服务
+    // 让网关按需拉起本地 STT/TTS 服务（按前端活跃 TTS 引擎选择，避免多起闲置 Edge :8001）
+    const activeTts = providerManager.getActiveTTSConfig();
     const ready = await new Promise<boolean>((resolve) => {
       voiceStartResolveRef.current = resolve;
-      getHermesGatewayClient().sendVoice('start');
+      getHermesGatewayClient().sendVoice('start', { typeName: activeTts?.typeName });
       // 兜底：10s 内未收到响应则按"已尝试"继续
       setTimeout(() => {
         if (voiceStartResolveRef.current) {

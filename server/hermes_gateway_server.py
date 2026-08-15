@@ -672,8 +672,12 @@ async def _handle_voice(ws: WebSocket, data: dict) -> None:
             result = stop_voice_services()
             await ws.send_json({"type": "voice", "action": "stop", "result": result})
             return
-        # start / ensure：在后台线程拉起 STT + Edge TTS（必需），GPT-SoVITS（可选），避免阻塞事件循环
-        statuses = await asyncio.to_thread(ensure_voice_services)
+        # start / ensure：在后台线程拉起 STT + 前端活跃 TTS 引擎（默认 Edge TTS），
+        # GPT-SoVITS（可选），避免阻塞事件循环。tts 字段由前端携带活跃 TTS 的 typeName，
+        # 网关据此选择引擎，避免"前端用 CosyVoice、网关却多起一个闲置 Edge"的错位。
+        tts_cfg = data.get("tts") or {}
+        tts_type = tts_cfg.get("typeName") if isinstance(tts_cfg, dict) else None
+        statuses = await asyncio.to_thread(ensure_voice_services, tts_type)
         all_ready = bool(statuses.get("all_ready", False))
         services = {k: v for k, v in statuses.items() if k != "all_ready"}
         await ws.send_json({

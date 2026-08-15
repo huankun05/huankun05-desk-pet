@@ -19,8 +19,9 @@ CosyVoice V3 TTS HTTP Server（纳西妲微调，项目内自包含）
 
 环境自举
 --------
-优先使用本目录自带的 .venv；可用环境变量 DESKPET_COSY_PYTHON 覆盖；
-若自带 venv 不存在，则退回参考项目 F:\\Work\\Create\\TTS\\.venv 作为兼容回退。
+优先使用本目录自带的 .venv；可用环境变量 DESKPET_COSY_PYTHON 覆盖。
+若两者都不可用（项目内 .venv 缺失且未设环境变量），则用当前解释器继续，
+并给出明确报错，不再回退任何外部绝对路径（本机共享环境 = server/cosyvoice/.venv）。
 
 启动: python server/cosyvoice_server.py --port 8003
 """
@@ -50,14 +51,15 @@ INFERENCE_MODEL_DIR = os.path.join(
 PROMPT_WAV = os.path.join(CONTENT, "assets", "nahida", "vo_HSEQ002_11_nahida_12.wav")
 PROMPT_TEXT = "我没事。最近我的空余时间有不少，又听说奥摩斯港很热闹，就过来到处走走看看。"
 
-# ===== 环境自举：优先项目内自带 venv，其次环境变量，最后退回参考项目（兼容）=====
+# ===== 环境自举：优先项目内自带 venv（共享环境），其次 DESKPET_COSY_PYTHON 覆盖 =====
+# 注意：不再回退任何外部绝对路径（开源安全）。项目内 .venv 缺失且未设环境变量时，
+# 沿用当前解释器继续并让后续 import 给出明确错误。
 _LOCAL_VENV = os.path.join(CONTENT, ".venv", "Scripts", "python.exe")
-_REF_VENV = r"F:/Work/Create/TTS/.venv/Scripts/python.exe"
 REF_VENV = os.environ.get("DESKPET_COSY_PYTHON") or (
-    _LOCAL_VENV if os.path.isfile(_LOCAL_VENV) else _REF_VENV
+    _LOCAL_VENV if os.path.isfile(_LOCAL_VENV) else None
 )
 
-if os.path.isfile(REF_VENV) and os.path.abspath(sys.executable) != os.path.abspath(REF_VENV):
+if REF_VENV and os.path.isfile(REF_VENV) and os.path.abspath(sys.executable) != os.path.abspath(REF_VENV):
     log.info("切换到 CosyVoice venv 运行: %s", REF_VENV)
     try:
         os.execv(REF_VENV, [REF_VENV, *sys.argv])

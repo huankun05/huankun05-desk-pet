@@ -27,8 +27,10 @@ VOICE_PYTHON = os.environ.get("DESKPET_VOICE_PYTHON") or sys.executable
 #   stt  -> FunASR (server/stt_server.py :8002)            —— 语音通话「听」的关键
 #   tts  -> Edge TTS (server/edge_tts_server.py :8001)      —— 语音通话「说」的默认回放
 #   tts_vc -> GPT-SoVITS (server/gpt_sovits_server.py :9880) —— 可选声音克隆(需模型权重)
+#   tts_cosy -> CosyVoice V3 (server/cosyvoice_server.py :8003) —— 项目内自包含引擎
 #
-# voice:start 仅校验 REQUIRED_FOR_CALL（stt + tts），只有这两个都就绪通话才可用；
+# voice:start 校验 stt（必需）+ 按前端活跃 TTS 选择的引擎（默认 Edge TTS :8001）；
+# 自定义/未知引擎由前端自行托管（tts 标记 managed_by_frontend，不阻塞通话）；
 # tts_vc 作为增强项后台尽力拉起，不阻塞通话启动（缺权重时直接跳过）。
 SERVICE_DEFS = {
     "stt": {
@@ -61,8 +63,26 @@ SERVICE_DEFS = {
     },
 }
 
-# voice:start 必须就绪的服务（缺任何一个通话不可用）
-REQUIRED_FOR_CALL = ("stt", "tts")
+# 前端 provider typeName -> 本模块服务 key
+_TYPE_TO_SERVICE = {
+    "edge_tts": "tts",
+    "gpt_sovits": "tts_vc",
+    "cosyvoice": "tts_cosy",
+}
+
+
+def _resolve_tts_key(type_name: str | None) -> str | None:
+    """把前端活跃 TTS 的 typeName 映射到 SERVICE_DEFS 的服务 key。
+
+    返回 None 表示该引擎不由本模块拉起（custom/未知，由前端自行托管）。
+    未传 type_name 时默认 Edge TTS（向后兼容）。
+    """
+    if not type_name:
+        return "tts"
+    if type_name in SERVICE_DEFS:
+        return type_name
+    return _TYPE_TO_SERVICE.get(type_name)
+
 
 # key -> subprocess.Popen（仅记录由本模块拉起的进程）
 _PROCS: dict[str, subprocess.Popen] = {}
@@ -180,18 +200,26 @@ def ensure_service_best_effort(key: str) -> dict:
     return {"key": key, "ok": True, "status": "starting"}
 
 
-def ensure_voice_services() -> dict:
-    """拉起语音通话所需服务：STT + Edge TTS（必需），GPT-SoVITS（可选增强）。
+def ensure_voice_services(type_name: str | None = None) -> dict:
+    """拉起语音通话所需服务：STT（必需）+ 按前端活跃 TTS 选择的引擎（默认 Edge TTS）。
 
-    返回各服务状态，并带 all_ready 表示「通话关键服务是否就绪」。
+    - type_name 为前端活跃 TTS 的 provider typeName（edge_tts/gpt_sovits/cosyvoice/custom）。
+    - CosyVoice 端口一开 /health 即 200（模型加载中也是 200），网关不会阻塞在模型加载上；
+      真正的"模型就绪"由前端 ensureActiveTTSBackend 的 isAvailable() 兜底等待。
+      若引擎已被前端拉起，此处检测端口占用直接复用，不重复 spawn。
+    - custom/未知类型：TTS 由前端自行托管，本模块只保证 STT 就绪（tts 标记 managed_by_frontend）。
     """
+    tts_key = _resolve_tts_key(type_name)
     out: dict[str, dict] = {}
-    for key in REQUIRED_FOR_CALL:
-        out[key] = ensure_service(key)
-    all_ready = all(out[k].get("ok") for k in REQUIRED_FOR_CALL)
-    # 可选增强：GPT-SoVITS 声音克隆，后台尽力拉起，不阻塞通话
-    out["tts_vc"] = ensure_service_best_effort("tts_vc")
-    out["all_ready"] = all_ready
+    out["stt"] = ensure_service("stt")
+    if tts_key and tts_key in SERVICE_DEFS:
+        out["tts"] = ensure_service(tts_key)
+    else:
+        out["tts"] = {"key": "tts", "ok": True, "status": "managed_by_frontend"}
+    out["all_ready"] = bool(out["stt"].get("ok") and out["tts"].get("ok"))
+    # 可选增强：GPT-SoVITS 声音克隆，后台尽力拉起，不阻塞通话（已选 tts_vc 时跳过）
+    if tts_key != "tts_vc":
+        out["tts_vc"] = ensure_service_best_effort("tts_vc")
     return out
 
 

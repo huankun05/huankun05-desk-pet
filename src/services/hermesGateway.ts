@@ -241,9 +241,14 @@ export class HermesGatewayClient {
     }
   }
 
-  /** 语音通话：按需拉起/释放本地 STT/TTS 服务（像 QQ 语音通话：用时才启动） */
-  sendVoice(action: 'start' | 'stop'): void {
-    const payload = JSON.stringify({ type: 'voice', action });
+  /** 语音通话：按需拉起/释放本地 STT/TTS 服务（像 QQ 语音通话：用时才启动）。
+   *  @param tts 活跃 TTS 的 typeName，让网关按前端激活的引擎拉起（默认 Edge TTS） */
+  sendVoice(action: 'start' | 'stop', tts?: { typeName?: string }): void {
+    const payload = JSON.stringify({
+      type: 'voice',
+      action,
+      ...(action === 'start' && tts?.typeName ? { tts } : {}),
+    });
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(payload);
     } else {
