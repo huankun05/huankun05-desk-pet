@@ -34,12 +34,25 @@ fn is_dev_mode() -> bool {
     }
 }
 
-/// 向上查找项目根目录（包含 package.json 的目录）
+/// 向上查找项目根目录（含 package.json 的真正项目根，跳过 Rust crate 目录 src-tauri）
 fn find_project_root() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let mut current = exe.parent()?;
     for _ in 0..10 {
-        if current.join("package.json").exists() || current.join("Cargo.toml").exists() {
+        let has_manifest =
+            current.join("package.json").exists() || current.join("Cargo.toml").exists();
+        if has_manifest {
+            // 跳过 Rust crate 目录 src-tauri，继续向上找真正的项目根。
+            // 否则开发期数据目录会落在 src-tauri/data，被 Tauri dev 文件监听器
+            // 死盯（程序运行时会持续写入），导致反复重新编译+重启。
+            if current
+                .file_name()
+                .map(|n| n == "src-tauri")
+                .unwrap_or(false)
+            {
+                current = current.parent()?;
+                continue;
+            }
             return Some(current.to_path_buf());
         }
         current = current.parent()?;
