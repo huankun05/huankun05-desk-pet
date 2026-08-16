@@ -25,6 +25,18 @@ use tauri::{Manager, State};
 
 use crate::errors::{AppError, CmdResult, ServiceError};
 
+/// Decode subprocess stderr bytes into a String.
+/// Windows consoles often emit GBK (code page 936) for Chinese text, so we try
+/// UTF-8 first, fall back to GBK, then to lossy UTF-8 to avoid crashing on
+/// decode errors (the old `reader.lines()` strict-UTF8 path broke the pipe).
+fn decode_stderr(bytes: &[u8]) -> String {
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return s.to_string();
+    }
+    let (decoded, _had_errors) = GBK.decode(bytes);
+    decoded.into_owned()
+}
+
 // ---------------------------------------------------------------------------
 // Structured Logging Types
 // ---------------------------------------------------------------------------
@@ -383,21 +395,29 @@ pub fn start_service_watcher(app_handle: tauri::AppHandle) {
                                 let svc_id = id.clone();
                                 let stderr_tx = log_tx.clone();
                                 std::thread::spawn(move || {
-                                    let reader = BufReader::new(stderr_reader);
-                                    for line in reader.lines() {
-                                        match line {
-                                            Ok(text) if !text.is_empty() => {
-                                                log_event(
-                                                    &stderr_tx,
-                                                    &svc_id,
-                                                    LogEvent::Stderr,
-                                                    &text,
-                                                    None,
-                                                    None,
-                                                );
+                                    // 同 service_start_raw_with_restart：原始字节 + 宽松解码，
+                                    // 避免 GBK 输出触发 UTF-8 解码失败而中断读取。
+                                    let mut reader = BufReader::new(stderr_reader);
+                                    let mut buf = Vec::new();
+                                    loop {
+                                        buf.clear();
+                                        match reader.read_until(b'\n', &mut buf) {
+                                            Ok(0) => break,
+                                            Ok(_) => {
+                                                let text =
+                                                    String::from_utf8_lossy(&buf).trim_end().to_string();
+                                                if !text.is_empty() {
+                                                    log_event(
+                                                        &stderr_tx,
+                                                        &svc_id,
+                                                        LogEvent::Stderr,
+                                                        &text,
+                                                        None,
+                                                        None,
+                                                    );
+                                                }
                                             }
                                             Err(_) => break,
-                                            _ => {}
                                         }
                                     }
                                 });
@@ -726,6 +746,14 @@ pub fn service_stop_all(state: State<ServiceManager>) -> CmdResult<()> {
     Ok(())
 }
 
+/// 查询最近 N 条服务运行日志（供前端展示服务控制台输出）。
+///
+/// 复用 ServiceManager 内部的日志环形缓冲区（get_logs）。
+#[tauri::command]
+pub fn get_service_logs(limit: usize, state: State<ServiceManager>) -> Vec<LogEntry> {
+    state.get_logs(limit)
+}
+
 /// 启动一个后端服务（替代原 Admin HTTP API `/api/service/start`）。
 ///
 /// `work_dir` 解析规则：空 / "." → 后端根目录；以 "." 或 ".." 开头 → 相对后端根目录解析；
@@ -866,11 +894,19 @@ pub fn service_start_raw_with_restart(
         let svc_id = id.clone();
         let stderr_tx = log_tx.clone();
         std::thread::spawn(move || {
-            let reader = BufReader::new(stderr_reader);
-            for line in reader.lines() {
-                match line {
-                    Ok(text) if !text.is_empty() => {
-                        log_event(&stderr_tx, &svc_id, LogEvent::Stderr, &text, None, None);
+            // 以原始字节读取 stderr，避免中文 Windows 下子进程输出 GBK 字节时，
+            // UTF-8 严格解码（reader.lines()）失败而 break 并误报 read error / 关闭管道。
+            let mut reader = BufReader::new(stderr_reader);
+            let mut buf = Vec::new();
+            loop {
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) => break, // EOF：管道关闭 / 进程结束
+                    Ok(_) => {
+                        let text = decode_stderr(&buf).trim_end().to_string();
+                        if !text.is_empty() {
+                            log_event(&stderr_tx, &svc_id, LogEvent::Stderr, &text, None, None);
+                        }
                     }
                     Err(e) => {
                         log_event(
@@ -883,7 +919,6 @@ pub fn service_start_raw_with_restart(
                         );
                         break;
                     }
-                    _ => {}
                 }
             }
             log_event(

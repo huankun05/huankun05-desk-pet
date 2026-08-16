@@ -121,6 +121,11 @@ pub fn read_secure_file(key: &str) -> Result<String, AppError> {
 }
 
 /// 加密并写入敏感数据文件（供 HTTP handler 等直接写入文件的场景使用）
+///
+/// 当前由 settings↔providers 同步函数（sync_settings_to_providers /
+/// sync_providers_to_settings）调用；作为预留的通用安全写入入口，后续
+/// HTTP handler 也可直接调用，故显式标注允许当前未接线使用。
+#[allow(dead_code)]
 pub fn write_secure_file(key: &str, data: &str) -> Result<(), AppError> {
     let dir = get_data_dir()?;
     let path = dir.join(format!("{}.json", key));

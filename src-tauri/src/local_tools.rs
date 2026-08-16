@@ -134,6 +134,21 @@ pub fn open_file(path: String) -> CmdResult<()> {
 }
 
 // ===========================================================================
+// 剪贴板写入
+// ===========================================================================
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+pub fn write_clipboard(text: String) -> CmdResult<()> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|e| AppError::Generic(format!("无法访问剪贴板：{}", e)))?;
+    clipboard
+        .set_text(text)
+        .map_err(|e| AppError::Generic(format!("写入剪贴板失败：{}", e)))?;
+    Ok(())
+}
+
+// ===========================================================================
 // 受控命令执行（超时 + 输出截断 + 危险命令黑名单）
 // ===========================================================================
 
@@ -297,7 +312,7 @@ unsafe fn send_media_key(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUA
             },
         },
     };
-    SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
 }
 
 // ===========================================================================
@@ -309,9 +324,7 @@ unsafe fn send_media_key(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUA
 pub fn lock_screen() -> CmdResult<()> {
     use windows::Win32::System::Shutdown::LockWorkStation;
     unsafe {
-        if !LockWorkStation().as_bool() {
-            return Err(AppError::Generic("锁定屏幕失败".into()));
-        }
+        LockWorkStation().map_err(|e| AppError::Generic(format!("锁定屏幕失败：{}", e)))?;
     }
     Ok(())
 }
@@ -366,12 +379,14 @@ pub fn get_battery() -> CmdResult<BatteryInfo> {
 #[cfg(target_os = "windows")]
 fn with_endpoint_volume<F, T>(f: F) -> CmdResult<T>
 where
-    F: FnOnce(&windows::Win32::Media::Audio::IAudioEndpointVolume) -> CmdResult<T>,
+    F: FnOnce(
+        &windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume,
+    ) -> CmdResult<T>,
 {
-    use windows::core::Interface;
     use windows::Win32::Media::Audio::{
-        eConsole, eRender, IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator,
+        eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
     };
+    use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
     };
@@ -433,7 +448,7 @@ pub fn notify(title: String, body: String) -> CmdResult<()> {
     );
     let doc = XmlDocument::new()
         .map_err(|e| AppError::Generic(format!("创建 XML 文档失败：{}", e)))?;
-    doc.LoadXml(HSTRING::from(xml))
+    doc.LoadXml(&HSTRING::from(xml))
         .map_err(|e| AppError::Generic(format!("加载 XML 失败：{}", e)))?;
     let toast = ToastNotification::CreateToastNotification(&doc)
         .map_err(|e| AppError::Generic(format!("创建 Toast 失败：{}", e)))?;

@@ -1186,6 +1186,7 @@ fn load_project_data(key: String, subdir: Option<String>) -> CmdResult<String> {
 
 /// 将 settings.json 中的 chat 配置同步到 providers.json
 /// 确保旧 Settings 页面和新 Providers 系统的配置保持一致
+#[allow(dead_code)]
 pub(crate) fn sync_settings_to_providers(
     _data_dir: &std::path::Path,
     api_url: &str,
@@ -1238,6 +1239,7 @@ pub(crate) fn sync_settings_to_providers(
 }
 
 /// 将活跃 Chat Provider 的配置反向同步到 settings.json
+#[allow(dead_code)]
 pub(crate) fn sync_providers_to_settings(
     _data_dir: &std::path::Path,
     providers: &serde_json::Value,
@@ -1349,7 +1351,8 @@ pub fn run() {
             local_tools::get_battery,
             local_tools::get_volume,
             local_tools::set_volume,
-            local_tools::notify
+            local_tools::notify,
+            service::get_service_logs
         ])
         .setup(|app| {
             // 生成管理后台鉴权 token

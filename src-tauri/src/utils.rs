@@ -203,6 +203,7 @@ pub fn cleanup_temp_files(max_age_hours: u64) -> Result<u64, AppError> {
 }
 
 /// Convert unix millis to YYYY-MM-DD string
+#[allow(dead_code)]
 pub fn chrono_timestamp_to_date(millis: u64) -> String {
     let secs = millis / 1000;
     let days = secs / 86400;
@@ -241,6 +242,7 @@ pub fn chrono_timestamp_to_date(millis: u64) -> String {
 }
 
 /// Append a log entry
+#[allow(dead_code)]
 pub fn append_log(data_dir: &std::path::Path, level: &str, message: &str) -> Result<(), AppError> {
     let log_path = data_dir.join("logs.json");
     let mut logs: Vec<serde_json::Value> = if log_path.exists() {
@@ -266,6 +268,7 @@ pub fn append_log(data_dir: &std::path::Path, level: &str, message: &str) -> Res
 }
 
 /// Read log entries
+#[allow(dead_code)]
 pub fn read_logs(data_dir: &std::path::Path) -> Vec<serde_json::Value> {
     let log_path = data_dir.join("logs.json");
     if log_path.exists() {
@@ -276,6 +279,7 @@ pub fn read_logs(data_dir: &std::path::Path) -> Vec<serde_json::Value> {
 }
 
 /// Default empty providers configuration
+#[allow(dead_code)]
 pub fn default_providers_json() -> String {
     serde_json::json!({
         "configs": [],
@@ -297,6 +301,7 @@ pub fn default_providers_json() -> String {
 }
 
 /// Emit memory update to pet app frontend
+#[allow(dead_code)]
 pub fn emit_memory_update(app: &tauri::AppHandle, data_dir: &std::path::Path) {
     let memory_path = data_dir.join("memory.json");
     if let Ok(content) = fs::read_to_string(&memory_path) {
