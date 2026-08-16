@@ -236,7 +236,7 @@
 |------|------|----------|------|
 | **P0 权限网关（核心）** | `PermissionManager` 单例：双层能力定义、风险分级、四态授权查询、首次询问事件总线、系统能力检查、审计写入；包装 `toolRegistry.execute`；`ToolLoopRunner` 改用之 | `src/services/permission/*`(新)、`tool-loop.ts`、`registry.ts` | 工具执行前必经授权；拒绝/审计可用 |
 | **P1 设置页** | `/settings/permissions`：总开关 + **按风险折叠分组(默认折叠)** + 系统能力区 + 审计日志查看/筛选/导出/清空 + 重置 + i18n | `routes.tsx`、`settingsTree`、`pages/permissions/*`、`zh-CN.json`/`en-US.json` | 可逐项授权、随时改模式的人性化界面 |
-| **P2 新工具** | `open_app` + 应用目录（Rust）；`run_command`（Rust + 黑名单）；可选 `media_control` | `builtins.ts`、Rust `lib.rs`/`commands.rs`、`capabilities/default.json` | 本地操作能力补齐 |
+| **P2 新工具** | 11 个本地工具：open_app/open_file/open_folder/run_command/media_control/write_clipboard/lock_screen/get_battery/get_volume/set_volume/notify + get_time；系统级集成（媒体键/Core Audio/WinRT Toast/锁屏） | `local_tools.rs`、`builtins.ts`、`capabilities.ts`、`PermissionManager.ts` | 本地操作能力补齐 |
 | **P3 语音 UX** | `ConsentGate` 确认卡 UI 已在 P0/P1 落地（四按钮 + 高危红警 + 参数级确认，主窗+聊天面板）；本阶段补 **TTS 确认语播报、语音应答、紧急停止快捷键、首次运行权限向导** | `ConsentGate.tsx`、`useGlobalShortcuts.ts`、向导组件 | 知情同意 + 可中止闭环 |
 | **P4 打磨** | 高危二次确认 + PIN（可选）、撤销预览、智能提权建议、限流、文档 `docs/voice-permission.md`、`settings:check` 全绿 | 各阶段文件 + 文档 | 可交付 |
 | **P5 唤醒可视层（后续探讨）** | 唤醒后在屏幕**上方中央"刘海"位置**渲染**声纹/声波波浪动画**；实时显示 STT 语音转文字字幕；与现有唤醒链路（`useWakeWord`）对接 | `WakeOverlay.tsx`(新)、动画组件 | 唤醒有视觉反馈、说话可见字幕 |
@@ -263,8 +263,28 @@
 - i18n：`zh-CN.json` / `en-US.json` 新增 `settings.privacy.*` 全量命名空间；授权方式 / 保留时长选项改为 `t()` 动态取值（中英双语）。
 - **验证**：`tsc --noEmit` 0 错；`npm run settings:check` 全绿（37 路径 / 38 loader / 9 Index）。
 
-### 🟡 P2–P5（待实现）
-- **P2 新工具**：`open_app`（应用目录模糊匹配 + Rust `open_app` 命令）、`run_command`（Rust `run_shell_command` + 黑名单）、`media_control`（系统媒体键）。权限闸口已就位，装上工具即可被管控。
+### 🟢 P2 新工具（已完成）
+新增模块 `src-tauri/src/local_tools.rs`（统一在 `generate_handler!` 注册），前端 `builtins.ts` 注册对应工具，全部经 `toolRegistry.execute` 授权网关管控。
+
+| 工具 | Rust 命令 | 风险 | 默认 | 实现要点 / 系统接轨 |
+|------|-----------|------|------|---------------------|
+| `open_app` | `open_app` | 中 | 询问 | 解析开始菜单 `Get-StartApps` 的 AppUserModelID（`shell:AppsFolder\AUMID` 启动），失败回退 `cmd /c start`；UWP/桌面应用通吃 |
+| `open_file` | `open_file` | 中 | 询问 | `open::that(path)` 用默认程序打开 |
+| `open_folder` | `open_path`（复用） | 低 | 允许 | 文件管理器打开目录 |
+| `run_command` | `run_command` | 高 | 询问+红警 | `cmd /c`（Linux `sh`），带超时（1–300s）与输出截断（20K），命中危险命令黑名单强制二次确认 |
+| `media_control` | `media_control` | 中 | 询问 | 发送系统媒体键 `VK_MEDIA_*`（play_pause/next/prev/stop/mute/volume±），对**任意播放器**生效（真·系统级） |
+| `write_clipboard` | `write_clipboard` | 低 | 允许 | `arboard` 写系统剪贴板 |
+| `lock_screen` | `lock_screen` | 中 | 询问 | `LockWorkStation()` |
+| `get_battery` | `get_battery` | 低 | 允许 | PowerShell `Win32_Battery`（台式机返回无电池） |
+| `get_volume`/`set_volume` | `get_volume`/`set_volume` | 低/中 | 允许/询问 | Windows Core Audio `IAudioEndpointVolume`（绝对音量 0–100） |
+| `notify` | `notify` | 低 | 允许 | WinRT Toast（`ToastNotificationManager`），系统级通知 |
+| `get_time` | （纯前端） | 低 | 允许 | `new Date()` 本地时间 |
+
+- **性能/体验**：`Get-StartApps` 结果缓存到 `Mutex`，避免每次打开应用都跑 PowerShell；`run_command` 用 channel + `recv_timeout` 真超时，不阻塞工具循环；危险命令仍强制二次确认（安全底线）。
+- **能力注册**：`capabilities.ts` 的 `ACTION_CAPABILITIES` 已补齐上述 11 项（含 `open_app`/`run_command`/`media_control` 预置项），`PermissionManager.buildParamsSummary/buildTitle` 已为各工具生成确认卡标题与参数摘要。
+- **验证**：`tsc --noEmit` 0 错；`npm run settings:check` 全绿。⚠️ Rust 侧（`windows` 0.58 媒体键 / Core Audio / WinRT Toast）需 `cargo build`/重启 `pnpm tauri dev` 实测编译（本会话沙箱无法联网/可能被构建锁占用，已提交代码待本机编译验证）。
+
+### 🟡 P3–P5（待实现）
 - **P3 语音 UX**：ConsentGate **UI 已在 P0/P1 落地**（四按钮+高危红警+参数确认），但 **TTS 确认语播报、语音应答、紧急停止快捷键、首次运行权限向导** 仍待实现。
 - **P4 打磨**：高危二次确认 + PIN（可选）、撤销预览、智能提权建议、限流、本文档定型。
 - **P5 唤醒可视层**：屏幕上方中央「刘海」位声纹波浪动画 + 实时 STT 字幕（独立阶段，待核心闭环跑通后细聊）。

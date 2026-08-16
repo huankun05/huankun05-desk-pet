@@ -14,6 +14,7 @@ mod shortcuts;
 mod tray;
 mod utils;
 mod wake_word;
+mod local_tools;
 
 /// 重启 Hermes Gateway（端口 8765）。由托盘菜单「重启后端」调用。
 ///
@@ -1338,7 +1339,17 @@ pub fn run() {
             set_autolaunch,
             is_autolaunch_enabled,
             open_devtools,
-            set_always_on_top
+            set_always_on_top,
+            local_tools::open_app,
+            local_tools::open_file,
+            local_tools::run_command,
+            local_tools::media_control,
+            local_tools::write_clipboard,
+            local_tools::lock_screen,
+            local_tools::get_battery,
+            local_tools::get_volume,
+            local_tools::set_volume,
+            local_tools::notify
         ])
         .setup(|app| {
             // 生成管理后台鉴权 token

@@ -79,6 +79,33 @@ function buildParamsSummary(toolName: string, args: Record<string, unknown>): st
   if (toolName === 'open_url' && typeof args.url === 'string') {
     return `网址：${args.url}`;
   }
+  if (
+    (toolName === 'open_file' || toolName === 'open_folder') &&
+    typeof args.path === 'string'
+  ) {
+    return `路径：${args.path}`;
+  }
+  if (toolName === 'media_control' && typeof args.action === 'string') {
+    const label: Record<string, string> = {
+      play_pause: '播放/暂停',
+      next: '下一首',
+      prev: '上一首',
+      stop: '停止',
+      mute: '静音',
+      volume_up: '音量+',
+      volume_down: '音量-',
+    };
+    return `动作：${label[args.action] ?? args.action}`;
+  }
+  if (toolName === 'notify' && typeof args.title === 'string') {
+    return `通知：${args.title}`;
+  }
+  if (toolName === 'set_volume' && typeof args.level !== 'undefined') {
+    return `音量：${args.level}`;
+  }
+  if (toolName === 'write_clipboard' && typeof args.text === 'string') {
+    return `文本（${args.text.length} 字符，未展示内容）`;
+  }
   if (toolName === 'write_file' || toolName === 'save_to_desktop') {
     const parts: string[] = [];
     if (typeof args.path === 'string') parts.push(`路径：${args.path}`);
@@ -97,6 +124,27 @@ function buildParamsSummary(toolName: string, args: Record<string, unknown>): st
 function buildTitle(capLabel: string, toolName: string, args: Record<string, unknown>): string {
   if (toolName === 'open_app' && typeof args.app_name === 'string') {
     return `打开${args.app_name}`;
+  }
+  if (toolName === 'open_file') {
+    return '打开文件';
+  }
+  if (toolName === 'open_folder') {
+    return '打开文件夹';
+  }
+  if (toolName === 'media_control') {
+    return '媒体控制';
+  }
+  if (toolName === 'notify') {
+    return '系统通知';
+  }
+  if (toolName === 'lock_screen') {
+    return '锁定屏幕';
+  }
+  if (toolName === 'set_volume') {
+    return '设置音量';
+  }
+  if (toolName === 'write_clipboard') {
+    return '写入剪贴板';
   }
   if (toolName === 'run_command') {
     return '执行命令';

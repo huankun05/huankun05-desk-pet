@@ -192,4 +192,237 @@ export function registerBuiltinTools(): void {
       return `已在浏览器中打开: ${url}`;
     },
   });
+
+  // ===== P2：本地操作工具（经 PermissionManager 授权网关） =====
+
+  toolRegistry.register({
+    name: 'get_time',
+    description:
+      '获取当前系统日期和时间。当用户问"现在几点"、"今天几号"、"现在是什么时候"等场景时使用。返回本地时间字符串。',
+    parameters: {},
+    execute: async () => {
+      const now = new Date();
+      return now.toLocaleString('zh-CN', { hour12: false });
+    },
+  });
+
+  toolRegistry.register({
+    name: 'open_app',
+    description:
+      '按名称启动本地应用程序（如"网易云音乐"、"微信"、"记事本"）。当用户说"打开网易云"、"启动微信"、"开个浏览器"等场景时使用。支持模糊匹配开始菜单中的应用名。',
+    parameters: {
+      app_name: {
+        type: 'string',
+        description: '要打开的应用名称（支持部分匹配，如"网易云"可匹配"网易云音乐"）',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const appName = args.app_name as string;
+      await invoke('open_app', { app_name: appName });
+      return `已尝试打开应用: ${appName}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'open_file',
+    description:
+      '用系统默认程序打开指定文件（如图片、文档、视频）。当用户说"打开这个文件"、"看一下这张图"等场景时使用。',
+    parameters: {
+      path: {
+        type: 'string',
+        description: '文件完整路径',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const path = args.path as string;
+      await invoke('open_file', { path });
+      return `已用默认程序打开文件: ${path}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'open_folder',
+    description:
+      '在系统文件管理器中打开指定文件夹。当用户说"打开下载目录"、"看看桌面文件夹"等场景时使用。',
+    parameters: {
+      path: {
+        type: 'string',
+        description: '文件夹完整路径',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const path = args.path as string;
+      await invoke('open_path', { path });
+      return `已在文件管理器中打开: ${path}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'run_command',
+    description:
+      '在系统上执行命令行指令（高危操作，需明确授权）。仅当用户明确要求"运行命令"、"执行 xxx 命令"、"用命令行做 xxx"时使用。可返回命令的标准输出与错误输出。',
+    parameters: {
+      command: {
+        type: 'string',
+        description: '要执行的命令行指令',
+        required: true,
+      },
+      cwd: {
+        type: 'string',
+        description: '命令执行的工作目录（可选）',
+        required: false,
+      },
+      timeout_secs: {
+        type: 'number',
+        description: '超时秒数（1-300，默认 30）',
+        required: false,
+      },
+    },
+    execute: async (args) => {
+      const command = args.command as string;
+      const cwd = (args.cwd as string) ?? undefined;
+      const timeoutSecs = (args.timeout_secs as number) ?? undefined;
+      const result = await invoke<{ exit_code: number; stdout: string; stderr: string }>(
+        'run_command',
+        { command, cwd, timeout_secs: timeoutSecs },
+      );
+      let out = `命令退出码: ${result.exit_code}`;
+      if (result.stdout) out += `\n标准输出:\n${result.stdout}`;
+      if (result.stderr) out += `\n错误输出:\n${result.stderr}`;
+      return out;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'media_control',
+    description:
+      '控制系统媒体播放（播放/暂停、上一首、下一首、停止、静音、音量加减）。当用户说"播放音乐"、"下一首"、"暂停"、"静音"、"声音大一点"等场景时使用。作用于系统级媒体键，对任何播放器都生效。',
+    parameters: {
+      action: {
+        type: 'string',
+        description:
+          '动作：play_pause(播放/暂停) / next(下一首) / prev(上一首) / stop(停止) / mute(静音) / volume_up(音量+) / volume_down(音量-)',
+        enum: ['play_pause', 'next', 'prev', 'stop', 'mute', 'volume_up', 'volume_down'],
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const action = args.action as string;
+      await invoke('media_control', { action });
+      const label: Record<string, string> = {
+        play_pause: '播放/暂停',
+        next: '下一首',
+        prev: '上一首',
+        stop: '停止',
+        mute: '静音',
+        volume_up: '音量增加',
+        volume_down: '音量减少',
+      };
+      return `已发送媒体指令: ${label[action] ?? action}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'write_clipboard',
+    description:
+      '把文本内容写入系统剪贴板。当用户说"把这段话复制到剪贴板"、"记下来…（放剪贴板）"等场景时使用。',
+    parameters: {
+      text: {
+        type: 'string',
+        description: '要写入剪贴板的文本',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const text = args.text as string;
+      await invoke('write_clipboard', { text });
+      return `已写入剪贴板（${text.length} 字符）`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'lock_screen',
+    description:
+      '锁定当前电脑屏幕。当用户说"锁屏"、"帮我锁住电脑"、"离开时锁屏"等场景时使用。',
+    parameters: {},
+    execute: async () => {
+      await invoke('lock_screen');
+      return '已锁定屏幕';
+    },
+  });
+
+  toolRegistry.register({
+    name: 'get_battery',
+    description:
+      '读取当前设备的电量与电源状态（笔记本显示百分比，台式机显示无电池）。当用户问"还有多少电"、"在充电吗"等场景时使用。',
+    parameters: {},
+    execute: async () => {
+      const info = await invoke<{ percent: number | null; status: string; on_ac: boolean }>(
+        'get_battery',
+      );
+      if (info.percent == null) {
+        return `当前设备无电池（台式机），电源状态：${info.status}`;
+      }
+      return `电量: ${info.percent}% ｜ 状态: ${info.status}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'get_volume',
+    description:
+      '读取当前系统主音量（0-100）。当用户问"现在音量多大"等场景时使用。',
+    parameters: {},
+    execute: async () => {
+      const level = await invoke<number>('get_volume');
+      return `当前系统音量: ${Math.round(level)}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'set_volume',
+    description:
+      '设置系统主音量（0-100）。当用户说"把音量调到 50"、"声音大一点/小一点"（可配合 get_volume 使用）等场景时使用。',
+    parameters: {
+      level: {
+        type: 'number',
+        description: '目标音量，0-100 的整数',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const level = Number(args.level);
+      if (!Number.isFinite(level) || level < 0 || level > 100) {
+        return '音量需在 0-100 之间';
+      }
+      await invoke('set_volume', { level });
+      return `已将系统音量设为: ${Math.round(level)}`;
+    },
+  });
+
+  toolRegistry.register({
+    name: 'notify',
+    description:
+      '弹出一条系统通知（Toast）。当用户说"提醒我…"、"通知我…"、"弹个提示"等场景时使用。可指定标题与内容。',
+    parameters: {
+      title: {
+        type: 'string',
+        description: '通知标题',
+        required: true,
+      },
+      body: {
+        type: 'string',
+        description: '通知正文',
+        required: true,
+      },
+    },
+    execute: async (args) => {
+      const title = args.title as string;
+      const body = args.body as string;
+      await invoke('notify', { title, body });
+      return `已发送系统通知: ${title}`;
+    },
+  });
 }
