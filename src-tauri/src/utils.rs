@@ -202,34 +202,6 @@ pub fn cleanup_temp_files(max_age_hours: u64) -> Result<u64, AppError> {
     Ok(deleted_count)
 }
 
-/// 生成 JSON Content-Type header（编译时保证格式正确，不会失败）
-pub fn json_header() -> tiny_http::Header {
-    "Content-Type: application/json"
-        .parse()
-        .expect("BUG: hardcoded Content-Type header failed to parse")
-}
-
-/// 安全解析 Content-Type header（用于动态 MIME 类型）
-pub fn parse_content_type(mime: &str) -> tiny_http::Header {
-    format!("Content-Type: {}", mime)
-        .parse()
-        .expect("BUG: dynamic Content-Type header failed to parse")
-}
-
-/// 安全解析 CORS header
-pub fn cors_header() -> tiny_http::Header {
-    "Access-Control-Allow-Origin: *"
-        .parse()
-        .expect("BUG: CORS header failed to parse")
-}
-
-/// 读取 HTTP 请求 body
-pub fn read_body(request: &mut tiny_http::Request) -> String {
-    let mut body = String::new();
-    let _ = request.as_reader().read_to_string(&mut body);
-    body
-}
-
 /// Convert unix millis to YYYY-MM-DD string
 pub fn chrono_timestamp_to_date(millis: u64) -> String {
     let secs = millis / 1000;

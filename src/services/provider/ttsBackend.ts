@@ -8,8 +8,8 @@
  *
  * 本模块提供统一的"先探测 → 未运行则拉起 → 轮询就绪"逻辑，并解决两个坑：
  *   1) 幂等：Rust 端 service_start_raw 非幂等（会先 kill 同端口旧进程再起新的）。
- *      所以严格"先探后起"；并用 admin /api/service/list 判断端口是否已被本机
- *      任意窗口跟踪，避免跨窗口重复 POST 把正在加载的引擎杀掉重来。
+ *      所以严格"先探后起"；并用 Tauri 命令 service_list 判断端口是否已被本机
+ *      任意窗口跟踪，避免跨窗口重复拉起把正在加载的引擎杀掉重来。
  *   2) 就绪准确性：CosyVoice 模型加载约 10~20s，期间 /health 即返回 200 但
  *      model_loaded=false。provider.isAvailable() 已修正为要求模型真正就绪，
  *      故轮询会等到可合成才放行，首句不再卡顿。
@@ -25,10 +25,9 @@ import { providerManager } from './manager';
 import { startProviderService, stopProviderServiceById, resolveLaunchSpec } from './serviceLauncher';
 import type { TTSProvider } from './types';
 import { createLogger } from '../../utils/logger';
+import { invoke } from '@tauri-apps/api/core';
 
 const log = createLogger('TTSBackend');
-
-const ADMIN_PORT = 9876;
 
 /** 跨调用 / 跨窗口去重：同一时刻只跑一个 ensure 流程，其余复用同一 Promise。 */
 let inFlight: Promise<boolean> | null = null;
@@ -44,18 +43,13 @@ interface ServiceInfoDTO {
   error?: string;
 }
 
-/** 查询 Rust 管理后台已跟踪的服务列表（跨进程一致，可判定某端口是否正在启动/运行）。 */
+/** 查询 Rust 已跟踪的服务列表（跨进程一致，可判定某端口是否正在启动/运行）。 */
 async function queryServiceList(): Promise<ServiceInfoDTO[] | null> {
   try {
-    const res = await fetch(`http://127.0.0.1:${ADMIN_PORT}/api/service/list`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { services?: ServiceInfoDTO[] };
-    return data.services ?? [];
+    const list = await invoke<ServiceInfoDTO[]>('service_list');
+    return list ?? [];
   } catch {
-    // 管理后台不可达（理论上与 TTS 后端同进程，极少见）→ 不阻塞，交由下方启动逻辑
+    // 命令调用失败（极少见）→ 不阻塞，交由下方启动逻辑
     return null;
   }
 }

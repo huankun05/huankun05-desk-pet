@@ -4,7 +4,6 @@ use std::sync::Mutex;
 use tauri::Emitter;
 use tauri::Manager;
 
-mod admin_server;
 mod backend;
 mod crypto;
 mod errors;
@@ -1328,6 +1327,7 @@ pub fn run() {
             mcp::mcp_list_connections,
             service::service_stop,
             service::service_list,
+            service::service_start,
             service::service_status,
             service::service_stop_all,
             tray::hide_to_tray,
@@ -1528,9 +1528,6 @@ pub fn run() {
                     }
                 });
             });
-
-            // 启动管理后台 HTTP 服务器（传入 AppHandle 用于事件通知）
-            crate::admin_server::start_admin_server(app.handle().clone());
 
             // 启动后台服务保活监控（自适应轮询：活跃10秒/空闲60秒）
             service::start_service_watcher(app.handle().clone());

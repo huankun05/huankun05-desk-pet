@@ -651,6 +651,33 @@ pub fn service_list(state: State<ServiceManager>) -> CmdResult<Vec<ServiceInfo>>
     for id in &to_remove {
         procs.remove(id);
     }
+    drop(procs); // 释放锁后再做 HTTP 健康检查，避免阻塞其他线程
+
+    // 额外检测已配置 Provider 的端口（捕获外部启动的服务，等价于原 Admin API /api/service/list）
+    if let Ok(content) = crate::crypto::read_secure_file("providers") {
+        if let Ok(providers) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(configs) = providers["configs"].as_array() {
+                for cfg in configs {
+                    if let Some(port_val) = cfg["port"].as_u64() {
+                        let port = port_val as u16;
+                        let id = format!("service_{}", port);
+                        // 仅检测不在托管列表中的端口
+                        if !list.iter().any(|s| s.id == id) {
+                            // 用 HTTP 健康检查（含 TCP 检测 + HTTP GET /health）
+                            if check_http_health(port) {
+                                list.push(ServiceInfo {
+                                    id,
+                                    status: ServiceStatus::Running,
+                                    port,
+                                    error: String::new(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Ok(list)
 }
@@ -697,6 +724,52 @@ pub fn service_stop_all(state: State<ServiceManager>) -> CmdResult<()> {
         kill_process(&mut proc.child, &log_tx, &id);
     }
     Ok(())
+}
+
+/// 启动一个后端服务（替代原 Admin HTTP API `/api/service/start`）。
+///
+/// `work_dir` 解析规则：空 / "." → 后端根目录；以 "." 或 ".." 开头 → 相对后端根目录解析；
+/// 否则视为绝对/相对路径直接使用。`command` 解析规则：绝对路径直接使用；含分隔符 → 相对
+/// `work_dir` 解析；否则按裸命令名交给 PATH 查找。
+#[tauri::command]
+pub fn service_start(
+    id: String,
+    command: String,
+    args: Vec<String>,
+    work_dir: String,
+    port: u16,
+    app: tauri::AppHandle,
+) -> CmdResult<ServiceInfo> {
+    // 解析工作目录：相对路径基于后端根目录
+    let app_root = crate::backend::backend_root(&app);
+    let work_dir = if work_dir.is_empty() || work_dir == "." {
+        app_root.to_string_lossy().to_string()
+    } else if work_dir.starts_with('.') || work_dir.starts_with("..") {
+        app_root.join(&work_dir).to_string_lossy().to_string()
+    } else {
+        work_dir
+    };
+
+    // 解析命令路径：
+    //  - 绝对路径（含盘符如 F:/... 或 \\server\...）直接使用，便于自定义模型指定自己的 Python；
+    //  - 含分隔符的相对路径基于 work_dir 解析；
+    //  - 否则按裸命令名交给 PATH 查找。
+    let resolved_command = if std::path::Path::new(&command).is_absolute() {
+        command.clone()
+    } else if command.contains('/') || command.contains('\\') {
+        std::path::Path::new(&work_dir)
+            .join(&command)
+            .to_string_lossy()
+            .to_string()
+    } else {
+        command.clone()
+    };
+
+    if id.is_empty() || command.is_empty() {
+        return Err(AppError::from("缺少 id 或 command"));
+    }
+
+    service_start_raw(&resolved_command, &args, &work_dir, port, &app)
 }
 
 /// 注册服务进程到管理器（由 HTTP handler 调用）
@@ -899,7 +972,8 @@ pub fn service_stop_by_id(manager: &ServiceManager, id: &str) -> CmdResult<()> {
     Ok(())
 }
 
-/// 获取单个服务状态（供 HTTP handler 调用）
+/// 获取单个服务状态（原 Admin HTTP API `/api/service/status` 使用；Admin 移除后暂未使用）
+#[allow(dead_code)]
 pub fn service_get_status(manager: &ServiceManager, id: String) -> ServiceInfo {
     let mut procs = match manager.processes.lock() {
         Ok(p) => p,

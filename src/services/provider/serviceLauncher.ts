@@ -1,9 +1,10 @@
 /**
  * 服务自动启动器
  *
- * 后端服务（TTS 本地引擎等）由 Rust 端 `service.rs` 管理，前端通过管理后台的
- * HTTP 接口启动：POST http://127.0.0.1:9876/api/service/start
- *    body: { id, command, args: string[], workDir, port, env }
+ * 后端服务（TTS 本地引擎等）由 Rust 端 `service.rs` 管理，前端通过 Tauri 命令
+ * 直接调起（不再经过管理后台 HTTP 服务 / 端口 9876）：
+ *   invoke('service_start', { id, command, args, workDir, port })  → 启动
+ *   invoke('service_stop', { id })                                → 停止
  *
  * 这里封装「注册 provider 后自动拉起对应后端」的逻辑，让向导实现
  * “填完关键信息 → 直接运行起来”的体验。
@@ -13,8 +14,7 @@
  */
 
 import type { ServiceLaunchSpec } from './types';
-
-const ADMIN_PORT = 9876;
+import { invoke } from '@tauri-apps/api/core';
 
 /** 解析后的启动规格（带服务 id，用于 POST 给管理后台）。 */
 interface ResolvedLaunchSpec extends ServiceLaunchSpec {
@@ -84,13 +84,14 @@ export async function startProviderService(
   const spec = resolveLaunchSpec(typeName, launch);
   if (!spec) return false;
   try {
-    const res = await fetch(`http://127.0.0.1:${ADMIN_PORT}/api/service/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(spec),
+    await invoke('service_start', {
+      id: spec.id,
+      command: spec.command,
+      args: spec.args,
+      workDir: spec.workDir,
+      port: spec.port,
     });
-    const data = (await res.json()) as { ok?: boolean };
-    return Boolean(data?.ok);
+    return true;
   } catch (err) {
     console.warn('[startProviderService] 启动请求失败:', err);
     return false;
@@ -108,13 +109,8 @@ export async function startTTSBackend(typeName: string): Promise<boolean> {
 export async function stopProviderServiceById(id: string): Promise<boolean> {
   if (!id) return false;
   try {
-    const res = await fetch(`http://127.0.0.1:${ADMIN_PORT}/api/service/stop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    const data = (await res.json()) as { ok?: boolean };
-    return Boolean(data?.ok);
+    await invoke('service_stop', { id });
+    return true;
   } catch (err) {
     console.warn('[stopProviderService] 停止请求失败:', err);
     return false;
