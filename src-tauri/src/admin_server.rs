@@ -1680,52 +1680,10 @@ pub(crate) fn start_admin_server(app: tauri::AppHandle) {
                 }
 
                 // 静态资源：提供 Vite 构建产物（JS/CSS/字体等）
-                (method, url) if method == "GET" && url.starts_with("/assets/") => {
-                    let file_name = url.trim_start_matches('/');
-                    // 防止路径穿越：拒绝包含 ".." 的请求
-                    if file_name.contains("..") {
-                        tiny_http::Response::from_string("{\"error\":\"invalid path\"}")
-                            .with_status_code(400)
-                    } else {
-                        let dist_dir = app
-                            .path()
-                            .resource_dir()
-                            .map(|r| r.join("dist"))
-                            .unwrap_or_else(|_| {
-                                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                                    .join("..")
-                                    .join("dist")
-                            });
-                        let file_path = dist_dir.join(file_name);
-                        // 规范化路径校验，确保最终路径仍在 dist 目录内
-                        let canonical_dist = dist_dir.canonicalize().unwrap_or(dist_dir.clone());
-                        let canonical_file = file_path.canonicalize().unwrap_or(file_path.clone());
-                        if canonical_file.starts_with(&canonical_dist) && file_path.exists() {
-                            let content = fs::read(&file_path).unwrap_or_default();
-                            let mime = if file_name.ends_with(".js") {
-                                "application/javascript; charset=utf-8"
-                            } else if file_name.ends_with(".css") {
-                                "text/css; charset=utf-8"
-                            } else if file_name.ends_with(".woff2") {
-                                "font/woff2"
-                            } else if file_name.ends_with(".woff") {
-                                "font/woff"
-                            } else if file_name.ends_with(".svg") {
-                                "image/svg+xml"
-                            } else if file_name.ends_with(".json") {
-                                "application/json"
-                            } else {
-                                "application/octet-stream"
-                            };
-                            let ct = parse_content_type(mime);
-                            let response = tiny_http::Response::from_data(content).with_header(ct);
-                            let _ = request.respond(response.with_header(cors_header()));
-                            continue;
-                        }
-                        tiny_http::Response::from_string("{\"error\":\"asset not found\"}")
-                            .with_status_code(404)
-                    }
-                }
+                // 静态资源路由（/assets/）已随管理面板一同移除：
+                // 该路由原本仅为管理网页（dist/admin.html 及其 JS/CSS/字体）提供静态文件，
+                // 面板已取消、dist 中不再有 admin 资源，此路由现恒为 404，属死代码，故移除。
+                // 控制 API（/api/*）与 TTS 等后端按需自动拉起不受影响。
 
                 // API: 获取内容安全配置
                 ("GET", "/api/settings/safety") => {
