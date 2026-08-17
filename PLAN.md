@@ -80,7 +80,7 @@
 ### Phase 3: 系统集成 + MCP + 服务管理
 - [x] MCP 进程管理器（JSON-RPC over stdio）+ ToolRegistry 桥接
 - [x] ServiceManager（TTS/STT 进程生命周期）+ Ollama 联动
-- [x] 精简重构（GPT-SoVITS ~238 文件保留，共享 venv，路径可移植）
+- [x] 精简重构（共享 venv，路径可移植；CosyVoice 依赖已回归主 venv 统一管理）
 - [x] 路径审计 + 模型下载 UI（6 项检查 + HuggingFace 自动下载）
 
 ### Phase 4a ~ 4d: 高级功能
@@ -103,7 +103,7 @@
 - [x] import 路径适配（`from config` → `from .config`），移除 UserConfig/LLM/TTS 依赖
 - [x] 感知服务保持独立 WebSocket 模块，**未纳入** Provider 请求-响应体系
 - [x] `server/requirements.txt` 新增 `mediapipe>=0.10.0`、`opencv-python-headless>=4.8.0`
-- [x] 项目瘦身：删除 `venv/` (~4.8GB)、`src-tauri/target/` (~9.1GB)、`dist/`、临时输出文件
+- [x] 项目瘦身：删除 `src-tauri/target/` (~9.1GB)、`dist/`、临时输出文件（Python venv 保留在主项目目录）
 - [x] `.gitignore` 新增 `*_output.txt`、`*_result.txt`、`*_out.txt`、`cargo_err.txt` 规则
 - [x] 文档合并：CLAUDE.md + ARCHITECTURE.md 合并到 DEVELOPMENT.md（单一工程规范文档）
 - [x] pnpm 11+ 兼容：`pnpm-workspace.yaml` 配置 `allowBuilds.esbuild: true`，解决 `ERR_PNPM_IGNORED_BUILDS`
@@ -898,7 +898,7 @@ desk-pet/
 - **前端模块**: `src/services/perception/`（types/service/gestureMapping/hooks/index）
 - **架构决策**: 感知服务保持独立 WebSocket 模块，**未纳入** Provider 请求-响应体系
 - **依赖更新**: `server/requirements.txt` 新增 `mediapipe>=0.10.0`、`opencv-python-headless>=4.8.0`
-- **项目瘦身**: 删除 `venv/` (~4.8GB)、`src-tauri/target/` (~9.1GB)、`dist/`、临时输出文件，共释放 ~13.9GB
+- **项目瘦身**: 删除 `src-tauri/target/` (~9.1GB)、`dist/`、临时输出文件，共释放 ~13.9GB
 - **.gitignore**: 新增 `*_output.txt`、`*_result.txt`、`*_out.txt`、`cargo_err.txt` 规则
 - **文档合并**: CLAUDE.md + ARCHITECTURE.md 合并到 DEVELOPMENT.md（单一工程规范文档）
 
