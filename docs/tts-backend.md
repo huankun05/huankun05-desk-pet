@@ -18,7 +18,7 @@ ensureActiveTTSBackend()  ── 探测 /health ── 未就绪？
    │                                          │
    │                                          ▼
    │                               Rust ServiceManager 拉起 Python 进程
-   │                               （server/cosyvoice/.venv/.../python.exe cosyvoice_server.py --port 8003）
+   │                               （venv/Scripts/python.exe server/cosyvoice_server.py --port 8003）
    │                                          │
    └──────────────────────────────────────────┘
                   ▼
