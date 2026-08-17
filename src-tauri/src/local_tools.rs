@@ -451,6 +451,19 @@ pub fn set_volume(level: u32) -> CmdResult<()> {
 }
 
 // ===========================================================================
+// 打开文件夹
+// ===========================================================================
+
+#[tauri::command]
+pub fn open_folder(path: String) -> CmdResult<()> {
+    if path.trim().is_empty() {
+        return Err(AppError::Generic("路径为空".into()));
+    }
+    open::that(path).map_err(|e| AppError::Generic(format!("无法打开文件夹：{}", e)))?;
+    Ok(())
+}
+
+// ===========================================================================
 // 系统通知（WinRT Toast，unpackaged 应用经 AUMID 注册）
 // ===========================================================================
 
@@ -509,4 +522,13 @@ fn escape_xml(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+}
+
+// ===========================================================================
+// 时间查询
+// ===========================================================================
+
+#[tauri::command]
+pub fn get_time() -> CmdResult<String> {
+    Ok(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string())
 }

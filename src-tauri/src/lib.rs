@@ -1345,6 +1345,7 @@ pub fn run() {
             set_always_on_top,
             local_tools::open_app,
             local_tools::open_file,
+            local_tools::open_folder,
             local_tools::run_command,
             local_tools::media_control,
             local_tools::write_clipboard,
@@ -1353,6 +1354,7 @@ pub fn run() {
             local_tools::get_volume,
             local_tools::set_volume,
             local_tools::notify,
+            local_tools::get_time,
             service::get_service_logs
         ])
         .setup(|app| {
