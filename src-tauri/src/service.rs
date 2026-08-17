@@ -24,6 +24,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 
 use crate::errors::{AppError, CmdResult, ServiceError};
+use encoding_rs::GBK;
 
 /// Decode subprocess stderr bytes into a String.
 /// Windows consoles often emit GBK (code page 936) for Chinese text, so we try
@@ -33,7 +34,7 @@ fn decode_stderr(bytes: &[u8]) -> String {
     if let Ok(s) = std::str::from_utf8(bytes) {
         return s.to_string();
     }
-    let (decoded, _had_errors) = GBK.decode(bytes);
+    let (decoded, _, _) = GBK.decode(bytes);
     decoded.into_owned()
 }
 
@@ -404,8 +405,9 @@ pub fn start_service_watcher(app_handle: tauri::AppHandle) {
                                         match reader.read_until(b'\n', &mut buf) {
                                             Ok(0) => break,
                                             Ok(_) => {
-                                                let text =
-                                                    String::from_utf8_lossy(&buf).trim_end().to_string();
+                                                let text = String::from_utf8_lossy(&buf)
+                                                    .trim_end()
+                                                    .to_string();
                                                 if !text.is_empty() {
                                                     log_event(
                                                         &stderr_tx,
