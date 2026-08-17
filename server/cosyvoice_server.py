@@ -9,7 +9,6 @@ CosyVoice V3 TTS HTTP Server（纳西妲微调，项目内自包含）
       models/nahida_cv3_finetuned/inference_model/   # 纳西妲微调权重（llm.pt/flow.pt/...）
     modules/tts_cosyvoice_v3.py     # 适配器
     assets/nahida/                  # 参考音频（prompt）
-    .venv/                          # 自带 Python 环境（torch 2.4.1+cu121 + cosyvoice）
 
 端点
 ----
@@ -28,6 +27,9 @@ import os
 import sys
 import io
 import threading
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 import argparse
 import logging
 

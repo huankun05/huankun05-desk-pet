@@ -9,6 +9,7 @@ import type { Stage, MessageContext, PipelineCallbacks } from '../types';
 import type { ProviderManager } from '../../provider/manager';
 import { ensureActiveTTSBackend } from '../../provider/ttsBackend';
 import { createLogger } from '../../../utils/logger';
+import { showToast } from '../../../utils/toast';
 
 const log = createLogger('TTSStage');
 
@@ -28,11 +29,15 @@ export class TTSStage implements Stage {
     const backendOk = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 30000 });
     if (!backendOk) {
       log.warn('TTS 后端不可用，跳过本次合成', { text: ctx.speakableText.slice(0, 30) });
+      showToast('TTS 服务不可用，请检查配置', 'warning');
       return;
     }
 
     const ttsProvider = this.manager.getSessionTTSProvider(ctx.session.id);
-    if (!ttsProvider) return;
+    if (!ttsProvider) {
+      showToast('TTS 服务不可用，请检查配置', 'warning');
+      return;
+    }
 
     const providerId = ttsProvider.config.id;
     try {
@@ -46,6 +51,7 @@ export class TTSStage implements Stage {
           provider: ttsProvider.getName(),
         });
         this.manager.markUnhealthy('tts', providerId);
+        showToast(`TTS 服务「${ttsProvider.getName()}」不可用，已自动降级`, 'warning');
         return;
       }
 
