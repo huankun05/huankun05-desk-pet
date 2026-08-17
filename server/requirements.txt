@@ -68,3 +68,14 @@ httpx>=0.27.0
 # ── Perception 感知（手势识别 + 面部追踪）──
 mediapipe>=0.10.0
 opencv-python-headless>=4.8.0
+
+# ── CosyVoice V3 extra deps（统一 venv 后补装）──
+hyperpyyaml>=1.2.0
+openai-whisper
+conformer
+diffusers
+lightning
+wget
+pyarrow
+pyworld
+pydub

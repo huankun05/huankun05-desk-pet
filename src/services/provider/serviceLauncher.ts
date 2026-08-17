@@ -39,7 +39,7 @@ export const TTS_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
   },
   cosyvoice: {
     id: 'service_8003',
-    command: 'server/cosyvoice/.venv/Scripts/python.exe',
+    command: 'venv/Scripts/python.exe',
     args: ['server/cosyvoice_server.py', '--port', '8003'],
     workDir: '.',
     port: 8003,

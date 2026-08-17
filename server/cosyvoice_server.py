@@ -19,9 +19,8 @@ CosyVoice V3 TTS HTTP Server（纳西妲微调，项目内自包含）
 
 环境自举
 --------
-优先使用本目录自带的 .venv；可用环境变量 DESKPET_COSY_PYTHON 覆盖。
-若两者都不可用（项目内 .venv 缺失且未设环境变量），则用当前解释器继续，
-并给出明确报错，不再回退任何外部绝对路径（本机共享环境 = server/cosyvoice/.venv）。
+优先使用项目主 venv（`./venv/Scripts/python.exe`）；可用环境变量 DESKPET_COSY_PYTHON 覆盖。
+若主 venv 不可用，则沿用当前解释器继续，并给出明确报错。
 
 启动: python server/cosyvoice_server.py --port 8003
 """
