@@ -24,11 +24,10 @@ permission system. Updated as items are triaged.
 |---|--------|---------|--------|---------------|----------|
 | 1 | pnpm | `global bin directory not in PATH` (from `pnpm add -g pnpm`) | None — `pnpm tauri dev` still works (v11.17.0) | Run `pnpm setup` to add bin to PATH, or ignore | Low |
 | 2 | hermes-gateway | SQLite 3.49.1 WAL-reset corruption bug; auto switches to `journal_mode=DELETE` | None (auto-mitigated) | `hermes update` to upgrade embedded SQLite >= 3.51.3, or pin SQLite | Low |
-| 3 | onnxruntime (CosyVoice) | `CUDAExecutionProvider not available` -> CPU fallback | Slower TTS on GPU-less path; function OK | Rebuild onnxruntime with CUDA, or accept CPU | Medium |
-| 4 | torch / transformers | `FutureWarning` (weight_norm, `torch.cuda.amp.autocast`), `UserWarning` (flash-attn) | Log noise only | Add `warnings.filterwarnings` suppression in server entry, or bump deps | Low |
-| 5 | PowerShell console | Chinese shown as mojibake in attached console | Display only — app-internal logs now decode correctly | `chcp 65001` / use Windows Terminal (UTF-8) | Low |
+| 3 | torch / transformers | `FutureWarning` (weight_norm, `torch.cuda.amp.autocast`), `UserWarning` (flash-attn) | Log noise only | Add `warnings.filterwarnings` suppression in server entry, or bump deps | Low |
+| 4 | PowerShell console | Chinese shown as mojibake in attached console | Display only — app-internal logs now decode correctly | `chcp 65001` / use Windows Terminal (UTF-8) | Low |
 
-> Note on #5: the Rust side already decodes GBK correctly. Any remaining console
+> Note on #4: the Rust side already decodes GBK correctly. Any remaining console
 > mojibake is the *terminal* code page (GBK) rendering UTF-8 text, not a code bug.
 
 ## 3. Follow-up roadmap — permission system
