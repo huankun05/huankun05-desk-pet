@@ -1,8 +1,8 @@
-//! 本地系统工具命令（深度系统集成）
+//! Local system tool commands (deep OS integration)
 //!
-//! 提供与操作系统深度集成的本地工具：打开应用 / 文件 / 文件夹、执行受控命令、
-//! 系统媒体键控制、剪贴板写入、锁屏、电池信息、音量调节、系统通知（Toast）。
-//! 这些命令由前端 toolRegistry 注册，并经 permissionManager 授权网关统一管控。
+//! Provides OS-integrated tools: open app/file/folder, controlled command execution,
+//! media key control, clipboard write, lock screen, battery info, volume control, toast notification.
+//! These commands are registered by frontend toolRegistry and controlled by permissionManager.
 
 use crate::errors::{AppError, CmdResult};
 use serde::Serialize;
@@ -11,10 +11,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 // ===========================================================================
-// 通用辅助
+// Common helpers
 // ===========================================================================
 
-/// 以 PowerShell 执行脚本，返回 stdout；失败返回 Err(原因)
+/// Execute PowerShell script, return stdout; returns Err on failure
 fn run_powershell(script: &str) -> Result<String, String> {
     let out = Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
@@ -30,7 +30,7 @@ fn run_powershell(script: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// 将文本截断到指定字节上限（用于命令输出，避免前端被巨量日志淹没）
+/// Truncate text to byte limit (for command output, avoid flooding frontend)
 fn truncate_utf8(s: &str, max: usize) -> String {
     if s.len() <= max {
         return s.to_string();
@@ -43,13 +43,13 @@ fn truncate_utf8(s: &str, max: usize) -> String {
 }
 
 // ===========================================================================
-// 应用启动（UWP / Store 经 AUMID，桌面程序经 shell start）
+// App launch (UWP/Store via AUMID, desktop via shell start)
 // ===========================================================================
 
 static START_APPS_CACHE: std::sync::Mutex<Option<Vec<(String, String)>>> =
     std::sync::Mutex::new(None);
 
-/// 加载 Get-StartApps 列表（名称 -> AUMID），带进程级缓存
+/// Load Get-StartApps list (name -> AUMID) with process-level cache
 fn load_start_apps() -> Vec<(String, String)> {
     if let Some(cached) = START_APPS_CACHE
         .lock()
@@ -71,7 +71,7 @@ fn load_start_apps() -> Vec<(String, String)> {
     list
 }
 
-/// 按名称解析 AUMID（精确匹配优先，其次包含匹配）
+/// Resolve AUMID by name (exact match first, then partial match)
 fn resolve_aumid(name: &str) -> Option<String> {
     let target = name.to_lowercase();
     let apps = load_start_apps();
@@ -88,7 +88,7 @@ pub fn open_app(app_name: String) -> CmdResult<()> {
     if app_name.trim().is_empty() {
         return Err(AppError::Generic("应用名称为空".into()));
     }
-    // 1) UWP / Microsoft Store 应用：经 AUMID 用 explorer 启动
+    // 1) UWP / Microsoft Store apps: launch via AUMID using explorer
     if let Some(aumid) = resolve_aumid(&app_name) {
         let target = format!("shell:AppsFolder\\{}", aumid);
         if Command::new("explorer")
@@ -100,7 +100,7 @@ pub fn open_app(app_name: String) -> CmdResult<()> {
             return Ok(());
         }
     }
-    // 2) 桌面程序 / 文档：经 shell "start" 启动
+    // 2) Desktop programs / documents: launch via shell "start"
     let res = Command::new("cmd")
         .arg("/c")
         .arg("start")
@@ -119,7 +119,7 @@ pub fn open_app(app_name: String) -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 打开文件 / 文件夹
+// Open file / folder
 // ===========================================================================
 
 #[tauri::command]
@@ -132,7 +132,7 @@ pub fn open_file(path: String) -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 剪贴板写入
+// Clipboard write
 // ===========================================================================
 
 #[cfg(target_os = "windows")]
@@ -147,10 +147,10 @@ pub fn write_clipboard(text: String) -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 受控命令执行（超时 + 输出截断 + 危险命令黑名单）
+// Controlled command execution (timeout + output truncation + dangerous command blacklist)
 // ===========================================================================
 
-/// 命令执行结果
+/// Command execution result
 #[derive(Serialize)]
 pub struct RunCommandResult {
     pub exit_code: i32,
@@ -168,7 +168,7 @@ pub fn run_command(
     if command.trim().is_empty() {
         return Err(AppError::Generic("命令为空".into()));
     }
-    // 危险命令黑名单（尽量收缩攻击面）
+    // Dangerous command blacklist (minimize attack surface)
     let lower = command.to_lowercase();
     let blocked = [
         "format ",
@@ -222,7 +222,7 @@ pub fn run_command(
         .spawn()
         .map_err(|e| AppError::Generic(format!("无法启动命令：{}", e)))?;
 
-    // 取出管道，交给两个读线程并发读取（防止某一管道写满阻塞子进程）
+    // Take pipes, spawn two reader threads (prevent pipe-full blocking)
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
@@ -257,7 +257,7 @@ pub fn run_command(
         s
     });
 
-    // 轮询等待进程退出（带超时），不阻塞命令循环的调用方线程
+    // Poll for process exit (with timeout), do not block caller thread
     let deadline = Instant::now() + Duration::from_secs(timeout);
     let mut timed_out = false;
     let status = loop {
@@ -289,7 +289,7 @@ pub fn run_command(
 }
 
 // ===========================================================================
-// 系统媒体键控制（SendInput 模拟硬件媒体键，对所有播放器生效）
+// System media key control (SendInput simulates hardware media keys)
 // ===========================================================================
 
 #[cfg(target_os = "windows")]
@@ -341,7 +341,7 @@ unsafe fn send_media_key(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUA
 }
 
 // ===========================================================================
-// 锁屏
+// Lock screen
 // ===========================================================================
 
 #[cfg(target_os = "windows")]
@@ -355,10 +355,10 @@ pub fn lock_screen() -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 电池信息（WMI）
+// Battery info (WMI)
 // ===========================================================================
 
-/// 电池信息（台式机无电池时 percent 为 null）
+/// Battery info (percent is null when no battery on desktop)
 #[derive(Serialize)]
 pub struct BatteryInfo {
     pub percent: Option<u32>,
@@ -398,7 +398,7 @@ pub fn get_battery() -> CmdResult<BatteryInfo> {
 }
 
 // ===========================================================================
-// 系统主音量（Core Audio）
+// System master volume (Core Audio)
 // ===========================================================================
 
 #[cfg(target_os = "windows")]
@@ -451,7 +451,7 @@ pub fn set_volume(level: u32) -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 打开文件夹
+// Open folder
 // ===========================================================================
 
 #[tauri::command]
@@ -464,7 +464,7 @@ pub fn open_folder(path: String) -> CmdResult<()> {
 }
 
 // ===========================================================================
-// 系统通知（WinRT Toast，unpackaged 应用经 AUMID 注册）
+// System notification (WinRT Toast, unpackaged apps register via AUMID)
 // ===========================================================================
 
 #[cfg(target_os = "windows")]
@@ -474,7 +474,7 @@ pub fn notify(title: String, body: String) -> CmdResult<()> {
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
 
-    // unpackaged 应用发 toast 需要 AUMID 已在注册表登记（best-effort，无管理员权限也可写）
+    // Unpackaged apps need AUMID registered in registry for toast (best-effort)
     register_aumid_if_needed();
 
     let xml = format!(
@@ -498,7 +498,7 @@ pub fn notify(title: String, body: String) -> CmdResult<()> {
 
 #[cfg(target_os = "windows")]
 fn register_aumid_if_needed() {
-    // 在 HKCU 注册 AppUserModelID（best-effort），使未打包应用也能弹出 Toast
+    // Register AppUserModelID in HKCU (best-effort) so unpackaged apps can show Toast
     let key = "HKCU\\Software\\Classes\\AppUserModelId\\DeskPet";
     let _ = Command::new("reg")
         .args([
@@ -515,7 +515,7 @@ fn register_aumid_if_needed() {
         .output();
 }
 
-/// 转义 XML 特殊字符，防止标题/正文破坏 Toast XML
+/// Escape XML special chars to prevent title/body from breaking Toast XML
 fn escape_xml(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -525,7 +525,7 @@ fn escape_xml(s: &str) -> String {
 }
 
 // ===========================================================================
-// 时间查询
+// Time query
 // ===========================================================================
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -545,7 +545,7 @@ pub fn get_time() -> CmdResult<String> {
     ))
 }
 
-// 将 UNIX 时间戳近似转换为本地日期时间（基于固定偏移，简化实现）
+// Approximate UNIX timestamp to local datetime (simplified)
 fn secs_to_local_datetime(secs: u64) -> (u32, u32, u32, u32, u32, u32) {
     let days = (secs / 86400) as u32;
     let rem = secs % 86400;
@@ -557,7 +557,7 @@ fn secs_to_local_datetime(secs: u64) -> (u32, u32, u32, u32, u32, u32) {
 }
 
 fn days_to_ymd(mut days: u32) -> (u32, u32, u32) {
-    // 简化：从 1970-01-01 起算，仅用于显示，精度到天
+    // Simplified: count from 1970-01-01, day precision for display only
     let mut year = 1970;
     while days >= 365 {
         let leap = is_leap(year);
