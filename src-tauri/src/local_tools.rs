@@ -67,9 +67,7 @@ fn load_start_apps() -> Vec<(String, String)> {
             Some((name.trim().to_string(), aumid.trim().to_string()))
         })
         .collect();
-    *START_APPS_CACHE
-        .lock()
-        .unwrap_or_else(|p| p.into_inner()) = Some(list.clone());
+    *START_APPS_CACHE.lock().unwrap_or_else(|p| p.into_inner()) = Some(list.clone());
     list
 }
 
@@ -173,17 +171,40 @@ pub fn run_command(
     // 危险命令黑名单（尽量收缩攻击面）
     let lower = command.to_lowercase();
     let blocked = [
-        "format ", "del ", "deltree", "rmdir /s", "rd /s", "rm -rf", "shutdown ",
-        "reg delete", "net user", "net localgroup", "takeown", "icacls ", "bcdedit ",
-        "diskpart", "cipher ", "mkfs", "netsh ", "sc delete", "taskkill /f /im explorer",
+        "format ",
+        "del ",
+        "deltree",
+        "rmdir /s",
+        "rd /s",
+        "rm -rf",
+        "shutdown ",
+        "reg delete",
+        "net user",
+        "net localgroup",
+        "takeown",
+        "icacls ",
+        "bcdedit ",
+        "diskpart",
+        "cipher ",
+        "mkfs",
+        "netsh ",
+        "sc delete",
+        "taskkill /f /im explorer",
     ];
     if blocked.iter().any(|b| lower.contains(b)) {
-        return Err(AppError::Generic(format!("命令被安全策略禁止：{}", command)));
+        return Err(AppError::Generic(format!(
+            "命令被安全策略禁止：{}",
+            command
+        )));
     }
 
     let timeout = timeout_secs.unwrap_or(30).clamp(1, 300) as u64;
 
-    let mut cmd = Command::new(if cfg!(target_os = "windows") { "cmd" } else { "sh" });
+    let mut cmd = Command::new(if cfg!(target_os = "windows") {
+        "cmd"
+    } else {
+        "sh"
+    });
     if cfg!(target_os = "windows") {
         cmd.arg("/c").arg(command.as_str());
     } else {
@@ -275,8 +296,8 @@ pub fn run_command(
 #[tauri::command]
 pub fn media_control(action: String) -> CmdResult<()> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP,
-        VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP, VIRTUAL_KEY,
+        VIRTUAL_KEY, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP,
+        VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP,
     };
     let vk: VIRTUAL_KEY = match action.as_str() {
         "play_pause" => VK_MEDIA_PLAY_PAUSE,
@@ -298,7 +319,7 @@ pub fn media_control(action: String) -> CmdResult<()> {
 #[cfg(target_os = "windows")]
 unsafe fn send_media_key(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY, up: bool) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, SendInput,
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
     };
     let input = INPUT {
         r#type: INPUT_KEYBOARD,
@@ -306,7 +327,11 @@ unsafe fn send_media_key(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUA
             ki: KEYBDINPUT {
                 wVk: vk,
                 wScan: 0,
-                dwFlags: if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
+                dwFlags: if up {
+                    KEYEVENTF_KEYUP
+                } else {
+                    KEYBD_EVENT_FLAGS(0)
+                },
                 time: 0,
                 dwExtraInfo: 0,
             },
@@ -379,14 +404,12 @@ pub fn get_battery() -> CmdResult<BatteryInfo> {
 #[cfg(target_os = "windows")]
 fn with_endpoint_volume<F, T>(f: F) -> CmdResult<T>
 where
-    F: FnOnce(
-        &windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume,
-    ) -> CmdResult<T>,
+    F: FnOnce(&windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume) -> CmdResult<T>,
 {
+    use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::Media::Audio::{
         eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
     };
-    use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
     };
@@ -446,8 +469,8 @@ pub fn notify(title: String, body: String) -> CmdResult<()> {
         escape_xml(&title),
         escape_xml(&body)
     );
-    let doc = XmlDocument::new()
-        .map_err(|e| AppError::Generic(format!("创建 XML 文档失败：{}", e)))?;
+    let doc =
+        XmlDocument::new().map_err(|e| AppError::Generic(format!("创建 XML 文档失败：{}", e)))?;
     doc.LoadXml(&HSTRING::from(xml))
         .map_err(|e| AppError::Generic(format!("加载 XML 失败：{}", e)))?;
     let toast = ToastNotification::CreateToastNotification(&doc)
@@ -465,7 +488,17 @@ fn register_aumid_if_needed() {
     // 在 HKCU 注册 AppUserModelID（best-effort），使未打包应用也能弹出 Toast
     let key = "HKCU\\Software\\Classes\\AppUserModelId\\DeskPet";
     let _ = Command::new("reg")
-        .args(["add", key, "/v", "DisplayName", "/t", "REG_SZ", "/d", "DeskPet", "/f"])
+        .args([
+            "add",
+            key,
+            "/v",
+            "DisplayName",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "DeskPet",
+            "/f",
+        ])
         .output();
 }
 

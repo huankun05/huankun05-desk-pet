@@ -7,13 +7,13 @@ use tauri::Manager;
 mod backend;
 mod crypto;
 mod errors;
+mod local_tools;
 mod mcp;
 mod service;
 mod shortcuts;
 mod tray;
 mod utils;
 mod wake_word;
-mod local_tools;
 
 /// 重启 Hermes Gateway（端口 8765）。由托盘菜单「重启后端」调用。
 ///
@@ -536,7 +536,8 @@ fn read_audio_file(path: String) -> CmdResult<String> {
 
 /// 写入文本文件（限制在项目数据目录内）
 #[tauri::command]
-fn write_file(path: String, content: String, append: Option<bool>) -> CmdResult<()> {    let requested = std::path::PathBuf::from(&path);
+fn write_file(path: String, content: String, append: Option<bool>) -> CmdResult<()> {
+    let requested = std::path::PathBuf::from(&path);
 
     // 限制仅允许项目数据目录及其子目录
     let data_dir = crate::utils::get_project_data_dir()?;
