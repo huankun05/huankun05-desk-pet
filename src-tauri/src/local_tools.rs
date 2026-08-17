@@ -528,7 +528,73 @@ fn escape_xml(s: &str) -> String {
 // 时间查询
 // ===========================================================================
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 #[tauri::command]
 pub fn get_time() -> CmdResult<String> {
-    Ok(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string())
+    let now = SystemTime::now();
+    let duration = now
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AppError::Generic(format!("读取系统时间失败：{}", e)))?;
+    let secs = duration.as_secs();
+    // 手动转换为本地时间近似值（避免引入 chrono 依赖）
+    let (year, month, day, hour, minute, second) = secs_to_local_datetime(secs);
+    Ok(format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        year, month, day, hour, minute, second
+    ))
+}
+
+// 将 UNIX 时间戳近似转换为本地日期时间（基于固定偏移，简化实现）
+fn secs_to_local_datetime(secs: u64) -> (u32, u32, u32, u32, u32, u32) {
+    let days = (secs / 86400) as u32;
+    let rem = secs % 86400;
+    let hour = (rem / 3600) as u32;
+    let minute = ((rem % 3600) / 60) as u32;
+    let second = (rem % 60) as u32;
+    let (year, month, day) = days_to_ymd(days);
+    (year, month, day, hour, minute, second)
+}
+
+fn days_to_ymd(mut days: u32) -> (u32, u32, u32) {
+    // 简化：从 1970-01-01 起算，仅用于显示，精度到天
+    let mut year = 1970;
+    while days >= 365 {
+        let leap = is_leap(year);
+        let d = if leap { 366 } else { 365 };
+        if days >= d {
+            days -= d;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+    let month_days = [
+        31,
+        if is_leap(year) { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    let mut month = 1;
+    let mut rem = days;
+    for &md in &month_days {
+        if rem < md {
+            break;
+        }
+        rem -= md;
+        month += 1;
+    }
+    (year, month, rem + 1)
+}
+
+const fn is_leap(year: u32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
