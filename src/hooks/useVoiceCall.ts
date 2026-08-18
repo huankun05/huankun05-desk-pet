@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
+import { providerManager } from '../services/provider/manager';
 import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { getHermesGatewayClient } from '../services/hermesGateway';
