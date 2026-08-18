@@ -1124,6 +1124,7 @@ pub fn service_list_all(manager: &ServiceManager) -> Vec<ServiceInfo> {
 // Health Check
 // ---------------------------------------------------------------------------
 
+#[tauri::command]
 /// Check if a service is truly available via HTTP GET /health
 pub fn check_http_health(port: u16) -> bool {
     let addr: std::net::SocketAddr = match format!("127.0.0.1:{}", port).parse() {
@@ -1163,6 +1164,7 @@ pub fn check_http_health(port: u16) -> bool {
     false
 }
 
+#[tauri::command]
 pub fn check_tcp_health(port: u16) -> bool {
     let addr: std::net::SocketAddr = match format!("127.0.0.1:{}", port).parse() {
         Ok(a) => a,

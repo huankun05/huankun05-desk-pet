@@ -22,7 +22,11 @@
  */
 
 import { providerManager } from './manager';
-import { startProviderService, stopProviderServiceById, resolveLaunchSpec } from './serviceLauncher';
+import {
+  startProviderService,
+  stopProviderServiceById,
+  resolveLaunchSpec,
+} from './serviceLauncher';
 import type { TTSProvider } from './types';
 import { createLogger } from '../../utils/logger';
 import { invoke } from '@tauri-apps/api/core';
@@ -32,9 +36,14 @@ const log = createLogger('TTSBackend');
 /** 跨调用 / 跨窗口去重：同一时刻只跑一个 ensure 流程，其余复用同一 Promise。 */
 let inFlight: Promise<boolean> | null = null;
 
+/** 每个本地 TTS 端口的冷启动保护：启动后 N 秒内不再重复拉起。 */
+const portCooldowns: { [port: number]: number } = {};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
+
+const LAUNCH_COOLDOWN_MS = 4000;
 
 interface ServiceInfoDTO {
   id: string;
@@ -61,8 +70,24 @@ async function isPortAlreadyManaged(port: number): Promise<boolean> {
   return list.some(
     (s) =>
       s.port === port &&
-      (s.status === 'Running' || s.status === 'Starting' || s.status === 'running' || s.status === 'starting'),
+      (s.status === 'Running' ||
+        s.status === 'Starting' ||
+        s.status === 'running' ||
+        s.status === 'starting'),
   );
+}
+
+/** 实际探测端口是否有服务在监听（TCP/HTTP 双保险）。 */
+async function isPortActuallyHealthy(port: number): Promise<boolean> {
+  try {
+    const [tcpOk, httpOk] = await Promise.all([
+      invoke<boolean>('check_tcp_health', { port }),
+      invoke<boolean>('check_http_health', { port }),
+    ]);
+    return tcpOk || httpOk;
+  } catch {
+    return false;
+  }
 }
 
 /** 探测活跃 TTS provider 当前是否真正可产出（isAvailable 优先，回退 validate）。 */
@@ -106,18 +131,31 @@ async function runEnsure(opts: EnsureOptions): Promise<boolean> {
   const port = spec?.port ?? 0;
 
   // 3) 端口是否已被跟踪（本窗或其他窗已发起启动）→ 不再重复 POST，直接等就绪
-  if (port && (await isPortAlreadyManaged(port))) {
-    log.info('ensureActiveTTSBackend: 该端口后端已在启动/运行中，直接等待就绪', { port });
-  } else if (port) {
-    const started = await startProviderService(typeName, cfg?.launch);
-    if (!started) {
-      log.warn('ensureActiveTTSBackend: 启动请求未返回 ok（可能端口已占用或命令缺失）', {
-        typeName,
+  if (port) {
+    const now = Date.now();
+    const lastLaunch = portCooldowns[port] ?? 0;
+    if (now - lastLaunch < LAUNCH_COOLDOWN_MS) {
+      log.info('ensureActiveTTSBackend: 冷启动保护中，直接等待就绪', {
         port,
+        remainingMs: LAUNCH_COOLDOWN_MS - (now - lastLaunch),
       });
-      return false;
+    } else if (await isPortAlreadyManaged(port)) {
+      log.info('ensureActiveTTSBackend: 该端口后端已在启动/运行中，直接等待就绪', { port });
+    } else if (await isPortActuallyHealthy(port)) {
+      log.info('ensureActiveTTSBackend: 端口已有健康服务，直接等待就绪', { port });
+    } else {
+      const started = await startProviderService(typeName, cfg?.launch);
+      if (started) {
+        portCooldowns[port] = Date.now();
+        log.info('ensureActiveTTSBackend: 已发起 TTS 后端启动', { typeName, port });
+      } else {
+        log.warn('ensureActiveTTSBackend: 启动请求未返回 ok（可能端口已占用或命令缺失）', {
+          typeName,
+          port,
+        });
+        return false;
+      }
     }
-    log.info('ensureActiveTTSBackend: 已发起 TTS 后端启动', { typeName, port });
   } else {
     // 无法确定本地端口（如自定义外部服务且无 launch）：无法本地拉起，依赖外部已运行
     log.warn('ensureActiveTTSBackend: 无法确定本地端口，跳过自动启动（期待外部服务已运行）', {

@@ -29,6 +29,26 @@ for _p in (_this_dir, _server_dir):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+# SQLite WAL-reset bug 修复：
+# 如果系统 sqlite3 链接了有漏洞的版本（< 3.51.3，且不在安全 backport 列表），
+# 尝试用 pysqlite3（自带较新 SQLite）替换内置 sqlite3 模块。
+try:
+    import sqlite3 as _builtin_sqlite3
+    _v = _builtin_sqlite3.sqlite_version_info
+    # 安全版本：>= 3.51.3, 或 backport 3.50.7 / 3.44.6
+    _safe = (
+        _v >= (3, 51, 3)
+        or (_v >= (3, 50, 7) and _v < (3, 51, 0))
+        or (_v >= (3, 44, 6) and _v < (3, 45, 0))
+    )
+    if not _safe:
+        import pysqlite3 as _pysqlite3  # type: ignore[no-redef]
+        sys.modules["sqlite3"] = _pysqlite3
+        # 不覆盖 _builtin_sqlite3 引用，但后续 import sqlite3 都会拿到新版
+except Exception:
+    # 任何异常（pysqlite3 未装 / 版本不够 / 替换失败）都不阻塞启动
+    pass
+
 from hermes_core.hermes_state import SessionDB  # noqa: F401
 from hermes_core.hermes_state_common import (  # noqa: F401
     SCHEMA_VERSION,
