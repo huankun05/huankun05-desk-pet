@@ -18,9 +18,8 @@
 
 import { providerManager } from './manager';
 import { resolveLaunchSpec } from './serviceLauncher';
-import type { TTSProvider } from './types';
 import { createLogger } from '../../utils/logger';
-import { lifecycle, ServicePhase } from './serviceLifecycle';
+import { lifecycle } from './serviceLifecycle';
 
 const log = createLogger('TTSBackend');
 
