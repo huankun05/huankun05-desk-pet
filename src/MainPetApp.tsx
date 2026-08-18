@@ -60,6 +60,7 @@ import { showToast } from './utils/toast';
 import { setLogLevel as setGlobalLogLevel } from './utils/logger';
 import { startWatchdog, registerService } from './services/provider/watchdog';
 import { isOfflineModeEnabled } from './services/provider/watchdog';
+import { lifecycle } from './services/provider/serviceLifecycle';
 import { IDLE_THRESHOLDS } from './services/idle/constants';
 import { getBehaviorRegistry, PetContextImpl, EventType } from './services/behavior';
 import { useStartupQueue } from './hooks/useStartupQueue';
@@ -399,6 +400,14 @@ function MainPetApp() {
     });
   }, []);
 
+  // 服务生命周期大脑：设置就绪后分批拉起所有服务（资源感知调度）
+  useEffect(() => {
+    if (!settingsReady || !isTauriEnv()) return;
+    lifecycle.bootstrapAll().catch((err) => {
+      console.warn('[MainPetApp] bootstrapAll 失败:', err);
+    });
+  }, [settingsReady]);
+
   // 启动时应用日志级别（debugMode 优先）
   useEffect(() => {
     const debugMode = localStorage.getItem('desk-pet-debug-mode') === 'true';
@@ -544,7 +553,7 @@ function MainPetApp() {
       /* ignore */
     }
 
-    proactiveScheduler.onTrigger((trigger: ProactiveTrigger) => {
+    proactiveScheduler.onTrigger((_trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {
         showBubble('现在处于离线模式，暂时不能陪你聊天了。', 4000);
         return;

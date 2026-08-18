@@ -147,7 +147,8 @@ providerRegistry.registerTTSProvider(
   'custom',
   {
     displayName: '自定义 / 其他模型',
-    description: '接入你自己部署的任意 TTS 服务（fish-speech / ChatTTS / Bert-VITS2 等），填网址即可',
+    description:
+      '接入你自己部署的任意 TTS 服务（fish-speech / ChatTTS / Bert-VITS2 等），填网址即可',
   },
   (config) => new CustomTTSProvider(config as CustomTTSConfig),
 );
@@ -601,13 +602,30 @@ export class ProviderManager {
   getActiveTTSConfig(): TTSProviderConfig | null {
     const id = this.state.activeTTSId;
     if (!id) return null;
-    const cfg = this.state.configs.find(
-      (c) => (c as ProviderConfig).id === id,
-    ) as TTSProviderConfig | undefined;
+    const cfg = this.state.configs.find((c) => (c as ProviderConfig).id === id) as
+      TTSProviderConfig | undefined;
     return cfg ?? null;
   }
 
-  /**
+  /** 获取当前活跃 STT 的原始配置 */
+  getActiveSTTConfig(): STTProviderConfig | null {
+    const id = this.state.activeSTTId;
+    if (!id) return null;
+    const cfg = this.state.configs.find((c) => (c as ProviderConfig).id === id) as
+      STTProviderConfig | undefined;
+    return cfg ?? null;
+  }
+
+  /** 获取当前活跃 Embedding 的原始配置 */
+  getActiveEmbeddingConfig(): EmbeddingProviderConfig | null {
+    const id = this.state.activeEmbeddingId;
+    if (!id) return null;
+    const cfg = this.state.configs.find((c) => (c as ProviderConfig).id === id) as
+      EmbeddingProviderConfig | undefined;
+    return cfg ?? null;
+  }
+
+  /** 获取 STTProvider 实例（按需创建并缓存）
    * 获取 STTProvider 实例（按需创建并缓存）
    */
   private getSTTProvider(id?: string): STTProvider | null {

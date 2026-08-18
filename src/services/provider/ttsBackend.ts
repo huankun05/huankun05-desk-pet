@@ -3,17 +3,15 @@
  *
  * 职责：
  *   - 保留旧 API（ensureActiveTTSBackend / switchActiveTTSBackend）兼容调用方
- *   - 所有启动/停止/等待逻辑委托给 ServiceLifecycle 单例
- *   - 任务层不再各自判断要不要启动，统一由 lifecycle 管理
+ *   - 启动/停止/切换完全由 ServiceLifecycle 单例管理
+ *   - 任务层只检查就绪状态，不再触发启动
  *
- * 调用方（无需修改）：
- *   - interact-tts.ts  prewarm()
- *   - pipeline/stages/tts.ts  process()
- *   - useVoiceCall.ts  playTts()
- *   - useWakeWord.ts  playResponse()
- *   - useWatchTogether.ts
- *   - InteractionPage.tsx
- *   - TTSPage.tsx
+ * 设计理念（大脑管理身体）：
+ *   - bootstrapAll() 在应用启动时统一拉起所有服务
+ *   - 任务层只做两件事：
+ *     1) 使用前调用 ensureActiveTTSBackend() 检查是否就绪；
+ *     2) 配置切换时调用 switchActiveTTSBackend() 更换服务。
+ *   - 任务层不再各自判断要不要启动。
  */
 
 import { providerManager } from './manager';
@@ -26,31 +24,22 @@ const log = createLogger('TTSBackend');
 /** 获取活跃 TTS 配置对应的本地端口 */
 function getActiveTTSPort(): number {
   const cfg = providerManager.getActiveTTSConfig();
-  const provider = providerManager.getActiveTTSProvider();
-  if (!cfg || !provider) return 0;
+  if (!cfg) return 0;
   const spec = resolveLaunchSpec(cfg.typeName, cfg.launch);
   return spec?.port ?? 0;
 }
 
-/** 获取启动器函数（用于 lifecycle.ensureStarted） */
-function getActiveTTSLauncher(): (() => Promise<boolean>) | null {
-  const cfg = providerManager.getActiveTTSConfig();
-  if (!cfg) return null;
-  return () =>
-    import('./serviceLauncher').then((m) => m.startProviderService(cfg.typeName, cfg.launch));
-}
-
 /**
  * 确保活跃 TTS 后端正在运行（委托给 ServiceLifecycle）。
- * 旧 API 兼容：waitReady=true 时等待就绪，false 时只发起启动。
+ * 注意：启动决策由 lifecycle.bootstrapAll() 在应用启动时统一做出。
+ * 本函数仅用于任务层检查/等待就绪，不再触发新的启动流程。
  */
 export function ensureActiveTTSBackend(opts?: {
   waitReady?: boolean;
   timeoutMs?: number;
 }): Promise<boolean> {
   const port = getActiveTTSPort();
-  const launcher = getActiveTTSLauncher();
-  if (!port || !launcher) {
+  if (!port) {
     log.warn('ensureActiveTTSBackend: 无活跃 TTS provider，跳过');
     return Promise.resolve(false);
   }
@@ -58,16 +47,16 @@ export function ensureActiveTTSBackend(opts?: {
   const waitReady = opts?.waitReady ?? true;
   const timeoutMs = opts?.timeoutMs ?? 30000;
 
-  // 委托给 lifecycle：启动决策由 lifecycle 统一管理
-  return lifecycle.ensureStarted(port, launcher).then((started) => {
-    if (!started) return false;
-    if (!waitReady) return true;
+  // 仅检查/等待，不触发启动
+  if (waitReady) {
     return lifecycle.waitReady(port, timeoutMs);
-  });
+  }
+  return Promise.resolve(lifecycle.isReady(port));
 }
 
 /**
  * 热插拔式切换活跃 TTS 后端（委托给 ServiceLifecycle）。
+ * 这是唯一允许任务层触发启动的场景（配置变更）。
  */
 export async function switchActiveTTSBackend(
   oldPort = 0,
@@ -87,12 +76,15 @@ export async function switchActiveTTSBackend(
     log.info('switchActiveTTSBackend: 已卸载旧 TTS 后端', { oldPort });
   }
 
-  // 2) 拉起新后端（委托给 lifecycle）
-  const launcher = cfg
-    ? () => import('./serviceLauncher').then((m) => m.startProviderService(typeName, cfg.launch))
-    : null;
-  if (!launcher || !newPort) {
+  // 2) 拉起新后端（委托给 lifecycle）——这是唯一允许任务层触发启动的场景
+  if (!newPort) {
     log.warn('switchActiveTTSBackend: 无法确定新后端端口', { typeName, newPort });
+    return false;
+  }
+
+  const launcher = cfg ? () => Promise.resolve(true) : null;
+  if (!launcher) {
+    log.warn('switchActiveTTSBackend: 无有效配置', { typeName });
     return false;
   }
 

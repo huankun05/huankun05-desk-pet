@@ -239,6 +239,8 @@ export interface STTProvider extends Provider {
 
 export interface EmbeddingProviderConfig extends ProviderConfig {
   type: 'embedding';
+  /** 适配器类型名（可选）。本地 embedding 服务需要，API 类可省略。 */
+  typeName?: string;
   apiBase?: string;
   apiKey?: string;
   model?: string;
