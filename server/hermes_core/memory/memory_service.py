@@ -3,7 +3,6 @@
 这是整个记忆系统的「唯一真相来源」入口，所有读写都收口于此：
 - 前端（设置页/记忆页）通过 Hermes Gateway WebSocket 调用本服务；
 - Gateway 在对话时调用 build_injection_prompt 注入 LLM，调用 extract_and_store 沉淀记忆；
-- 旧的 hermes_gateway_memory（memories.db）通过 migrate_legacy_memories 一次性并入。
 
 设计要点：
 - 存储 = core.brain.store.MemoryStore（SQLite + 向量列）；
@@ -425,50 +424,3 @@ class MemoryService:
                 )
         return result
 
-    # ============================================================
-    # 迁移（旧 hermes_gateway_memory → brain）
-    # ============================================================
-
-    def migrate_legacy_memories(self, legacy_db_path: str | Path | None = None) -> int:
-        """将旧 hermes_gateway_memory（memories.db）一次性并入 brain。
-
-        按内容去重，避免重复。返回迁移条数。
-        """
-        legacy_db_path = Path(legacy_db_path) if legacy_db_path else (get_db_path().parent / "memories.db")
-        if not legacy_db_path.exists():
-            logger.info("未找到旧记忆库 %s，跳过迁移", legacy_db_path)
-            return 0
-
-        existing_contents = {f.content for f in self.store.list_all(limit=10000)}
-        migrated = 0
-        try:
-            conn = sqlite3.connect(str(legacy_db_path))
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                "SELECT text, category, source FROM memories ORDER BY id ASC"
-            ).fetchall()
-            conn.close()
-        except sqlite3.Error as exc:
-            logger.warning("读取旧记忆库失败: %s", exc)
-            return 0
-
-        permanent_cats = {CATEGORY_PREFERENCE, CATEGORY_RULE}
-        for row in rows:
-            text = (row["text"] or "").strip()
-            if not text or text in existing_contents:
-                continue
-            category = str(row["category"] or CATEGORY_FACT)
-            try:
-                self.add_memory(
-                    text,
-                    category=category,
-                    source=SOURCE_MIGRATION,
-                    is_permanent=category in permanent_cats,
-                    enabled=True,
-                )
-                existing_contents.add(text)
-                migrated += 1
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("迁移单条记忆失败: %s", exc)
-        logger.info("旧记忆迁移完成：%d 条", migrated)
-        return migrated

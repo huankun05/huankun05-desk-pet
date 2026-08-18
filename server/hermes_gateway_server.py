@@ -337,11 +337,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         log.info("Hermes Gateway started (port %d)", getattr(app, "_port", 8765))
-        # 启动期一次性迁移旧 hermes_gateway_memory（memories.db）→ core.brain（幂等）
-        try:
-            get_memory_service(character_id="default", user_id="default").migrate_legacy_memories()
-        except Exception as exc:  # noqa: BLE001
-            log.warning("旧记忆迁移失败（可忽略）: %s", exc)
+
         # 启动空闲自学习后台协程
         scheduler_task = learning_scheduler.start() if learning_scheduler else None
         try:
