@@ -10,7 +10,7 @@
 - 🎙️ **语音通话**：一键语音通话，STT 识别 → LLM 回复 → TTS 播放，像 QQ 一样自然。
 - 🗣️ **语音合成/识别**：模块化 Provider 架构，支持 Edge TTS、CosyVoice、FunASR 等。
 - 🎭 **Live2D 角色**：程序化表情/动作、呼吸、口型同步、音乐节奏同步。
-- 🧠 **长期记忆**：自动抽取对话中的偏好/事实/规则，下次对话自动回灌。
+- 🧠 **长期记忆**：Hermes SessionDB + FTS5 全文检索 + 记忆碎片系统，自动抽取对话中的偏好/事实/规则，下次对话自动回灌。
 - ⚙️ **设置向导**：TTS/STT/LLM/Embedding 四页统一服务配置。
 - 🪟 **多窗口悬浮**：主角色窗、聊天窗、状态窗、控制悬浮球，支持边缘吸附与位置记忆。
 
@@ -32,13 +32,27 @@ pnpm tauri dev
 ```
 desk-pet/
 ├── src/                   # React 前端（Live2D + 对话 + 管理后台）
-├── src-tauri/             # Tauri Rust 后端
-├── server/                # Python 后端（TTS/STT 引擎 + 对话管线，共享 venv）
+├── src-tauri/             # Rust 后端（Tauri + 服务管理）
+├── server/                # Python AI 服务
+│   ├── hermes_core/       # Hermes 核心 + desk-pet 扩展（一个整体）
+│   │   ├── hermes_state.py # 会话存储 + FTS5
+│   │   ├── emotion/       # 情绪/表情/激素
+│   │   ├── soul/          # 人格/漂移
+│   │   ├── time/          # 昼夜/纪念日
+│   │   ├── memory/        # 记忆碎片系统
+│   │   ├── voice_services.py # 语音服务启动器
+│   │   └── __init__.py    # 统一导出
+│   ├── core/              # 兼容层（旧 import 路径转发）
+│   ├── modules/           # VAD/ASR/LLM/TTS
+│   ├── perception/        # MediaPipe + WebSocket
+│   └── data/              # 数据库
+│       ├── hermes_state.db
+│       └── core.db
 ├── venv/                  # 共享 Python 虚拟环境
 └── ...
 ```
 
-详见 [PLAN.md](PLAN.md) 完整路线图，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明。
+详见 [PLAN.md](PLAN.md) 完整路线图，[docs/architecture-investigation.md](docs/architecture-investigation.md) 架构设计，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明。
 
 ## 系统要求
 

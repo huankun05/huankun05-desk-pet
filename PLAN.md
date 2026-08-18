@@ -17,7 +17,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| 核心系统 | Heart/Brain/Soul/Time 四大系统 + Pipeline + Session + Hebbian |
+| 核心系统 | Hermes Core (hermes_core/) + desk-pet 扩展（emotion/soul/time/memory/voice） |
 | 前端功能 | 系统托盘 ✅ / 番茄钟 ✅ / 每日问候 ✅ / 技能系统(5个) ✅ / 感知降级 ✅ |
 | 安全加固 | DPAPI 加密 + Token 鉴权 + ErrorBoundary ✅ |
 | 测试/CI | Vitest(3) ✅ / GitHub Actions CI ✅ / Playwright 配置 ✅ |
@@ -97,14 +97,26 @@ desk-pet/
 │   └── i18n/                # 国际化
 ├── src-tauri/               # Rust 后端（Tauri + 服务管理）
 ├── server/                  # Python AI 服务
-│   ├── core/                # 管道核心
+│   ├── hermes_core/         # Hermes 核心 + desk-pet 扩展（一个整体）
+│   │   ├── hermes_state.py # Hermes 会话存储 + FTS5
+│   │   ├── emotion/         # 情绪/表情/激素系统
+│   │   ├── soul/            # 人格/漂移
+│   │   ├── time/            # 昼夜/纪念日
+│   │   ├── memory/          # 记忆碎片系统
+│   │   ├── voice_services.py # 语音服务启动器
+│   │   └── __init__.py      # 统一导出所有能力
+│   ├── core/                # 兼容层（旧 import 路径转发到 hermes_core/）
 │   ├── modules/             # VAD/ASR/LLM/TTS/Emotion 模块
 │   ├── perception/          # 感知服务（MediaPipe + WebSocket）
 │   ├── cosyvoice_server.py  # CosyVoice V3 HTTP 服务（port 8003）
+│   └── data/                # 数据库文件
+│       ├── hermes_state.db  # 会话历史 + FTS5
+│       └── core.db          # 记忆碎片 + 情绪 + 人格
 ├── docs/
+│   ├── architecture-investigation.md  # 架构统一方案（基于 Hermes 再开发）
 │   ├── known-warnings-and-roadmap.md  # 已知 warning 和后续路线图
-│   ├── tts-backend.md                # TTS 后端架构
-│   ├── data-management.md            # 数据存储策略
+│   ├── tts-backend.md                 # TTS 后端架构
+│   ├── data-management.md             # 数据存储策略
 │   └── voice-assistant-permission-plan.md  # 语音助手权限计划
 ├── DEVELOPMENT.md           # 工程规范文档
 └── PLAN.md                  # 本文件
