@@ -13,17 +13,19 @@
 
 ---
 
-## 项目现状（2026-08-17）
+## 项目现状（2026-08-18）
 
 | 维度 | 状态 |
 |------|------|
 | 核心系统 | Hermes Core (hermes_core/) + desk-pet 扩展（emotion/soul/time/memory/voice） |
+| 大脑调度 | ServiceLifecycle 统一管理 TTS/STT/Embedding/LLM 全生命周期 |
 | 前端功能 | 系统托盘 ✅ / 番茄钟 ✅ / 每日问候 ✅ / 技能系统(5个) ✅ / 感知降级 ✅ |
 | 安全加固 | DPAPI 加密 + Token 鉴权 + ErrorBoundary ✅ |
-| 测试/CI | Vitest(3) ✅ / GitHub Actions CI ✅ / Playwright 配置 ✅ |
+| 测试/CI | Vitest(136) ✅ / GitHub Actions CI ✅ / Playwright 配置 ✅ |
 | 工程化 | TypeScript strict ✅ / Rust 模块化 ✅ / ESLint + Prettier + Husky ✅ |
 | Tauri 打包 | 🔲 Phase 5 待实现 |
 | 虚拟环境 | 统一为 `./venv`（主 venv），CosyVoice 依赖已回归 |
+| 语音服务 | TTS (CosyVoice/Edge/GPT-SoVITS) / STT (FunASR/SenseVoice) / Embedding (Ollama) 全部走大脑 |
 
 ---
 

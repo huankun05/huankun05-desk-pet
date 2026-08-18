@@ -92,10 +92,25 @@ from hermes_core import EmotionState, HEXACOPersonality, MemoryStore
 | `from hermes_core import SessionDB, EmotionState, MemoryStore, VoiceService` | ✅ |
 | `from core.heart.emotion import EmotionState` 兼容层 | ✅ |
 | `from core.brain.store import MemoryStore` 兼容层 | ✅ |
-| `from core.session import Session` | ✅ |
-| `from core.pipeline import main` | ✅ |
+| `from core.session import Session` 兼容层 | ✅ |
+| `from core.pipeline import main` 兼容层 | ✅ |
 | `from hermes_gateway_server import create_app` | ✅ |
-| `from core.api_server import create_app` | ✅ |
+| `from core.api_server import create_app` 兼容层 | ✅ |
+
+### 2.4 前端服务生命周期大脑（2026-08-18）
+
+前端新增 `ServiceLifecycle` + `llmScheduler`，所有服务生命周期由大脑统一管理：
+
+| 服务 | 状态 | 调度器 |
+|------|------|--------|
+| TTS (CosyVoice/Edge/GPT-SoVITS/Piper) | ✅ | `synthesizeViaBrain()` → `ServiceLifecycle` |
+| STT (FunASR/SenseVoice) | ✅ | `transcribeViaBrain()` → `ServiceLifecycle` |
+| Embedding (Ollama) | ✅ | `getEmbeddingViaBrain()` → `ServiceLifecycle` |
+| LLM | ✅ | `llmScheduler.schedule()` → 并发限制 + 优先级排队 |
+
+- **资源感知调度**：按 `estimatedCpuPercent`/`estimatedGpuMb`/`estimatedMemoryMb` 分批启动，批次间延迟避免资源峰值
+- **全量接入**：6 个直接调用点（`useHermesGateway.ts`、`useVoiceCall.ts`、`useWakeWord.ts`、`useWatchTogether.ts`、`useVoiceInteraction.ts`、`ChatPanelWindow.tsx`）全部改为走大脑
+- **委托层设计**：`ttsBackend.ts`、`sttBackend.ts` 作为任务层唯一入口，内部完全委托给 `ServiceLifecycle`
 
 ---
 
