@@ -53,6 +53,30 @@ export const TTS_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
   },
 };
 
+export const STT_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
+  funasr: {
+    id: 'service_8002',
+    command: 'venv/Scripts/python.exe',
+    args: ['server/stt_server.py', '--port', '8002'],
+    workDir: '.',
+    port: 8002,
+  },
+  sensevoice: {
+    id: 'service_8002',
+    command: 'venv/Scripts/python.exe',
+    args: ['server/stt_server.py', '--port', '8002'],
+    workDir: '.',
+    port: 8002,
+  },
+  sherpaonnx: {
+    id: 'service_8002',
+    command: 'venv/Scripts/python.exe',
+    args: ['server/stt_server.py', '--port', '8002'],
+    workDir: '.',
+    port: 8002,
+  },
+};
+
 /** 把 provider 配置解析成启动规格（优先 launch，回退默认映射）。 */
 export function resolveLaunchSpec(
   typeName: string,
@@ -69,7 +93,7 @@ export function resolveLaunchSpec(
       env: launch.env,
     };
   }
-  const def = TTS_LAUNCH_SPECS[typeName];
+  const def = TTS_LAUNCH_SPECS[typeName] || STT_LAUNCH_SPECS[typeName];
   return def ? { ...def } : null;
 }
 

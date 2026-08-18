@@ -15,7 +15,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
-import { providerManager } from '../services/provider/manager';
+import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceAssistant');
@@ -115,8 +115,9 @@ export function useVoiceAssistant({
     }
 
     // 检查 STT Provider
-    const sttProvider = providerManager.getActiveSTTProvider();
-    if (!sttProvider) {
+    // STT 可用性由大脑管理，此处仅做提示
+    const sttAvailable = await transcribeViaBrain(new ArrayBuffer(0), 'wav');
+    if (!sttAvailable) {
       showBubble('请先在设置中配置语音识别 (STT) 服务~', 3000);
       log.info('No STT provider configured');
       return;
@@ -175,15 +176,13 @@ export function useVoiceAssistant({
         return;
       }
 
-      const sttProvider = providerManager.getActiveSTTProvider();
-      if (!sttProvider) {
+      log.info('Transcribing audio', { size: audioBuffer.byteLength });
+      const result = await transcribeViaBrain(audioBuffer, 'wav');
+      if (!result) {
         showBubble('STT 服务不可用~', 3000);
         updateState('idle');
         return;
       }
-
-      log.info('Transcribing audio', { size: audioBuffer.byteLength });
-      const result = await sttProvider.transcribe(audioBuffer, 'wav');
       await handleRecognizedText(result.text);
     } catch (err) {
       log.error('STT transcription failed', { err });

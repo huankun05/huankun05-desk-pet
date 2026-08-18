@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { audioPlayer } from '../services/audio/player';
 import { providerManager } from '../services/provider/manager';
+import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { setMouthOpenY } from '../lib/live2d';
 import { useVADInteraction } from './useVADInteraction';
 import { createLogger } from '../utils/logger';
@@ -69,8 +70,8 @@ export function useVoiceInteraction({
     };
 
     const sttTimer = setInterval(() => {
-      const stt = providerManager.getActiveSTTProvider();
-      const available = stt !== null;
+      const cfg = providerManager.getActiveSTTConfig();
+      const available = cfg !== null;
       setSttAvailable(available);
       try {
         localStorage.setItem('deskpet_sttAvailable', String(available));
@@ -108,13 +109,11 @@ export function useVoiceInteraction({
       recordingModeRef.current = 'idle';
       if (!audio) return;
 
-      const sttProvider = providerManager.getActiveSTTProvider();
-      if (!sttProvider) {
+      const result = await transcribeViaBrain(audio, 'wav');
+      if (!result) {
         log.warn('No active STT provider');
         return;
       }
-
-      const result = await sttProvider.transcribe(audio, 'wav');
       if (result.text.trim()) {
         log.info('STT result', { text: result.text.slice(0, 50), emotion: result.emotion });
         if (result.emotion) {
@@ -150,12 +149,11 @@ export function useVoiceInteraction({
         recordingModeRef.current = 'idle';
         if (!audio) return;
         try {
-          const sttProvider = providerManager.getActiveSTTProvider();
-          if (!sttProvider) {
+          const result = await transcribeViaBrain(audio, 'wav');
+          if (!result) {
             log.warn('VAD auto-STT: 无 STT Provider');
             return;
           }
-          const result = await sttProvider.transcribe(audio, 'wav');
           const text = result.text.trim();
           if (text) {
             log.info('VAD auto-STT 识别完成', { text: text.slice(0, 50) });

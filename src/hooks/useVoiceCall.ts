@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
-import { providerManager } from '../services/provider/manager';
+import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { getHermesGatewayClient } from '../services/hermesGateway';
 import { eventBus } from '../services/eventBus';
@@ -133,12 +133,6 @@ export function useVoiceCall({
   /** 开始一轮聆听 */
   const startTurn = useCallback(async () => {
     if (!activeRef.current) return;
-    const stt = providerManager.getActiveSTTProvider();
-    if (!stt) {
-      setCallState('error');
-      showError?.('请先在设置中配置语音识别 (STT) 服务~');
-      return;
-    }
     setCallState('listening');
 
     const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1500 });
@@ -146,8 +140,8 @@ export function useVoiceCall({
     rec.onAutoStop = async (audio: ArrayBuffer) => {
       if (!activeRef.current) return;
       try {
-        const result = await stt.transcribe(audio, 'wav');
-        const text = (result as { text?: string }).text?.trim();
+        const result = await transcribeViaBrain(audio, 'wav');
+        const text = result?.text?.trim();
         if (text) {
           setCallState('speaking');
           // 发到聊天（渲染用户+助手气泡）；TTS 由 hermes:done 事件触发

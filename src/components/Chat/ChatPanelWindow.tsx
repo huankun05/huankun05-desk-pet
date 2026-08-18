@@ -21,6 +21,7 @@ import {
   type ChatSession,
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
+import { transcribeViaBrain } from '../../services/provider/sttBackend';
 import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
@@ -557,11 +558,9 @@ function ChatPanelWindow() {
 
       // 优先走面板内直连 STT Provider
       try {
-        await providerManager.ready;
-        const sttProvider = providerManager.getActiveSTTProvider();
-        if (sttProvider) {
-          const result = await sttProvider.transcribe(audio, 'wav');
-          const text = (result as { text?: string } | undefined)?.text?.trim() || '';
+        const result = await transcribeViaBrain(audio, 'wav');
+        if (result) {
+          const text = result.text?.trim() || '';
           if (text) {
             // 把识别结果回填到输入框，用户可检查/修改后再发送
             chatWindowRef.current?.setDraft(text);
