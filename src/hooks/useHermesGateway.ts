@@ -21,6 +21,7 @@ import { isTauriEnv } from '../utils/tauriEnv';
 import { isOfflineModeEnabled } from '../services/provider/watchdog';
 import { providerManager } from '../services/provider/manager';
 import { ensureActiveTTSBackend } from '../services/provider/ttsBackend';
+import { llmScheduler } from '../services/provider/llmScheduler';
 import { toolRegistry } from '../services/tools/registry';
 import { getDisabledTools } from '../services/tools/toolManagement';
 import {
@@ -248,7 +249,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       setIsLoading(true);
       setIsStreaming(true);
 
-      // 通过 WebSocket 发送
+      // 通过 LLM 调度器发送（限制并发，避免 GPU/CPU 瞬间过载）
       const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
       log.info(
@@ -258,107 +259,120 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
         mode,
         frontendTools.length,
       );
-      const sentMsgId = client.sendChat(content, {
-        mode,
-        frontendTools,
-        disabledTools: getDisabledTools(),
-        onToken: (token) => {
-          if (abortedRef.current) return;
-          if (!placeholderCreated) {
-            appendAssistant(token);
-            currentResponseRef.current = token;
-          } else {
-            currentResponseRef.current += token;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
-              ),
-            );
-          }
-          log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
-          options?.onToken?.(token);
-        },
-        onDone: async (fullResponse) => {
-          if (abortedRef.current) return;
-          if (!placeholderCreated) {
-            appendAssistant(fullResponse);
-          } else {
-            const finalMsg: Message = {
-              id: assistantId,
-              role: 'assistant',
-              content: fullResponse,
-              timestamp: new Date(),
-            };
-            if (sessionRef.current?.id === session.id) {
-              saveMessage(finalMsg);
-              setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+
+      // 检查调度器状态
+      const schedStatus = llmScheduler.getStatus();
+      if (schedStatus.queueLength > 0) {
+        showToast(
+          t('app.llm_queue_hint', { defaultValue: '正在处理上一个请求，请稍候...' }),
+          'info',
+        );
+      }
+
+      await llmScheduler.schedule(async () => {
+        client.sendChat(content, {
+          mode,
+          frontendTools,
+          disabledTools: getDisabledTools(),
+          onToken: (token) => {
+            if (abortedRef.current) return;
+            if (!placeholderCreated) {
+              appendAssistant(token);
+              currentResponseRef.current = token;
+            } else {
+              currentResponseRef.current += token;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
+                ),
+              );
             }
-          }
-          // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
-          if (isTauriEnv()) {
-            emit(MSG_SYNC_EVENT, {
-              sessionId: session.id,
-              msg: {
+            log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
+            options?.onToken?.(token);
+          },
+          onDone: async (fullResponse) => {
+            if (abortedRef.current) return;
+            if (!placeholderCreated) {
+              appendAssistant(fullResponse);
+            } else {
+              const finalMsg: Message = {
                 id: assistantId,
                 role: 'assistant',
                 content: fullResponse,
                 timestamp: new Date(),
-              },
-            }).catch(() => {});
-          }
-          setIsLoading(false);
-          setIsStreaming(false);
-          eventBus.emit('message:response', { text: fullResponse, sessionId: session.id });
-
-          options?.onMessageComplete?.(
-            content,
-            fullResponse,
-            session.id,
-            userMessage.id,
-            assistantId,
-          );
-          if (options?.ttsEnabled && fullResponse.trim()) {
-            try {
-              await providerManager.ready;
-              // 后端未运行则自动拉起（CosyVoice 等需本地进程），否则会静默失败
-              const backendOk = await ensureActiveTTSBackend({
-                waitReady: true,
-                timeoutMs: 60000,
-              });
-              if (!backendOk) {
-                log.warn('TTS 后端未能启动，跳过朗读');
-                return;
+              };
+              if (sessionRef.current?.id === session.id) {
+                saveMessage(finalMsg);
+                setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
               }
-              const ttsProvider = providerManager.getActiveTTSProvider();
-              if (ttsProvider) {
-                const result = await ttsProvider.synthesize(fullResponse.trim());
-                const { audioPlayer } = await import('../services/audio/player');
-                audioPlayer.enqueue(result.audio, result.sampleRate, `tts-${assistantId}`);
-              }
-            } catch {
-              // ignore TTS playback errors
             }
-          }
-        },
-        onError: (error) => {
-          if (!placeholderCreated) {
-            appendAssistant(t('app.error_api_key', { message: error }));
-          } else {
-            const errorMsg: Message = {
-              id: assistantId,
-              role: 'assistant',
-              content: t('app.error_api_key', { message: error }),
-              timestamp: new Date(),
-            };
-            setMessages((prev) => prev.map((m) => (m.id === assistantId ? errorMsg : m)));
-          }
-          setIsLoading(false);
-          setIsStreaming(false);
-          showToast(t('app.error_api_key', { message: error }), 'error');
-        },
-      });
+            // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
+            if (isTauriEnv()) {
+              emit(MSG_SYNC_EVENT, {
+                sessionId: session.id,
+                msg: {
+                  id: assistantId,
+                  role: 'assistant',
+                  content: fullResponse,
+                  timestamp: new Date(),
+                },
+              }).catch(() => {});
+            }
+            setIsLoading(false);
+            setIsStreaming(false);
+            eventBus.emit('message:response', { text: fullResponse, sessionId: session.id });
+
+            options?.onMessageComplete?.(
+              content,
+              fullResponse,
+              session.id,
+              userMessage.id,
+              assistantId,
+            );
+            if (options?.ttsEnabled && fullResponse.trim()) {
+              try {
+                await providerManager.ready;
+                // 后端未运行则自动拉起（CosyVoice 等需本地进程），否则会静默失败
+                const backendOk = await ensureActiveTTSBackend({
+                  waitReady: true,
+                  timeoutMs: 60000,
+                });
+                if (!backendOk) {
+                  log.warn('TTS 后端未能启动，跳过朗读');
+                  return;
+                }
+                const ttsProvider = providerManager.getActiveTTSProvider();
+                if (ttsProvider) {
+                  const result = await ttsProvider.synthesize(fullResponse.trim());
+                  const { audioPlayer } = await import('../services/audio/player');
+                  audioPlayer.enqueue(result.audio, result.sampleRate, `tts-${assistantId}`);
+                }
+              } catch {
+                // ignore TTS playback errors
+              }
+            }
+          },
+          onError: (error) => {
+            if (!placeholderCreated) {
+              appendAssistant(t('app.error_api_key', { message: error }));
+            } else {
+              const errorMsg: Message = {
+                id: assistantId,
+                role: 'assistant',
+                content: t('app.error_api_key', { message: error }),
+                timestamp: new Date(),
+              };
+              setMessages((prev) => prev.map((m) => (m.id === assistantId ? errorMsg : m)));
+            }
+            setIsLoading(false);
+            setIsStreaming(false);
+            showToast(t('app.error_api_key', { message: error }), 'error');
+          },
+        });
+      }, 10); // LLM 请求优先级：10（高于默认 50）
     },
-    [options, t],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [options],
   );
 
   // 新聊天
@@ -404,25 +418,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
     return cleanup;
   }, [gatewayEnabled]);
 
-  const buildFrontendTools = useCallback((): Array<Record<string, unknown>> => {
-    try {
-      const all = toolRegistry.getAll();
-      return all
-        .filter((t) => t.enabled !== false)
-        .map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: Object.fromEntries(
-            Object.entries(t.parameters).map((entry) => {
-              const [k, v] = entry as [string, { type: string; description: string }];
-              return [k, { type: v.type, description: v.description }];
-            }),
-          ),
-        }));
-    } catch {
-      return [];
-    }
-  }, []);
+  // buildFrontendTools 已内联到 handleSendMessage 中，此处移除重复定义
 
   // 跨窗口消息同步：主窗与聊天面板共享同一 localStorage 会话但内存 state 各自独立。
   // 收到其他窗口广播的完成态消息时，用纯函数按「会话匹配 + id upsert」合并（见 msgSync.ts）。
