@@ -1,219 +1,221 @@
-# Architecture Investigation & Unification Plan
+# 架构统一方案：以 Hermes 为核心
 
-**Date**: 2026-08-17  
-**Author**: 汐月 (Hermes Agent)  
-**Status**: Draft — pending discussion with 锟哥
+**日期**: 2026-08-17
+**作者**: 汐月 (Hermes Agent)
+**状态**: 草稿 — 等待锟哥讨论确认
 
 ---
 
-## 1. Current State: Two Cores, Two Memory Systems
-
-### What We Have
+## 1. 核心理念：大树嫁接
 
 ```
-server/
-├── hermes_core/                    ← Hermes 原生核心（重型）
-│   ├── hermes_state.py             ← SessionDB, FTS5, 8569 lines
-│   ├── memory_manager.py
-│   ├── message_sanitization.py
-│   ├── sqlite_runtime.py
-│   └── ...
-│
-├── core/                           ← 项目自研核心（轻量）
-│   ├── brain/                      ← 记忆碎片系统（独立）
-│   │   ├── store.py                ← MemoryStore, CRUD, 492 lines
-│   │   ├── fragment.py
-│   │   ├── archivist.py
-│   │   ├── hebbian.py
-│   │   ├── librarian.py
-│   │   ├── scribe.py
-│   │   └── memory_service.py
-│   ├── api_server.py               ← Core API (port 9877)
-│   ├── session_service.py          ← 接入 hermes_core.SessionDB
-│   ├── heart/                      ← 情绪/表情/激素
-│   ├── soul/                       ← 人格/漂移
-│   └── time/                       ← 昼夜/纪念日
-│
-└── cosyvoice_server.py             ← TTS 服务（独立）
+        Hermes Core (主干)
+        ├── hermes_state.py      ← 会话存储 + FTS5
+        ├── memory_manager.py     ← 上下文压缩
+        ├── message_sanitization.py ← 消息清洗
+        └── sqlite_runtime.py     ← SQLite 运行时
+              │
+              │  嫁接
+              ▼
+        desk-pet 定制层 (枝桠)
+        ├── emotion/              ← 情绪/表情/激素系统
+        ├── memory_fragments/     ← 记忆碎片 (核心.db)
+        ├── soul/                 ← 人格/漂移
+        ├── time/                 ← 昼夜/纪念日
+        ├── voice/                ← TTS/STT/语音服务
+        ├── live2d/               ← Live2D 模型控制
+        ├── tools/                ← 本地工具 + 前端工具循环
+        └── ui/                   ← Tauri 前端界面
 ```
 
-### Databases
-
-| File | Managed By | Contents |
-|------|-----------|----------|
-| `data/hermes_state.db` | `hermes_core` | messages (353 rows), sessions (2), FTS5 index |
-| `data/core.db` | `core/brain` | memory_fragments (4), emotion_history (3), personality_states (1) |
-| `data/memories.db` | ~~旧 Hermes~~ | **DELETED** (0 rows, legacy) |
-
-### The Problem: Two Brains
-
-- **`hermes_core`** 管理会话历史、FTS5 全文检索、状态导入导出
-- **`core/brain`** 管理记忆碎片、知识库、情绪/人格状态
-- 两者**互不知晓**，各自写各自的数据库
-- 前端记忆检索走**第三条路**：本地 RAG 引擎（BM25 + Ebbinghaus），不直接查这两个 DB
-
-### Why This Is Unsustainable
-
-1. **状态不一致风险**：情绪/人格状态和会话历史由两套代码分别更新
-2. **功能重复**：两边都有"记忆"相关逻辑，新功能不知道改哪边
-3. **维护成本翻倍**：bug fix、优化、重构都要改两处
-4. **冲突 inevitable**：随着功能增加，两套系统必然出现数据竞争
+**原则**：
+- Hermes 提供**基础设施**：会话管理、FTS5、上下文压缩、SQLite
+- 我们提供**桌面伴侣体验**：情绪、记忆碎片、语音、Live2D、本地工具
+- 代码结构：`hermes_core/` 保持原样，新增 `desk_pet/` 作为嫁接层
 
 ---
 
-## 2. Investigation Findings
+## 2. Hermes 主干：保留什么，剪掉什么
 
-### 2.1 Frontend Warning Issues
+### 2.1 保留（核心能力）
 
-| Warning | Source | Impact | Fix Status |
-|---------|--------|--------|-----------|
-| SQLite WAL bug | Hermes Gateway (Python 3.12.10, SQLite 3.49.1) | Auto-degraded to `journal_mode=DELETE`, no functional impact | **Known issue** — upgrade Python to 3.13+ or Hermes update |
-| torch weight_norm deprecated | CosyVoice upstream | Log noise | **Fixed** — added `warnings.filterwarnings` |
-| onnxruntime Memcpy nodes | onnxruntime 1.20.0 | Performance degradation (CUDA graph disabled) | **Low priority** — can optimize model graph later |
+| 模块 | 作用 | 为什么保留 |
+|------|------|-----------|
+| `hermes_state.py` (8569 行) | SessionDB + FTS5 + 压缩锁 | 会话持久化是刚需，已生产验证 |
+| `memory_manager.py` | 上下文压缩、记忆管理 | 长对话自动压缩，避免上下文爆炸 |
+| `message_sanitization.py` | 消息清洗、代理对去除 | 防止 Unicode 错误和安全问题 |
+| `sqlite_runtime.py` | SQLite 运行时检查 | WAL bug 检测、版本兼容 |
+| `hermes_bootstrap.py` | Windows 平台启动修复 | 防止 platform.win32_ver() 崩溃 |
+| `_subprocess_compat.py` | 子进程兼容层 | Windows 下 Python 子进程稳定 |
 
-### 2.2 TTS Hot-Swap & Fallback
+### 2.2 剪掉（桌面端不需要）
 
-**Status**: Already implemented ✅
+| 模块/功能 | 为什么剪掉 |
+|-----------|-----------|
+| `skill_commands.py` | 技能脚手架系统，桌面端不需要 |
+| `hermes_state_portability.py` | 状态导入导出（JSONL 迁移），桌面端只有单个用户 |
+| `hermes_state_search.py` | 复杂会话搜索（delegate 子代理等），桌面端不需要多平台过滤 |
+| `hermes_constants.py` | Hermes 平台路径（Telegram/Discord 数据目录等），桌面端有固定路径 |
+| `stubs.py` | 类型桩，桌面端不需要 |
+| `verify.py` | 安装验证脚本，不需要 |
+| `hermes_logging.py` | 多平台日志配置，桌面端用标准 logging |
 
-- `manager.ts`: `markUnhealthy()` + `resolveActive()` with 5min TTL
-- `ttsBackend.ts`: `switchActiveTTSBackend()` + `ensureActiveTTSBackend()`
-- 5 backends registered: Edge TTS, CosyVoice V3, GPT-SoVITS v2, Piper, Custom
+**预计剪掉**: ~3000 行
 
-**Gap**: No user-visible notification when fallback happens.
+### 2.3 简化（保留核心，删除冗余）
 
-**Fix applied**: Added `showToast()` in `pipeline/stages/tts.ts`:
-- Backend unavailable → toast "TTS 服务不可用，请检查配置"
-- Provider unreachable → toast "TTS 服务「xxx」不可用，已自动降级"
+| 模块 | 简化方案 |
+|------|---------|
+| `hermes_state.py` | 保留核心 SessionDB + FTS5，删除 delegate 子代理、多平台 source 过滤 |
+| `hermes_state_common.py` | 只保留 SCHEMA_SQL + FTS_SQL，删除复杂 trigger |
+| `hermes_state_schema.py` | 简化 schema 版本管理（桌面端不需要跨版本迁移） |
 
-### 2.3 Frontend Bundle Size
-
-**Finding**: Not redundant. All chunks are lazy-loaded route pages.
-
-- `MarketplaceIndex`, `PluginsPage`, `Live2DPage`, etc. are all registered in `routes.tsx`
-- Vite splits each route into independent chunks, loaded on demand
-- Iconify chunk already optimized to 435KB
-
-**Conclusion**: No cleanup needed. This is normal code-splitting.
+**预计简化**: ~4000 行 → ~2000 行
 
 ---
 
-## 3. Unification Plan: One Core, One Memory
+## 3. 嫁接层：我们添加什么
 
-### Core Principle
-
-> **`hermes_core/` is the only core.**  
-> **`core/brain/` functionality moves into `hermes_core/`.**  
-> **Two DB files remain, but only `hermes_core` manages them.**
-
-### Why Not Merge Database Files?
-
-- `hermes_state.db`: messages + FTS5 + sessions (transaction-heavy, session-scoped)
-- `core.db`: memory_fragments + emotion_history + personality_states (append-heavy, user-scoped)
-- Different write patterns, different indexes, different lifecycle
-- **Risk of merge**: FTS5 index rebuild, transaction conflicts, rollback complexity
-- **Decision**: Keep two files, unify the code that accesses them
-
-### Target Architecture
+### 3.1 现有项目代码（直接搬入）
 
 ```
-server/
-├── hermes_core/                           ← ONLY CORE
-│   ├── __init__.py                        ← re-export unified API
-│   ├── hermes_state.py                    ← SessionDB (hermes_state.db)
-│   ├── memory_unified.py                  ← NEW: unified memory interface
-│   │   ├── search(query, limit)           ← FTS5 messages + BM25 fragments
-│   │   ├── add_fragment(fragment)         ← write to core.db
-│   │   └── get_session_history(session_id)← read from hermes_state.db
-│   ├── memory_bridge.py                   ← NEW: wrap core/brain logic
-│   │   └── MemoryStore (compat wrapper)   ← for gradual migration
-│   ├── session_service.py                 ← existing, already uses SessionDB
-│   ├── heart/                             ← emotion/expression/hormone
-│   ├── soul/                              ← personality/drift
-│   ├── time/                              ← circadian/anniversaries
-│   └── ...
-│
-├── core/                                  ← BUSINESS LOGIC ONLY
-│   ├── api_server.py                      ← routes call hermes_core
-│   ├── session_service.py                 ← thin wrapper
-│   ├── heart/                             ← moved from core/heart
-│   ├── soul/                              ← moved from core/soul
-│   ├── time/                              ← moved from core/time
-│   └── brain/                             ← DEPRECATED (compat only)
-│       └── store.py                       ← keep for now, remove later
-│
-└── cosyvoice_server.py                    ← standalone TTS
+desk_pet/
+├── emotion/              ← 情绪系统 (heart/)
+│   ├── emotion_engine.py
+│   ├── expression.py
+│   └── hormone.py
+├── memory/               ← 记忆碎片 (brain/)
+│   ├── fragment.py
+│   ├── store.py          ← 迁入 hermes_core 作为 MemoryStore 扩展
+│   ├── archivist.py
+│   ├── hebbian.py
+│   ├── librarian.py
+│   └── scribe.py
+├── soul/                 ← 人格/漂移
+│   ├── personality.py
+│   └── drift.py
+├── time/                 ← 昼夜/纪念日
+│   ├── circadian.py
+│   └── anniversaries.py
+├── voice/                ← 语音服务
+│   ├── tts/              ← CosyVoice/Edge/GPT-SoVITS
+│   ├── stt/              ← Whisper
+│   └── voiceprint/       ← 声纹识别
+├── live2d/               ← Live2D 模型
+│   ├── model_control.py
+│   └── motion_scheduler.py
+├── tools/                ← 本地工具 + 工具循环
+│   ├── local/            ← open_app, get_volume 等
+│   ├── frontend/         ← 前端工具执行
+│   └── loop.py           ← 工具调用循环
+└── ui/                   ← Tauri 前端
+    └── (已有，不动)
 ```
 
-### Migration Path
+### 3.2 新增集成点
 
-#### Phase 1: Add Unified Interface (this week)
-1. Create `hermes_core/memory_unified.py`
-   - `search(query, limit)` — query both FTS5 and memory_fragments
-   - `add_fragment(fragment)` — write to core.db
-   - `get_session_history(session_id)` — read from hermes_state.db
-2. Create `hermes_core/memory_bridge.py`
-   - Wrap `core.brain.store.MemoryStore` as `hermes_core.MemoryStore`
-   - Maintain backward compatibility for existing imports
-3. Update `hermes_core/__init__.py` to re-export unified API
-
-#### Phase 2: Migrate Callers (next week)
-1. Update `core/api_server.py` memory routes → use `hermes_core.memory_unified`
-2. Update `core/session.py` → use `hermes_core.memory_unified`
-3. Update frontend `pipeline/stages/unified-memory.ts` → call backend unified API
-
-#### Phase 3: Cleanup (after verification)
-1. Mark `core/brain/memory_service.py` as deprecated
-2. Remove direct `core.brain` imports from new code
-3. Verify all memory operations go through `hermes_core`
+```
+hermes_core/
+├── __init__.py                    ← 重新导出：SessionDB + MemoryStore + EmotionEngine
+├── hermes_state.py                ← 剪枝后保留核心
+├── memory_unified.py              ← 新增：统一记忆接口
+│   ├── search(query, limit)       ← FTS5 messages + BM25 fragments
+│   ├── add_fragment(fragment)     ← 写入 core.db
+│   └── get_session_history(sid)   ← 读取 hermes_state.db
+├── emotion.py                     ← 新增：情绪引擎（从 core/heart 迁入）
+├── soul.py                        ← 新增：人格系统（从 core/soul 迁入）
+├── time.py                        ← 新增：时间感知（从 core/time 迁入）
+└── voice.py                       ← 新增：语音接口（从 server/voice_services 迁入）
+```
 
 ---
 
-## 4. Completed Fixes (2026-08-17)
+## 4. 数据库架构
 
-### 4.1 Warnings
-- [x] Suppress torch FutureWarning/UserWarning in `cosyvoice_server.py`
-- [x] SQLite WAL bug: documented, auto-degraded, not blocking
-- [x] onnxruntime performance warning: low priority, deferred
+### 4.1 保留两个文件（不合并）
 
-### 4.2 TTS Fallback Notification
-- [x] Added `showToast()` in `pipeline/stages/tts.ts`
-- [x] Backend unavailable → warning toast
-- [x] Provider unreachable → "TTS 服务「xxx」不可用，已自动降级"
+| 文件 | 管理者 | 内容 |
+|------|--------|------|
+| `data/hermes_state.db` | `hermes_core` | messages + FTS5 + sessions |
+| `data/core.db` | `hermes_core.memory_unified` | memory_fragments + emotion_history + personality_states |
 
-### 4.3 Cleanup
-- [x] Deleted `data/memories.db` (legacy, 0 rows)
-- [x] Verified `core.db` and `hermes_state.db` are the only active databases
+**为什么不合并？**
+- 写入模式不同：hermes_state.db 是事务密集（每轮对话写消息），core.db 是追加密集（记忆碎片批量写入）
+- 索引不同：FTS5 vs BM25 + 向量
+- 生命周期不同：会话可压缩/删除，记忆碎片永久保留
 
----
+### 4.2 统一访问入口
 
-## 5. Open Questions for Discussion
+```python
+from hermes_core import SessionDB, MemoryStore, EmotionEngine
 
-1. **Do we keep `core/brain/store.py` as a permanent compatibility layer, or plan to delete it?**
-2. **Should the unified memory search be triggered from frontend or backend?** (Current: frontend RAG engine. Proposed: backend unified API + frontend RAG)
-3. **Do we need a migration script for existing `core.db` data, or is it fresh enough to ignore?**
-4. **Timeline**: aggressive (finish in 1 week) or conservative (2-3 weeks with testing)?
+# 会话管理（Hermes 原生）
+session = SessionDB()
 
----
+# 记忆碎片（我们嫁接）
+memory = MemoryStore(character_id="nahida")
 
-## 6. Risks & Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Breaking existing memory API during migration | Medium | High | Keep `core/brain/store.py` as compat layer until all callers verified |
-| FTS5 query performance with unified search | Low | Medium | Benchmark before/after; keep queries simple |
-| Frontend RAG engine becomes redundant | Medium | Low | Deprecate gradually, not delete immediately |
-| CosyVoice dependency on torch warnings resurfacing | Medium | Low | Already suppressed at server startup |
+# 情绪系统（我们嫁接）
+emotion = EmotionEngine()
+```
 
 ---
 
-## 7. Next Steps (Pending 锟哥's Approval)
+## 5. 执行计划
 
-1. Review this document and provide feedback
-2. Confirm migration timeline preference
-3. Approve starting Phase 1: create `memory_unified.py` + `memory_bridge.py`
-4. Discuss any additional concerns about the "one core" direction
+### 阶段 1：剪枝 Hermes（本周）
+1. 删除 `skill_commands.py`, `hermes_state_portability.py`, `hermes_state_search.py`
+2. 简化 `hermes_constants.py`（删除平台特定路径）
+3. 删除 `stubs.py`, `verify.py`, `hermes_logging.py`
+4. 简化 `hermes_state.py`（删除 delegate 子代理、多平台 source）
+5. 简化 `hermes_state_common.py`（删除复杂 trigger）
+6. 运行 `cargo check` + `tsc --noEmit` 确保不破坏
+
+**预计**: 剪掉 ~3000 行，简化 ~2000 行
+
+### 阶段 2：嫁接我们的代码（下周）
+1. 创建 `hermes_core/memory_unified.py`（统一记忆接口）
+2. 创建 `hermes_core/emotion.py`（情绪引擎）
+3. 创建 `hermes_core/soul.py`（人格系统）
+4. 创建 `hermes_core/time.py`（时间感知）
+5. 创建 `hermes_core/voice.py`（语音接口）
+6. 更新 `hermes_core/__init__.py` 重新导出
+
+**预计**: 新增 ~1500 行
+
+### 阶段 3：迁移调用方（下下周）
+1. 更新 `core/api_server.py` → 使用 `hermes_core`
+2. 更新 `hermes_gateway_server.py` → 使用 `hermes_core.emotion` + `hermes_core.voice`
+3. 更新前端 `useBrainBridge.ts` → 调用 `hermes_core.memory_unified`
+4. 删除 `core/brain/` 兼容层（验证后再删）
+
+### 阶段 4：验证与清理
+1. 运行完整测试套件
+2. 手动测试对话、TTS、情绪、Live2D
+3. 删除 `core/brain/` 遗留代码
+4. 更新 PLAN.md
 
 ---
 
-*Document version: 1.0*  
-*Last updated: 2026-08-17*
+## 6. 风险与缓解
+
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|---------|
+| 剪枝破坏 Hermes 核心功能 | 中 | 高 | 逐步删除，每步验证 |
+| 情绪/记忆系统与 SessionDB 冲突 | 低 | 中 | 保持两个数据库，只统一代码访问 |
+| 前端工具循环与 Hermes 工具系统冲突 | 低 | 低 | 桌面端用自有工具循环，Hermes 工具系统剪掉 |
+| Live2D 模型与 Hermes 表达系统冲突 | 低 | 低 | Live2D 作为独立模块，通过 emotion.py 集成 |
+
+---
+
+## 7. 下一步（等待锟哥确认）
+
+1. 确认"大树嫁接"方向
+2. 确认剪枝范围（是否删除 `hermes_state_search.py`）
+3. 确认是否保留 `core/brain/` 兼容层
+4. 批准开始阶段 1：剪枝 Hermes
+
+---
+
+*文档版本: 2.0 (大树嫁接方案)*
+*最后更新: 2026-08-17*
