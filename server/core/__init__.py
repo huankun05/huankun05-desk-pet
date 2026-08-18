@@ -1,27 +1,6 @@
 """
 core — 向后兼容层
 
-所有功能已迁入 hermes_core/，此包仅用于重定向旧 import 路径。
-新代码请直接使用 from hermes_core import ...
+真实实现已迁入 hermes_core/。
+子模块兼容文件各自转发，不再在包根做通配导入，避免启动时 hermes_core 尚未可导入的问题。
 """
-from hermes_core import *  # noqa: F401,F403
-from hermes_core import (
-    SessionDB,
-    EmotionState,
-    ExpressionEngine,
-    HormonalSystem,
-    HormonalEngine,
-    HEXACOPersonality,
-    PersonalityDrifter,
-    CircadianRhythm,
-    AnniversaryManager,
-    ReunionEngine,
-    MemoryStore,
-    MemoryFragment,
-    Librarian,
-    Scribe,
-    ExtractionConfig,
-    get_memory_service,
-    ensure_voice_services,
-    stop_voice_services,
-)
