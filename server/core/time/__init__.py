@@ -1,15 +1,10 @@
-"""时间系统（Time）。
-
-模块结构:
-- circadian.py — 昼夜节律
-- reunion.py — 重逢机制
-"""
-
-from .circadian import CircadianRhythm
-from .reunion import ReunionEngine, ReunionResult
+"""core.time — 兼容层，已迁入 hermes_core.time"""
+from hermes_core.time.circadian import CircadianRhythm
+from hermes_core.time.anniversaries import AnniversaryManager
+from hermes_core.time.reunion import ReunionEngine
 
 __all__ = [
     "CircadianRhythm",
+    "AnniversaryManager",
     "ReunionEngine",
-    "ReunionResult",
 ]

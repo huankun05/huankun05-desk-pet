@@ -1,19 +1,12 @@
-"""情感系统（Heart）。
-
-三层架构：
-L1: 激素系统（HormonalSystem — dopamine/cortisol/oxytocin）
-L2: 情绪状态（EmotionState — PAD三维）
-L3: 表达策略（ExpressionStrategy — 情绪→语言风格）
-"""
-
-from .emotion import PADValues, EmotionState, EMOTION_KEYWORDS
-from .hormones import HormonalSystem, HormonalEngine, HORMONE_CONFIG
+"""core.heart — 兼容层，已迁入 hermes_core.emotion"""
+from hermes_core.emotion.emotion import EmotionState, PADValues
+from hermes_core.emotion.expression import ExpressionEngine
+from hermes_core.emotion.hormones import HormonalSystem, HormonalEngine
 
 __all__ = [
     "PADValues",
     "EmotionState",
-    "EMOTION_KEYWORDS",
+    "ExpressionEngine",
     "HormonalSystem",
     "HormonalEngine",
-    "HORMONE_CONFIG",
 ]

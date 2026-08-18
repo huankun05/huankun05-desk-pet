@@ -1,66 +1,21 @@
-"""记忆系统（Brain）。
-
-模块结构:
-- fragment.py — 记忆碎片数据模型
-- decay.py — Ebbinghaus 遗忘曲线
-- store.py — SQLite 存储层
-- embedding.py — 向量嵌入（local_hash）
-- librarian.py — 记忆检索器
-- scribe.py — 记忆提取器
-"""
-
-from .fragment import MemoryFragment
-from .decay import (
-    compute_importance,
-    classify_stage,
-    apply_decay,
-    should_reinforce,
-    DecayResult,
-    DECAY_RATE,
-    REINFORCEMENT_FACTOR,
-    THRESHOLD_COOLING,
-    THRESHOLD_FROZEN,
-    THRESHOLD_TOMBSTONE,
-)
-from .store import MemoryStore, get_db_path, init_tables
-from .embedding import (
-    Embedder,
-    LocalHashEmbedder,
-    cosine_similarity,
-    resize_vector,
-    get_embedder,
-    get_default_embedder,
-)
-from .librarian import Librarian, SearchResult
-from .scribe import Scribe, ExtractionConfig
-from .memory_service import MemoryService, get_memory_service, reset_memory_service_cache
+"""core.brain — 兼容层，已迁入 hermes_core.memory"""
+from hermes_core.memory.store import MemoryStore, get_db_path
+from hermes_core.memory.fragment import MemoryFragment
+from hermes_core.memory.embedding import LocalHashEmbedder, cosine_similarity
+from hermes_core.memory.librarian import Librarian
+from hermes_core.memory.scribe import Scribe, ExtractionConfig
+from hermes_core.memory.memory_service import get_memory_service
+from hermes_core.memory.learning_scheduler import LearningScheduler
 
 __all__ = [
-    "MemoryFragment",
-    "compute_importance",
-    "classify_stage",
-    "apply_decay",
-    "should_reinforce",
-    "DecayResult",
-    "DECAY_RATE",
-    "REINFORCEMENT_FACTOR",
-    "THRESHOLD_COOLING",
-    "THRESHOLD_FROZEN",
-    "THRESHOLD_TOMBSTONE",
     "MemoryStore",
     "get_db_path",
-    "init_tables",
-    "Embedder",
+    "MemoryFragment",
     "LocalHashEmbedder",
     "cosine_similarity",
-    "resize_vector",
-    "get_embedder",
-    "get_default_embedder",
     "Librarian",
-    "SearchResult",
     "Scribe",
     "ExtractionConfig",
-    "MemoryService",
     "get_memory_service",
-    "reset_memory_service_cache",
+    "LearningScheduler",
 ]

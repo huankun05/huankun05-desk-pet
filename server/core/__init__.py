@@ -1,15 +1,27 @@
-"""核心引擎（Core）。
-
-四大系统:
-- Brain — 记忆系统
-- Heart — 情感系统
-- Soul — 人格系统
-- Time — 时间系统
 """
+core — 向后兼容层
 
-from . import brain
-from . import heart
-from . import soul
-from . import time
-
-__all__ = ["brain", "heart", "soul", "time"]
+所有功能已迁入 hermes_core/，此包仅用于重定向旧 import 路径。
+新代码请直接使用 from hermes_core import ...
+"""
+from hermes_core import *  # noqa: F401,F403
+from hermes_core import (
+    SessionDB,
+    EmotionState,
+    ExpressionEngine,
+    HormonalSystem,
+    HormonalEngine,
+    HEXACOPersonality,
+    PersonalityDrifter,
+    CircadianRhythm,
+    AnniversaryManager,
+    ReunionEngine,
+    MemoryStore,
+    MemoryFragment,
+    Librarian,
+    Scribe,
+    ExtractionConfig,
+    get_memory_service,
+    ensure_voice_services,
+    stop_voice_services,
+)
