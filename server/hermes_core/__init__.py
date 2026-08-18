@@ -19,6 +19,15 @@ desk-pet 新增模块：
   - memory/                      记忆碎片系统
   - voice_services.py            语音服务启动器
 """
+import sys
+from pathlib import Path
+
+# 确保 hermes_core 及其子模块在任意启动方式下都可导入
+_this_dir = Path(__file__).resolve().parent
+_server_dir = _this_dir.parent
+for _p in (_this_dir, _server_dir):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 from hermes_core.hermes_state import SessionDB  # noqa: F401
 from hermes_core.hermes_state_common import (  # noqa: F401
