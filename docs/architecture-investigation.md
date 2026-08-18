@@ -9,17 +9,26 @@
 ## 1. 核心理念：大树嫁接
 
 ```
-        Hermes Core (主干)
-        ├── hermes_state.py      ← 会话存储 + FTS5
-        ├── memory_manager.py     ← 上下文压缩
-        ├── message_sanitization.py ← 消息清洗
-        └── sqlite_runtime.py     ← SQLite 运行时
+        Hermes Core (主干，原封不动)
+        ├── hermes_state.py         ← 会话存储 + FTS5 + 压缩锁
+        ├── memory_manager.py        ← 上下文压缩
+        ├── message_sanitization.py  ← 消息清洗
+        ├── sqlite_runtime.py        ← SQLite 运行时
+        ├── hermes_bootstrap.py      ← Windows 启动修复
+        ├── _subprocess_compat.py    ← 子进程兼容
+        ├── hermes_constants.py      ← 平台路径 + Hermes Home
+        ├── hermes_state_search.py   ← 复杂会话搜索
+        ├── hermes_state_portability.py ← 状态导入导出
+        ├── skill_commands.py        ← 技能脚手架
+        ├── stubs.py                 ← 类型桩
+        ├── verify.py                ← 安装验证
+        └── ...
               │
               │  嫁接
               ▼
         desk-pet 定制层 (枝桠)
         ├── emotion/              ← 情绪/表情/激素系统
-        ├── memory_fragments/     ← 记忆碎片 (核心.db)
+        ├── memory/               ← 记忆碎片 (core.db)
         ├── soul/                 ← 人格/漂移
         ├── time/                 ← 昼夜/纪念日
         ├── voice/                ← TTS/STT/语音服务
@@ -31,66 +40,41 @@
 **原则**：
 - Hermes 提供**基础设施**：会话管理、FTS5、上下文压缩、SQLite
 - 我们提供**桌面伴侣体验**：情绪、记忆碎片、语音、Live2D、本地工具
-- 代码结构：`hermes_core/` 保持原样，新增 `desk_pet/` 作为嫁接层
+- Hermes Core **原封不动**，不做任何剪枝
+- 新增 `desk_pet/` 作为嫁接层，通过统一 API 与 Hermes 协作
 
 ---
 
-## 2. Hermes 主干：保留什么，剪掉什么
+## 2. 为什么不做剪枝
 
-### 2.1 保留（核心能力）
+- Hermes Core 总共 **16445 行**，是经过生产验证的成熟代码
+- 桌面端不需要 delegate 子代理、复杂搜索等功能，但**保留它们没有运行时成本**
+- 剪枝会带来维护负担：每次 Hermes 上游更新都要解决冲突
+- 内存占用增加 < 10MB，启动慢 < 50ms — 桌面端完全无感
+- **多平台扩展性**：将来想接入 QQ/Telegram/Discord，Hermes 原生支持，不用回退
 
-| 模块 | 作用 | 为什么保留 |
-|------|------|-----------|
-| `hermes_state.py` (8569 行) | SessionDB + FTS5 + 压缩锁 | 会话持久化是刚需，已生产验证 |
-| `memory_manager.py` | 上下文压缩、记忆管理 | 长对话自动压缩，避免上下文爆炸 |
-| `message_sanitization.py` | 消息清洗、代理对去除 | 防止 Unicode 错误和安全问题 |
-| `sqlite_runtime.py` | SQLite 运行时检查 | WAL bug 检测、版本兼容 |
-| `hermes_bootstrap.py` | Windows 平台启动修复 | 防止 platform.win32_ver() 崩溃 |
-| `_subprocess_compat.py` | 子进程兼容层 | Windows 下 Python 子进程稳定 |
-
-### 2.2 剪掉（桌面端不需要）
-
-| 模块/功能 | 为什么剪掉 |
-|-----------|-----------|
-| `skill_commands.py` | 技能脚手架系统，桌面端不需要 |
-| `hermes_state_portability.py` | 状态导入导出（JSONL 迁移），桌面端只有单个用户 |
-| `hermes_state_search.py` | 复杂会话搜索（delegate 子代理等），桌面端不需要多平台过滤 |
-| `hermes_constants.py` | Hermes 平台路径（Telegram/Discord 数据目录等），桌面端有固定路径 |
-| `stubs.py` | 类型桩，桌面端不需要 |
-| `verify.py` | 安装验证脚本，不需要 |
-| `hermes_logging.py` | 多平台日志配置，桌面端用标准 logging |
-
-**预计剪掉**: ~3000 行
-
-### 2.3 简化（保留核心，删除冗余）
-
-| 模块 | 简化方案 |
-|------|---------|
-| `hermes_state.py` | 保留核心 SessionDB + FTS5，删除 delegate 子代理、多平台 source 过滤 |
-| `hermes_state_common.py` | 只保留 SCHEMA_SQL + FTS_SQL，删除复杂 trigger |
-| `hermes_state_schema.py` | 简化 schema 版本管理（桌面端不需要跨版本迁移） |
-
-**预计简化**: ~4000 行 → ~2000 行
+**结论**：Hermes 代码是资产，不是负担。全部保留。
 
 ---
 
-## 3. 嫁接层：我们添加什么
+## 3. 嫁接层设计
 
-### 3.1 现有项目代码（直接搬入）
+### 3.1 现有项目代码（整理后）
 
 ```
-desk_pet/
-├── emotion/              ← 情绪系统 (heart/)
+server/desk_pet/
+├── emotion/              ← 情绪系统
 │   ├── emotion_engine.py
 │   ├── expression.py
 │   └── hormone.py
-├── memory/               ← 记忆碎片 (brain/)
+├── memory/               ← 记忆碎片
 │   ├── fragment.py
-│   ├── store.py          ← 迁入 hermes_core 作为 MemoryStore 扩展
+│   ├── store.py
 │   ├── archivist.py
 │   ├── hebbian.py
 │   ├── librarian.py
-│   └── scribe.py
+│   ├── scribe.py
+│   └── memory_service.py
 ├── soul/                 ← 人格/漂移
 │   ├── personality.py
 │   └── drift.py
@@ -104,28 +88,33 @@ desk_pet/
 ├── live2d/               ← Live2D 模型
 │   ├── model_control.py
 │   └── motion_scheduler.py
-├── tools/                ← 本地工具 + 工具循环
-│   ├── local/            ← open_app, get_volume 等
-│   ├── frontend/         ← 前端工具执行
-│   └── loop.py           ← 工具调用循环
-└── ui/                   ← Tauri 前端
-    └── (已有，不动)
+└── tools/                ← 本地工具 + 工具循环
+    ├── local/            ← open_app, get_volume 等
+    ├── frontend/         ← 前端工具执行
+    └── loop.py           ← 工具调用循环
 ```
 
-### 3.2 新增集成点
+### 3.2 统一 API 入口
 
-```
-hermes_core/
-├── __init__.py                    ← 重新导出：SessionDB + MemoryStore + EmotionEngine
-├── hermes_state.py                ← 剪枝后保留核心
-├── memory_unified.py              ← 新增：统一记忆接口
-│   ├── search(query, limit)       ← FTS5 messages + BM25 fragments
-│   ├── add_fragment(fragment)     ← 写入 core.db
-│   └── get_session_history(sid)   ← 读取 hermes_state.db
-├── emotion.py                     ← 新增：情绪引擎（从 core/heart 迁入）
-├── soul.py                        ← 新增：人格系统（从 core/soul 迁入）
-├── time.py                        ← 新增：时间感知（从 core/time 迁入）
-└── voice.py                       ← 新增：语音接口（从 server/voice_services 迁入）
+```python
+from hermes_core import SessionDB, MemoryStore
+from desk_pet.emotion import EmotionEngine
+from desk_pet.soul import PersonalityEngine
+from desk_pet.time import TimePerception
+from desk_pet.voice import VoiceService
+from desk_pet.live2d import Live2DController
+from desk_pet.tools import ToolLoop
+
+# Hermes 原生能力
+session = SessionDB()
+
+# 桌面伴侣能力
+emotion = EmotionEngine()
+personality = PersonalityEngine()
+time = TimePerception()
+voice = VoiceService()
+live2d = Live2DController()
+tools = ToolLoop()
 ```
 
 ---
@@ -137,7 +126,7 @@ hermes_core/
 | 文件 | 管理者 | 内容 |
 |------|--------|------|
 | `data/hermes_state.db` | `hermes_core` | messages + FTS5 + sessions |
-| `data/core.db` | `hermes_core.memory_unified` | memory_fragments + emotion_history + personality_states |
+| `data/core.db` | `desk_pet.memory` | memory_fragments + emotion_history + personality_states |
 
 **为什么不合并？**
 - 写入模式不同：hermes_state.db 是事务密集（每轮对话写消息），core.db 是追加密集（记忆碎片批量写入）
@@ -147,53 +136,48 @@ hermes_core/
 ### 4.2 统一访问入口
 
 ```python
-from hermes_core import SessionDB, MemoryStore, EmotionEngine
+from hermes_core import SessionDB
+from desk_pet.memory import MemoryStore
 
 # 会话管理（Hermes 原生）
 session = SessionDB()
 
-# 记忆碎片（我们嫁接）
+# 记忆碎片（桌面伴侣）
 memory = MemoryStore(character_id="nahida")
-
-# 情绪系统（我们嫁接）
-emotion = EmotionEngine()
 ```
 
 ---
 
 ## 5. 执行计划
 
-### 阶段 1：剪枝 Hermes（本周）
-1. 删除 `skill_commands.py`, `hermes_state_portability.py`, `hermes_state_search.py`
-2. 简化 `hermes_constants.py`（删除平台特定路径）
-3. 删除 `stubs.py`, `verify.py`, `hermes_logging.py`
-4. 简化 `hermes_state.py`（删除 delegate 子代理、多平台 source）
-5. 简化 `hermes_state_common.py`（删除复杂 trigger）
-6. 运行 `cargo check` + `tsc --noEmit` 确保不破坏
+### 阶段 1：整理嫁接层代码（本周）
+1. 创建 `server/desk_pet/` 目录结构
+2. 将 `core/heart/` → `desk_pet/emotion/`
+3. 将 `core/soul/` → `desk_pet/soul/`
+4. 将 `core/time/` → `desk_pet/time/`
+5. 将 `core/brain/` → `desk_pet/memory/`
+6. 将 `server/voice_services.py` → `desk_pet/voice/`
+7. 将 `server/tools/` → `desk_pet/tools/`
+8. 将 `server/live2d/` → `desk_pet/live2d/`
 
-**预计**: 剪掉 ~3000 行，简化 ~2000 行
+**预计**: 整理 ~3000 行代码
 
-### 阶段 2：嫁接我们的代码（下周）
-1. 创建 `hermes_core/memory_unified.py`（统一记忆接口）
-2. 创建 `hermes_core/emotion.py`（情绪引擎）
-3. 创建 `hermes_core/soul.py`（人格系统）
-4. 创建 `hermes_core/time.py`（时间感知）
-5. 创建 `hermes_core/voice.py`（语音接口）
-6. 更新 `hermes_core/__init__.py` 重新导出
-
-**预计**: 新增 ~1500 行
+### 阶段 2：创建统一 API（下周）
+1. 创建 `desk_pet/__init__.py` — 统一导出
+2. 创建 `hermes_core/__init__.py` — 重新导出 Hermes API
+3. 更新 `server/hermes_gateway_server.py` — 使用统一 API
+4. 更新 `server/core/api_server.py` — 使用统一 API
 
 ### 阶段 3：迁移调用方（下下周）
-1. 更新 `core/api_server.py` → 使用 `hermes_core`
-2. 更新 `hermes_gateway_server.py` → 使用 `hermes_core.emotion` + `hermes_core.voice`
-3. 更新前端 `useBrainBridge.ts` → 调用 `hermes_core.memory_unified`
-4. 删除 `core/brain/` 兼容层（验证后再删）
+1. 更新前端 `useBrainBridge.ts` → 调用 `desk_pet.memory`
+2. 更新前端 `useEmotion.ts` → 调用 `desk_pet.emotion`
+3. 更新 Rust `backend.rs` → 调用 `desk_pet.tools`
+4. 删除 `core/brain/` 遗留代码（验证后再删）
 
 ### 阶段 4：验证与清理
 1. 运行完整测试套件
 2. 手动测试对话、TTS、情绪、Live2D
-3. 删除 `core/brain/` 遗留代码
-4. 更新 PLAN.md
+3. 更新 PLAN.md
 
 ---
 
@@ -201,21 +185,20 @@ emotion = EmotionEngine()
 
 | 风险 | 可能性 | 影响 | 缓解措施 |
 |------|--------|------|---------|
-| 剪枝破坏 Hermes 核心功能 | 中 | 高 | 逐步删除，每步验证 |
-| 情绪/记忆系统与 SessionDB 冲突 | 低 | 中 | 保持两个数据库，只统一代码访问 |
-| 前端工具循环与 Hermes 工具系统冲突 | 低 | 低 | 桌面端用自有工具循环，Hermes 工具系统剪掉 |
-| Live2D 模型与 Hermes 表达系统冲突 | 低 | 低 | Live2D 作为独立模块，通过 emotion.py 集成 |
+| 嫁接层与 Hermes Core 冲突 | 低 | 中 | 保持两个数据库，不合并 |
+| 前端工具循环与 Hermes 工具系统冲突 | 低 | 低 | 桌面端用自有工具循环，Hermes 工具系统不启用 |
+| Live2D 模型与 Hermes 表达系统冲突 | 低 | 低 | Live2D 作为独立模块，通过 emotion 集成 |
 
 ---
 
 ## 7. 下一步（等待锟哥确认）
 
 1. 确认"大树嫁接"方向
-2. 确认剪枝范围（是否删除 `hermes_state_search.py`）
-3. 确认是否保留 `core/brain/` 兼容层
-4. 批准开始阶段 1：剪枝 Hermes
+2. 确认不做任何剪枝
+3. 确认 `server/desk_pet/` 作为嫁接层目录名
+4. 批准开始阶段 1：整理嫁接层代码
 
 ---
 
-*文档版本: 2.0 (大树嫁接方案)*
+*文档版本: 3.0 (无剪枝版)*
 *最后更新: 2026-08-17*
