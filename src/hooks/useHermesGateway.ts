@@ -19,8 +19,7 @@ import { createLogger } from '../utils/logger';
 import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { isOfflineModeEnabled } from '../services/provider/watchdog';
-import { providerManager } from '../services/provider/manager';
-import { ensureActiveTTSBackend } from '../services/provider/ttsBackend';
+import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { llmScheduler } from '../services/provider/llmScheduler';
 import { toolRegistry } from '../services/tools/registry';
 import { getDisabledTools } from '../services/tools/toolManagement';
@@ -331,19 +330,8 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
             );
             if (options?.ttsEnabled && fullResponse.trim()) {
               try {
-                await providerManager.ready;
-                // 后端未运行则自动拉起（CosyVoice 等需本地进程），否则会静默失败
-                const backendOk = await ensureActiveTTSBackend({
-                  waitReady: true,
-                  timeoutMs: 60000,
-                });
-                if (!backendOk) {
-                  log.warn('TTS 后端未能启动，跳过朗读');
-                  return;
-                }
-                const ttsProvider = providerManager.getActiveTTSProvider();
-                if (ttsProvider) {
-                  const result = await ttsProvider.synthesize(fullResponse.trim());
+                const result = await synthesizeViaBrain(fullResponse.trim());
+                if (result) {
                   const { audioPlayer } = await import('../services/audio/player');
                   audioPlayer.enqueue(result.audio, result.sampleRate, `tts-${assistantId}`);
                 }

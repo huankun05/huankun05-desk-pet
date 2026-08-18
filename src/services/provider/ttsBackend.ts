@@ -30,6 +30,46 @@ function getActiveTTSPort(): number {
 }
 
 /**
+ * 通过大脑合成语音（完整流程：检查后端 → 等待就绪 → 获取 provider → 合成）。
+ * 这是任务层唯一推荐的合成入口，保证服务生命周期由大脑控制。
+ */
+export async function synthesizeViaBrain(
+  text: string,
+  opts?: { emotion?: string },
+): Promise<{ audio: ArrayBuffer; sampleRate: number } | null> {
+  const port = getActiveTTSPort();
+  if (!port) {
+    log.warn('synthesizeViaBrain: 无活跃 TTS provider，跳过');
+    return null;
+  }
+
+  // 1. 大脑检查/等待后端就绪（不触发新启动）
+  const ready = await lifecycle.waitReady(port, 30000);
+  if (!ready) {
+    log.warn('synthesizeViaBrain: TTS 后端未就绪', { port });
+    return null;
+  }
+
+  // 2. 获取当前活跃 provider（由大脑管理生命周期）
+  const ttsProvider = providerManager.getActiveTTSProvider();
+  if (!ttsProvider) {
+    log.warn('synthesizeViaBrain: 无可用 TTS Provider');
+    return null;
+  }
+
+  // 3. 执行合成
+  try {
+    const result = await ttsProvider.synthesize(text.trim(), {
+      emotion: opts?.emotion,
+    });
+    return result;
+  } catch (err) {
+    log.error('synthesizeViaBrain: 合成失败', { error: String(err) });
+    return null;
+  }
+}
+
+/**
  * 确保活跃 TTS 后端正在运行（委托给 ServiceLifecycle）。
  * 注意：启动决策由 lifecycle.bootstrapAll() 在应用启动时统一做出。
  * 本函数仅用于任务层检查/等待就绪，不再触发新的启动流程。
@@ -82,7 +122,8 @@ export async function switchActiveTTSBackend(
     return false;
   }
 
-  const launcher = cfg ? () => Promise.resolve(true) : null;
+  // 使用大脑的 launchService 真正启动服务
+  const launcher = cfg ? () => lifecycle.launchService(typeName, 'tts') : null;
   if (!launcher) {
     log.warn('switchActiveTTSBackend: 无有效配置', { typeName });
     return false;

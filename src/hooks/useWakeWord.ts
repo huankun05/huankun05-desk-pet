@@ -19,8 +19,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { VoskEngine } from '../services/wakeWord/voskEngine';
-import { providerManager } from '../services/provider/manager';
-import { ensureActiveTTSBackend } from '../services/provider/ttsBackend';
+import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { audioPlayer } from '../services/audio/player';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { createLogger } from '../utils/logger';
@@ -107,19 +106,11 @@ export function useWakeWord({
   /** 播放"在"的语音回应 */
   const playResponse = useCallback(async (text: string) => {
     try {
-      const tts = providerManager.getActiveTTSProvider();
-      if (!tts) {
-        log.debug('No TTS provider, skipping audio response');
-        return;
-      }
-      // 确保活跃 TTS 后端已运行（唤醒是一次性即时回应，先拉起再合成，
-      // 应用启动预热通常会先拉起，此处兜底避免后端未起时静默失败）。
-      const ok = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 40000 });
-      if (!ok) {
+      const result = await synthesizeViaBrain(text);
+      if (!result) {
         log.warn('wake word: TTS 后端不可用，跳过语音回应');
         return;
       }
-      const result = await tts.synthesize(text);
       audioPlayer.enqueue(result.audio, result.sampleRate, `wake-${Date.now()}`);
     } catch (err) {
       log.warn('TTS response failed (non-fatal)', { err });

@@ -17,8 +17,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createStorage } from '../services/storage';
-import { providerManager } from '../services/provider/manager';
-import { ensureActiveTTSBackend } from '../services/provider/ttsBackend';
+import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { audioPlayer } from '../services/audio/player';
 import {
   captureScreenshot,
@@ -100,21 +99,11 @@ export function useWatchTogether({
   /** 播放 TTS */
   const playTTS = useCallback(async (text: string) => {
     try {
-      // 后端未运行则自动拉起（CosyVoice 等需本地进程），否则会静默失败
-      const backendOk = await ensureActiveTTSBackend({
-        waitReady: true,
-        timeoutMs: 60000,
-      });
-      if (!backendOk) {
+      const result = await synthesizeViaBrain(text);
+      if (!result) {
         log.warn('TTS 后端未能启动，跳过朗读');
         return;
       }
-      const ttsProvider = providerManager.getActiveTTSProvider();
-      if (!ttsProvider) {
-        log.debug('No TTS provider available, skipping audio');
-        return;
-      }
-      const result = await ttsProvider.synthesize(text);
       audioPlayer.enqueue(result.audio, result.sampleRate, `watch-${Date.now()}`);
     } catch (err) {
       log.warn('TTS playback failed (non-fatal)', { err });

@@ -477,8 +477,8 @@ class ServiceLifecycle {
     return configs;
   }
 
-  /** 启动服务 */
-  private async launchService(typeName: string, kind: string): Promise<boolean> {
+  /** 启动服务（供 ttsBackend 等委托层调用） */
+  async launchService(typeName: string, kind: string): Promise<boolean> {
     try {
       const { startProviderService } = await import('./serviceLauncher');
       return startProviderService(typeName);

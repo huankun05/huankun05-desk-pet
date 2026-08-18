@@ -14,7 +14,7 @@ import type { TTSProvider } from '../provider/types';
 import { loadInteractionConfig } from '../../settings/pages/models/InteractionPage';
 import { collectAllPresetTexts } from '../../data/idleMessages';
 import { providerManager } from '../provider/manager';
-import { ensureActiveTTSBackend } from '../provider/ttsBackend';
+import { ensureActiveTTSBackend, synthesizeViaBrain } from '../provider/ttsBackend';
 import {
   writeAudioFile,
   readAudioFile,
@@ -382,12 +382,11 @@ export class InteractTTS {
 
     if (!this.isReady || !this.provider) return false;
     try {
-      const ok = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 40000 });
-      if (!ok) {
+      const result = await synthesizeViaBrain(text);
+      if (!result) {
         log.warn('ensureAudio: TTS 后端不可用', { text: text.slice(0, 30) });
         return false;
       }
-      const result = await this.provider.synthesize(text);
       this.setCache(text, result.audio, result.sampleRate);
       return true;
     } catch (err) {
