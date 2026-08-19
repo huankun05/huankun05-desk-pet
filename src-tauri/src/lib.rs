@@ -164,6 +164,97 @@ fn get_cursor_window_info(_app: tauri::AppHandle) -> CmdResult<CursorWindowInfo>
     }
 }
 
+/// 把窗口位置 clamp 到所有显示器 work area 范围内（多显示器感知）
+///
+/// 入参与出参均为物理像素（前端按 devicePixelRatio 换算）。宽容 clamp：
+/// 允许窗口部分超出屏幕（桌宠贴边半隐藏是常态），保证至少 40px 可见；
+/// 优先 clamp 到包含窗口中心的显示器，避免副屏位置被拉回主屏。
+#[tauri::command]
+fn clamp_window_position(x: f64, y: f64, w: f64, h: f64) -> CmdResult<(f64, f64)> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
+        use windows::Win32::Graphics::Gdi::{
+            EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
+        };
+
+        unsafe extern "system" fn enum_proc(
+            hmon: HMONITOR,
+            _hdc: HDC,
+            _lprc: *mut RECT,
+            lparam: LPARAM,
+        ) -> BOOL {
+            let areas = &mut *(lparam.0 as *mut Vec<RECT>);
+            let mut info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                rcMonitor: RECT::default(),
+                rcWork: RECT::default(),
+                dwFlags: 0,
+            };
+            if GetMonitorInfoW(hmon, &mut info).as_bool() {
+                areas.push(info.rcWork);
+            }
+            true.into()
+        }
+
+        let mut areas: Vec<RECT> = Vec::new();
+        unsafe {
+            let _ = EnumDisplayMonitors(
+                None,
+                None,
+                Some(enum_proc),
+                LPARAM(&mut areas as *mut Vec<RECT> as isize),
+            );
+        }
+
+        if areas.is_empty() {
+            return Ok((x, y));
+        }
+
+        let center_x = x + w / 2.0;
+        let center_y = y + h / 2.0;
+
+        // 优先选包含窗口中心的显示器；否则选中心最近的显示器
+        let mut chosen: Option<RECT> = None;
+        let mut best_dist = f64::MAX;
+        for a in &areas {
+            let inside = center_x >= a.left as f64
+                && center_x <= a.right as f64
+                && center_y >= a.top as f64
+                && center_y <= a.bottom as f64;
+            if inside {
+                chosen = Some(*a);
+                break;
+            }
+            let cx = ((a.left + a.right) / 2) as f64;
+            let cy = ((a.top + a.bottom) / 2) as f64;
+            let d = (center_x - cx).powi(2) + (center_y - cy).powi(2);
+            if d < best_dist {
+                best_dist = d;
+                chosen = Some(*a);
+            }
+        }
+
+        let rect = match chosen {
+            Some(r) => r,
+            None => return Ok((x, y)),
+        };
+
+        let (left, top) = (rect.left as f64, rect.top as f64);
+        let (right, bottom) = (rect.right as f64, rect.bottom as f64);
+        let min_visible = 40.0f64;
+
+        Ok((
+            x.clamp(left - w + min_visible, right - min_visible),
+            y.clamp(top - h + min_visible, bottom - min_visible),
+        ))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok((x, y))
+    }
+}
+
 /// 检查 Ollama 是否已安装（ollama CLI 是否在 PATH 中）
 #[tauri::command]
 fn check_ollama_installed() -> bool {
@@ -1285,6 +1376,7 @@ pub fn run() {
             toggle_lock_state,
             get_cursor_position,
             get_cursor_window_info,
+            clamp_window_position,
             save_data,
             load_data,
             capture_screenshot,

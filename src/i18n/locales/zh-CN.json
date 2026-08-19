@@ -885,6 +885,7 @@
       "loading": "加载中...",
       "load_failed": "加载失败: {{error}}",
       "network_error": "网络连接超时或不可达，无法加载插件市场",
+      "source_not_configured": "插件市场数据源尚未配置（registry 仓库不存在）",
       "network_hint": "请检查网络连接后点击重试",
       "retry": "重新加载",
       "no_plugins": "暂无插件",

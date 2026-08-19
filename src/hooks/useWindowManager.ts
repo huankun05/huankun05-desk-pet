@@ -114,18 +114,34 @@ export function useWindowManager({
 
   const clampWindowPosition = useCallback(async (x: number, y: number, w: number, h: number) => {
     try {
-      const result = await invoke<[number, number]>('clamp_window_position', { x, y, w, h });
+      // Rust 侧按物理像素处理（Win32 多显示器坐标），前端按 devicePixelRatio 换算
+      const dpr = window.devicePixelRatio || 1;
+      const result = await invoke<[number, number]>('clamp_window_position', {
+        x: Math.round(x * dpr),
+        y: Math.round(y * dpr),
+        w: Math.round(w * dpr),
+        h: Math.round(h * dpr),
+      });
       if (result && result.length === 2) {
-        return { x: result[0], y: result[1] };
+        return { x: result[0] / dpr, y: result[1] / dpr };
       }
     } catch {
+      // 单屏 fallback：宽容 clamp，允许窗口部分超出屏幕（桌宠贴边半隐藏是常态），
+      // 保证至少 80px 可见即可，避免把贴边/副屏位置错误拉回主屏内
       const s = window.screen as Screen & { availLeft?: number; availTop?: number };
       const screenLeft = s.availLeft ?? 0;
       const screenTop = s.availTop ?? 0;
       const screenW = s.availWidth ?? 1920;
       const screenH = s.availHeight ?? 1080;
-      const clampedX = Math.max(screenLeft, Math.min(screenLeft + screenW - w, x));
-      const clampedY = Math.max(screenTop, Math.min(screenTop + screenH - h, y));
+      const minVisible = Math.min(w, 80);
+      const clampedX = Math.min(
+        Math.max(x, screenLeft - w + minVisible),
+        screenLeft + screenW - minVisible,
+      );
+      const clampedY = Math.min(
+        Math.max(y, screenTop - h + minVisible),
+        screenTop + screenH - minVisible,
+      );
       if (isTauriEnv()) {
         try {
           const win = getCurrentWindow();

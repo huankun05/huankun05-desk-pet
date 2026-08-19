@@ -85,10 +85,16 @@ export function MarketplaceIndex() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const isAbort = err instanceof DOMException && err.name === 'AbortError';
+      // 404 = registry 数据源不存在（GitHub 仓库未创建/路径有误），与网络故障区分开
+      const isNotFound = !isAbort && /(^|\s)404(\s|$)/.test(msg);
       setNetworkError(
         isAbort
           ? t('settings.market.network_error', { defaultValue: '网络连接超时或不可达' })
-          : t('settings.market.load_failed', { error: msg }),
+          : isNotFound
+            ? t('settings.market.source_not_configured', {
+                defaultValue: '插件市场数据源尚未配置（registry 仓库不存在）',
+              })
+            : t('settings.market.load_failed', { error: msg }),
       );
       if (!isAbort) {
         showToast(msg, 'error');

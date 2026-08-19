@@ -881,6 +881,7 @@
       "loading": "Loading...",
       "load_failed": "Load failed: {{error}}",
       "network_error": "Network timeout or unreachable – cannot load plugin marketplace",
+      "source_not_configured": "Marketplace data source is not configured yet (registry repository not found)",
       "network_hint": "Check your network connection and tap retry",
       "retry": "Retry",
       "no_plugins": "No plugins available",
