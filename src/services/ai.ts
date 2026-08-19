@@ -235,12 +235,24 @@ export class AIService {
 
   /**
    * 智能闲聊：生成一条主动消息
-   */
+   /** 智能闲聊：生成一条主动消息 */
   async generateProactiveMessage(emotion: string, mood: string): Promise<string> {
     if (isOfflineModeEnabled()) {
       return '';
     }
     return this.getProvider()?.generateProactiveMessage(emotion, mood) ?? '';
+  }
+
+  /** 主动消息：使用自定义 messages 直接调用 provider.chat */
+  async proactiveChat(messages: ChatMessage[]): Promise<string> {
+    if (isOfflineModeEnabled()) {
+      throw new Error('Offline mode enabled');
+    }
+    const provider = this.getProvider();
+    if (!provider) {
+      throw new Error('No chat provider configured.');
+    }
+    return provider.chat(messages, { temperature: 0.9, maxTokens: 50 });
   }
 }
 

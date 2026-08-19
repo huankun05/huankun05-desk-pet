@@ -40,7 +40,7 @@ import {
   type AppearanceConfig,
 } from './settings/appearanceConfig';
 
-import { aiService } from './services/ai';
+import { aiService, type ChatMessage } from './services/ai';
 import { createStorage } from './services/storage';
 import { settingsStorage } from './services/storage/settingsStorage';
 import { safetyChecker } from './services/safety';
@@ -53,6 +53,7 @@ import { permissionManager } from './services/permission/PermissionManager';
 import { useBrainBridge } from './hooks/useBrainBridge';
 import { isPointOverCharacter } from './lib/live2d';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
+import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
 import { computeOrbDefaultPos, getMainRect } from './utils/orbPosition';
@@ -563,23 +564,16 @@ function MainPetApp() {
       if (!emotionCtx) return;
 
       const hints = trigger.hints?.length ? `\n上下文：${trigger.hints.join('；')}` : '';
-      const systemPrompt = `你是一个可爱的桌面宠物助手。${trigger.scene.promptSuffix}${hints}
-当前情绪：${emotionCtx.emotion}，心情：${emotionCtx.mood}。请主动说一句简短可爱的话，不要用问句，不要超过20个字。`;
+      const systemPrompt = `${PROACTIVE_WAKE_PROMPT}\n${trigger.scene.promptSuffix}${hints}
+当前情绪：${emotionCtx.emotion}，心情：${emotionCtx.mood}。`;
 
-      const messages: Array<{ role: string; content: string }> = [
+      const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: '请主动说一句话' },
       ];
 
       aiService
-        .chat(
-          JSON.stringify({
-            model: aiService.getConfig().model,
-            messages,
-            temperature: 0.9,
-            max_tokens: 50,
-          }),
-        )
+        .proactiveChat(messages)
         .then((text) => {
           if (text) {
             showBubble(text, 6000);
