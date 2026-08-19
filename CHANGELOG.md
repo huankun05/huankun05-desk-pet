@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **情绪/人格系统合并为一套 + 双向影响打通**: 后端 core 服务成为单一事实源（SQLite + 引擎），前端 useEmotion 初始化和事件与后端同步（离线自动降级本地）。具体：
+  - **人格→情绪**：`get_state` 读 HEXACO → `pad_baseline_influence()` 作为 `EmotionState.baseline`，每次读取向人格基线 `drift()` 回落并持久化；回落速率人格化（情绪性高→回落慢，0.01~0.05）
+  - **情绪→人格**：`process_event` 自动触发 `apply_drift_from_event`（正向互动→诚实-谦逊/宜人性微升；负面→情绪性升/宜人性降；学习→开放性升），HEXACO 随使用缓慢漂移
+  - **时间节律**：`get_state` 叠加 `CircadianRhythm` 影响（±15%，仅展示不写库）
+  - **前端桥接**：新增 `src/services/emotionBackendMap.ts`（PAD/mood→本地 emotion/mood 映射）；`useEmotion` 初始化读 `GET /api/core/heart/emotion`、事件 `POST /api/core/heart/emotion/event` 双写
+  - 详见 `docs/emotion-personality-system.md`（含 PAD/OCC 调研与待办：prompt 注入、情绪-记忆耦合）
 - **修复人格画像页 toFixed 崩溃（前后端结构不匹配）**: 后端 `/api/core/soul/personality` 返回 `{hexaco: {六维}, description, pad_baseline, updated_at}`，前端却从顶层取 `data.honesty_humility` → undefined → `.toFixed(2)` 崩。`coreApi.getPersonality()` 适配解包 hexaco 并带回 `description`/`pad_baseline`；PersonalityPage 优先采用后端描述与 PAD 基线（缺失时回退前端规则）。 (`src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)
 - **情绪/人格页硬编码中文接入 i18n**: 人格页「中间型人格」「低/高」，情绪页相对时间（刚刚/秒前/分钟前…）与 PAD 三维标签（愉悦/唤醒/支配）全部接入 zh/en。
 - **新增情绪与人格系统分析文档**: `docs/emotion-personality-system.md`——梳理前端 useEmotion 与后端九维/HEXACO 两套体系、事件→数值变化链路，并基于 PAD/OCC 三层模型调研给出 7 项优化建议（人格→PAD 基线回路、漂移触发接线、半衰期衰减等）。**结论：九维情绪是活的，HEXACO 人格只读不漂移（drift 端点前端零调用）**。

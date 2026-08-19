@@ -52,20 +52,28 @@
 > **PAD 半衰期衰减** `s(t+Δt)=s(t)·2^(-Δt/T₁/₂)`、**情绪-记忆耦合**（记忆附带情绪影响）、
 > **PAD→语义标签注入 LLM prompt**（KNN 到真实人类 PAD 数据 → Plutchik 情绪标签，而非裸数值）。
 
-对照本项目，优化方向（按收益排序）：
+### 已实施（2026-08-19 晚，合并为一套 + 双向影响）
 
-| # | 建议 | 现状 | 收益 |
-|---|------|------|------|
-| 1 | **人格→PAD 基线回路**：HEXACO 应定义 PAD 回落点（`pad_baseline` 已有但未用于回落），情绪事件停止后向基线回归 | 前端 decay 是固定线性减，与人格无关 | 高——人格真正"塑造"情绪 |
-| 2 | **人格决定衰减速率**：如敏感性高→负面情绪消退慢（学术界共识） | `decayMood/decayEmotion` 是全局常量 | 中高 |
-| 3 | **漂移触发接线**：前端把正面/负面互动、学习事件接入 `POST /personality/drift`，让 HEXACO 随使用缓慢变化 | 端点存在、零调用 | 高——人格从"死"变"活" |
-| 4 | **半衰期指数衰减**替代线性 tickDecay | `tickDecay` 线性减 0.03 | 中——更自然 |
-| 5 | **情绪→记忆耦合**：记忆抽取时附带当时 PAD/情绪标签，回忆时影响当下情绪 | 记忆系统未存情绪上下文 | 中 |
-| 6 | **PAD→prompt 注入**：对话 prompt 注入当前情绪标签（如"愉悦·兴奋"），让人格一致性可感知 | 仅驱动 Live2D 表情 | 中——用户感知最强 |
-| 7 | 时间节律（circadian/reunion）接入：晨昏节律影响情绪基线 | 端点存在、零调用 | 低-中 |
+| # | 项 | 落地 |
+|---|----|------|
+| 1 | **人格→PAD 基线回路** | `server/core/api_server.py`：`get_state` 读 HEXACO → `pad_baseline_influence()` 作为 `EmotionState.baseline`，每次读取向基线 `drift()` 回落并持久化——**人格真正塑造情绪** |
+| 2 | **人格决定衰减速率** | `_get_drift_rate`：情绪性高 → 回落慢（情绪持久/敏感），情绪性低 → 回落快（冷静），0.01~0.05 |
+| 3 | **漂移触发接线（情绪→人格）** | `process_event` 末尾 `apply_drift_from_event`：正向互动（表扬/喜欢/pat/tap）→ 诚实-谦逊/宜人性微升；负面（生气/踩脚/频繁）→ 情绪性升/宜人性降；学习 → 开放性升。幅度 ±0.01，需数百次互动才明显 |
+| 4 | 半衰期/指数衰减 | `drift()` 向基线按比例插值，语义等价指数衰减（无需单独改） |
+| 5 | **前后端合并为一套** | 新增 `src/services/emotionBackendMap.ts`（PAD/mood_label → 本地 emotion/mood/intensity 映射）；`useEmotion` 初始化从 `GET /api/core/heart/emotion` 读后端状态覆盖本地情绪，`setNewEmotion` 等事件 `POST /api/core/heart/emotion/event` 双写（后端持久化 + 人格漂移）。后端为长期事实源，前端为运行时镜像，core 服务离线时自动降级纯本地 |
+| 6 | **时间节律接入** | `get_state` 叠加 `CircadianRhythm().pad_influence()`（±15% 权重，仅影响展示/表情，不写库），昼夜节律让情绪随时间自然起伏 |
+
+### 待后续（需要更多上下文/跨服务改造）
+
+| # | 项 | 说明 |
+|---|----|------|
+| 7 | **PAD→prompt 注入** | 聊天/主动消息的 system prompt 注入当前情绪标签（"愉悦·兴奋"），让人格一致性可感知（主窗 proactive 已注入 emotion/mood，聊天窗 gateway 未接） |
+| 8 | **情绪-记忆耦合** | 记忆抽取时附带当时 PAD/情绪标签，回忆时影响当下情绪（`server/hermes_core/brain/`） |
+| 9 | 人格页可视化"漂移历史" | 后端 `PersonalityDrifter.history` 已记录每次漂移，可在 PersonalityPage 展示变化轨迹 |
 
 ## 五、结论
 
-- 情绪系统（前端 useEmotion + 后端九维 bridge）是**完整且活跃**的闭环。
-- HEXACO 人格是**半死**的：能读、不能动（漂移端点无人调用），建议优先接线 #3 让"每个点都活起来"。
-- 结构不匹配（本次 toFixed 崩溃）已治本修复，后续若再新增 soul 端点，注意前后端字段对齐。
+- 情绪系统（前端 useEmotion + 后端 heart/bridge）是**完整且活跃**的闭环。
+- **合并已完成**：后端为单一事实源（SQLite + 人格基线/漂移/时间节律），前端 useEmotion 初始化和事件均与后端同步（离线自动降级本地）。
+- **人格⇄情绪双向影响已打通**：人格→情绪（PAD 基线回落 + 衰减速率）、情绪→人格（事件驱动 HEXACO 漂移）。
+- 结构不匹配（toFixed 崩溃）已治本修复；后续新增 soul 端点注意前后端字段对齐。

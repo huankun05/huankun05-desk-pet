@@ -10,6 +10,12 @@ import {
   getMoodLabel,
   type EmotionEngineState,
 } from '../services/emotion/engine';
+import {
+  getEmotion as apiGetEmotion,
+  postEmotionEvent as apiPostEmotionEvent,
+} from '../services/coreApi';
+import { apiEmotionToLocal } from '../services/emotionBackendMap';
+import { isTauriEnv } from '../utils/tauriEnv';
 
 const log = createLogger('Emotion');
 
@@ -399,6 +405,24 @@ export function useEmotion() {
     });
   }, []);
 
+  // 前后端合并：core 服务在线时，以后端情绪（含人格基线回落后的值）为源初始化本地。
+  // 本地保留 personality/config/favorability 等后端没有的字段，只覆盖情绪相关。
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let cancelled = false;
+    apiGetEmotion()
+      .then((api) => {
+        if (cancelled || !api.mood) return;
+        setEmotionState((prev) => ({ ...prev, ...apiEmotionToLocal(api) }));
+      })
+      .catch(() => {
+        /* core 服务未启动：保持本地状态 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (emotionState.customEmotions) customEmotionsRef.current = emotionState.customEmotions;
   }, [emotionState.customEmotions]);
@@ -480,6 +504,11 @@ export function useEmotion() {
         };
 
         saveState(newState);
+
+        // 事件双写后端（合并为单引擎）：后端负责长期状态持久化 + HEXACO 人格漂移
+        if (isTauriEnv() && reason) {
+          apiPostEmotionEvent(reason).catch(() => {});
+        }
 
         setEmotionHistory((h) => {
           const next = [

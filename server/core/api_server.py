@@ -273,6 +273,117 @@ class EmotionService:
     """情感服务：状态持久化 + 事件处理 + 历史记录。"""
 
     @staticmethod
+    def _get_pad_baseline(character_id: str = "default"):
+        """人格 → PAD 情绪基线（人格影响情绪的回路）。
+
+        读取 HEXACO 六维 → pad_baseline_influence() 得到情绪回落目标点。
+        返回 PADValues 或 None（人格表缺失时）。
+        """
+        try:
+            from .soul.personality import HEXACOPersonality
+
+            with get_db() as db:
+                row = db.execute(
+                    "SELECT * FROM personality_states WHERE character_id = ?",
+                    (character_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                hexaco = HEXACOPersonality(
+                    honesty_humility=row["honesty_humility"],
+                    emotionality=row["emotionality"],
+                    extraversion=row["extraversion"],
+                    agreeableness=row["agreeableness"],
+                    conscientiousness=row["conscientiousness"],
+                    openness=row["openness"],
+                )
+            return hexaco.pad_baseline_influence()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _get_drift_rate(character_id: str = "default") -> float:
+        """人格化情绪回落速率：情绪性高 → 回落慢（情绪更持久/更敏感），
+        情绪性低 → 回落快（冷静）。基线 0.02，范围 0.01 ~ 0.05。"""
+        try:
+            with get_db() as db:
+                row = db.execute(
+                    "SELECT emotionality FROM personality_states WHERE character_id = ?",
+                    (character_id,),
+                ).fetchone()
+            if row is None or row["emotionality"] is None:
+                return 0.02
+            emotionality = float(row["emotionality"])
+            return max(0.01, min(0.05, 0.02 * (1.5 - emotionality)))
+        except Exception:
+            return 0.02
+
+    @staticmethod
+    def apply_drift_from_event(event: str, character_id: str = "default") -> None:
+        """情绪 → 人格 回路：按事件正负缓慢漂移 HEXACO 人格。
+
+        正向互动 → 诚实-谦逊/宜人性微升；负面互动 → 情绪性升/宜人性降；
+        学习类事件 → 开放性微升。漂移幅度很小（±0.01），需数百次互动才明显。
+        失败静默（锦上添花，不影响情绪主流程）。
+        """
+        try:
+            from .soul.drift import PersonalityDrifter
+            from .soul.personality import HEXACOPersonality
+
+            with get_db() as db:
+                row = db.execute(
+                    "SELECT * FROM personality_states WHERE character_id = ?",
+                    (character_id,),
+                ).fetchone()
+                if row is None:
+                    return
+                current = HEXACOPersonality(
+                    honesty_humility=row["honesty_humility"],
+                    emotionality=row["emotionality"],
+                    extraversion=row["extraversion"],
+                    agreeableness=row["agreeableness"],
+                    conscientiousness=row["conscientiousness"],
+                    openness=row["openness"],
+                )
+
+            e = event.lower()
+            if any(kw in e for kw in ["表扬", "夸奖", "赞", "感谢", "开心", "喜欢", "pat", "tap"]):
+                drift_type = "positive_interaction"
+            elif any(kw in e for kw in ["不满", "生气", "难过", "伤心", "讨厌", "step", "踩脚", "频繁"]):
+                drift_type = "negative_interaction"
+            elif any(kw in e for kw in ["学习", "learn", "记忆", "好奇", "探索"]):
+                drift_type = "learning"
+            else:
+                return
+
+            drifter = PersonalityDrifter(baseline=current, current=current)
+            method = {
+                "positive_interaction": drifter.on_positive_interaction,
+                "negative_interaction": drifter.on_negative_interaction,
+                "learning": drifter.on_learning,
+            }[drift_type]
+            new_personality = method()
+
+            with get_db() as db:
+                db.execute(
+                    """UPDATE personality_states SET
+                       honesty_humility=?, emotionality=?, extraversion=?,
+                       agreeableness=?, conscientiousness=?, openness=?,
+                       updated_at=datetime('now') WHERE character_id=?""",
+                    (
+                        new_personality.honesty_humility,
+                        new_personality.emotionality,
+                        new_personality.extraversion,
+                        new_personality.agreeableness,
+                        new_personality.conscientiousness,
+                        new_personality.openness,
+                        character_id,
+                    ),
+                )
+        except Exception:
+            pass
+
+    @staticmethod
     def get_state(character_id: str = "default") -> dict:
         with get_db() as db:
             row = db.execute(
@@ -300,14 +411,44 @@ class EmotionService:
             cortisol=row["cortisol"],
             oxytocin=row["oxytocin"],
         )
-        emotion_state = EmotionState(pad=pad)
-        expression = ExpressionEngine().build_strategy_from_emotion_state(emotion_state)
-        circadian = CircadianRhythm().pad_influence()
+        # 人格 → 情绪：接入 HEXACO 人格基线，情绪向人格基线自然回落
+        baseline = EmotionService._get_pad_baseline(character_id)
+        drift_rate = EmotionService._get_drift_rate(character_id)
+        emotion_state = EmotionState(pad=pad, baseline=baseline, drift_rate=drift_rate)
 
-        mood_cn = emotion_state.get_mood_label()
+        # 每次读取时向人格基线漂移一次并持久化（人格塑造情绪的「活」回路）
+        if baseline is not None:
+            emotion_state.drift()
+            if emotion_state.pad != pad:
+                with get_db() as db:
+                    db.execute(
+                        """UPDATE emotion_states
+                           SET pleasure=?, arousal=?, dominance=?,
+                               updated_at=datetime('now')
+                           WHERE character_id=?""",
+                        (
+                            emotion_state.pad.pleasure,
+                            emotion_state.pad.arousal,
+                            emotion_state.pad.dominance,
+                            character_id,
+                        ),
+                    )
+                pad = emotion_state.pad
+
+        expression = ExpressionEngine().build_strategy_from_emotion_state(emotion_state)
+        # 时间节律（昼夜）轻微影响情绪：白天唤醒略高、深夜愉悦略低（±15% 权重）。
+        # 仅影响展示/表情，不写库（临时叠加，回落仍以人格基线为目标）
+        circadian = CircadianRhythm().pad_influence()
+        pad_with_circadian = PADValues(
+            pleasure=pad.pleasure + circadian.pleasure * 0.15,
+            arousal=pad.arousal + circadian.arousal * 0.15,
+            dominance=pad.dominance,
+        )
+
+        mood_cn = EmotionState(pad=pad_with_circadian, baseline=baseline).get_mood_label()
         mood_en = _cn_mood_to_en(mood_cn)
         return {
-            "pad": pad.to_dict(),
+            "pad": pad_with_circadian.to_dict(),
             "mood_label": mood_en,
             "mood_label_cn": mood_cn,
             "hormones": hormones.to_dict(),
@@ -330,8 +471,11 @@ class EmotionService:
         # 激素对 PAD 的影响
         hormone_pad = hormonal_engine.pad_influence(new_hormones)
 
-        # 事件对 PAD 的直接影响（关键词触发）
-        emotion_state = EmotionState(pad=current_pad)
+        # 事件对 PAD 的直接影响（关键词触发），带人格基线（回落目标）
+        emotion_state = EmotionState(
+            pad=current_pad,
+            baseline=EmotionService._get_pad_baseline(character_id),
+        )
         emotion_state.apply_event(event)
 
         # 合并：基础 PAD + 激素影响 + 事件直接影响
@@ -366,6 +510,9 @@ class EmotionService:
                    VALUES (?, ?, ?, ?, ?)""",
                 (character_id, new_pad.pleasure, new_pad.arousal, new_pad.dominance, event[:200]),
             )
+
+        # 情绪 → 人格：按事件正负缓慢漂移 HEXACO（长期互动塑造性格）
+        EmotionService.apply_drift_from_event(event, character_id)
 
         return EmotionService.get_state(character_id)
 
