@@ -35,8 +35,8 @@ const DEFAULT_CONFIG: ProactiveConfig = {
   idleCheckInterval: 60000,
   longIdleThreshold: IDLE_THRESHOLDS.long,
   workReminderThreshold: 60 * 60 * 1000,
-  messageCooldown: 5 * 60 * 1000,
-  dailyLimit: 24,
+  messageCooldown: 2 * 60 * 60 * 1000,
+  dailyLimit: 12,
 };
 
 export interface ProactiveTrigger {
@@ -65,6 +65,8 @@ export class ProactiveScheduler {
   private emotionTrend: 'positive' | 'negative' | 'neutral' = 'neutral';
   private lastEmotionCheck = 0;
   private emotionCheckInterval = 5 * 60 * 1000; // 每 5 分钟检查一次
+  private lastEmotionTrigger = 0;
+  private emotionTriggerCooldown = 30 * 60 * 1000;
 
   constructor(config: Partial<ProactiveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -76,6 +78,8 @@ export class ProactiveScheduler {
     this.callbacks = new Set();
     this.unsubscribers = [];
     this.morningGreeted = false;
+    this.lastEmotionTrigger = 0;
+    this.emotionTriggerCooldown = 30 * 60 * 1000;
   }
 
   private todayKey(): string {
@@ -98,6 +102,7 @@ export class ProactiveScheduler {
     this.unsubscribers.push(
       eventBus.on('message:sent', (payload) => {
         this.lastInteractionTime = Date.now();
+        this.lastProactiveTime = 0;
         const p = payload as { text?: string };
         if (p.text) {
           this.recordUserMessage(p.text);
@@ -185,7 +190,6 @@ export class ProactiveScheduler {
 
   /** 定时检查逻辑 */
   private tick(): void {
-    // 重置每日计数
     const today = this.todayKey();
     if (today !== this.dailyResetDate) {
       this.dailyResetDate = today;
@@ -195,7 +199,6 @@ export class ProactiveScheduler {
 
     if (this.dailyCount >= this.config.dailyLimit) return;
 
-    // 冷却检查
     const now = Date.now();
     if (now - this.lastProactiveTime < this.config.messageCooldown) return;
 
@@ -203,7 +206,23 @@ export class ProactiveScheduler {
     const hour = new Date().getHours();
     const minute = new Date().getMinutes();
 
-    // 早安问候（首次检测到 7:00-9:00）
+    // 情绪驱动：高优先级，但限制频率
+    if (
+      now - this.lastEmotionTrigger > this.emotionTriggerCooldown &&
+      this.shouldTriggerEmotionScene()
+    ) {
+      this.lastEmotionTrigger = now;
+      this.tryTrigger('mood_change', '检测到情绪变化');
+      return;
+    }
+
+    // 随机性：小概率主动发起非时间场景，避免机械节律
+    if (Math.random() < 0.15 && idleDuration > this.config.longIdleThreshold) {
+      this.tryTrigger('idle_long', `已闲置 ${Math.round(idleDuration / 60000)} 分钟`);
+      return;
+    }
+
+    // 早安问候
     if (!this.morningGreeted && hour >= 7 && hour < 9) {
       this.morningGreeted = true;
       this.tryTrigger('morning_greeting', '早安问候');
@@ -239,6 +258,10 @@ export class ProactiveScheduler {
       this.tryTrigger('late_night', '深夜提醒');
       return;
     }
+  }
+
+  private shouldTriggerEmotionScene(): boolean {
+    return false;
   }
 
   /** 场景化触发：给回调注入当前情绪/最近消息/场景提示 */

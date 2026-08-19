@@ -77,6 +77,7 @@ class Scribe:
         user_text: str,
         assistant_text: str,
         context: str = "",
+        emotion_snapshot: dict[str, float] | None = None,
     ) -> list[MemoryFragment]:
         """从一轮对话中提取记忆碎片。
 
@@ -84,6 +85,7 @@ class Scribe:
             user_text: 用户输入
             assistant_text: 助手回复
             context: 额外上下文（可选）
+            emotion_snapshot: 提取时的情绪快照（可选）
 
         Returns:
             MemoryFragment 列表（未持久化）
@@ -103,6 +105,10 @@ class Scribe:
             remaining = self.config.max_fragments_per_turn - len(fragments)
             rule_frags = self._extract_with_rules(user_text, remaining)
             fragments.extend(rule_frags)
+
+        if emotion_snapshot:
+            for frag in fragments:
+                frag.emotion_snapshot = emotion_snapshot
 
         # 去重 + 截断
         return self._deduplicate_and_truncate(fragments)

@@ -762,7 +762,9 @@ class MemoryService:
         assistant_text: str,
         character_id: str = "default",
         user_id: str = "default",
+        context: str = "",
         use_llm: bool = False,
+        emotion_snapshot: dict[str, float] | None = None,
     ) -> dict:
         """从对话交换中提取记忆碎片并持久化。"""
         from server.core.brain.scribe import Scribe, ExtractionConfig
@@ -774,8 +776,14 @@ class MemoryService:
                 store=store,
                 config=ExtractionConfig(enable_llm=use_llm),
             )
-            fragments = scribe.reflect_and_save(user_text, assistant_text)
-            return {"extracted": len(fragments), "fragments": [f.to_dict() for f in fragments]}
+            fragments = scribe.extract_from_exchange(
+                user_text=user_text,
+                assistant_text=assistant_text,
+                context=context,
+                emotion_snapshot=emotion_snapshot,
+            )
+            saved = scribe.save_fragments(fragments)
+            return {"extracted": len(saved), "fragments": [f.to_dict() for f in saved]}
         except Exception as exc:
             return {"extracted": 0, "error": str(exc)}
 
