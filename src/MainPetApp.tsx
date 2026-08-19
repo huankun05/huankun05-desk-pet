@@ -586,9 +586,26 @@ function MainPetApp() {
       aiService
         .proactiveChat(messages)
         .then((text) => {
-          if (text) {
-            showBubble(text, 6000);
-            eventBus.emit('message:response', { text, sessionId: 'proactive' });
+          if (!text) return;
+          showBubble(text, 6000);
+          const sessionId = (() => {
+            try {
+              return import('./services/chatStorage').then((m) => m.getActiveSession()?.id ?? null);
+            } catch {
+              return Promise.resolve(null);
+            }
+          })();
+          sessionId.then((id: string | null) => {
+            const targetSessionId = id && id.length > 0 ? id : 'default';
+            eventBus.emit('message:response', { text, sessionId: targetSessionId });
+          });
+          try {
+            localStorage.setItem(
+              'deskpet_chat_unread',
+              String((parseInt(localStorage.getItem('deskpet_chat_unread') || '0', 10) || 0) + 1),
+            );
+          } catch {
+            /* ignore */
           }
         })
         .catch((err) => console.warn('[App] proactive scheduler error:', err));
@@ -922,6 +939,11 @@ function MainPetApp() {
           break;
         case 'chat':
           toggleChatPanel();
+          try {
+            localStorage.setItem('deskpet_chat_unread', '0');
+          } catch {
+            /* ignore */
+          }
           break;
         case 'hidepet':
           handleToggleLive2D();

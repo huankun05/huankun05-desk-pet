@@ -107,6 +107,8 @@ export default function ControlsOrb() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   // 控制小圆阴影：停靠半隐藏时隐藏（避免阴影露在窗口外形成方框）
   const [hideShadow, setHideShadow] = useState(false);
+  // 聊天未读计数
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // 来自主窗的状态快照（初始用安全默认值，挂载后由 controls:state 填充）
   const [state, setState] = useState<ControlsStatePayload>({
@@ -359,16 +361,26 @@ export default function ControlsOrb() {
       const prevLocked = stateRef.current.isLocked;
       setState(e.payload);
       stateRef.current = e.payload;
-      // ★ 解锁瞬间主动提价：角色解锁后主窗 setIgnoreCursorEvents(false) 会捕获所有点击，
-      //   必须把悬浮球升到角色之上，否则球被角色遮住、点不到。
-      //   （锁定时主窗 setIgnoreCursorEvents(true) 天然穿透，无需主动提价）
       if (prevLocked && !e.payload.isLocked) {
         raiseOrb();
       }
     }).catch(() => null);
 
-    // 启动后向主窗请求一次当前状态（主窗挂载更早，已就绪）
-    emit('controls:request-state').catch(() => {});
+    // 监听聊天未读计数（localStorage 跨窗口同步）
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'deskpet_chat_unread') {
+        const val = parseInt(e.newValue || '0', 10);
+        setUnreadCount(Number.isFinite(val) ? Math.max(0, val) : 0);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    // 初始化：如果主窗口已在之前写入了未读数
+    try {
+      const initVal = parseInt(localStorage.getItem('deskpet_chat_unread') || '0', 10);
+      setUnreadCount(Number.isFinite(initVal) ? Math.max(0, initVal) : 0);
+    } catch {
+      /* ignore */
+    }
 
     return () => {
       unlistenMoved?.then((u) => u?.());
@@ -377,6 +389,7 @@ export default function ControlsOrb() {
       if (snapTimer.current) clearTimeout(snapTimer.current);
       if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
       if (leaveTimer.current) clearTimeout(leaveTimer.current);
+      window.removeEventListener('storage', onStorage);
     };
   }, [applyDockLayout, scheduleRetract, raiseOrb, moveWin]);
 
@@ -801,6 +814,7 @@ export default function ControlsOrb() {
                         ? '0 2px 8px rgba(239, 68, 68, 0.2)'
                         : '0 2px 8px rgba(99, 102, 241, 0.2)'
                       : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    position: 'relative',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = isDangerActive
@@ -820,6 +834,29 @@ export default function ControlsOrb() {
                   }}
                 >
                   <Icon icon={b.icon} width={20} height={20} />
+                  {b.label === 'chat' && unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        minWidth: 18,
+                        height: 18,
+                        padding: '0 5px',
+                        borderRadius: 9,
+                        background: COLORS.danger,
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        lineHeight: '18px',
+                        textAlign: 'center',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

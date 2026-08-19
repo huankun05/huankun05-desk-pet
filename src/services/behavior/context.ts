@@ -89,6 +89,14 @@ export class PetContextImpl implements PetContext {
   }
 
   async sendMessage(text: string): Promise<string> {
+    try {
+      localStorage.setItem(
+        'deskpet_chat_unread',
+        String((parseInt(localStorage.getItem('deskpet_chat_unread') || '0', 10) || 0) + 1),
+      );
+    } catch {
+      /* ignore */
+    }
     return this.deps.sendMessage(text);
   }
 

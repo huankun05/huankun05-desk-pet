@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { Section, SettingRow, Switch, SliderRow, useToast } from '../../components';
-import { IDLE_MESSAGES, INTERACT_MESSAGES, type IdleMessage } from '../../../data/idleMessages';
+import {
+  IDLE_MESSAGES,
+  INTERACT_MESSAGES,
+  type IdleMessage,
+  setBackendInteractMessages,
+  setBackendIdleMessages,
+} from '../../../data/idleMessages';
 import { interactTTS } from '../../../services/audio/interact-tts';
 import { audioPlayer } from '../../../services/audio/player';
 import { ensureActiveTTSBackend } from '../../../services/provider/ttsBackend';
@@ -357,7 +363,24 @@ export function InteractionPage() {
 
   const refreshBackendMessages = useCallback(async () => {
     const items = await listInteractionMessages();
-    setBackendMessages(items);
+    const backendMessages = items;
+    const interactMap: Record<string, string[]> = {};
+    const idleGroups: IdleMessage[] = [];
+    for (const m of backendMessages) {
+      if (m.category === 'interact') {
+        interactMap[m.subcategory] = m.messages;
+      } else if (m.category === 'idle') {
+        idleGroups.push({
+          ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
+          ...(m.emotion ? { emotion: m.emotion } : {}),
+          messages: m.messages,
+        });
+      }
+    }
+    if (Object.keys(interactMap).length)
+      setBackendInteractMessages(interactMap as typeof INTERACT_MESSAGES);
+    if (idleGroups.length) setBackendIdleMessages(idleGroups);
+    setBackendMessages(backendMessages);
   }, []);
 
   const updateConfig = useCallback((patch: Partial<InteractionConfig>) => {

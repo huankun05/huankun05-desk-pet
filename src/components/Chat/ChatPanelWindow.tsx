@@ -707,10 +707,20 @@ function ChatPanelWindow() {
       const active = getActiveSession();
       if (active) {
         setActiveSessionId(active.id);
+        try {
+          localStorage.setItem('deskpet_active_session_id', active.id);
+        } catch {
+          /* ignore */
+        }
         // 删除的是当前会话：同步加载下一个会话的消息，避免界面残留已删内容
         if (wasActive) loadSession(active.id);
       } else {
         setActiveSessionId(null);
+        try {
+          localStorage.removeItem('deskpet_active_session_id');
+        } catch {
+          /* ignore */
+        }
         // 没有剩余会话：开一个新会话并同步会话列表
         if (wasActive) {
           newChat();
