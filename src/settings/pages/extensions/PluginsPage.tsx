@@ -6,7 +6,7 @@ import { PluginsPage as InstalledList } from '../system/PluginsPage';
 /**
  * 扩展 → 插件：已安装插件管理页（纯列表）。
  *
- * 市场功能已独立为顶级「市场」板块（/settings/marketplace），
+ * 市场功能已独立为「扩展 → 市场」板块（/settings/extensions/marketplace），
  * 本页只负责管理已安装插件的启用/禁用与参数配置。
  * 路由：/settings/extensions/plugins
  */
@@ -19,10 +19,10 @@ export function PluginsPage() {
       {/* 去市场入口 */}
       <div
         className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-gradient-to-r from-neutral-50 to-white px-4 py-3 cursor-pointer hover:border-[var(--primary-300)] hover:shadow-sm transition-all"
-        onClick={() => navigate('/settings/marketplace')}
+        onClick={() => navigate('/settings/extensions/marketplace')}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && navigate('/settings/marketplace')}
+        onKeyDown={(e) => e.key === 'Enter' && navigate('/settings/extensions/marketplace')}
       >
         <Icon icon="solar:shop-bold-duotone" className="text-xl text-[var(--primary-500)]" />
         <div className="flex-1 min-w-0">

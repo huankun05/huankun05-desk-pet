@@ -46,7 +46,7 @@ const TABS: { key: MarketTab; labelKey: string; icon: string }[] = [
  * - MCP 预设：搜索 + 预设卡片网格
  * - 技能：建设中
  *
- * 路由：/settings/marketplace
+ * 路由：/settings/extensions/marketplace
  */
 export function MarketplaceIndex() {
   const { t } = useTranslation();

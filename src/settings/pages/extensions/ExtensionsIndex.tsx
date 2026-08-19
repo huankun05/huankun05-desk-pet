@@ -36,7 +36,7 @@ export function ExtensionsIndex() {
       icon: 'solar:shop-bold-duotone',
       title: t('settings.marketplace.title'),
       description: t('settings.marketplace.description'),
-      to: '/settings/marketplace',
+      to: '/settings/extensions/marketplace',
     },
   ];
 

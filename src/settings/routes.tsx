@@ -70,7 +70,7 @@ const pageComponentLoaders: Record<string, () => Promise<{ default: ComponentTyp
   '/settings/extensions/wake-word': () => import('./pages/services/WakeWordPage'),
   '/settings/extensions/plugins': () => import('./pages/extensions/PluginsPage'),
   '/settings/extensions/tools': () => import('./pages/extensions/ToolsPage'),
-  '/settings/marketplace': () => import('./pages/marketplace/MarketplaceIndex'),
+  '/settings/extensions/marketplace': () => import('./pages/marketplace/MarketplaceIndex'),
   '/settings/privacy': () => import('./pages/privacy/PermissionsIndex'),
   '/settings/memory': () => import('./pages/memory/MemoryIndex'),
   '/settings/memory/context': () => import('./pages/memory/ContextPage'),
@@ -155,7 +155,7 @@ const settingsRootMeta: SettingsMeta = {
  *     /  (index - 扩展二级入口)
  *     /mcp  (MCP 服务器)
  *     /wake-word  (语音唤醒)
- *     /plugins  (已安装插件管理；市场已独立为 /settings/marketplace)
+ *     /plugins  (已安装插件管理；市场已独立为 /settings/extensions/marketplace)
  *   /memory
  *     /  (index - 记忆体二级入口)
  *     /context  (上下文管理：短期对话窗口)
@@ -459,7 +459,7 @@ export const settingsTree: SettingsEntry[] = [
         icon: 'solar:shop-bold-duotone',
         settingsEntry: true,
         order: 4,
-        path: '/settings/marketplace',
+        path: '/settings/extensions/marketplace',
       },
     ],
   },
