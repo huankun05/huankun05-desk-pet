@@ -53,6 +53,7 @@ _EXPECTED_COLUMNS: dict[str, str] = {
     "meta": "TEXT DEFAULT '{}'",
     "client_ref": "TEXT DEFAULT ''",
     "updated_at": "TEXT DEFAULT ''",
+    "emotion_snapshot": "TEXT DEFAULT '{}'",
 }
 
 
@@ -147,18 +148,19 @@ def _row_to_fragment(row: sqlite3.Row) -> MemoryFragment:
         character_id=row["character_id"] or "default",
         user_id=row["user_id"] or "",
         content=row["content"],
-        category=row["category"] if "category" in keys else CATEGORY_FACT,
-        source=row["source"] if "source" in keys else SOURCE_CHAT,
-        enabled=bool(row["enabled"]) if "enabled" in keys else True,
+        category=row["category"] if "category" in row.keys() else CATEGORY_FACT,
+        source=row["source"] if "source" in row.keys() else SOURCE_CHAT,
+        enabled=bool(row["enabled"]) if "enabled" in row.keys() else True,
         meta=meta,
-        client_ref=row["client_ref"] if "client_ref" in keys else "",
+        client_ref=row["client_ref"] if "client_ref" in row.keys() else "",
         importance=row["importance"],
         embedding=embedding,
         access_count=row["access_count"],
         last_accessed=datetime.fromisoformat(row["last_accessed"]),
         is_permanent=bool(row["is_permanent"]),
         created_at=datetime.fromisoformat(row["created_at"]),
-        updated_at=datetime.fromisoformat(row["updated_at"]) if "updated_at" in keys else datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]) if "updated_at" in row.keys() else datetime.fromisoformat(row["created_at"]),
+        emotion_snapshot=json.loads(row["emotion_snapshot"]) if row.get("emotion_snapshot") else {},
     )
 
 
@@ -180,8 +182,8 @@ class MemoryStore:
                 """
                 INSERT INTO memory_fragments
                 (character_id, user_id, content, category, source, enabled, meta,
-                 client_ref, importance, is_permanent, embedding, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                 client_ref, importance, is_permanent, embedding, updated_at, emotion_snapshot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
                 """,
                 (
                     fragment.character_id or self.character_id,
@@ -195,6 +197,7 @@ class MemoryStore:
                     max(0.0, min(1.0, fragment.importance)),
                     1 if fragment.is_permanent else 0,
                     json.dumps(fragment.embedding or []),
+                    json.dumps(fragment.emotion_snapshot or {}),
                 ),
             )
             fragment.id = cursor.lastrowid

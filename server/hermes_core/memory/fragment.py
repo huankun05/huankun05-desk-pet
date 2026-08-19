@@ -61,6 +61,7 @@ class MemoryFragment:
         is_permanent: 永久记忆标志（跳过遗忘曲线，永不删除）
         created_at: 创建时间
         updated_at: 更新时间
+        emotion_snapshot: 记忆创建时的整轮对话平均 PAD（情绪快照）
     """
 
     id: int | None = None
@@ -80,6 +81,7 @@ class MemoryFragment:
     is_permanent: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
+    emotion_snapshot: dict[str, float] = field(default_factory=dict)
 
     # ---- 领域方法 ----
 
@@ -119,6 +121,7 @@ class MemoryFragment:
             "is_permanent": self.is_permanent,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "emotion_snapshot": self.emotion_snapshot,
         }
 
     def to_api_dict(self) -> dict[str, Any]:
@@ -138,6 +141,7 @@ class MemoryFragment:
             "access_count": self.access_count,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "emotion_snapshot": self.emotion_snapshot,
         }
 
     @classmethod
@@ -158,4 +162,5 @@ class MemoryFragment:
             embedding=data.get("embedding", []),
             access_count=data.get("access_count", 0),
             is_permanent=data.get("is_permanent", False),
+            emotion_snapshot=data.get("emotion_snapshot", {}) or {},
         )
