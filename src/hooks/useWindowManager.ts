@@ -482,6 +482,16 @@ export function useWindowManager({
     let lastIgnore = isLocked; // 记录上一次实际设置的穿透状态，避免每帧重复调用
     const check = async () => {
       if (document.hidden) return;
+      // 性能：未开启「悬停淡出」时，光标位置没有任何用途 → 跳过每次 Rust IPC 查询
+      //（默认每 200ms 一次 invoke，约占主窗空闲 CPU 开销大头；锁定/变换态的穿透
+      //  状态由本 effect 的依赖 [isLocked, isTransforming] 变化时重新设置，无需轮询）
+      if (!fadeOnHoverRef.current) {
+        if (lastHovering) {
+          lastHovering = false;
+          setIsHovering(false);
+        }
+        return;
+      }
       try {
         const info = await invoke<{
           cursor_x: number;

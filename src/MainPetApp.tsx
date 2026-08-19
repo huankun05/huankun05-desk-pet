@@ -448,6 +448,16 @@ function MainPetApp() {
     petVisibleRef.current = appearance.petVisible;
   }, [appearance.petVisible]);
 
+  // 角色隐藏 或 模型未就绪 时，立即清掉正在显示的说话气泡，确保与显示状态一致。
+  // 锁定态不清除气泡：锁定走窗口级 setIgnoreCursorEvents 实现整窗穿透，气泡会自然
+  // 跟随角色一起穿透（可见但不拦截点击），符合「气泡与角色状态一致」的预期。
+  useEffect(() => {
+    if (!appearance.petVisible || !petModelReady) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBubble(null);
+    }
+  }, [appearance.petVisible, petModelReady]);
+
   // 切换模型时重置：新模型加载完成前不显示气泡
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1057,10 +1067,11 @@ function MainPetApp() {
         } as React.CSSProperties
       }
     >
-      {/* 隐藏角色 / 2D 尚未正式加载完成 时，连说话气泡一起隐藏（避免无角色本体时气泡悬空显示） */}
+      {/* 角色隐藏 / 2D 未加载完成时隐藏气泡；锁定态不隐藏——气泡随窗口级穿透一起可点击穿透（与角色一致），
+          悬停淡出时由 .fading 类跟随角色一起透明 */}
       {appearance.petVisible && petModelReady && (
         <div
-          className={`bubble-zone ${appearance.bubblePosition === 'bottom' ? 'bubble-zone--bottom' : ''}`}
+          className={`bubble-zone ${appearance.bubblePosition === 'bottom' ? 'bubble-zone--bottom' : ''} ${fadeOnHover && isHovering ? 'fading' : ''}`}
         >
           <ChatBubble message={bubble} onComplete={() => setBubble(null)} />
         </div>

@@ -75,13 +75,23 @@ body,
   top: 0;
   left: 0;
   width: 100%;
-  height: 70px;
+  /* 高度自适应：短气泡贴着角色头顶，长气泡向上展开不被裁掉（height:auto 让容器随内容增高） */
+  height: auto;
+  min-height: 70px;
   display: flex;
   align-items: flex-end;
   padding-bottom: 4px;
   justify-content: center;
   z-index: 15;
   pointer-events: none;
+  /* 悬停淡出时的渐变过渡（与 .pet-model 同步，淡出/恢复都平滑） */
+  transition: opacity 250ms ease-in;
+}
+
+/* 悬停淡出时气泡跟随角色一起透明（与 .pet-zone.fading .pet-model 同步） */
+.bubble-zone.fading {
+  opacity: var(--fade-opacity);
+  transition: opacity 200ms ease-out;
 }
 
 /* 气泡置于底部：落在工具栏上方，箭头翻转指向角色 */
@@ -220,10 +230,11 @@ body,
   border-radius: var(--bubble-radius, 14px);
   border: 1px solid rgba(125, 125, 125, 0.18);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  white-space: nowrap;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 完整显示：长文本自动换行，不再用省略号截断 */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 240px;
   backdrop-filter: blur(8px);
 }
 

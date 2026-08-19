@@ -36,6 +36,8 @@ export class SedentaryReminderPlugin extends DeskPetPlugin {
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastActivityTime = Date.now();
   private lastReminderTime = 0;
+  /** 活动监听器引用：onTerminate 时需要 removeEventListener 防止全局监听泄漏 */
+  private activityHandler: (() => void) | null = null;
 
   constructor() {
     super({
@@ -61,6 +63,7 @@ export class SedentaryReminderPlugin extends DeskPetPlugin {
       clearInterval(this.timer);
       this.timer = null;
     }
+    this.removeActivityListeners();
   }
 
   private startTimer(): void {
@@ -68,14 +71,23 @@ export class SedentaryReminderPlugin extends DeskPetPlugin {
   }
 
   private setupActivityListeners(): void {
-    const activityHandler = () => {
+    this.activityHandler = () => {
       this.lastActivityTime = Date.now();
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('mousemove', activityHandler);
-      window.addEventListener('keydown', activityHandler);
-      window.addEventListener('click', activityHandler);
+      window.addEventListener('mousemove', this.activityHandler);
+      window.addEventListener('keydown', this.activityHandler);
+      window.addEventListener('click', this.activityHandler);
+    }
+  }
+
+  private removeActivityListeners(): void {
+    if (this.activityHandler && typeof window !== 'undefined') {
+      window.removeEventListener('mousemove', this.activityHandler);
+      window.removeEventListener('keydown', this.activityHandler);
+      window.removeEventListener('click', this.activityHandler);
+      this.activityHandler = null;
     }
   }
 

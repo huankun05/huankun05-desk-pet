@@ -10,7 +10,8 @@
     "error_api_key": "Error: {{message}}. Please check your API Key in Settings.",
     "close": "Close",
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "llm_queue_hint": "Processing the previous request, please wait..."
   },
   "menu": {
     "unlock": "🔓 Unlock",
@@ -978,6 +979,7 @@
       "clear": "Clear",
       "filter_all": "All",
       "empty": "No records",
+      "risk_group": "{{label}} risk",
       "notice_title": "Privacy notice",
       "notice_desc": "All authorizations and logs are stored on this device only, never uploaded. You can revoke authorization or clear logs anytime.",
       "notice_body": "Permission management is local only. Dangerous commands (e.g. rm -rf, format, shutdown, registry edits) always require a second confirmation regardless of authorization state.",

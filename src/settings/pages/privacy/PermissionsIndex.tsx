@@ -303,7 +303,7 @@ export function PermissionsIndex() {
                     {RISK_LABEL[risk]}
                   </span>
                   <span style={{ fontWeight: 600, color: '#374151', fontSize: 14 }}>
-                    {t('settings.privacy.risk_group', { defaultValue: `${RISK_LABEL[risk]}风险` })}
+                    {t('settings.privacy.risk_group', { label: RISK_LABEL[risk] })}
                   </span>
                   <span style={{ color: '#9ca3af', fontSize: 12 }}>({caps.length})</span>
                 </span>

@@ -12,6 +12,8 @@ export interface CronJob {
   lastRunAt?: string;
   lastError?: string;
   nextRunTime?: string;
+  /** 失败退避：此时间之前不再触发（由连续失败次数指数退避决定） */
+  nextRunAfter?: string;
 }
 
 export interface ScheduleOptions {

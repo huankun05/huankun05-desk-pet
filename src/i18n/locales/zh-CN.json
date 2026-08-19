@@ -10,7 +10,8 @@
     "error_api_key": "错误: {{message}}。请在设置中检查 API Key。",
     "close": "关闭",
     "prev": "上一步",
-    "next": "下一步"
+    "next": "下一步",
+    "llm_queue_hint": "正在处理上一个请求，请稍候..."
   },
   "menu": {
     "unlock": "🔓 解锁",
@@ -982,6 +983,7 @@
       "clear": "清空",
       "filter_all": "全部",
       "empty": "暂无记录",
+      "risk_group": "{{label}}风险",
       "notice_title": "隐私声明",
       "notice_desc": "所有授权与记录均保存在本机，不会上传任何服务器。你可随时撤销授权或清空记录。",
       "notice_body": "权限管理仅在本机生效。危险命令（如 rm -rf、格式化、关机、修改注册表等）无论授权状态如何，都会强制要求你二次确认。",

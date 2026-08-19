@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **74 个 ESLint 警告清零 + Prettier 统一**: 按五类规则清零 warning（`no-unused-vars` 14 / `no-explicit-any` 25 / `exhaustive-deps` 4 / `react-hooks/set-state-in-effect` 19 / `react-refresh/only-export-components` 12）。抽离 `src/components/Chat/favorites.ts` 与 `src/settings/pages/models/interactionConfig.ts` 消除组件+工具混合导出；Confirm/Toast/routes 强耦合处加针对性豁免；`eslint.config.js` 启用 `allowConstantExport`。`npm run lint` / `typecheck` / `format:check` 三绿。 (commit `0342ad7`)
+- **修复悬浮球（控制面板按钮）残留任务栏窗口**: `controls` 窗口构造期 `skipTaskbar: true` 在部分环境不生效，悬浮球挂载时显式 `getCurrentWindow().setSkipTaskbar(true)` 强制移出任务栏（`setSkipTaskbar` 为 `Window` 类方法，`WebviewWindow` 实例无此方法）。 (`src/components/Pet/ControlsOrb.tsx`)
+- **气泡状态跟随角色**: ①锁定态——锁定走窗口级 `setIgnoreCursorEvents(true)` 实现整窗穿透，气泡保持可见并随整窗一起点击穿透（与角色一致），不再被隐藏；②悬停淡出——气泡与角色同步挂 `fading` 类，跟随 `--fade-opacity` 一起透明；③长文本——`.chat-bubble-content` 由 `nowrap+ellipsis` 改为 `white-space:normal` 完整换行显示，`.bubble-zone` 高度自适应向上展开。 (`src/MainPetApp.tsx`, `src/App.css`)
+- **定时任务调度器智能化**: `src/services/cron/manager.ts` 重写——①**精确调度**：cron 任务由「每分钟轮询」改为 `nextCronTime()` 算出下一次触发点 `setTimeout` 到点触发并自动重新排程（空闲时不再周期性唤醒，降 CPU）；②**防重入**：同一任务上次未跑完则不重复触发；③**失败指数退避**：连续失败按 15s→30min 指数退避，成功即重置；④**错过补偿**：应用关闭期间错过的持久化任务（24h 内）启动时只补跑一次，避免堆叠轰炸；⑤**自定义 handler 持久保留**：enable/disable/update 后不再丢失插件注册的 handler；⑥**抖动**：interval 首周期加小随机延迟防惊群；⑦补全 `nextRunTime` 计算（设置页「下次运行」时间现在有真实值）；⑧`removeJob` 由仅停止改为彻底删除。 (`src/services/cron/manager.ts`, `src/services/cron/types.ts`)
+- **修复久坐提醒插件全局监听泄漏**: `onTerminate` 现在会 `removeEventListener` 移除 `mousemove`/`keydown`/`click` 三个活动监听器（原先开关一次即永久残留）。 (`src/services/skills/plugins/sedentaryReminder.ts`)
+- **性能优化：主窗光标轮询门控**: `useWindowManager` 每 200ms 的 `get_cursor_window_info` Rust IPC 查询在未开启「悬停淡出」时整体跳过（默认省 5 次/秒系统调用；锁定/变换态穿透由 effect 依赖重新设置，无需轮询）。 (`src/hooks/useWindowManager.ts`)
+- **依赖与文件清理**: 移除 6 个 `src/` 内零引用的依赖（`framer-motion`、`@heroui/react`、`@tanstack/react-virtual`、`zustand`、`react-hot-toast`、`@iconify-json/solar`）及 `vite.config.ts` 对应的空 `vendor-motion` chunk，双锁文件（`pnpm-lock.yaml` / `package-lock.json`）同步更新；删除 4 个无路由/无 loader/无引用的孤儿设置页（`BackupPage`、`GrowthPage`、`PluginBuilderPage`、`PluginMarketPage`，git 历史可恢复）；清理根目录与 `logs/` 的临时开发日志。分析文档见 `docs/performance-optimization.md`。
 - **Lint 警告清理（92→74）**: 清理大量未使用导入/variable（`SlashCommand`、`eventBus`、`LogicalPosition`、`handleSlashHelpToggle`、`PANEL_INNER_W`、`prevMode`、`MODE_CHANGED_EVENT`、`guideTitle`、`guideIntro`、`idPrefix`、`ServiceSetupGuide`、`RiskLevel`、`CapabilityGroup`、`pluginRegistry`、`registerBuiltinPlugins`、`pluginConfigManager`、`PluginMetadata`、`PluginConfigProperty`、`isToolDisabled`、`registerBuiltinTools`、`useEffect`、`useState`、`Section`、`Switch` 等）；修正误删导入导致 TS 报错（`RiskLevel`、`useEffect`、`registerBuiltinTools`）；禁用不匹配的 `react-hooks/preserve-manual-memoization` 规则；修复 `audioFiles.ts` regex 多余转义；修复 `PermissionManager.ts` 无用数组初始化。 (`src/components/Chat/ChatPanelWindow.tsx`, `src/settings/components/ServiceWizard.tsx`, `src/settings/pages/extensions/PluginsPage.tsx`, `src/settings/pages/extensions/ToolsPage.tsx`, `src/hooks/usePanelWindows.ts`, `src/components/Pet/ControlsOrb.tsx`, `src/services/permission/capabilities.ts`, `src/settings/components/Toast.tsx`, `src/settings/components/Confirm.tsx`, `src/settings/pages/chat/ChatModesPage.tsx`, `eslint.config.js`, `src/services/audio/audioFiles.ts`, `src/services/permission/PermissionManager.ts`)
 - **Proactive Chat 统一调度**: 所有主动 LLM 消息统一通过 `proactiveScheduler` 调度；`useInteraction.ts` 空闲定时器降为 45s–105s 并降低触发概率；`MainPetApp.tsx` proactive 触发时注入 emotion/mood/recent topics 场景感知提示词；新增 `aiService.proactiveChat()` API 供自定义主动消息使用。
 - **TTS 全链路走大脑调度**: 所有 TTS 路径（主聊天、流式、主动、交互预生成）统一改为 `synthesizeViaBrain`，移除直接 `provider.synthesize()` 调用；`InteractTTS`、`streaming-tts.ts`、`pipeline/stages/tts.ts` 全部对齐。
 - **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
+
 ### Added
 
 - **Gateway Tool Loop**: 新增服务端多轮工具执行链路，backend tools + frontend tools 混合执行；Gateway 直接驱动 LLM tool_calls 多轮循环，前端不再单独维护 tool loop。
@@ -85,7 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **设置项一致性校验通过**: `check-settings-entries` 确认 36 个二级路径 / 36 个 loader / 7 个 Index 页三者一致
 - **补充 `settings.chat` 遗漏的中文 i18n 键**: 修复 `ChatModesPage` 使用的 `mode_badge_chat` / `mode_badge_work` / `mode_current_title` / `mode_current_desc` 仅在顶层 `chat` 命名空间定义、缺少 `settings.chat` 定义导致中文界面显示原始 key 串的问题（`zh-CN.json` 补齐，中英文对齐）。
 
-- **控制面板悬浮提示显示原始 key**: `ControlsIsland` 用动态 `t(\`controls.${b.label}\`)` 构造 key，静态扫描漏检，`controls.transform` / `controls.mode` 两 locale 均缺失导致悬浮提示显示 key 串；已补齐中英文
+- **控制面板悬浮提示显示原始 key**: `ControlsIsland` 用动态 `t(\`controls.${b.label}\`)` 构造 key，静态扫描漏检，`controls.transform`/`controls.mode` 两 locale 均缺失导致悬浮提示显示 key 串；已补齐中英文
 - **Gateway Tauri 启动时 ModuleNotFoundError**: `_tool_executor` 等兄弟模块 import 早于 `sys.path` 插入，导致 Tauri spawn 失败；修正 `sys.path` 插入时机（置于兄弟 import 之前）
 - **插件页无限转圈至失败**: GitHub registry fetch 超时（`AbortError`）时无降级，一直加载直到失败；改为超时显示「网络不可达」空状态 + 重试按钮，stats 失败静默降级
 - **工具页 / 模式页可用工具显示 (0)**: 设置窗口为独立 webview，从未调用 `registerBuiltinTools()`，导致 `toolRegistry.getAll()` 返回空；`ToolsPage` 与 `ChatModesPage` 现均在 `useEffect` 中显式注册内置工具，正确显示前端 / 后端 / MCP 工具数量与 chat/work 可用性徽章
@@ -126,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Phase 5: 性能、可扩展性与健壮性全面优化
 
 **P0 严重问题修复（6项）**
+
 - **Live2D 模型加载 fetch 错误处理**: `lappmodel.ts` 7处 `fetch().then()` 链添加 `.catch()`，`lapppal.ts` 和 `lappwavfilehandler.ts` 同步修复，避免网络错误时模型加载状态机永久卡死
 - **聊天管线初始化错误处理**: `useChatPipeline.ts` 的 `Promise.all([...]).then()` 添加 `.catch()`，初始化失败时记录错误日志而非静默
 - **ControlsIsland 事件监听器泄漏修复**: `dragStateRef` 新增 `cleanup` 字段 + `useEffect` 兜底清理，防止组件卸载时 `mousemove`/`mouseup` 监听器永久泄漏
@@ -134,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **usePerception 表情恢复定时器泄漏修复**: 新增 `expressionTimerRef` 管理定时器生命周期，防止手势快速切换时旧定时器叠加执行
 
 **P1 高风险问题修复（6项）**
+
 - **WebSocket 心跳+指数退避+UI反馈**: `perception/service.ts` 新增 30s 心跳机制（连续 2 次未响应触发重连）、指数退避+抖动（2s→4s→8s→16s→30s）、达到最大重连次数后发射 `perception:disconnected` 事件供 UI 订阅
 - **fetch 请求超时机制**: 新增 `utils/fetch.ts` 的 `fetchWithTimeout` 工具函数，为 `usePetModel`、`market/client`、`logger`、`Live2DPage` 的 fetch 请求添加 3-15s 超时
 - **Pipeline 调度器错误隔离**: `scheduler.ts` 每个 Stage 的 `process` 调用包裹 try-catch，新增 `onStageError` 回调和 `continueOnError` 选项（默认 true），非致命错误不中断管道
@@ -142,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **invoke Promise 添加 .catch()**: `StatusPanelWindow.tsx`（2处）、`ChatPanelWindow.tsx`（2处）共 4 处 Tauri invoke 添加 `.catch()`
 
 **P2 架构改进（8项）**
+
 - **App.tsx 拆分**: 抽取 `usePersonaAutoSwitch` 和 `useAppStorageSync` 两个独立 hook，App.tsx 从 959 行减至约 830 行
 - **useChatPipeline 职责拆分**: 抽取 `useSttBridge`（STT 轮询桥）和 `useRagPersistence`（RAG 持久化）两个独立 hook，useChatPipeline 从 484 行减至 437 行
 - **ProviderManager 泛型抽象**: 新增 `ProviderSlot<T>` 泛型类封装缓存管理，manager.ts 从 903 行减至 675 行（-25%）
@@ -152,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ThemeProvider context value useMemo 优化**: value 对象和 5 个回调函数分别用 `useMemo`/`useCallback` 包裹，消除消费者无谓重渲染
 
 ### Changed
+
 - **TTS Provider setup 竞态修复**: `useChatPipeline.ts` 中 TTS Provider 的 validate + setup 从 fire-and-forget（`.then()`）改为 `await`，确保 TTS 控制器在管道执行前完成初始化，避免首句 TTS 播放失败或竞态异常。
 - **感知→情感→行为闭环**: `usePerception.ts` 现在通过 eventBus 发射 `perception:gesture` 和 `perception:face_expr` 事件，使情感系统和行为系统能感知到用户的手势和面部表情。`BehaviorRegistry` 新增 `PerceptionResponseBehavior`，根据手势（👍👎✋✊✌️）和面部表情（happy/sad/angry/surprised）触发差异化气泡反馈。
 - **点击/触摸→行为闭环**: `useInteraction.ts` 在用户拍打头部、点击身体、戳脚时分别发射 `interaction:pat`/`interaction:tap`/`interaction:step` 事件。`InteractionResponseBehavior` 根据触摸部位和强度给出不同反馈（轻点 vs 用力 vs 连戳）。
@@ -159,6 +171,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **主动行为智能化**: `ProactiveScheduler` 新增 `recordUserMessage`/`updateEmotionTrend`/`getContextHints` 方法，追踪最近 10 条用户消息和情感趋势，使主动问候能感知上下文。
 
 ### Added
+
 - **RAG long-term memory pipeline**: BM25-based local document retrieval integrated into chat pipeline. `RAGStage` (after `MemoryStage`) injects relevant history into LLM context. Conversations auto-upsert to RAG index with localStorage persistence. Settings page adds RAG toggle, document count display, and memory wipe. (`src/services/pipeline/stages/rag.ts`, `src/services/rag/engine.ts`, `src/hooks/useChatPipeline.ts`, `src/settings/pages/models/BehaviorPage.tsx`)
 - **Behavior system integration**: 5 built-in behaviors (greeting, emotion resonance, idle chat, farewell, favorability milestone) auto-registered to `BehaviorRegistry`. App.tsx constructs `PetContextImpl` and forwards eventBus events (`message:sent/response`, `emotion/favorability/persona:changed`, window focus/blur, 6min idle timer) to `registry.dispatch`. Settings page adds per-behavior enable/disable toggles. (`src/services/behavior/builtins.ts`, `src/App.tsx`, `src/settings/pages/models/BehaviorPage.tsx`)
 - **Live2D visual decoration event bus**: `BehaviorDecorateStage` emits `expression:change`/`param:update`/`animation:trigger` events. `useLive2D` subscribes and drives Live2D model expression switching, transient parameter overrides (ParamCheek/ParamAngry with auto-expiry), and animation triggering. (`src/hooks/useLive2D.ts`, `src/lib/live2d/lappdelegate.ts`, `src/lib/live2d/lappmodel.ts`)
@@ -178,6 +191,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automation (cron tasks) page**: scheduled task management
 
 ### Changed
+
 - **tsconfig lib fix**: Added `ES2022.Error` to `lib` array, resolving 19 `TS2554` errors on `new Error(msg, { cause })` calls that blocked `tsc` and `vite build`. (`tsconfig.json`)
 - **App.tsx refactored**: 2141-line monolith split into 8 custom hooks (useEmotion, useWindowManager, useChatPipeline, useVoiceInteraction, usePetModel, usePanelWindows, usePerception, usePluginSystem), reduced to 531 lines
 - **Emotion system unified**: merged useEmotion / emotionStore / EmotionEngine into single useEmotion hook with Sigmoid decay algorithm and mood-emotion bidirectional influence model
@@ -191,12 +205,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documents merged**: CLAUDE.md + ARCHITECTURE.md consolidated into DEVELOPMENT.md (single source of truth for engineering standards)
 
 ### Removed
+
 - **Duplicate IdleChatBehavior**: removed the example `IdleChatBehavior` class from `base.ts` (identical id `builtin.idle_chat` as the real implementation in `builtins.ts`). Updated barrel export in `behavior/index.ts`. (`src/services/behavior/base.ts`, `src/services/behavior/index.ts`)
 - **Zustand stores**: removed `src/stores/` directory (6 files: emotionStore, personalityStore, etc.), functionality replaced by useState + localStorage
 - **Admin dashboard**: removed `src/admin/` directory, admin functionality to be reworked later
 - **Floating settings panel**: removed `src/components/Settings/` directory, unified settings via independent window
 
 ### Fixed
+
 - **usePluginSystem deps jitter**: useEffect deps included `emotionState` (updates every 120s decay + every interaction), causing all plugins to be shutdown and re-registered repeatedly. Fixed by holding dependencies in a ref, effect now runs only once on mount. (`src/hooks/usePluginSystem.ts`)
 - **usePerception deps jitter**: useEffect deps included `currentEmotion`/`getLive2DEmotion`, causing perception WebSocket to disconnect/reconnect on every emotion change (up to every 3s). Fixed by moving emotion deps to a ref. (`src/hooks/usePerception.ts`)
 - **Admin panel 401 in dev mode**: `admin.html` rewritten to load from Vite dev server (port 1420) with HMR, eliminating stale `dist/admin.html` issue. `vite.config.ts` now enables CORS for cross-origin module loading.
@@ -217,15 +233,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-06-23
 
 - **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
+
 ### Added
 
 #### Core
+
 - Live2D character rendering (Nahida .moc3) via Cubism SDK v5 native WebGL2
 - Borderless transparent window with drag-to-move and resize
 - Lock/penetrate toggle (Ctrl+Shift+D) with tray context menu
 - Interactive system: click area detection, idle timer, proactive chat
 
 #### AI & Conversation
+
 - OpenAI-compatible API chat with streaming output & typewriter cursor
 - Dual-layer emotion system: Mood + Emotion with Sigmoid decay
 - Character personality system with hot-swap at runtime
@@ -233,16 +252,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-session chat history persistence
 
 #### Voice
+
 - Three TTS providers: Edge TTS (free), GPT-SoVITS v2, VoxCPM2
 - Two STT providers: FunASR, SenseVoice
 - Provider abstraction layer with runtime switching
 
 #### Admin Panel
+
 - React 19 + HeroUI v3 + Tailwind v4 admin dashboard
 - Liquid-glass theme with 10 pages + KeepAlive caching
 - Token-based authentication for local-only access
 
 #### Engineering
+
 - Onion pipeline (10-stage AsyncGenerator) for message processing
 - EventBus + Behavior plugin system with PetContext DI
 - MCP protocol client (JSON-RPC over stdio) with ToolRegistry
@@ -251,6 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Content safety: Keywords, LengthLimit, RateLimit strategies
 
 #### Backend (Rust)
+
 - Tauri 2.0 desktop framework with transparent overlay window
 - Full-desktop eye tracking (GetCursorPos + lerp smoothing)
 - Service process manager with auto-restart & exponential backoff
@@ -260,6 +283,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Screenshot capture & clipboard integration
 
 #### Quality
+
 - TypeScript strict mode + strictNullChecks enabled
 - 32 unit tests (Vitest + jsdom)
 - ESLint + Prettier + Husky + lint-staged pre-commit hooks

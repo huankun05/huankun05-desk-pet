@@ -60,7 +60,6 @@ export default defineConfig(async () => ({
         // 代码分割：将大依赖分离为独立 chunk，优化缓存和加载
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react/jsx-runtime'],
-          'vendor-motion': ['framer-motion'],
           'vendor-tauri': ['@tauri-apps/api'],
           'vendor-settings': [
             'react-router-dom',
