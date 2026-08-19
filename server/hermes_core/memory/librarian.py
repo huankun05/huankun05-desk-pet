@@ -52,15 +52,14 @@ class Librarian:
         self,
         query: str,
         top_k: int | None = None,
+        current_pad: dict[str, float] | None = None,
     ) -> list[SearchResult]:
         """检索与 query 相关的记忆碎片。
-
-        评分公式（P0 简化版）：
-            final_score = 0.5 * vector_score + 0.3 * keyword_score + 0.2 * importance_score
 
         Args:
             query: 用户输入或检索主题
             top_k: 返回数量，默认 self.top_k
+            current_pad: 当前情绪 PAD（可选），用于情绪相似度加分
 
         Returns:
             SearchResult 列表（按分数降序）
@@ -99,16 +98,18 @@ class Librarian:
             importance_score = frag.importance
 
             # 综合分数
-            score = (
+            base_score = (
                 0.5 * vector_score
                 + 0.3 * keyword_score
                 + 0.2 * importance_score
             )
 
-            # 记忆情绪与当前情绪相似度加成
-            current_pad = self._get_current_pad()
-            emotion_bonus = self._emotion_similarity_bonus(frag, current_pad)
-            score = score * 0.85 + emotion_bonus * 0.15
+            # 情绪相似度加成
+            emotion_bonus = 0.0
+            if current_pad and frag.emotion_snapshot:
+                emotion_bonus = self._emotion_similarity_bonus(frag, current_pad)
+
+            score = base_score * 0.8 + emotion_bonus * 0.2
 
             results.append(
                 SearchResult(
@@ -130,6 +131,19 @@ class Librarian:
                 self.store.touch(r.fragment.id)
 
         return top_results
+
+    @staticmethod
+    def _emotion_similarity_bonus(frag: MemoryFragment, current_pad: dict[str, float]) -> float:
+        mem_pad = frag.emotion_snapshot or {}
+        if not mem_pad:
+            return 0.0
+
+        dp = abs(mem_pad.get("pleasure", 0) - current_pad.get("pleasure", 0))
+        da = abs(mem_pad.get("arousal", 0) - current_pad.get("arousal", 0))
+        dd = abs(mem_pad.get("dominance", 0) - current_pad.get("dominance", 0))
+        distance = (dp + da + dd) / 3.0
+        similarity = max(0.0, 1.0 - distance)
+        return similarity * frag.importance
 
     def format_prompt(self, results: list[SearchResult]) -> str:
         """将检索结果格式化为可注入 system prompt 的文本。"""

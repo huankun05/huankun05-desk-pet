@@ -298,7 +298,14 @@ class Session:
             return ""
 
         try:
-            results = self._librarian.search(query, top_k=self.memory_top_k)
+            current_pad = None
+            if self._pad_available and self._emotion_state is not None:
+                current_pad = {
+                    "pleasure": self._emotion_state.pad.pleasure,
+                    "arousal": self._emotion_state.pad.arousal,
+                    "dominance": self._emotion_state.pad.dominance,
+                }
+            results = self._librarian.search(query, top_k=self.memory_top_k, current_pad=current_pad)
             if not results:
                 return ""
             return self._librarian.format_prompt(results)
