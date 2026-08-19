@@ -5,6 +5,7 @@
  * - 空闲检测 + 久未互动提醒
  * - 时间提醒（午餐/晚餐/深夜/早安）
  * - 情绪变化响应
+ * - 上下文感知：注入最近话题/情绪趋势到主动消息生成
  */
 
 import { eventBus } from '../eventBus';
@@ -38,10 +39,12 @@ const DEFAULT_CONFIG: ProactiveConfig = {
   dailyLimit: 24,
 };
 
-export type ProactiveTrigger = {
+export interface ProactiveTrigger {
   scene: ProactiveScene;
   reason: string;
-};
+  /** 上下文感知提示（最近话题/情绪趋势） */
+  hints?: string[];
+}
 
 export type ProactiveCallback = (trigger: ProactiveTrigger) => void;
 
@@ -238,6 +241,7 @@ export class ProactiveScheduler {
     }
   }
 
+  /** 场景化触发：给回调注入当前情绪/最近消息/场景提示 */
   private tryTrigger(sceneId: string, reason: string): void {
     const scene = PROACTIVE_SCENES.find((s) => s.id === sceneId);
     if (!scene) return;
@@ -246,8 +250,9 @@ export class ProactiveScheduler {
     this.lastProactiveTime = Date.now();
     this.dailyCount++;
 
-    const trigger: ProactiveTrigger = { scene, reason };
-    log.info('Proactive trigger', { scene: sceneId, reason, dailyCount: this.dailyCount });
+    const hints = this.getContextHints();
+    const trigger: ProactiveTrigger = { scene, reason, hints };
+    log.info('Proactive trigger', { scene: sceneId, reason, dailyCount: this.dailyCount, hints });
 
     for (const cb of this.callbacks) {
       try {

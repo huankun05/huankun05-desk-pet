@@ -121,13 +121,10 @@ export function useInteraction({
     return { extraChance: -0.2, prefix: '... ' };
   }, [favorability]);
 
-  // 智能闲聊
-  const trySmartChat = useCallback(async () => {
+  // 智能闲聊：已由 proactiveScheduler 统一接管，此处仅保留静态消息池 fallback
+  const trySmartChat = useCallback(async (): Promise<boolean> => {
     const behavior = loadBehaviorConfig();
     if (!behavior.enable || !behavior.enableSmartChat) return false;
-
-    const config = aiService.getConfig();
-    if (!config.apiKey) return false;
 
     const now = Date.now();
     const intervalMs = behavior.smartChatInterval * 1000;
@@ -136,16 +133,47 @@ export function useInteraction({
     const { count } = getSmartChatCount();
     if (count >= behavior.smartChatDailyLimit) return false;
 
+    const emotionCtx = currentEmotion;
+    const moodCtx = currentMood;
+    const config = aiService.getConfig();
+    const apiKey = config.apiKey;
+
     try {
-      const msg = await aiService.generateProactiveMessage(currentEmotion, currentMood);
-      if (msg && msg.length > 2 && msg.length < 100) {
-        showBubble(msg, 6000);
-        lastSmartChatRef.current = now;
-        incrementSmartChatCount();
-        return true;
+      if (apiKey) {
+        const messages: Array<{ role: string; content: string }> = [
+          {
+            role: 'system',
+            content: `你是一个可爱的桌面宠物助手。当前情绪：${emotionCtx}，心情：${moodCtx}。请主动说一句简短可爱的话，不要用问句，不要超过20个字。`,
+          },
+          { role: 'user', content: '请主动说一句话' },
+        ];
+        const response = await fetch(`${config.apiUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages,
+            temperature: 0.9,
+            max_tokens: 50,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const msg = data.choices?.[0]?.message?.content || '';
+          if (msg && msg.length > 2 && msg.length < 100) {
+            showBubble(msg, 6000);
+            lastSmartChatRef.current = now;
+            incrementSmartChatCount();
+            return true;
+          }
+        }
       }
     } catch {
-      // 静默失败
+      // 静默失败，回退到静态池
     }
     return false;
   }, [currentEmotion, currentMood, showBubble]);
@@ -202,38 +230,35 @@ export function useInteraction({
     [onPatHead, onTapBody, onStepFoot, onTooMuchClick, showBubble, getFavorabilityModifier],
   );
 
-  // 闲聊调度（受性格影响）
+  // 闲聊调度：此处只做“轻量随机触发 + 静态消息池 fallback”，
+  // 真正的 LLM 主动消息由 proactiveScheduler 统一负责，避免两套系统抢发。
   useEffect(() => {
     const soc = personality?.sociability ?? 0.7;
     const cheer = personality?.cheerfulness ?? 0.7;
 
     const scheduleNext = () => {
-      // 社交性越高 → 闲聊间隔越短
-      const baseInterval = 20000 + (1 - soc) * 50000; // soc=1: 20s, soc=0: 70s
+      const baseInterval = 45000 + (1 - soc) * 60000; // soc=1: 45s, soc=0: 105s
       const jitter = Math.random() * 30000;
       const interval = baseInterval + jitter;
 
       idleTimerRef.current = setTimeout(async () => {
         const timeSince = Date.now() - lastInteractRef.current;
 
-        if (timeSince > 60000) {
-          if (timeSince > 180000) {
+        if (timeSince > 120000) {
+          if (timeSince > 300000) {
             onIdleTooLong();
           }
 
-          // 优先尝试智能闲聊
           const didSmartChat = await trySmartChat();
           if (didSmartChat) {
             scheduleNext();
             return;
           }
 
-          // 回退到静态消息池（开朗度影响消息积极程度）
           const favMod = getFavorabilityModifier();
-          const chatChance = 0.4 + soc * 0.3 + favMod.extraChance;
+          const chatChance = 0.35 + soc * 0.25 + favMod.extraChance;
           if (Math.random() < chatChance) {
             const msg = getIdleMessage(currentEmotion, currentMood);
-            // 高开朗度 → 用愉快前缀
             const prefix = cheer > 0.8 ? '✨ ' : cheer > 0.5 ? '' : '... ';
             showBubble(prefix + msg);
           }
