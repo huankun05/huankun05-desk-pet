@@ -30,6 +30,7 @@ from .time.circadian import CircadianRhythm
 from .time.reunion import ReunionEngine
 from . import session_service
 from . import emotion_bridge
+from . import interaction_agg
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1125,6 +1126,10 @@ def create_app() -> FastAPI:
 
     @app.post("/api/core/emotion/bridge/event")
     def emotion_bridge_event(req: EmotionBridgeEventRequest) -> dict:
+        # 互动类事件先做低频聚合计数（无论情绪节流与否都记录），
+        # 累计达阈值后沉淀「用户喜欢摸头」类偏好记忆 + 供 gateway 注入频率
+        if req.event.startswith("interaction:"):
+            interaction_agg.record(req.event, character_id="default")
         return emotion_bridge.apply_event(req.event, req.value, req.source)
 
     @app.get("/api/core/emotion/bridge/state")
@@ -1134,6 +1139,11 @@ def create_app() -> FastAPI:
     @app.get("/api/core/emotion/bridge/config")
     def emotion_bridge_config() -> dict:
         return emotion_bridge.load_config()
+
+    @app.get("/api/core/interaction/stats")
+    def interaction_stats() -> dict:
+        """互动低频聚合统计：各类型累计 / 近 7 天次数（gateway 注入用）。"""
+        return interaction_agg.get_stats(character_id="default", days=7)
 
     return app
 

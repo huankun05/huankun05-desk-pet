@@ -82,7 +82,12 @@
 人格(PUT 手动设定/重置) <── PersonalityPage 编辑
 
 聊天对话 ── hermes_gateway ──> GET heart/emotion ──> <emotion-context> 说话方式注入(情绪→语气)
-主窗 proactive ──> 注入 emotion/mood(已有)
+                          └─> GET interaction/stats ──> <interaction-context> 互动频率注入(60s 缓存)
+
+互动聚合沉淀(server/core/interaction_agg.py)
+  摸头/拍打/踩脚 ──> POST emotion/bridge/event ──> 轻量计数(total + 近 7 天窗口样本)
+        └─ 累计较上次沉淀新增 ≥5 次 ──> 沉淀 1 条偏好记忆(interact-settle:{type} 幂等更新)
+                                          └─> 记忆召回时自然进 <memory-context>，角色"知道这事 + 频率"
 
 表情 ── useBrainBridge 30s 轮询 bridge/state ──> expression:change ──> Live2D
 ```
@@ -96,4 +101,5 @@
 - **人格⇄情绪双向影响已打通**：人格→情绪（PAD 基线回落 + 衰减速率）、情绪→人格（事件驱动 HEXACO 漂移）。
 - **情绪→说话方式已打通**（"像人"的关键）：聊天与主动消息的 LLM 说话语气跟随当前情绪。
 - **人格可调整**：PersonalityPage 支持六维滑块编辑 + 恢复初始。
+- **物理互动低频聚合**：摸头/拍打/踩脚不逐条进记忆，累计 ≥5 次沉淀一条偏好记忆（幂等更新带频率），聊天时 gateway 注入互动频率，角色"知道这事 + 频率"。
 - 结构不匹配（toFixed 崩溃）已治本修复；后续新增 soul 端点注意前后端字段对齐。

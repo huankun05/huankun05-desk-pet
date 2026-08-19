@@ -724,6 +724,50 @@ async def _fetch_emotion_context() -> str:
         return ""
 
 
+# 互动统计注入缓存（60s）：避免每次聊天都打 core 服务
+_interaction_ctx_cache: dict[str, Any] = {"ts": 0.0, "text": ""}
+
+
+async def _fetch_interaction_context() -> str:
+    """从 core 服务拉取互动低频聚合统计，构造「最近互动」注入块。
+
+    让角色"知道发生了这些事 + 频率"（如用户最近经常摸头），
+    但每次互动并不单独进对话——只在沉淀/统计层面聚合。失败静默返回空串。
+    """
+    now = time.time()
+    if now - _interaction_ctx_cache["ts"] < 60:
+        return _interaction_ctx_cache["text"]
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(base_url="http://127.0.0.1:9877", timeout=2) as client:
+            resp = await client.get("/api/core/interaction/stats")
+            if resp.status_code != 200:
+                return ""
+            data = resp.json()
+        stats = data.get("stats") or {}
+        if not stats:
+            return ""
+        parts: list[str] = []
+        for itype, s in stats.items():
+            label = s.get("label") or itype
+            total = int(s.get("total", 0))
+            recent = int(s.get("recent", 0))
+            parts.append(f"{label} {total} 次（近 7 天 {recent} 次）")
+        text = (
+            "\n\n<interaction-context>\n"
+            "【最近互动】" + "、".join(parts) + "\n"
+            "这些是你与用户之间的肢体互动，是 TA 表达亲昵或玩闹的方式。"
+            "可以自然地提起（比如\"又被你摸头了\"），但不要生硬复述次数。\n"
+            "</interaction-context>"
+        )
+        _interaction_ctx_cache["ts"] = now
+        _interaction_ctx_cache["text"] = text
+        return text
+    except Exception:
+        return ""
+
+
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     text = data.get("text", "")
     if not text:
@@ -774,6 +818,13 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         emotion_block = ""
     if emotion_block:
         system_content += emotion_block
+    # 互动注入：角色知道"最近发生过哪些肢体互动 + 频率"（低频聚合，不逐条进对话）
+    try:
+        interaction_block = await _fetch_interaction_context()
+    except Exception:
+        interaction_block = ""
+    if interaction_block:
+        system_content += interaction_block
     _trace("[CHAT] fetching history...")
     history = engine.get_history(limit=cfg["history_limit"])
     _trace("[CHAT] history_len=%d", len(history))

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **物理互动低频聚合沉淀（摸头/拍打/踩脚 → 长期记忆）**: 新增 `server/core/interaction_agg.py`——每次互动只做轻量计数（`interaction_stats` 累计 + `interaction_events` 近 7 天窗口样本，样本上限 1000），某类互动累计较上次沉淀新增 ≥5 次时，才沉淀**一条**偏好记忆（`client_ref=interact-settle:{type}` 幂等更新，内容带累计次数，随频率增长更新），不逐条入库。接入：①`POST /api/core/emotion/bridge/event` 收到 `interaction:*` 事件先聚合计数（不受情绪节流影响）；②新增 `GET /api/core/interaction/stats`；③gateway 新增 `_fetch_interaction_context()`（60s 缓存）在每次聊天注入 `<interaction-context>`——角色知道"最近互动过什么、频率多少"（如"摸头 23 次（近 7 天 8 次）"），可自然提起但不生硬复述次数。已验证：5 次摸头沉淀 1 条、再攒 5 次幂等更新不新增、拍打独立成第二条。 (`server/core/interaction_agg.py`, `server/core/api_server.py`, `server/hermes_gateway_server.py`)
 - **情绪→说话方式打通（"像人"的关键）**: `hermes_gateway_server.py` 新增 `_fetch_emotion_context()`——每次聊天从 core 拉当前情绪，构造 `<emotion-context>` 说话方式指南注入 system prompt（愉悦高→热情分享、低落→语气克制带情绪、高唤醒→兴奋话多），生气时说话带情绪、开心时乐于分享。 (`server/hermes_gateway_server.py`)
 - **人格可调整 + 设定初始状态**: 后端新增 `PUT /api/core/soul/personality`（六维手动设定 / `reset=true` 恢复默认 0.5，设定后情绪基线自动跟随）；PersonalityPage 加「编辑」（六维滑块）「保存」「恢复初始」。 (`server/core/api_server.py`, `src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)
 - **情绪/人格系统合并为一套 + 双向影响打通**: 后端 core 服务成为单一事实源（SQLite + 引擎），前端 useEmotion 初始化和事件与后端同步（离线自动降级本地）。具体：
