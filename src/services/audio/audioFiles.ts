@@ -60,9 +60,7 @@ function stableHash(s: string): number {
 
 /** 清洗文件名标签：仅保留中英文/数字/下划线/连字符，路径分隔与非法字符一律剔除 */
 function sanitizeLabel(s: string): string {
-  return s
-    .replace(/[\\/:*?"<>|\r\n\t]+/g, '_')
-    .replace(/[^\u4e00-\u9fa5A-Za-z0-9_\-]/g, '');
+  return s.replace(/[\\/:*?"<>|\r\n\t]+/g, '_').replace(/[^\u4e00-\u9fa5A-Za-z0-9_-]/g, '');
 }
 
 /** 稳定、可读的音频文件名：<hash8>-<label10>.wav（同一文本永远同名，天然去重） */

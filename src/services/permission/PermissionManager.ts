@@ -79,10 +79,7 @@ function buildParamsSummary(toolName: string, args: Record<string, unknown>): st
   if (toolName === 'open_url' && typeof args.url === 'string') {
     return `网址：${args.url}`;
   }
-  if (
-    (toolName === 'open_file' || toolName === 'open_folder') &&
-    typeof args.path === 'string'
-  ) {
+  if ((toolName === 'open_file' || toolName === 'open_folder') && typeof args.path === 'string') {
     return `路径：${args.path}`;
   }
   if (toolName === 'media_control' && typeof args.action === 'string') {
@@ -209,7 +206,8 @@ export class PermissionManager {
   getPolicy(capabilityId: string): AuthMode {
     const map = this.loadPolicies();
     if (map[capabilityId]) return map[capabilityId];
-    const cap = getCapabilityByTool(capabilityId) ?? ACTION_CAPABILITIES.find((c) => c.id === capabilityId);
+    const cap =
+      getCapabilityByTool(capabilityId) ?? ACTION_CAPABILITIES.find((c) => c.id === capabilityId);
     return cap ? cap.defaultMode : 'ask';
   }
   setPolicy(capabilityId: string, mode: AuthMode): void {
@@ -365,12 +363,15 @@ export class PermissionManager {
         clearTimeout(timer);
         off();
       };
-      const off = eventBus.on('permission:resolve', (p: { requestId: string; decision: ConsentDecision }) => {
-        if (p.requestId === req.requestId) {
-          cleanup();
-          resolve(p.decision);
-        }
-      });
+      const off = eventBus.on(
+        'permission:resolve',
+        (p: { requestId: string; decision: ConsentDecision }) => {
+          if (p.requestId === req.requestId) {
+            cleanup();
+            resolve(p.decision);
+          }
+        },
+      );
       const timer = setTimeout(() => {
         cleanup();
         resolve('deny');
@@ -408,7 +409,7 @@ export class PermissionManager {
   getAudit(): AuditEntry[] {
     const raw = safeGet(K_AUDIT);
     if (!raw) return [];
-    let arr: AuditEntry[] = [];
+    let arr: AuditEntry[];
     try {
       arr = JSON.parse(raw);
     } catch {

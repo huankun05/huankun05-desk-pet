@@ -56,6 +56,8 @@ export default [
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
+      // React Compiler is not enabled in this project; disable its preserve-memoization rule
+      'react-hooks/preserve-manual-memoization': 'off',
       'no-console': 'off',
     },
   },
