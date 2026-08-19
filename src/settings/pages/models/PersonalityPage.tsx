@@ -68,7 +68,8 @@ export function PersonalityPage() {
     if (!data) return '';
     const dims = DIMS.map((d) => ({
       name: isZh ? d.cn : d.en,
-      value: data[d.key as keyof PersonalityState] as number,
+      // 后端可能缺字段，缺省按 0 处理，避免 toFixed/sort 崩
+      value: Number(data[d.key as keyof PersonalityState] ?? 0),
     }));
     dims.sort((a, b) => b.value - a.value);
     const top = dims[0];
@@ -167,7 +168,8 @@ export function PersonalityPage() {
         >
           <div className="space-y-2.5 p-2">
             {DIMS.map((d) => {
-              const value = data ? (data[d.key as keyof PersonalityState] as number) : 0;
+              // 后端可能缺字段，缺省按 0 处理，避免 toFixed 崩
+              const value = data ? Number(data[d.key as keyof PersonalityState] ?? 0) : 0;
               return (
                 <div key={d.key} className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
@@ -206,7 +208,7 @@ export function PersonalityPage() {
           {pad ? (
             <div className="space-y-1.5 p-2">
               {PAD_KEYS.map((k) => {
-                const v = pad[k.key as keyof typeof pad];
+                const v = Number(pad[k.key as keyof typeof pad] ?? 0);
                 const abs = Math.abs(v);
                 const left = v >= 0 ? 50 : 50 - abs * 50;
                 const width = abs * 50;
