@@ -69,6 +69,7 @@ import { useSplashInit } from './hooks/useSplashInit';
 import { useAutoBackup } from './hooks/useAutoBackup';
 import './services/behavior/builtins'; // side-effect: 自动注册 5 个内置行为
 import type { PetContextDependencies } from './services/behavior';
+import { EMOTION_CHANGED_EVENT } from './services/emotionSync';
 import './App.css';
 
 const emotionStorage = createStorage(
@@ -755,6 +756,10 @@ function MainPetApp() {
   useEffect(() => {
     try {
       emotionStorage.set(emotionState);
+      // 跨窗实时同步：状态面板改监听 Tauri 事件（替代 2s 轮询）
+      if (isTauriEnv()) {
+        emit(EMOTION_CHANGED_EVENT, emotionState).catch(() => {});
+      }
     } catch {
       /* ignore */
     }

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { StatusPanel } from './StatusPanel';
 import type {
   EmotionState,
@@ -7,147 +8,66 @@ import type {
   Personality,
   EmotionConfig,
 } from '../../hooks/useEmotion';
+import { isTauriEnv } from '../../utils/tauriEnv';
+import {
+  EMOTION_CHANGED_EVENT,
+  normalizeEmotionState,
+  readEmotionSnapshot,
+  readEmotionHistory,
+} from '../../services/emotionSync';
 
 // ===== 状态面板独立窗口 =====
 function StatusPanelWindow() {
-  const [state, setState] = useState<EmotionState>(() => {
-    try {
-      const raw = localStorage.getItem('deskpet_emotion');
-      if (raw) {
-        const p = JSON.parse(raw);
-        return {
-          mood: p.mood || 'cheerful',
-          moodIntensity: p.moodIntensity ?? 0.7,
-          emotion: p.emotion || 'happy',
-          emotionIntensity: p.emotionIntensity ?? 0.8,
-          favorability: p.favorability ?? 50,
-          personality: {
-            cheerfulness: 0.7,
-            sensitivity: 0.6,
-            sociability: 0.8,
-            energy: 0.7,
-            ...p.personality,
-          },
-          config: {
-            decayInterval: 120000,
-            decayMood: 0.01,
-            decayEmotion: 0.03,
-            idleDecayStart: 900000,
-            cooldownMs: 3000,
-            cooldownFactor: 0.3,
-            maxIntensityPerAction: 0.9,
-            favPatHead: 3,
-            favTapBody: 1,
-            favStepFoot: -5,
-            favTalk: 2,
-            favTooMuch: -2,
-            ...p.config,
-          },
-          lastChange: p.lastChange ? new Date(p.lastChange) : new Date(),
-          reason: p.reason || '',
-        };
-      }
-    } catch {
-      /* 忽略 */
-    }
-    return {
-      mood: 'cheerful',
-      moodIntensity: 0.7,
-      emotion: 'happy',
-      emotionIntensity: 0.8,
-      favorability: 50,
-      personality: { cheerfulness: 0.7, sensitivity: 0.6, sociability: 0.8, energy: 0.7 },
-      config: {
-        decayInterval: 120000,
-        decayMood: 0.01,
-        decayEmotion: 0.03,
-        idleDecayStart: 900000,
-        cooldownMs: 3000,
-        cooldownFactor: 0.3,
-        maxIntensityPerAction: 0.9,
-        favPatHead: 3,
-        favTapBody: 1,
-        favStepFoot: -5,
-        favTalk: 2,
-        favTooMuch: -2,
-      },
-      lastChange: new Date(),
-      reason: '',
-    };
-  });
-  const [history, setHistory] = useState<EmotionHistoryEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem('deskpet_emotionHistory');
-      if (raw) return JSON.parse(raw);
-    } catch {
-      /* 忽略 */
-    }
-    return [];
-  });
+  const [state, setState] = useState<EmotionState>(
+    () => readEmotionSnapshot() ?? normalizeEmotionState({}),
+  );
+  const [history, setHistory] = useState<EmotionHistoryEntry[]>(() => readEmotionHistory());
 
-  // 轮询同步主窗口数据（2 秒间隔）
-  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  // 跨窗同步：优先监听主窗 Tauri 事件（实时推送），保留 30s 低频兜底轮询防事件失效
   useEffect(() => {
-    pollRef.current = setInterval(() => {
+    let unlisten: (() => void) | undefined;
+
+    if (isTauriEnv()) {
+      listen<Record<string, unknown>>(EMOTION_CHANGED_EVENT, (e) => {
+        setState(normalizeEmotionState(e.payload));
+        setHistory(readEmotionHistory());
+      })
+        .then((fn) => {
+          unlisten = fn;
+        })
+        .catch(() => {});
+    }
+
+    const fallbackTimer = setInterval(() => {
       try {
-        const raw = localStorage.getItem('deskpet_emotion');
-        if (raw) {
-          const p = JSON.parse(raw);
+        const snap = readEmotionSnapshot();
+        if (snap) {
           setState((prev: EmotionState) => {
             // 字段级浅比较，避免 JSON.stringify 全量序列化
             if (
-              p.mood === prev.mood &&
-              p.moodIntensity === prev.moodIntensity &&
-              p.emotion === prev.emotion &&
-              p.emotionIntensity === prev.emotionIntensity &&
-              p.favorability === prev.favorability &&
-              p.personality?.cheerfulness === prev.personality?.cheerfulness &&
-              p.personality?.sensitivity === prev.personality?.sensitivity &&
-              p.personality?.sociability === prev.personality?.sociability &&
-              p.personality?.energy === prev.personality?.energy
+              snap.mood === prev.mood &&
+              snap.moodIntensity === prev.moodIntensity &&
+              snap.emotion === prev.emotion &&
+              snap.emotionIntensity === prev.emotionIntensity &&
+              snap.favorability === prev.favorability &&
+              snap.personality?.cheerfulness === prev.personality?.cheerfulness &&
+              snap.personality?.sensitivity === prev.personality?.sensitivity &&
+              snap.personality?.sociability === prev.personality?.sociability &&
+              snap.personality?.energy === prev.personality?.energy
             )
               return prev;
-            return {
-              mood: p.mood || 'cheerful',
-              moodIntensity: p.moodIntensity ?? 0.7,
-              emotion: p.emotion || 'happy',
-              emotionIntensity: p.emotionIntensity ?? 0.8,
-              favorability: p.favorability ?? 50,
-              personality: {
-                cheerfulness: 0.7,
-                sensitivity: 0.6,
-                sociability: 0.8,
-                energy: 0.7,
-                ...p.personality,
-              },
-              config: {
-                decayInterval: 120000,
-                decayMood: 0.01,
-                decayEmotion: 0.03,
-                idleDecayStart: 900000,
-                cooldownMs: 3000,
-                cooldownFactor: 0.3,
-                maxIntensityPerAction: 0.9,
-                favPatHead: 3,
-                favTapBody: 1,
-                favStepFoot: -5,
-                favTalk: 2,
-                favTooMuch: -2,
-                ...p.config,
-              },
-              lastChange: p.lastChange ? new Date(p.lastChange) : new Date(),
-              reason: p.reason || '',
-            };
+            return snap;
           });
+          setHistory(readEmotionHistory());
         }
-        const rawH = localStorage.getItem('deskpet_emotionHistory');
-        if (rawH) setHistory(JSON.parse(rawH));
       } catch {
         // 静默失败，不影响渲染
       }
-    }, 2000);
+    }, 30000);
+
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      clearInterval(fallbackTimer);
+      if (unlisten) unlisten();
     };
   }, []);
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **修复设置页「市场」路由 404**: 市场页归入「扩展」板块后，树条目 path 与导航目标仍指向 `/settings/marketplace`，但 `buildChildRoutes` 按嵌套生成的实际路由是 `/settings/extensions/marketplace` → 点击 404（浏览器实测确认）。统一改为嵌套路径（tree path + loader key + ExtensionsIndex 卡片 + PluginsPage「去市场」跳转）。 (commit `ed5a770`)
+- **按窗口代码分割（React.lazy）**: `src/App.tsx` 四个窗口组件改为 `lazy()` 动态加载，Vite 自动拆独立 chunk——主 bundle 由单文件 736.94 kB 拆为 `MainPetApp 301.75 kB` / `ChatPanelWindow 389.23 kB` / `StatusPanelWindow 15.15 kB` 等，每个 webview 只下载自己窗口的代码（Live2D/vosk 不再进面板窗）。
+- **跨窗情绪同步迁 Tauri 事件**: 新增 `src/services/emotionSync.ts`（事件常量 + `normalizeEmotionState` 规整逻辑）；主窗 `MainPetApp` 情绪变化时 `emit('deskpet:emotion-changed')`，状态面板由 2s 轮询改为事件监听 + 30s 低频兜底（防事件失效），同步更及时、省常驻 interval。 (`src/services/emotionSync.ts`, `src/MainPetApp.tsx`, `src/components/Status/StatusPanelWindow.tsx`)
+- **性能分析文档更新**: `docs/performance-optimization.md` 记录本轮 5 项落地成果，并将 vosk chunk（5.78 MB）、统一轮询调度器、tauriEnv 共享 chunk（417 kB）等列入后续优化计划。
 - **74 个 ESLint 警告清零 + Prettier 统一**: 按五类规则清零 warning（`no-unused-vars` 14 / `no-explicit-any` 25 / `exhaustive-deps` 4 / `react-hooks/set-state-in-effect` 19 / `react-refresh/only-export-components` 12）。抽离 `src/components/Chat/favorites.ts` 与 `src/settings/pages/models/interactionConfig.ts` 消除组件+工具混合导出；Confirm/Toast/routes 强耦合处加针对性豁免；`eslint.config.js` 启用 `allowConstantExport`。`npm run lint` / `typecheck` / `format:check` 三绿。 (commit `0342ad7`)
 - **修复悬浮球（控制面板按钮）残留任务栏窗口**: `controls` 窗口构造期 `skipTaskbar: true` 在部分环境不生效，悬浮球挂载时显式 `getCurrentWindow().setSkipTaskbar(true)` 强制移出任务栏（`setSkipTaskbar` 为 `Window` 类方法，`WebviewWindow` 实例无此方法）。 (`src/components/Pet/ControlsOrb.tsx`)
 - **气泡状态跟随角色**: ①锁定态——锁定走窗口级 `setIgnoreCursorEvents(true)` 实现整窗穿透，气泡保持可见并随整窗一起点击穿透（与角色一致），不再被隐藏；②悬停淡出——气泡与角色同步挂 `fading` 类，跟随 `--fade-opacity` 一起透明；③长文本——`.chat-bubble-content` 由 `nowrap+ellipsis` 改为 `white-space:normal` 完整换行显示，`.bubble-zone` 高度自适应向上展开。 (`src/MainPetApp.tsx`, `src/App.css`)
