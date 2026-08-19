@@ -11,8 +11,11 @@
 - 🗣️ **语音合成/识别**：模块化 Provider 架构，支持 Edge TTS、CosyVoice、FunASR 等。
 - 🎭 **Live2D 角色**：程序化表情/动作、呼吸、口型同步、音乐节奏同步。
 - 🧠 **长期记忆**：Hermes SessionDB + FTS5 全文检索 + 记忆碎片系统，自动抽取对话中的偏好/事实/规则，下次对话自动回灌。
+- ❤️ **情绪/人格系统**：后端 core 服务为单一事实源——互动/对话/语音驱动九维情绪 → PAD，HEXACO 人格作为情绪回落基线并随互动缓慢漂移（人格⇄情绪双向影响）；聊天时 LLM 说话方式跟随当前情绪（生气时语气带情绪、开心时乐于分享）。
+- 🫳 **互动低频聚合沉淀**：摸头/拍打/踩脚只做轻量计数，累计达阈值才沉淀一条偏好记忆（幂等更新带频率），聊天时注入互动频率——角色"知道这事 + 频率"，不逐条刷记忆。
 - ⚙️ **设置向导**：TTS/STT/LLM/Embedding 四页统一服务配置。
-- 🪟 **多窗口悬浮**：主角色窗、聊天窗、状态窗、控制悬浮球，支持边缘吸附与位置记忆。
+- ⏰ **智能调度器**：cron/interval 精确 setTimeout 调度、防重入、失败指数退避、关闭期间错过任务补跑、`nextRunTime` 真实计算。
+- 🪟 **多窗口悬浮**：主角色窗、聊天窗、状态窗、控制悬浮球，支持边缘吸附与位置记忆；各窗口按需代码分割（React.lazy），面板窗不加载 Live2D/vosk 重依赖。
 
 ## 快速开始
 
@@ -52,18 +55,18 @@ desk-pet/
 └── ...
 ```
 
-详见 [PLAN.md](PLAN.md) 完整路线图，[docs/architecture-investigation.md](docs/architecture-investigation.md) 架构设计，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明。
+详见 [PLAN.md](PLAN.md) 完整路线图，[docs/architecture-investigation.md](docs/architecture-investigation.md) 架构设计，[DEVELOPMENT.md](DEVELOPMENT.md) 开发细节与部署说明，[docs/emotion-personality-system.md](docs/emotion-personality-system.md) 情绪/人格系统设计，[docs/performance-optimization.md](docs/performance-optimization.md) 性能优化记录，[docs/known-warnings-and-roadmap.md](docs/known-warnings-and-roadmap.md) 已知问题与后续计划。
 
 ## 系统要求
 
-| 环境 | 要求 |
-|------|------|
-| OS | Windows 10/11（当前主要目标平台），Linux/macOS 开发中 |
-| Node | 22+ |
-| pnpm | 8+ |
-| Rust | 1.80+ |
-| Python | 3.10+（后端 LLM/TTS/STT/感知服务） |
-| GPU | 可选；CUDA 可加速 PyTorch 相关服务 |
+| 环境   | 要求                                                  |
+| ------ | ----------------------------------------------------- |
+| OS     | Windows 10/11（当前主要目标平台），Linux/macOS 开发中 |
+| Node   | 22+                                                   |
+| pnpm   | 8+                                                    |
+| Rust   | 1.80+                                                 |
+| Python | 3.10+（后端 LLM/TTS/STT/感知服务）                    |
+| GPU    | 可选；CUDA 可加速 PyTorch 相关服务                    |
 
 ---
 
@@ -96,11 +99,11 @@ TTS 后端（如 CosyVoice）是独立 Python 进程，由 Rust 后台托管、*
 
 ### 你需要改动 3 个地方
 
-| # | 改什么 | 在哪 | 必须？ |
-|---|--------|------|--------|
-| 1 | 后端 Python 服务器 | `server/xxx_server.py` | 如果服务需要自启动 |
-| 2 | 前端 TS 适配器 | `src/services/provider/tts/xxx.ts` | 必须（否则前端不会调用它做合成） |
-| 3 | 注册到 Provider 注册表 | `src/services/provider/registry.ts` | 可选（AUTO_REGISTER_TTS 会自动扫描注册表） |
+| #   | 改什么                 | 在哪                                | 必须？                                     |
+| --- | ---------------------- | ----------------------------------- | ------------------------------------------ |
+| 1   | 后端 Python 服务器     | `server/xxx_server.py`              | 如果服务需要自启动                         |
+| 2   | 前端 TS 适配器         | `src/services/provider/tts/xxx.ts`  | 必须（否则前端不会调用它做合成）           |
+| 3   | 注册到 Provider 注册表 | `src/services/provider/registry.ts` | 可选（AUTO_REGISTER_TTS 会自动扫描注册表） |
 
 ---
 
@@ -160,11 +163,11 @@ if __name__ == "__main__":
 
 #### 必须实现的端点
 
-| 端点 | 方法 | 用途 | 返回 |
-|------|------|------|------|
-| `/tts` | POST | 文字转语音 | `audio/wav` 二进制 |
-| `/voices` | GET | 可用声音列表 | `{"voices": [...]}` |
-| `/health` | GET | 健康检查 | `{"status": "ok"}` |
+| 端点      | 方法 | 用途         | 返回                |
+| --------- | ---- | ------------ | ------------------- |
+| `/tts`    | POST | 文字转语音   | `audio/wav` 二进制  |
+| `/voices` | GET  | 可用声音列表 | `{"voices": [...]}` |
+| `/health` | GET  | 健康检查     | `{"status": "ok"}`  |
 
 参考现有实现：`server/edge_tts_server.py`（135行）、`server/cosyvoice_server.py`。
 
@@ -182,7 +185,7 @@ import type { TTSProvider, TTSResult } from '../types';
 
 export class MyTTSProvider implements TTSProvider {
   readonly type = 'tts' as const;
-  readonly typeName = 'mytts';                // 全局唯一标识
+  readonly typeName = 'mytts'; // 全局唯一标识
   readonly name = 'MyTTS 引擎';
   readonly defaultBase = 'http://localhost:5678';
 
@@ -192,10 +195,15 @@ export class MyTTSProvider implements TTSProvider {
         signal: AbortSignal.timeout(5000),
       });
       return res.ok;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }
 
-  async synthesize(text: string, options: { voice?: string; speed?: number; apiBase?: string }): Promise<TTSResult> {
+  async synthesize(
+    text: string,
+    options: { voice?: string; speed?: number; apiBase?: string },
+  ): Promise<TTSResult> {
     const base = options.apiBase || this.defaultBase;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
@@ -209,14 +217,21 @@ export class MyTTSProvider implements TTSProvider {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       return { audioData: new Uint8Array(await blob.arrayBuffer()), sampleRate: 24000 };
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  synthesizeStream?(text: string, _options?: { voice?: string; speed?: number; apiBase?: string }): AbortableAsyncGenerator<Uint8Array> {
+  synthesizeStream?(
+    text: string,
+    _options?: { voice?: string; speed?: number; apiBase?: string },
+  ): AbortableAsyncGenerator<Uint8Array> {
     return null as any; // 暂不支持流式
   }
 
-  abort() { /* 中断当前合成 */ }
+  abort() {
+    /* 中断当前合成 */
+  }
 }
 ```
 
@@ -260,13 +275,13 @@ registry.register('tts', 'mytts', () => new MyTTSProvider());
 
 ### 完整示例
 
-| 步骤 | 文件 | 做什么 |
-|------|------|--------|
-| 1 | `server/cosyvoice_server.py` | 写 FastAPI `/tts` + `/health` + `/voices` |
-| 2 | `src/services/provider/tts/cosyvoice.ts` | 实现 `TTSProvider` 接口 |
-| 3 | `src/services/provider/registry.ts` | 注册 `registry.register('tts', 'cosyvoice', ...)` |
-| 4 | `src/services/provider/registry.ts` | 用 `registry.register('tts','cosyvoice', ...)` 注册为内置预设 |
-| ✅ | 完成 | 切换 CosyVoice → 自动启动 → 前端正常合成 |
+| 步骤 | 文件                                     | 做什么                                                        |
+| ---- | ---------------------------------------- | ------------------------------------------------------------- |
+| 1    | `server/cosyvoice_server.py`             | 写 FastAPI `/tts` + `/health` + `/voices`                     |
+| 2    | `src/services/provider/tts/cosyvoice.ts` | 实现 `TTSProvider` 接口                                       |
+| 3    | `src/services/provider/registry.ts`      | 注册 `registry.register('tts', 'cosyvoice', ...)`             |
+| 4    | `src/services/provider/registry.ts`      | 用 `registry.register('tts','cosyvoice', ...)` 注册为内置预设 |
+| ✅   | 完成                                     | 切换 CosyVoice → 自动启动 → 前端正常合成                      |
 
 ---
 

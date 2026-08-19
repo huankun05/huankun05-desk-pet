@@ -21,6 +21,9 @@ dist-ssr
 # Tooling caches
 .eslintcache
 
+# 项目内临时目录（临时脚本/提交信息/hooks-empty 等，绝不入库）
+.tmp/
+
 # Playwright
 playwright-report/
 test-results/
@@ -41,8 +44,9 @@ test-results/
 # Python (server)
 venv/
 server/.venv/
-server/__pycache__/
-server/**/*.pyc
+__pycache__/
+*.py[cod]
+.pytest_cache/
 server/gpt_sovits
 server/models
 server/data/
