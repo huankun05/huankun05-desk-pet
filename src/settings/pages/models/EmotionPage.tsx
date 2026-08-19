@@ -66,15 +66,16 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 /** ISO 时间戳 → 相对时间（如 "3秒前"、"2分钟前"） */
-function formatAgo(iso: string): string {
+function formatAgo(iso: string, t: (k: string, opts?: Record<string, unknown>) => string): string {
   try {
     const diff = Date.now() - new Date(iso).getTime();
-    if (diff < 0) return '刚刚';
-    if (diff < 1000) return '刚刚';
-    if (diff < 60_000) return `${Math.floor(diff / 1000)}秒前`;
-    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}分钟前`;
-    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}小时前`;
-    return `${Math.floor(diff / 86400_000)}天前`;
+    if (diff < 0) return t('settings.emotion.ago_just_now');
+    if (diff < 60_000)
+      return t('settings.emotion.ago_seconds', { n: Math.max(1, Math.floor(diff / 1000)) });
+    if (diff < 3600_000) return t('settings.emotion.ago_minutes', { n: Math.floor(diff / 60_000) });
+    if (diff < 86400_000)
+      return t('settings.emotion.ago_hours', { n: Math.floor(diff / 3600_000) });
+    return t('settings.emotion.ago_days', { n: Math.floor(diff / 86400_000) });
   } catch {
     return '';
   }
@@ -235,7 +236,11 @@ export function EmotionPage() {
               {(['pleasure', 'arousal', 'dominance'] as const).map((k) => (
                 <div key={k} className="flex items-center gap-2">
                   <span className="w-12 shrink-0 text-xs text-neutral-500">
-                    {k === 'pleasure' ? '愉悦' : k === 'arousal' ? '唤醒' : '支配'}
+                    {k === 'pleasure'
+                      ? t('settings.emotion.pad_pleasure')
+                      : k === 'arousal'
+                        ? t('settings.emotion.pad_arousal')
+                        : t('settings.emotion.pad_dominance')}
                   </span>
                   <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100">
                     <div
@@ -412,7 +417,7 @@ export function EmotionPage() {
               const rawTrigger = (h.trigger ?? '').replace(/^\[desk-pet\]\s*/, '');
               const triggerLabel = TRIGGER_LABELS[rawTrigger] ?? rawTrigger;
               // 相对时间
-              const ago = h.timestamp ? formatAgo(h.timestamp) : '';
+              const ago = h.timestamp ? formatAgo(h.timestamp, t) : '';
               return (
                 <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
                   <div className="min-w-0">

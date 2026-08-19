@@ -1141,7 +1141,15 @@
       "dims_title": "Emotion Dimensions",
       "dims_desc": "Detailed values of the 9 dimensions",
       "recent_desc": "Triggers and affected dimensions",
-      "no_history": "No emotion changes yet"
+      "no_history": "No emotion changes yet",
+      "ago_just_now": "just now",
+      "ago_seconds": "{{n}}s ago",
+      "ago_minutes": "{{n}}m ago",
+      "ago_hours": "{{n}}h ago",
+      "ago_days": "{{n}}d ago",
+      "pad_pleasure": "Pleasure",
+      "pad_arousal": "Arousal",
+      "pad_dominance": "Dominance"
     },
     "sessions": {
       "stats_title": "Session Stats",
@@ -1442,6 +1450,9 @@
       "pad_desc": "Personality influence on Pleasure/Arousal/Dominance baseline (within ±0.3)",
       "desc_title": "Personality Description",
       "desc_desc": "Text summary generated from current dimensions",
+      "balanced": "All dimensions are fairly balanced — a typical middle-range personality",
+      "low": "Low",
+      "high": "High",
       "no_data": "No personality data yet",
       "refresh": "Refresh",
       "online": "Online",

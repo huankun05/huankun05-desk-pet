@@ -50,8 +50,14 @@ export function PersonalityPage() {
 
   const pad = useMemo(() => {
     if (!data) return null;
-    // 后端返回的 pad_baseline 当前不在 PersonalityState 类型里，
-    // 这里用规则重新映射，避免类型锁死前端。
+    // 优先用后端 PAD 基线；后端未提供时按规则映射（避免类型锁死前端）
+    if (data.pad_baseline) {
+      return {
+        pleasure: Math.max(-1, Math.min(1, data.pad_baseline.pleasure)),
+        arousal: Math.max(-1, Math.min(1, data.pad_baseline.arousal)),
+        dominance: Math.max(-1, Math.min(1, data.pad_baseline.dominance)),
+      };
+    }
     const pleasure =
       ((data.extraversion ?? 0.5) - 0.5) * 0.6 + ((data.agreeableness ?? 0.5) - 0.5) * 0.3;
     const arousal = ((data.emotionality ?? 0.5) - 0.5) * 0.2 + ((data.openness ?? 0.5) - 0.5) * 0.3;
@@ -66,6 +72,8 @@ export function PersonalityPage() {
 
   const description = useMemo(() => {
     if (!data) return '';
+    // 后端已生成人格描述则直接采用
+    if (data.description) return data.description;
     const dims = DIMS.map((d) => ({
       name: isZh ? d.cn : d.en,
       // 后端可能缺字段，缺省按 0 处理，避免 toFixed/sort 崩
@@ -92,7 +100,7 @@ export function PersonalityPage() {
       );
     }
     if (parts.length === 0) {
-      parts.push('各维度较为均衡，属于典型的中间型人格');
+      parts.push(t('settings.personality.balanced'));
     }
     return parts.join('；');
   }, [data, t, isZh]);
@@ -188,11 +196,11 @@ export function PersonalityPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="w-20 shrink-0 text-[10px] text-neutral-400">
-                      {isZh ? '低' : 'Low'}
+                      {t('settings.personality.low')}
                     </span>
                     <span className="text-[10px] text-neutral-400">0.5</span>
                     <span className="w-10 shrink-0 text-right text-[10px] text-neutral-400">
-                      {isZh ? '高' : 'High'}
+                      {t('settings.personality.high')}
                     </span>
                   </div>
                 </div>

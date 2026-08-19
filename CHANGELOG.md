@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **修复人格画像页 toFixed 崩溃（前后端结构不匹配）**: 后端 `/api/core/soul/personality` 返回 `{hexaco: {六维}, description, pad_baseline, updated_at}`，前端却从顶层取 `data.honesty_humility` → undefined → `.toFixed(2)` 崩。`coreApi.getPersonality()` 适配解包 hexaco 并带回 `description`/`pad_baseline`；PersonalityPage 优先采用后端描述与 PAD 基线（缺失时回退前端规则）。 (`src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)
+- **情绪/人格页硬编码中文接入 i18n**: 人格页「中间型人格」「低/高」，情绪页相对时间（刚刚/秒前/分钟前…）与 PAD 三维标签（愉悦/唤醒/支配）全部接入 zh/en。
+- **新增情绪与人格系统分析文档**: `docs/emotion-personality-system.md`——梳理前端 useEmotion 与后端九维/HEXACO 两套体系、事件→数值变化链路，并基于 PAD/OCC 三层模型调研给出 7 项优化建议（人格→PAD 基线回路、漂移触发接线、半衰期衰减等）。**结论：九维情绪是活的，HEXACO 人格只读不漂移（drift 端点前端零调用）**。
 - **修复悬浮球窗口仍出现在任务栏**: 根因是 tao 的 `skip_taskbar`（构造期与 JS `setSkipTaskbar`）走 `ITaskbarList::DeleteTab`，窗口未注册进任务栏或重新显示时存在时序失效。改为 Rust 侧 Win32 方案：新增 `force_hide_from_taskbar` 命令，直接设置 `WS_EX_TOOLWINDOW` 并清除 `WS_EX_APPWINDOW`（APPWINDOW 会覆盖 TOOLWINDOW），窗口样式持久生效。 (`src-tauri/src/lib.rs`, `src/components/Pet/ControlsOrb.tsx`)
 - **插件市场 roadmap 记录**: 市场数据源（GitHub 仓库 `huankun05/desk-pet-registry`）待建，实现步骤写入 `docs/known-warnings-and-roadmap.md`；顺带把 ESLint 74 警告清零状态同步进该文档。
 - **修复角色位置重启后漂移（多显示器）**: 根因是前端 `invoke('clamp_window_position')` 调用的命令在 Rust 侧**不存在**，恢复位置时总是走 `window.screen`（仅主屏）fallback——副屏/贴边位置会被错误拉回主屏。修复：①Rust 实现 `clamp_window_position`（Win32 `EnumDisplayMonitors` 枚举所有显示器 work area，优先 clamp 到包含窗口中心的显示器，宽容允许贴边半隐藏）；②前端按 `devicePixelRatio` 物理像素换算传参/取回。 (`src-tauri/src/lib.rs`, `src-tauri/Cargo.toml` 加 `Win32_Graphics_Gdi` feature, `src/hooks/useWindowManager.ts`)

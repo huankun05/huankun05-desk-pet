@@ -214,13 +214,38 @@ export interface PersonalityState {
   agreeableness: number;
   conscientiousness: number;
   openness: number;
+  /** 后端生成的人格描述（可能为空） */
+  description?: string;
+  /** 后端 PAD 基线（可能为空） */
+  pad_baseline?: { pleasure: number; arousal: number; dominance: number };
   updated_at: string;
 }
 
-/** 获取当前人格状态 */
+/** 后端 /api/core/soul/personality 原始结构：六维嵌套在 hexaco 下 */
+interface PersonalityRaw {
+  hexaco?: Record<string, number>;
+  hexaco_detail?: Record<string, unknown>;
+  description?: string;
+  pad_baseline?: { pleasure: number; arousal: number; dominance: number };
+  updated_at?: string;
+}
+
+/** 获取当前人格状态（适配后端 hexaco 嵌套结构，扁平化为前端 PersonalityState） */
 export async function getPersonality(character_id?: string): Promise<PersonalityState> {
   const params = character_id ? `?character_id=${encodeURIComponent(character_id)}` : '';
-  return request<PersonalityState>(`/api/core/soul/personality${params}`);
+  const raw = await request<PersonalityRaw>(`/api/core/soul/personality${params}`);
+  const h = raw.hexaco ?? {};
+  return {
+    honesty_humility: Number(h.honesty_humility ?? 0),
+    emotionality: Number(h.emotionality ?? 0),
+    extraversion: Number(h.extraversion ?? 0),
+    agreeableness: Number(h.agreeableness ?? 0),
+    conscientiousness: Number(h.conscientiousness ?? 0),
+    openness: Number(h.openness ?? 0),
+    description: raw.description,
+    pad_baseline: raw.pad_baseline,
+    updated_at: raw.updated_at ?? '',
+  };
 }
 
 // ============================================================

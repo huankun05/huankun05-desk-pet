@@ -1145,7 +1145,15 @@
       "dims_title": "情绪维度",
       "dims_desc": "九维情绪详细数值",
       "recent_desc": "触发来源与影响维度",
-      "no_history": "暂无情绪变化记录"
+      "no_history": "暂无情绪变化记录",
+      "ago_just_now": "刚刚",
+      "ago_seconds": "{{n}}秒前",
+      "ago_minutes": "{{n}}分钟前",
+      "ago_hours": "{{n}}小时前",
+      "ago_days": "{{n}}天前",
+      "pad_pleasure": "愉悦",
+      "pad_arousal": "唤醒",
+      "pad_dominance": "支配"
     },
     "sessions": {
       "stats_title": "会话统计",
@@ -1446,6 +1454,9 @@
       "pad_desc": "人格对愉悦/唤醒/支配的基线影响（±0.3 范围内）",
       "desc_title": "人格解读",
       "desc_desc": "基于当前维度生成的文字总结",
+      "balanced": "各维度较为均衡，属于典型的中间型人格",
+      "low": "低",
+      "high": "高",
       "no_data": "暂无人格数据",
       "refresh": "刷新",
       "online": "在线",
