@@ -127,6 +127,16 @@ export function InteractionPage() {
     }, 800);
   }, []);
 
+  // 获取实际使用的互动消息（自定义 > 默认）
+  // 注意：必须定义在 allCurrentTexts 之前（后者在 useMemo 工厂里同步调用它，
+  // 若在之后定义会触发 TDZ：Cannot access 'getInteractMessages' before initialization）
+  const getInteractMessages = useCallback(
+    (key: keyof typeof INTERACT_MESSAGES): string[] => {
+      return customMessages.interact?.[key] ?? INTERACT_MESSAGES[key];
+    },
+    [customMessages.interact],
+  );
+
   /** 当前全部生效的台词文本集合（默认 + 自定义），用于清理孤儿音频 */
   const allCurrentTexts = useMemo(() => {
     const set = new Set<string>();
@@ -194,14 +204,6 @@ export function InteractionPage() {
       return next;
     });
   }, []);
-
-  // 获取实际使用的互动消息（自定义 > 默认）
-  const getInteractMessages = useCallback(
-    (key: keyof typeof INTERACT_MESSAGES): string[] => {
-      return customMessages.interact?.[key] ?? INTERACT_MESSAGES[key];
-    },
-    [customMessages.interact],
-  );
 
   // 更新互动消息
   const updateInteractMessage = useCallback(
