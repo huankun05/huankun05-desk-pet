@@ -11,12 +11,7 @@
 import { eventBus } from '../eventBus';
 import { toolRegistry } from './registry';
 
-export type SendToolResult = (
-  id: string,
-  name: string,
-  content: string,
-  isError?: boolean,
-) => void;
+export type SendToolResult = (id: string, name: string, content: string, isError?: boolean) => void;
 
 /**
  * 注册网关工具执行器。

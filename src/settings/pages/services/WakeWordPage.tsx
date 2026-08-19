@@ -56,7 +56,9 @@ export function WakeWordPage() {
   }, []);
 
   useEffect(() => {
-    checkModel();
+    void (async () => {
+      await checkModel();
+    })();
   }, [checkModel]);
 
   /** 更新配置并通知主窗口 */

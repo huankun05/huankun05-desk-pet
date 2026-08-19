@@ -38,7 +38,9 @@ export function CharacterPage() {
   }, []);
 
   useEffect(() => {
-    loadAll();
+    void (async () => {
+      await loadAll();
+    })();
   }, [loadAll]);
 
   const handleSetActive = (id: string) => {

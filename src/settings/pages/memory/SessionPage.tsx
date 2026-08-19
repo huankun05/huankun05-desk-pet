@@ -46,7 +46,9 @@ export function SessionPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   const toggleSession = async (id: string) => {

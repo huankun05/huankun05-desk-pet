@@ -62,7 +62,6 @@ const BTN_SIZE = 40;
 const BTN_GAP = 8;
 const BTN_PER_ROW = 3;
 const PANEL_PADDING = 14;
-const PANEL_INNER_W = BTN_PER_ROW * BTN_SIZE + (BTN_PER_ROW - 1) * BTN_GAP;
 const RADIUS = 16;
 const MAIN_BTN_SIZE = 48;
 
@@ -364,7 +363,7 @@ export default function ControlsOrb() {
       if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
       if (leaveTimer.current) clearTimeout(leaveTimer.current);
     };
-  }, [applyDockLayout, scheduleRetract, raiseOrb]);
+  }, [applyDockLayout, scheduleRetract, raiseOrb, moveWin]);
 
   // ── 展开/收起时动态调整窗口尺寸（收起=小圆，展开=面板）──
   // 关键：窗口尺寸紧贴可见内容，避免大窗口捕获周围点击；展开后若超出屏幕则 clamp 防裁剪。

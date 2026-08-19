@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ProviderMeta, ProviderType } from '../../services/provider/types';
 import { isTauriEnv } from '../../utils/tauriEnv';
 import { pickFolder } from '../../utils/pickFolder';
-import { ServiceSetupGuide, type SetupEngineInfo } from './ServiceSetupGuide';
+import { type SetupEngineInfo } from './ServiceSetupGuide';
 
 type Step = 1 | 2 | 3;
 type TestStatus = 'idle' | 'testing' | 'success' | 'error';
@@ -67,8 +67,6 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
     onClose,
     addTitle,
     editTitle,
-    guideTitle,
-    guideIntro,
     engines,
     engineReqKey,
     types,
@@ -83,7 +81,6 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
     save,
     onAdded,
     editingConfig,
-    idPrefix,
     typeValue,
   } = props;
 
@@ -98,21 +95,23 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
 
   // 每次打开时根据 新增/编辑 初始化
   useEffect(() => {
-    if (!open) return;
-    if (editingConfig) {
-      const { id, type, ...rest } = editingConfig as Record<string, unknown>;
-      void id;
-      void type;
-      setForm(rest as T);
-      setEditingId((editingConfig as { id: string }).id);
-      setStep(2);
-    } else {
-      setForm({ ...defaultForm });
-      setEditingId(null);
-      setStep(types.length > 0 ? 1 : 2);
-    }
-    setTestStatus('idle');
-    setTestMsg('');
+    void (async () => {
+      if (!open) return;
+      if (editingConfig) {
+        const { id, type, ...rest } = editingConfig as Record<string, unknown>;
+        void id;
+        void type;
+        setForm(rest as T);
+        setEditingId((editingConfig as { id: string }).id);
+        setStep(2);
+      } else {
+        setForm({ ...defaultForm });
+        setEditingId(null);
+        setStep(types.length > 0 ? 1 : 2);
+      }
+      setTestStatus('idle');
+      setTestMsg('');
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -325,21 +324,21 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-neutral-800">{e.displayName}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        e.bundled
-                          ? 'bg-blue-50 text-blue-600'
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          e.bundled
+                            ? 'bg-blue-50 text-blue-600'
+                            : e.needsWeights
+                              ? 'bg-amber-50 text-amber-600'
+                              : 'bg-green-50 text-green-600'
+                        }`}
+                      >
+                        {e.bundled
+                          ? t('settings.services.engine_tag_bundled')
                           : e.needsWeights
-                            ? 'bg-amber-50 text-amber-600'
-                            : 'bg-green-50 text-green-600'
-                      }`}
-                    >
-                      {e.bundled
-                        ? t('settings.services.engine_tag_bundled')
-                        : e.needsWeights
-                          ? t('settings.services.engine_tag_weights')
-                          : t('settings.services.engine_tag_online')}
-                    </span>
+                            ? t('settings.services.engine_tag_weights')
+                            : t('settings.services.engine_tag_online')}
+                      </span>
                     </div>
                     {requirement && (
                       <p className="mt-1 text-xs leading-relaxed text-neutral-500">{requirement}</p>
@@ -410,7 +409,10 @@ export function ServiceWizard<T extends Record<string, unknown>>(props: ServiceW
 
           {isBundled && (
             <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50/60 p-3">
-              <Icon icon="solar:check-circle-bold" className="mt-0.5 shrink-0 text-base text-blue-500" />
+              <Icon
+                icon="solar:check-circle-bold"
+                className="mt-0.5 shrink-0 text-base text-blue-500"
+              />
               <div className="text-xs leading-relaxed text-blue-700">
                 {t('settings.services.wizard_bundled_note')}
               </div>

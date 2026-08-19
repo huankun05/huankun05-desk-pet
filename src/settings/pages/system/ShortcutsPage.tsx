@@ -78,7 +78,9 @@ export function ShortcutsPage() {
   }, [showToast, t]);
 
   useEffect(() => {
-    loadConfigs();
+    void (async () => {
+      await loadConfigs();
+    })();
   }, [loadConfigs]);
 
   // 按键录制：监听全局键盘事件

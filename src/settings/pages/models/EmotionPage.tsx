@@ -115,7 +115,9 @@ export function EmotionPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   // ---------- 雷达图数据 ----------

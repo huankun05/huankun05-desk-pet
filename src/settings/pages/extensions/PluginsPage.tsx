@@ -1,11 +1,6 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router-dom';
-import { Switch } from '../../components';
-import { pluginRegistry } from '../../../services/skills';
-import { pluginConfigManager } from '../../../services/skills/config';
-import type { PluginMetadata, PluginConfigProperty } from '../../../services/skills/types';
 import { PluginsPage as InstalledList } from '../system/PluginsPage';
 
 /**

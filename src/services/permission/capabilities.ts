@@ -6,7 +6,7 @@
  * 在工具注册后即可直接管控。
  */
 
-import type { CapabilityDef, CapabilityGroup, RiskLevel, AuthMode } from './types';
+import type { CapabilityDef, RiskLevel, AuthMode } from './types';
 
 /**
  * 操作能力（助手被授权后能替你执行的动作）。

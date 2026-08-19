@@ -10,7 +10,7 @@ import {
   renameSession,
   type ChatSession,
 } from '../../../services/chatStorage';
-import { loadFavorites, saveFavorites } from '../../../components/Chat/MessageItem';
+import { loadFavorites, saveFavorites } from '../../../components/Chat/favorites';
 
 type Favorite = ReturnType<typeof loadFavorites>[number];
 

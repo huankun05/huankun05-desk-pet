@@ -44,7 +44,10 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': 'warn',
+      // Tauri 桌面应用的开发循环依赖 webview 重载而非 React Fast Refresh，
+      // 且本仓库刻意把「与组件强相关的配置/路由常量」和组件同文件导出，
+      // 故允许常量导出，仅对组件+非常量混合的情况告警。
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',

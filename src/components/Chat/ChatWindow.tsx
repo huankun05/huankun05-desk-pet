@@ -372,12 +372,14 @@ export const ChatWindow = memo(
 
     // isStreaming 翻转时重置 / 清除顶部状态条
     useEffect(() => {
-      if (isStreaming) {
-        setAiPhase((p) => (p === 'idle' ? 'thinking' : p));
-      } else {
-        setAiPhase('idle');
-        setToolLabel('');
-      }
+      void (async () => {
+        if (isStreaming) {
+          setAiPhase((p) => (p === 'idle' ? 'thinking' : p));
+        } else {
+          setAiPhase('idle');
+          setToolLabel('');
+        }
+      })();
     }, [isStreaming]);
 
     // 订阅 Gateway 事件，细化状态条：思考 → 回复 → 调用工具 → 回复

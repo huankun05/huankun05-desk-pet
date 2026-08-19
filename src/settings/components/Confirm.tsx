@@ -83,6 +83,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// useConfirm 与 ConfirmProvider 强耦合（共享 ConfirmContext），Fast Refresh 无法拆分，故豁免。
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfirm(): ConfirmContextValue {
   const ctx = useContext(ConfirmContext);
   // HMR 热替换后 Provider/Consumer 可能因模块实例不一致而读到 null。

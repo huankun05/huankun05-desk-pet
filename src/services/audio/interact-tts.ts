@@ -11,7 +11,7 @@
 import { createLogger } from '../../utils/logger';
 import { audioPlayer } from '../audio/player';
 import type { TTSProvider } from '../provider/types';
-import { loadInteractionConfig } from '../../settings/pages/models/InteractionPage';
+import { loadInteractionConfig } from '../../settings/pages/models/interactionConfig';
 import { collectAllPresetTexts } from '../../data/idleMessages';
 import { providerManager } from '../provider/manager';
 import { ensureActiveTTSBackend, synthesizeViaBrain } from '../provider/ttsBackend';

@@ -345,8 +345,7 @@ export function registerBuiltinTools(): void {
 
   toolRegistry.register({
     name: 'lock_screen',
-    description:
-      '锁定当前电脑屏幕。当用户说"锁屏"、"帮我锁住电脑"、"离开时锁屏"等场景时使用。',
+    description: '锁定当前电脑屏幕。当用户说"锁屏"、"帮我锁住电脑"、"离开时锁屏"等场景时使用。',
     parameters: {},
     execute: async () => {
       await invoke('lock_screen');
@@ -372,8 +371,7 @@ export function registerBuiltinTools(): void {
 
   toolRegistry.register({
     name: 'get_volume',
-    description:
-      '读取当前系统主音量（0-100）。当用户问"现在音量多大"等场景时使用。',
+    description: '读取当前系统主音量（0-100）。当用户问"现在音量多大"等场景时使用。',
     parameters: {},
     execute: async () => {
       const level = await invoke<number>('get_volume');

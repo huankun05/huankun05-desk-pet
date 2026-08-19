@@ -7,7 +7,7 @@ import ConsentGate from '../../components/ConsentGate';
 import { ChatAvatar } from './ChatAvatar';
 import { useChatAppearance } from './useChatAppearance';
 import { SlashHelpOverlay } from './SlashHelpOverlay';
-import { loadFavorites, toggleFavorite, isFavorite } from './MessageItem';
+import { loadFavorites, toggleFavorite, isFavorite } from './favorites';
 import { showToast } from '../../utils/toast';
 import './chat-theme.css';
 import { AudioRecorder } from '../../services/audio/recorder';
@@ -573,7 +573,26 @@ function ChatPanelWindow() {
       // Fallback：浏览器 Web Speech API
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         try {
-          const win = window as any;
+          interface SpeechRecognitionEventLike {
+            results: ArrayLike<ArrayLike<{ transcript: string }>>;
+          }
+          interface SpeechRecognitionErrorEventLike {
+            error: string;
+          }
+          interface SpeechRecognitionInstance {
+            lang: string;
+            interimResults: boolean;
+            maxAlternatives: number;
+            onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+            onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+            onend: (() => void) | null;
+            start: () => void;
+            stop: () => void;
+          }
+          const win = window as unknown as {
+            webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+            SpeechRecognition?: new () => SpeechRecognitionInstance;
+          };
           const SpeechRecognition = win.webkitSpeechRecognition || win.SpeechRecognition;
           if (!SpeechRecognition) throw new Error('SpeechRecognition not available');
           const recognition = new SpeechRecognition();
@@ -581,11 +600,11 @@ function ChatPanelWindow() {
           recognition.interimResults = false;
           recognition.maxAlternatives = 1;
           const text = await new Promise<string>((resolve, reject) => {
-            recognition.onresult = (event: any) => {
+            recognition.onresult = (event) => {
               const transcript = event.results[0][0].transcript;
               resolve(transcript);
             };
-            recognition.onerror = (event: any) => {
+            recognition.onerror = (event) => {
               reject(new Error(event.error));
             };
             recognition.onend = () => {};

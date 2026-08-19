@@ -155,7 +155,7 @@ export function usePanelWindows(): PanelWindowsState {
       disposed = true;
       clearTimeout(timer);
     };
-  }, []);
+  }, [createChatWindow]);
 
   const toggleStatusPanel = useCallback(async () => {
     if (statusWinRef.current) {
@@ -221,7 +221,7 @@ export function usePanelWindows(): PanelWindowsState {
     } catch (err) {
       log.error('Failed to create chat panel:', err);
     }
-  }, [t, createChatWindow]);
+  }, [createChatWindow]);
 
   const openSettingsPanel = useCallback(async () => {
     if (!isTauriEnv()) return;

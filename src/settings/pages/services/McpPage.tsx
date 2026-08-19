@@ -59,7 +59,9 @@ export function McpPage() {
   }, []);
 
   useEffect(() => {
-    loadServers();
+    void (async () => {
+      await loadServers();
+    })();
   }, [loadServers]);
 
   // 定时刷新状态（每 2 秒）

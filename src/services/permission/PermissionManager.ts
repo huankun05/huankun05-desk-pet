@@ -27,7 +27,6 @@ import type {
   ConsentRequest,
   DangerCheck,
   RetentionPeriod,
-  RiskLevel,
 } from './types';
 
 const K_ENABLED = 'deskpet_perm_enabled';

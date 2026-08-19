@@ -43,7 +43,9 @@ export function PersonalityPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   const pad = useMemo(() => {

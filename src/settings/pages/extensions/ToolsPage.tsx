@@ -84,7 +84,9 @@ export function ToolsPage() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    void (async () => {
+      await refresh();
+    })();
   }, [refresh]);
 
   const toggle = (name: string) => {

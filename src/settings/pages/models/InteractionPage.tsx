@@ -17,38 +17,12 @@ import {
   getDataDir,
   type AudioFileEntry,
 } from '../../../services/audio/audioFiles';
-
-// ===== 持久化键 =====
-const INTERACTION_CONFIG_KEY = 'deskpet_interaction_config';
-
-export interface InteractionConfig {
-  /** 点击语言冷却时间（毫秒） */
-  clickCooldownMs: number;
-  /** 是否启用预制台词 TTS */
-  enableInteractTTS: number;
-}
-
-export const DEFAULT_INTERACTION_CONFIG: InteractionConfig = {
-  clickCooldownMs: 3000,
-  enableInteractTTS: 0,
-};
-
-/** 读取交互配置 */
-export function loadInteractionConfig(): InteractionConfig {
-  try {
-    const raw = localStorage.getItem(INTERACTION_CONFIG_KEY);
-    if (raw)
-      return { ...DEFAULT_INTERACTION_CONFIG, ...(JSON.parse(raw) as Partial<InteractionConfig>) };
-  } catch {
-    /* ignore */
-  }
-  return { ...DEFAULT_INTERACTION_CONFIG };
-}
-
-/** 保存交互配置 */
-export function saveInteractionConfig(config: InteractionConfig): void {
-  localStorage.setItem(INTERACTION_CONFIG_KEY, JSON.stringify(config));
-}
+import {
+  INTERACTION_CONFIG_KEY,
+  loadInteractionConfig,
+  saveInteractionConfig,
+  type InteractionConfig,
+} from './interactionConfig';
 
 // ===== 自定义消息持久化 =====
 const CUSTOM_MESSAGES_KEY = 'deskpet_custom_messages';
@@ -108,7 +82,9 @@ export function InteractionPage() {
   }, []);
 
   useEffect(() => {
-    void refreshAudioFiles();
+    void (async () => {
+      await refreshAudioFiles();
+    })();
   }, [refreshAudioFiles]);
 
   /** 试听一条消息（无论是否启用预制台词都能播：启用走缓存/合成，未启用临时拉后端合成） */
@@ -195,7 +171,11 @@ export function InteractionPage() {
 
   /** 格式化文件大小 */
   const formatSize = (n: number): string =>
-    n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(2)} MB`;
+    n < 1024
+      ? `${n} B`
+      : n < 1024 * 1024
+        ? `${(n / 1024).toFixed(1)} KB`
+        : `${(n / 1024 / 1024).toFixed(2)} MB`;
 
   // 监听跨窗口同步
   useEffect(() => {
@@ -681,9 +661,7 @@ export function InteractionPage() {
                 </button>
               </div>
 
-              {audioDir && (
-                <div className="text-xs text-neutral-400 truncate">📁 {audioDir}</div>
-              )}
+              {audioDir && <div className="text-xs text-neutral-400 truncate">📁 {audioDir}</div>}
 
               {audioFiles.length === 0 ? (
                 <div className="rounded-lg bg-neutral-50 px-4 py-3 text-xs text-neutral-400">

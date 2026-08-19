@@ -66,43 +66,45 @@ export function ChatVoicePage() {
 
   // 初始化：读取 TTS 引擎配置与音色列表
   useEffect(() => {
-    const tts = providerManager.getActiveTTSProvider();
-    setTtsProvider(tts ?? null);
+    void (async () => {
+      const tts = providerManager.getActiveTTSProvider();
+      setTtsProvider(tts ?? null);
 
-    if (tts) {
-      setSttEngineName(tts.getName());
-      // 读当前 voice / rate / volume
-      const cfg = tts.config as unknown as Record<string, unknown>;
-      setSelectedVoice((cfg.voice as string) || '');
-      setRatePct(parseRate(cfg.rate as string | undefined));
-      setVolumePct(parseRate(cfg.volume as string | undefined));
+      if (tts) {
+        setSttEngineName(tts.getName());
+        // 读当前 voice / rate / volume
+        const cfg = tts.config as unknown as Record<string, unknown>;
+        setSelectedVoice((cfg.voice as string) || '');
+        setRatePct(parseRate(cfg.rate as string | undefined));
+        setVolumePct(parseRate(cfg.volume as string | undefined));
 
-      // 动态获取音色列表
-      tts.getVoices().then((list) => {
-        if (list.length > 0) {
-          const mapped = list.map((v) => ({
-            id: v,
-            label: v.replace(/^(zh-[A-Z]+-)(\w+)(Neural)$/, '$1$2$3'),
-          }));
-          // 补中文友好名
-          const friendly = mapped.map((v) => ({
-            ...v,
-            label:
-              FALLBACK_VOICES.find((f) => f.id === v.id)?.label ?? v.id.split('-').pop() ?? v.id,
-          }));
-          setVoices(friendly);
-        }
-      });
-    }
+        // 动态获取音色列表
+        tts.getVoices().then((list) => {
+          if (list.length > 0) {
+            const mapped = list.map((v) => ({
+              id: v,
+              label: v.replace(/^(zh-[A-Z]+-)(\w+)(Neural)$/, '$1$2$3'),
+            }));
+            // 补中文友好名
+            const friendly = mapped.map((v) => ({
+              ...v,
+              label:
+                FALLBACK_VOICES.find((f) => f.id === v.id)?.label ?? v.id.split('-').pop() ?? v.id,
+            }));
+            setVoices(friendly);
+          }
+        });
+      }
 
-    // STT 引擎名称
-    const stt = providerManager.getActiveSTTProvider();
-    if (stt) {
-      setSttEngineName(stt.getName());
-    }
+      // STT 引擎名称
+      const stt = providerManager.getActiveSTTProvider();
+      if (stt) {
+        setSttEngineName(stt.getName());
+      }
 
-    // 播放音量
-    setPlaybackVol(Math.round(audioPlayer.getVolume() * 100));
+      // 播放音量
+      setPlaybackVol(Math.round(audioPlayer.getVolume() * 100));
+    })();
   }, []);
 
   const updateTts = useCallback((value: boolean) => {

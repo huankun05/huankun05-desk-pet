@@ -90,7 +90,9 @@ export function MultimodalPage() {
   }, []);
 
   useEffect(() => {
-    loadConfig();
+    void (async () => {
+      await loadConfig();
+    })();
   }, [loadConfig]);
 
   const updateConfig = (patch: Partial<MultimodalConfig>) => {

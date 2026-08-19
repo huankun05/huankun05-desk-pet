@@ -71,7 +71,7 @@ export function ServiceSetupGuide({
                           : e.needsWeights
                             ? 'bg-amber-50 text-amber-600'
                             : 'bg-green-50 text-green-600'
-                          }`}
+                      }`}
                     >
                       {e.bundled
                         ? t('settings.services.engine_tag_bundled')

@@ -41,7 +41,9 @@ export function GrowthPage() {
   }, [showToast, t]);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   const handleAdd = async () => {

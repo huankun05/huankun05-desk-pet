@@ -33,8 +33,10 @@ export function FileManagerPage() {
   const [cleanupPeriod, setCleanupPeriod] = useState(24);
   // 从 localStorage 同步清理周期配置
   useEffect(() => {
-    const saved = localStorage.getItem('deskpet_temp_cleanup_period');
-    if (saved) setCleanupPeriod(Number(saved));
+    void (async () => {
+      const saved = localStorage.getItem('deskpet_temp_cleanup_period');
+      if (saved) setCleanupPeriod(Number(saved));
+    })();
   }, []); // 仅初始化读取一次
 
   const loadInfo = useCallback(async () => {
@@ -55,7 +57,9 @@ export function FileManagerPage() {
   }, [showToast, t]);
 
   useEffect(() => {
-    loadInfo();
+    void (async () => {
+      await loadInfo();
+    })();
   }, [loadInfo]);
 
   const handleCleanup = async () => {

@@ -74,7 +74,9 @@ export function PluginMarketPage() {
   }, [showToast, t]);
 
   useEffect(() => {
-    loadRegistry();
+    void (async () => {
+      await loadRegistry();
+    })();
   }, [loadRegistry]);
 
   const [_installingId, setInstallingId] = useState<string | null>(null);

@@ -22,7 +22,14 @@ function writeMode(mode: AppMode): void {
   localStorage.setItem(MODE_STORAGE_KEY, mode);
   if (isTauriEnv()) {
     // 用 Tauri 事件广播，其他窗口的 useMode 监听器会自动更新
-    (window as any).__TAURI__?.emit(MODE_CHANGED_EVENT, { mode }).catch(() => {});
+    type TauriGlobal = {
+      __TAURI__?: {
+        emit: (event: string, payload?: unknown) => Promise<unknown>;
+      };
+    };
+    (window as unknown as TauriGlobal).__TAURI__
+      ?.emit(MODE_CHANGED_EVENT, { mode })
+      .catch(() => {});
   }
 }
 

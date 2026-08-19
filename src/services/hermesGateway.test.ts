@@ -1,9 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HermesGatewayClient } from './hermesGateway';
 
-function createClient() {
-  const client = new HermesGatewayClient();
-  (client as any).ws = {
+type MockWs = {
+  readyState: number;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  addEventListener: ReturnType<typeof vi.fn>;
+};
+
+// ws / handleMessage 在 HermesGatewayClient 中是 private，直接交叉会得到 never，
+// 故先 Omit 这两个私有成员，再补上测试用的桩实现。
+type TestClient = Omit<HermesGatewayClient, 'ws' | 'handleMessage'> & {
+  ws: MockWs;
+  handleMessage: (msg: Record<string, unknown>) => void;
+};
+
+function createClient(): TestClient {
+  const client = new HermesGatewayClient() as unknown as TestClient;
+  client.ws = {
     readyState: 1,
     send: vi.fn(),
     close: vi.fn(),
@@ -25,14 +39,14 @@ describe('HermesGatewayClient message routing', () => {
 
     const msgId = client.sendChat('hello', { onToken, onDone, onError });
 
-    (client as any).handleMessage({ type: 'token', token: 'a', id: msgId });
+    client.handleMessage({ type: 'token', token: 'a', id: msgId });
     expect(onToken).toHaveBeenCalledWith('a');
 
-    (client as any).handleMessage({ type: 'done', full_response: 'ok', id: msgId });
+    client.handleMessage({ type: 'done', full_response: 'ok', id: msgId });
     expect(onDone).toHaveBeenCalledWith('ok');
 
     // The callback was removed after done, so a late error should not call it again.
-    (client as any).handleMessage({ type: 'error', message: 'boom', id: msgId });
+    client.handleMessage({ type: 'error', message: 'boom', id: msgId });
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -43,7 +57,7 @@ describe('HermesGatewayClient message routing', () => {
     client.sendChat('a', { onDone: onDoneA });
     client.sendChat('b', { onDone: onDoneB });
 
-    (client as any).handleMessage({ type: 'done', full_response: 'legacy' });
+    client.handleMessage({ type: 'done', full_response: 'legacy' });
 
     expect(onDoneA).toHaveBeenCalledWith('legacy');
     expect(onDoneB).toHaveBeenCalledWith('legacy');
@@ -60,7 +74,7 @@ describe('HermesGatewayClient message routing', () => {
     expect(onErrorA).toHaveBeenCalledWith('aborted');
     expect(onErrorB).not.toHaveBeenCalled();
 
-    (client as any).handleMessage({ type: 'error', message: 'y' });
+    client.handleMessage({ type: 'error', message: 'y' });
     expect(onErrorB).toHaveBeenCalledWith('y');
   });
 });

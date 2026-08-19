@@ -100,6 +100,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// useToast 与 ToastProvider 强耦合（共享 ToastContext），Fast Refresh 无法拆分，故豁免。
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast(): ToastContextValue {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error('useToast must be used within a ToastProvider');

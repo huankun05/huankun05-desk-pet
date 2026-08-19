@@ -4,7 +4,7 @@ import { aiService } from '../services/ai';
 import { eventBus } from '../services/eventBus';
 import type { Personality } from './useEmotion';
 import { loadBehaviorConfig } from '../services/behavior/behaviorConfig';
-import { loadInteractionConfig } from '../settings/pages/models/InteractionPage';
+import { loadInteractionConfig } from '../settings/pages/models/interactionConfig';
 import { interactTTS } from '../services/audio/interact-tts';
 
 interface UseInteractionOptions {

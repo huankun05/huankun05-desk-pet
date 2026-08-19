@@ -91,7 +91,7 @@ export function MarketplaceIndex() {
           : t('settings.market.load_failed', { error: msg }),
       );
       if (!isAbort) {
-        showToast(networkError ?? msg, 'error');
+        showToast(msg, 'error');
       }
     } finally {
       setLoading(false);
@@ -99,7 +99,9 @@ export function MarketplaceIndex() {
   }, [showToast, t]);
 
   useEffect(() => {
-    loadRegistry();
+    void (async () => {
+      await loadRegistry();
+    })();
   }, [loadRegistry]);
 
   // ---- 插件操作 ----

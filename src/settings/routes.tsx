@@ -13,6 +13,8 @@ import { SettingsLayout } from './components/SettingsLayout';
  * 路由级错误兜底：任何页面渲染抛错（含 HMR 陈旧实例导致的 Provider 缺失）
  * 都显示友好提示而非 React Router 默认白屏。
  */
+// routes.tsx 同时导出非组件的路由实例 `routes`，Fast Refresh 无法拆分，故以下组件豁免。
+// eslint-disable-next-line react-refresh/only-export-components
 function RouteError() {
   const error = useRouteError();
   const message = isRouteErrorResponse(error)
@@ -609,6 +611,7 @@ function getLastSegment(path: string): string {
 }
 
 // 懒加载包装组件：在首次渲染该路由时才请求页面模块
+// eslint-disable-next-line react-refresh/only-export-components
 function LazyPage({ loader }: { loader: () => Promise<{ default: ComponentType }> }) {
   const [Component, setComponent] = React.useState<ComponentType | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -654,6 +657,7 @@ function LazyPage({ loader }: { loader: () => Promise<{ default: ComponentType }
   return <Component />;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 function MissingPage() {
   return (
     <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-neutral-500">

@@ -8,7 +8,12 @@ import {
   RISK_COLOR,
   RISK_LABEL,
 } from '../../../services/permission/capabilities';
-import type { AuthMode, AuditEntry, RetentionPeriod, RiskLevel } from '../../../services/permission/types';
+import type {
+  AuthMode,
+  AuditEntry,
+  RetentionPeriod,
+  RiskLevel,
+} from '../../../services/permission/types';
 
 const AUTH_OPTIONS: Array<{ value: AuthMode; i18nKey: string }> = [
   { value: 'always', i18nKey: 'settings.privacy.auth_always' },
@@ -110,16 +115,15 @@ export function PermissionsIndex() {
   }, []);
 
   useEffect(() => {
-    reload();
+    void (async () => {
+      await reload();
+    })();
   }, [reload]);
 
   const updatePolicy = (capId: string, mode: AuthMode) => {
     permissionManager.setPolicy(capId, mode);
     setPolicies((p) => ({ ...p, [capId]: mode }));
-    showToast(
-      t('settings.privacy.policy_toast', { defaultValue: '已更新授权方式' }),
-      'success',
-    );
+    showToast(t('settings.privacy.policy_toast', { defaultValue: '已更新授权方式' }), 'success');
   };
 
   const onToggleEnabled = (v: boolean) => {
@@ -141,7 +145,13 @@ export function PermissionsIndex() {
   };
 
   const onReset = () => {
-    if (!window.confirm(t('settings.privacy.reset_confirm', { defaultValue: '确定恢复所有权限到默认设置吗？此操作不可撤销。' })))
+    if (
+      !window.confirm(
+        t('settings.privacy.reset_confirm', {
+          defaultValue: '确定恢复所有权限到默认设置吗？此操作不可撤销。',
+        }),
+      )
+    )
       return;
     permissionManager.resetAll();
     reload();
@@ -149,7 +159,11 @@ export function PermissionsIndex() {
   };
 
   const onClearAudit = () => {
-    if (!window.confirm(t('settings.privacy.clear_audit_confirm', { defaultValue: '确定清空全部权限使用记录吗？' })))
+    if (
+      !window.confirm(
+        t('settings.privacy.clear_audit_confirm', { defaultValue: '确定清空全部权限使用记录吗？' }),
+      )
+    )
       return;
     permissionManager.clearAudit();
     setAudit([]);
@@ -165,7 +179,16 @@ export function PermissionsIndex() {
     const esc = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
     const header = ['时间', '能力', '工具', '动作', '风险', '决策', '允许', '来源'];
     const rows = audit.map((e) =>
-      [fmtTime(e.ts), e.capabilityId, e.toolName, e.action, RISK_LABEL[e.risk], e.decision, e.allowed ? '是' : '否', e.source ?? '']
+      [
+        fmtTime(e.ts),
+        e.capabilityId,
+        e.toolName,
+        e.action,
+        RISK_LABEL[e.risk],
+        e.decision,
+        e.allowed ? '是' : '否',
+        e.source ?? '',
+      ]
         .map(esc)
         .join(','),
     );
@@ -184,7 +207,8 @@ export function PermissionsIndex() {
     const q = search.trim().toLowerCase();
     return audit.filter((e) => {
       if (riskFilter !== 'all' && e.risk !== riskFilter) return false;
-      if (q && !(e.capabilityId.toLowerCase().includes(q) || e.action.toLowerCase().includes(q))) return false;
+      if (q && !(e.capabilityId.toLowerCase().includes(q) || e.action.toLowerCase().includes(q)))
+        return false;
       return true;
     });
   }, [audit, riskFilter, search]);
@@ -297,17 +321,38 @@ export function PermissionsIndex() {
                           borderTop: '1px solid #f1f1f4',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                          }}
+                        >
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 600, color: '#1f2937', fontSize: 13 }}>
                               {c.label}
                               {c.risk === 'high' && (
-                                <span style={{ marginLeft: 6, color: '#dc2626', fontSize: 11, fontWeight: 700 }}>
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    color: '#dc2626',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                  }}
+                                >
                                   ⚠ 高风险
                                 </span>
                               )}
                             </div>
-                            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
+                            <div
+                              style={{
+                                color: '#6b7280',
+                                fontSize: 12,
+                                marginTop: 2,
+                                lineHeight: 1.5,
+                              }}
+                            >
                               {c.description}
                             </div>
                             <div style={{ color: '#9ca3af', fontSize: 11, marginTop: 3 }}>
@@ -364,8 +409,18 @@ export function PermissionsIndex() {
           defaultValue: '所有权限使用都会留痕，可筛选、导出或清空。',
         })}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '4px 16px 10px' }}>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>{t('settings.privacy.retention', { defaultValue: '保留时长' })}：</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '4px 16px 10px',
+          }}
+        >
+          <span style={{ fontSize: 12, color: '#6b7280' }}>
+            {t('settings.privacy.retention', { defaultValue: '保留时长' })}：
+          </span>
           <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5">
             {retentionOptions.map((o) => (
               <button
@@ -385,7 +440,9 @@ export function PermissionsIndex() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('settings.privacy.search_placeholder', { defaultValue: '搜索能力 / 动作…' })}
+            placeholder={t('settings.privacy.search_placeholder', {
+              defaultValue: '搜索能力 / 动作…',
+            })}
             style={{
               flex: 1,
               minWidth: 140,
@@ -424,7 +481,9 @@ export function PermissionsIndex() {
                 color: riskFilter === r ? '#fff' : '#6b7280',
               }}
             >
-              {r === 'all' ? t('settings.privacy.filter_all', { defaultValue: '全部' }) : RISK_LABEL[r]}
+              {r === 'all'
+                ? t('settings.privacy.filter_all', { defaultValue: '全部' })
+                : RISK_LABEL[r]}
             </button>
           ))}
         </div>
@@ -457,7 +516,15 @@ export function PermissionsIndex() {
                   }}
                 />
                 <span style={{ color: '#6b7280', width: 130, flexShrink: 0 }}>{fmtTime(e.ts)}</span>
-                <span style={{ flex: 1, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span
+                  style={{
+                    flex: 1,
+                    color: '#374151',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {e.action}
                 </span>
                 <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>
@@ -473,7 +540,8 @@ export function PermissionsIndex() {
       <Section
         title={t('settings.privacy.notice_title', { defaultValue: '隐私声明' })}
         description={t('settings.privacy.notice_desc', {
-          defaultValue: '所有授权与记录均保存在本机，不会上传任何服务器。你可随时撤销授权或清空记录。',
+          defaultValue:
+            '所有授权与记录均保存在本机，不会上传任何服务器。你可随时撤销授权或清空记录。',
         })}
       >
         <div className="px-4 py-3 text-xs leading-relaxed text-neutral-500">

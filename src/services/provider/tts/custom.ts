@@ -61,10 +61,9 @@ export class CustomTTSProvider implements TTSProvider {
       try {
         resp = await fetch(`${base}/`, { method: 'GET', signal: AbortSignal.timeout(5000) });
       } catch (err) {
-        throw new Error(
-          `无法连接到 ${base}：${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
-        );
+        throw new Error(`无法连接到 ${base}：${err instanceof Error ? err.message : String(err)}`, {
+          cause: err,
+        });
       }
     }
     if (resp.status >= 500) {
@@ -108,9 +107,7 @@ export class CustomTTSProvider implements TTSProvider {
 
       const contentType = resp.headers.get('Content-Type') || '';
       const srHeader = resp.headers.get('X-Sample-Rate');
-      const sampleRate = srHeader
-        ? parseInt(srHeader, 10)
-        : (this.config.sampleRate ?? 24000);
+      const sampleRate = srHeader ? parseInt(srHeader, 10) : (this.config.sampleRate ?? 24000);
 
       // 音频直接返回
       if (contentType.includes('audio/') || contentType.includes('application/octet-stream')) {
@@ -121,11 +118,7 @@ export class CustomTTSProvider implements TTSProvider {
       // JSON 包了一层音频
       if (contentType.includes('application/json')) {
         const json = (await resp.json()) as Record<string, unknown>;
-        const b64 =
-          (json.audio as string) ||
-          (json.wav as string) ||
-          (json.data as string) ||
-          '';
+        const b64 = (json.audio as string) || (json.wav as string) || (json.data as string) || '';
         if (!b64) throw new Error('自定义 TTS 返回的 JSON 中找不到 audio/wav/data 字段');
         const clean = b64.includes(',') ? b64.split(',')[1] : b64;
         const audio = Uint8Array.from(atob(clean), (c) => c.charCodeAt(0)).buffer;

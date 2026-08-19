@@ -15,7 +15,12 @@ import { permissionManager } from '../services/permission/PermissionManager';
 import type { ConsentDecision, ConsentRequest } from '../services/permission/types';
 import { RISK_COLOR, RISK_LABEL } from '../services/permission/capabilities';
 
-const DECISIONS: Array<{ key: ConsentDecision; label: string; primary?: boolean; danger?: boolean }> = [
+const DECISIONS: Array<{
+  key: ConsentDecision;
+  label: string;
+  primary?: boolean;
+  danger?: boolean;
+}> = [
   { key: 'once', label: '允许一次' },
   { key: 'always', label: '始终允许', primary: true },
   { key: 'ask', label: '每次询问' },
@@ -94,7 +99,9 @@ export function ConsentGate() {
           <span style={{ fontWeight: 700, fontSize: 16 }}>{current.title}</span>
         </div>
 
-        <p style={{ margin: '0 0 10px', color: '#4b5563', lineHeight: 1.6 }}>{current.description}</p>
+        <p style={{ margin: '0 0 10px', color: '#4b5563', lineHeight: 1.6 }}>
+          {current.description}
+        </p>
 
         {current.paramsSummary && (
           <pre
@@ -153,11 +160,7 @@ export function ConsentGate() {
                 cursor: allowDisabled && d.primary ? 'not-allowed' : 'pointer',
                 fontSize: 13,
                 fontWeight: 600,
-                background: d.danger
-                  ? '#dc2626'
-                  : d.primary
-                  ? '#4f46e5'
-                  : '#fff',
+                background: d.danger ? '#dc2626' : d.primary ? '#4f46e5' : '#fff',
                 color: d.danger || d.primary ? '#fff' : '#374151',
                 opacity: d.primary && allowDisabled ? 0.5 : 1,
               }}
