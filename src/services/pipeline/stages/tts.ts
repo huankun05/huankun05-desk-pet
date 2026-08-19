@@ -7,7 +7,7 @@
 
 import type { Stage, MessageContext, PipelineCallbacks } from '../types';
 import type { ProviderManager } from '../../provider/manager';
-import { ensureActiveTTSBackend } from '../../provider/ttsBackend';
+import { ensureActiveTTSBackend, synthesizeViaBrain } from '../../provider/ttsBackend';
 import { createLogger } from '../../../utils/logger';
 import { showToast } from '../../../utils/toast';
 
@@ -57,14 +57,18 @@ export class TTSStage implements Stage {
 
       const ttsStart = performance.now();
       const currentEmotion = ctx.emotionSnapshot.emotion;
-      const ttsResult = await ttsProvider.synthesize(ctx.speakableText, {
+      const ttsResult = await synthesizeViaBrain(ctx.speakableText, {
         emotion: currentEmotion !== 'idle' ? currentEmotion : undefined,
       });
 
       const durationMs = Math.round(performance.now() - ttsStart);
+      if (!ttsResult) {
+        log.warn('TTS 合成失败或后端不可用', { textLen: ctx.speakableText.length });
+        return;
+      }
+
       const audioSize = ttsResult.audio.byteLength;
       log.info('TTS 合成完成', {
-        provider: ttsProvider.getName(),
         textLen: ctx.speakableText.length,
         audioSize,
         durationMs,

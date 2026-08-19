@@ -259,7 +259,11 @@ export class InteractTTS {
 
             this.generatingSet.add(text);
             try {
-              const result = await this.provider!.synthesize(text);
+              const result = await synthesizeViaBrain(text);
+              if (!result) {
+                log.warn('pregenerate: 后端不可用', { text: text.slice(0, 30) });
+                return;
+              }
               this.setCache(text, result.audio, result.sampleRate);
               completed++;
               onProgress?.(completed, texts.length);

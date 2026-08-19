@@ -10,7 +10,7 @@
  */
 
 import { createLogger } from '../../utils/logger';
-import type { TTSProvider } from '../provider/types';
+import { synthesizeViaBrain } from '../provider/ttsBackend';
 
 const log = createLogger('StreamingTTS');
 
@@ -29,18 +29,16 @@ export class StreamingTTSController {
   private sentences: SentenceJob[] = [];
   private seqCounter = 0;
   private results: Map<number, SynthesisResult> = new Map();
-  private ttsProvider: TTSProvider | null = null;
   private emotion?: string;
 
-  /** 设置 TTS Provider 和情感参数 */
-  setup(provider: TTSProvider, emotion?: string): void {
-    this.ttsProvider = provider;
+  /** 设置情感参数 */
+  setup(emotion?: string): void {
     this.emotion = emotion;
   }
 
-  /** 是否已配置 TTS Provider */
+  /** 是否已配置（不再强依赖 provider 实例） */
   get isReady(): boolean {
-    return this.ttsProvider !== null;
+    return true;
   }
 
   /** 添加一个完整句子（在 LLM 流式期间调用） */
@@ -63,13 +61,13 @@ export class StreamingTTSController {
    * 返回按 seq 排序的音频结果数组
    */
   async synthesizeAll(): Promise<SynthesisResult[]> {
-    if (this.sentences.length === 0 || !this.ttsProvider) {
+    if (this.sentences.length === 0) {
       return [];
     }
 
     log.info('Streaming TTS: 开始并行合成', {
       count: this.sentences.length,
-      provider: this.ttsProvider.getName(),
+      emotion: this.emotion,
     });
 
     const ttsStart = performance.now();
@@ -106,12 +104,13 @@ export class StreamingTTSController {
    * 合成单个句子
    */
   private async synthesizeSentence(job: SentenceJob): Promise<SynthesisResult> {
-    if (!this.ttsProvider) throw new Error('TTS Provider not configured');
-
     const ttsStart = performance.now();
-    const result = await this.ttsProvider.synthesize(job.text, {
+    const result = await synthesizeViaBrain(job.text, {
       emotion: this.emotion,
     });
+    if (!result) {
+      throw new Error('synthesizeViaBrain returned null');
+    }
 
     const durationMs = Math.round(performance.now() - ttsStart);
     log.debug('Sentence synthesized', {

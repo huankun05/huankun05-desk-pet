@@ -553,7 +553,7 @@ function MainPetApp() {
       /* ignore */
     }
 
-    proactiveScheduler.onTrigger((_trigger: ProactiveTrigger) => {
+    proactiveScheduler.onTrigger((trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {
         showBubble('现在处于离线模式，暂时不能陪你聊天了。', 4000);
         return;
@@ -561,8 +561,25 @@ function MainPetApp() {
 
       const emotionCtx = emotionCtxRef.current;
       if (!emotionCtx) return;
+
+      const hints = trigger.hints?.length ? `\n上下文：${trigger.hints.join('；')}` : '';
+      const systemPrompt = `你是一个可爱的桌面宠物助手。${trigger.scene.promptSuffix}${hints}
+当前情绪：${emotionCtx.emotion}，心情：${emotionCtx.mood}。请主动说一句简短可爱的话，不要用问句，不要超过20个字。`;
+
+      const messages: Array<{ role: string; content: string }> = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: '请主动说一句话' },
+      ];
+
       aiService
-        .generateProactiveMessage(emotionCtx.emotion, emotionCtx.mood)
+        .chat(
+          JSON.stringify({
+            model: aiService.getConfig().model,
+            messages,
+            temperature: 0.9,
+            max_tokens: 50,
+          }),
+        )
         .then((text) => {
           if (text) {
             showBubble(text, 6000);
