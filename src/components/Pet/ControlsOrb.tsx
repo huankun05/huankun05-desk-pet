@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, LogicalPosition, LogicalSize } from '@tauri-apps/api/window';
 import { emit, listen } from '@tauri-apps/api/event';
 import { isTauriEnv } from '../../utils/tauriEnv';
@@ -124,13 +125,17 @@ export default function ControlsOrb() {
   }, [expanded]);
 
   // 确保悬浮球窗口不出现在 Windows 任务栏。
-  // 构造期的 skipTaskbar: true 在某些环境下不生效（无边框 + alwaysOnTop 窗口仍会被任务栏收录），
-  // 这里在窗口自身上下文里显式补一道，避免启动后在任务栏出现一个无法点击的「控制」窗口。
+  // 构造期的 skipTaskbar: true 与 JS setSkipTaskbar 均走 tao 的 ITaskbarList::DeleteTab，
+  // 在窗口未注册进任务栏或重新显示时存在时序失效；改用 Rust 侧 Win32 WS_EX_TOOLWINDOW
+  // 方案（清除 WS_EX_APPWINDOW + 设置 TOOLWINDOW，持久生效，不随显示/激活反复）。
   useEffect(() => {
     if (!isTauriEnv()) return;
-    getCurrentWindow()
-      .setSkipTaskbar(true)
-      .catch(() => {});
+    invoke('force_hide_from_taskbar').catch(() => {
+      // 命令不可用时退回 JS API（老版本兼容）
+      getCurrentWindow()
+        .setSkipTaskbar(true)
+        .catch(() => {});
+    });
   }, []);
 
   // 主窗状态快照（用 ref 追踪上一帧，用于检测「锁定→解锁」跳变）

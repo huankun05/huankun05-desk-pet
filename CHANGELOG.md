@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **修复悬浮球窗口仍出现在任务栏**: 根因是 tao 的 `skip_taskbar`（构造期与 JS `setSkipTaskbar`）走 `ITaskbarList::DeleteTab`，窗口未注册进任务栏或重新显示时存在时序失效。改为 Rust 侧 Win32 方案：新增 `force_hide_from_taskbar` 命令，直接设置 `WS_EX_TOOLWINDOW` 并清除 `WS_EX_APPWINDOW`（APPWINDOW 会覆盖 TOOLWINDOW），窗口样式持久生效。 (`src-tauri/src/lib.rs`, `src/components/Pet/ControlsOrb.tsx`)
+- **插件市场 roadmap 记录**: 市场数据源（GitHub 仓库 `huankun05/desk-pet-registry`）待建，实现步骤写入 `docs/known-warnings-and-roadmap.md`；顺带把 ESLint 74 警告清零状态同步进该文档。
 - **修复角色位置重启后漂移（多显示器）**: 根因是前端 `invoke('clamp_window_position')` 调用的命令在 Rust 侧**不存在**，恢复位置时总是走 `window.screen`（仅主屏）fallback——副屏/贴边位置会被错误拉回主屏。修复：①Rust 实现 `clamp_window_position`（Win32 `EnumDisplayMonitors` 枚举所有显示器 work area，优先 clamp 到包含窗口中心的显示器，宽容允许贴边半隐藏）；②前端按 `devicePixelRatio` 物理像素换算传参/取回。 (`src-tauri/src/lib.rs`, `src-tauri/Cargo.toml` 加 `Win32_Graphics_Gdi` feature, `src/hooks/useWindowManager.ts`)
 - **市场页 404 友好提示**: registry 数据源（GitHub 仓库 `huankun05/desk-pet-registry`）当前不存在导致 `fetchRegistry` 404；前端将 404 与网络故障区分开，显示「插件市场数据源尚未配置」而非裸报错。 (`src/settings/pages/marketplace/MarketplaceIndex.tsx`, i18n)
 - **修复设置页「市场」路由 404**: 市场页归入「扩展」板块后，树条目 path 与导航目标仍指向 `/settings/marketplace`，但 `buildChildRoutes` 按嵌套生成的实际路由是 `/settings/extensions/marketplace` → 点击 404（浏览器实测确认）。统一改为嵌套路径（tree path + loader key + ExtensionsIndex 卡片 + PluginsPage「去市场」跳转）。 (commit `ed5a770`)

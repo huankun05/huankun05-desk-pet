@@ -20,30 +20,29 @@ permission system. Updated as items are triaged.
 
 ## 2. Known warnings (non-blocking)
 
-| # | Source | Warning | Impact | Suggested fix | Priority |
-|---|--------|---------|--------|---------------|----------|
-| 1 | pnpm | `global bin directory not in PATH` (from `pnpm add -g pnpm`) | None — `pnpm tauri dev` still works (v11.17.0) | Run `pnpm setup` to add bin to PATH, or ignore | Low |
-| 2 | hermes-gateway | SQLite 3.49.1 WAL-reset corruption bug; auto switches to `journal_mode=DELETE` | None (auto-mitigated) | `hermes update` to upgrade embedded SQLite >= 3.51.3, or pin SQLite | Low |
-| 3 | torch / transformers | `FutureWarning` (weight_norm, `torch.cuda.amp.autocast`), `UserWarning` (flash-attn) | Log noise only | Add `warnings.filterwarnings` suppression in server entry, or bump deps | Low |
-| 4 | PowerShell console | Chinese shown as mojibake in attached console | Display only — app-internal logs now decode correctly | `chcp 65001` / use Windows Terminal (UTF-8) | Low |
+| #   | Source               | Warning                                                                              | Impact                                                | Suggested fix                                                           | Priority |
+| --- | -------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------- | -------- |
+| 1   | pnpm                 | `global bin directory not in PATH` (from `pnpm add -g pnpm`)                         | None — `pnpm tauri dev` still works (v11.17.0)        | Run `pnpm setup` to add bin to PATH, or ignore                          | Low      |
+| 2   | hermes-gateway       | SQLite 3.49.1 WAL-reset corruption bug; auto switches to `journal_mode=DELETE`       | None (auto-mitigated)                                 | `hermes update` to upgrade embedded SQLite >= 3.51.3, or pin SQLite     | Low      |
+| 3   | torch / transformers | `FutureWarning` (weight_norm, `torch.cuda.amp.autocast`), `UserWarning` (flash-attn) | Log noise only                                        | Add `warnings.filterwarnings` suppression in server entry, or bump deps | Low      |
+| 4   | PowerShell console   | Chinese shown as mojibake in attached console                                        | Display only — app-internal logs now decode correctly | `chcp 65001` / use Windows Terminal (UTF-8)                             | Low      |
 
 > Note on #4: the Rust side already decodes GBK correctly. Any remaining console
-> mojibake is the *terminal* code page (GBK) rendering UTF-8 text, not a code bug.
+> mojibake is the _terminal_ code page (GBK) rendering UTF-8 text, not a code bug.
 
-## 1b. ESLint frontend warnings (2026-08-19)
+## 1b. ESLint frontend warnings (2026-08-19) — ✅ 已全部清零
 
 The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanup
-74 remain. They are non-blocking but tracked here so the team does not ignore
-them.
+74 remained and were **fully resolved on 2026-08-19** (`npm run lint` = 0 warning /
+0 error, commit `0342ad7`). Breakdown of what was fixed:
 
-| # | File(s) | Warning pattern | Count | Suggested fix | Priority |
-|---|---------|-----------------|-------|---------------|----------|
-| 1 | `.test.ts` / `solar-icons-custom/index.d.ts` | `no-explicit-any` | 25 | Replace `any` with typed interfaces / generics, or add `// @ts-ignore` with reason. `.d.ts` files may need upstream package patch. | Medium |
-| 2 | `useHermesGateway.ts` / `ChatModesPage.tsx` / `useInteraction.ts` / ... | `set-state-in-effect` | 19 | Move initialization into a lazy `useState`/`useRef` pattern so state is set before mount, or remove the effect and use derived state. | Medium |
-| 3 | `routes.tsx` / `ChatPanelWindow.tsx` / `PluginsPage.tsx` | `react-refresh/only-export-components` | 12 | Extract HOCs / constants / non-component helpers into a separate module so each file only exports components / hooks. | Low |
-| 4 | `ChatPanelWindow.ts` / `useInteraction.ts` / ... | `exhaustive-deps` | 4 | Either add missing deps to the dependency array, or explicitly disable with a comment explaining why. | Low |
-| 5 | `SettingsSearch.tsx` / `PluginsPage.tsx` / ... | `no-unused-vars` | 6 | Remove unused imports / variables, or prefix with `_`. | Low |
-| 6 | `SettingsSearch.tsx` / `PluginsPage.tsx` / ... | `no-unused-vars` (remaining) | 8 | Same as #5 — most are dead imports after refactors. | Low |
+| #   | Warning pattern                        | Count | Resolution                                                                             |
+| --- | -------------------------------------- | ----- | -------------------------------------------------------------------------------------- |
+| 1   | `no-explicit-any`                      | 25    | Replaced with typed interfaces / `as unknown as` / `Record<string, X>`                 |
+| 2   | `react-hooks/set-state-in-effect`      | 19    | Wrapped in async-IIFE / lazy init                                                      |
+| 3   | `react-refresh/only-export-components` | 12    | Extracted `favorites.ts` / `interactionConfig.ts`; targeted disables for coupled hooks |
+| 4   | `exhaustive-deps`                      | 4     | Added missing deps                                                                     |
+| 5/6 | `no-unused-vars`                       | 14    | Removed dead imports / variables                                                       |
 
 ## 3. Follow-up roadmap — permission system
 
@@ -51,7 +50,15 @@ them.
 - **P4**: high-risk + PIN / undo preview / smart escalation / rate-limit.
 - **P5**: wake sound-wave layer + live STT subtitles.
 
-## 4. Build-environment note
+## 4. Follow-up roadmap — plugin marketplace (数据源待建)
+
+插件市场页（`/settings/extensions/marketplace`）UI 已完成，但 registry 数据源尚未创建：
+
+- **待办 1（阻塞）**: 创建 GitHub 公开仓库 `huankun05/desk-pet-registry`，上传 `registry.json`（结构见 `src/services/market/types.ts` 的 `RegistryIndex`：`{ plugins: RegistryPlugin[], mcpPresets: RegistryMcpPreset[] }`）。当前 `fetchRegistry` 请求 `https://raw.githubusercontent.com/huankun05/desk-pet-registry/main/registry.json` 返回 404。
+- **待办 2**: 按 `RegistryPlugin` 字段把现有内置插件（久坐提醒、语音助手等，见 `src/services/skills/plugins/`）录入 registry.json。
+- **待办 3**: 可选——增加 registry 版本号/变更检测、离线缓存策略、安装统计上报（现有 `fetchIssueStats` 已接 GitHub Issue reactions）。
+
+## 5. Build-environment note
 
 `cargo check` / `tauri dev` can be very slow (~15–20 min) because the Tauri
 build script registers the entire `../server` tree (GB model weights) as

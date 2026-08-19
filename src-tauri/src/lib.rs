@@ -255,6 +255,45 @@ fn clamp_window_position(x: f64, y: f64, w: f64, h: f64) -> CmdResult<(f64, f64)
     }
 }
 
+/// 强制把 controls 窗口从 Windows 任务栏隐藏（Win32 窗口样式方案）
+///
+/// Tauri/tao 的 skip_taskbar（构造期与 JS setSkipTaskbar）走 ITaskbarList::DeleteTab，
+/// 在窗口未注册进任务栏或重新显示时存在时序失效；这里直接设置 WS_EX_TOOLWINDOW
+/// 并清除 WS_EX_APPWINDOW（APPWINDOW 会覆盖 TOOLWINDOW 使窗口仍出现在任务栏），
+/// 该窗口样式持久生效，不随窗口显示/激活反复。
+#[tauri::command]
+fn force_hide_from_taskbar(app: tauri::AppHandle) -> CmdResult<()> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE, SW_SHOWNOACTIVATE,
+            WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        };
+
+        let Some(window) = app.get_webview_window("controls") else {
+            return Err("controls window not found".into());
+        };
+        // tauri 的 hwnd() 返回其内部 windows crate 版本的 HWND，与项目直接依赖的
+        // windows 0.58 类型不同，通过原始指针字段 .0 转换后使用
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let hwnd = windows::Win32::Foundation::HWND(hwnd.0);
+
+        unsafe {
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            let new_style = (style & !(WS_EX_APPWINDOW.0 as isize)) | (WS_EX_TOOLWINDOW.0 as isize);
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
+            // 刷新任务栏显示状态（SHOWNOACTIVATE 不抢焦点）
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
 /// 检查 Ollama 是否已安装（ollama CLI 是否在 PATH 中）
 #[tauri::command]
 fn check_ollama_installed() -> bool {
@@ -1377,6 +1416,7 @@ pub fn run() {
             get_cursor_position,
             get_cursor_window_info,
             clamp_window_position,
+            force_hide_from_taskbar,
             save_data,
             load_data,
             capture_screenshot,
