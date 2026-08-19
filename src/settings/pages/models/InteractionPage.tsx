@@ -23,27 +23,158 @@ import {
   saveInteractionConfig,
   type InteractionConfig,
 } from './interactionConfig';
+import {
+  listInteractionMessages,
+  upsertInteractionMessage,
+  updateInteractionMessage,
+  type InteractionMessage,
+} from '../../../services/coreApi';
 
-// ===== 自定义消息持久化 =====
-const CUSTOM_MESSAGES_KEY = 'deskpet_custom_messages';
+// ===== 默认台词（仅用于首次初始化后端，之后以后端为准） =====
+const DEFAULT_INTERACT_MESSAGES = {
+  headPat: [
+    '诶？别摸头啦~',
+    '嗯...好舒服...',
+    '嘿嘿~再摸摸~',
+    '头...头发会乱的啦！',
+    '你这样摸我会害羞的...',
+    '咕噜咕噜~（开心）',
+  ],
+  bodyTap: ['嘿嘿~', '干嘛呀~', '你好呀！', '拍什么拍~', '别闹~', '有事吗？'],
+  stepFoot: ['好痛！踩我干嘛！', '呜...我的脚...', '你踩到我了啦！', '过分！', '哼！不理你了！'],
+  tooMuchClick: [
+    '好啦好啦~别一直点了！',
+    '头...头好晕...',
+    '停...停下来啦~',
+    '你是不是很闲？',
+    '我要生气了哦！',
+  ],
+  longNoInteract: ['你终于回来了！', '呜...等你好久了...', '我以为你不要我了呢...', '欢迎回来~'],
+} as const;
 
-interface CustomMessages {
-  idle?: IdleMessage[];
-  interact?: Partial<typeof INTERACT_MESSAGES>;
-}
+const DEFAULT_IDLE_MESSAGES = [
+  {
+    messages: [
+      '在想什么呢？',
+      '嘿嘿，我在这里哦~',
+      '要不要聊聊天？',
+      '今天过得怎么样呀？',
+      '我发现了一个有趣的事情...',
+      '你有没有什么想告诉我的？',
+      '嗯...好想出去玩~',
+      '你在忙什么呀？',
+      '需要我帮忙吗？',
+      '我觉得你今天看起来心情不错呢！',
+    ],
+  },
+  {
+    time: 'morning',
+    messages: [
+      '早上好呀！今天也要加油哦~',
+      '早安~昨晚睡得好吗？',
+      '新的一天开始啦！',
+      '早上好！要不要来杯咖啡？',
+    ],
+  },
+  {
+    time: 'afternoon',
+    messages: [
+      '下午好~是不是有点累了？',
+      '午后时光，适合休息一下呢~',
+      '下午了，要不要起来活动活动？',
+      '你已经工作好久了，休息一下吧~',
+    ],
+  },
+  {
+    time: 'evening',
+    messages: [
+      '晚上好~今天辛苦了！',
+      '天黑了呢，记得吃晚饭哦~',
+      '晚上好！今天有什么开心的事吗？',
+      '夜晚了，要不要听首歌放松一下？',
+    ],
+  },
+  {
+    time: 'night',
+    messages: [
+      '这么晚了还不睡呀？',
+      '夜深了...要注意休息哦',
+      '晚安~早点睡觉吧！',
+      '熬夜对身体不好哦~',
+      '我都要困了...你还不睡吗？',
+    ],
+  },
+  {
+    emotion: 'sad',
+    messages: [
+      '不要难过啦，我陪着你呢~',
+      '有什么不开心的事吗？跟我说说吧~',
+      '呜...看到你不开心我也不开心...',
+      '没关系的，一切都会好起来的！',
+    ],
+  },
+  {
+    emotion: 'happy',
+    messages: [
+      '嘿嘿，你开心我也开心！',
+      '看到你笑我也想笑~',
+      '你的快乐传染给我了！',
+      '继续保持好心情哦~',
+    ],
+  },
+  {
+    emotion: 'thinking',
+    messages: [
+      '在想什么呢？需要我帮忙分析吗？',
+      '看起来你在认真思考呢~',
+      '有什么问题可以问我哦~',
+      '思考的时候好认真呀~',
+    ],
+  },
+  {
+    emotion: 'angry',
+    messages: [
+      '别生气啦~气坏了身体不值得',
+      '谁惹你生气了？我帮你出气！',
+      '深呼吸~放松一下~',
+      '生气的时候要记得喝水哦~',
+    ],
+  },
+  {
+    emotion: 'shy',
+    messages: [
+      '嗯...不要一直盯着人家看啦~',
+      '脸...脸红了才不是因为你呢！',
+      '哼...别以为我会害羞！',
+      '你...你靠太近了啦！',
+    ],
+  },
+  {
+    emotion: 'lonely',
+    messages: [
+      '呜...你是不是把我忘了...',
+      '好久没跟我说话了呢...',
+      '我在这里等你回来...',
+      '你去哪里了呀？我好想你~',
+      '是不是不需要我了...呜呜...',
+    ],
+  },
+] as const;
 
-function loadCustomMessages(): CustomMessages {
-  try {
-    const raw = localStorage.getItem(CUSTOM_MESSAGES_KEY);
-    if (raw) return JSON.parse(raw) as CustomMessages;
-  } catch {
-    /* ignore */
+/** 将前端默认台词写入后端（首次初始化用） */
+async function seedDefaults() {
+  for (const [key, msgs] of Object.entries(DEFAULT_INTERACT_MESSAGES)) {
+    await upsertInteractionMessage({ category: 'interact', subcategory: key, messages: [...msgs] });
   }
-  return {};
-}
-
-function saveCustomMessages(msgs: CustomMessages): void {
-  localStorage.setItem(CUSTOM_MESSAGES_KEY, JSON.stringify(msgs));
+  for (const group of DEFAULT_IDLE_MESSAGES) {
+    await upsertInteractionMessage({
+      category: 'idle',
+      subcategory: (group as any).time || (group as any).emotion || 'general',
+      messages: [...group.messages],
+      time_of_day: (group as any).time || null,
+      emotion: (group as any).emotion || null,
+    });
+  }
 }
 
 /**
@@ -63,8 +194,9 @@ export function InteractionPage() {
 
   // 配置状态
   const [config, setConfig] = useState<InteractionConfig>(() => loadInteractionConfig());
-  // 自定义消息
-  const [customMessages, setCustomMessages] = useState<CustomMessages>(() => loadCustomMessages());
+  // 后端台词数据（内存快照，不再 localStorage）
+  const [backendMessages, setBackendMessages] = useState<InteractionMessage[]>([]);
+  const [messagesReady, setMessagesReady] = useState(false);
   // 当前编辑标签
   const [activeTab, setActiveTab] = useState<EditTab>('interact');
   // 编辑中的分组
@@ -128,25 +260,28 @@ export function InteractionPage() {
   }, []);
 
   // 获取实际使用的互动消息（自定义 > 默认）
-  // 注意：必须定义在 allCurrentTexts 之前（后者在 useMemo 工厂里同步调用它，
-  // 若在之后定义会触发 TDZ：Cannot access 'getInteractMessages' before initialization）
+  // 获取实际使用的互动消息（后端 > 默认）
   const getInteractMessages = useCallback(
     (key: keyof typeof INTERACT_MESSAGES): string[] => {
-      return customMessages.interact?.[key] ?? INTERACT_MESSAGES[key];
+      const msg = backendMessages.find(
+        (m) => m.category === 'interact' && m.subcategory === key && m.enabled,
+      );
+      if (msg?.messages?.length) return msg.messages;
+      return INTERACT_MESSAGES[key];
     },
-    [customMessages.interact],
+    [backendMessages],
   );
 
-  /** 当前全部生效的台词文本集合（默认 + 自定义），用于清理孤儿音频 */
+  /** 当前全部生效的台词文本集合（后端 > 默认），用于清理孤儿音频 */
   const allCurrentTexts = useMemo(() => {
     const set = new Set<string>();
     (Object.keys(INTERACT_MESSAGES) as (keyof typeof INTERACT_MESSAGES)[]).forEach((k) =>
       getInteractMessages(k).forEach((t) => set.add(t)),
     );
-    getIdleMessages().forEach((g) => g.messages.forEach((t) => set.add(t)));
+    (getIdleMessages() ?? []).forEach((g) => g.messages.forEach((t) => set.add(t)));
     return set;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customMessages]);
+  }, [backendMessages]);
 
   /** 播放磁盘上的音频文件 */
   const playAudioFile = useCallback(async (name: string) => {
@@ -187,14 +322,42 @@ export function InteractionPage() {
         ? `${(n / 1024).toFixed(1)} KB`
         : `${(n / 1024 / 1024).toFixed(2)} MB`;
 
-  // 监听跨窗口同步
+  // 初始化后端台词数据
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      try {
+        const items = await listInteractionMessages();
+        if (cancelled) return;
+        if (items.length === 0) {
+          await seedDefaults();
+        }
+        const refreshed = await listInteractionMessages();
+        if (cancelled) return;
+        setBackendMessages(refreshed);
+        setMessagesReady(true);
+      } catch {
+        if (!cancelled) setMessagesReady(true);
+      }
+    }
+    void init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 监听跨窗口同步（配置仍用 localStorage）
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === INTERACTION_CONFIG_KEY) setConfig(loadInteractionConfig());
-      if (e.key === CUSTOM_MESSAGES_KEY) setCustomMessages(loadCustomMessages());
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const refreshBackendMessages = useCallback(async () => {
+    const items = await listInteractionMessages();
+    setBackendMessages(items);
   }, []);
 
   const updateConfig = useCallback((patch: Partial<InteractionConfig>) => {
@@ -207,104 +370,165 @@ export function InteractionPage() {
 
   // 更新互动消息
   const updateInteractMessage = useCallback(
-    (key: keyof typeof INTERACT_MESSAGES, index: number, value: string) => {
+    async (key: keyof typeof INTERACT_MESSAGES, index: number, value: string) => {
       const current = getInteractMessages(key);
       const updated = [...current];
       updated[index] = value;
-      const next = { ...customMessages, interact: { ...customMessages.interact, [key]: updated } };
-      setCustomMessages(next);
-      saveCustomMessages(next);
-      scheduleAutoGen(value); // 编辑后自动生成对应音频
+      const exist = backendMessages.find((m) => m.category === 'interact' && m.subcategory === key);
+      if (exist?.id) {
+        await updateInteractionMessage(exist.id, { messages: updated });
+      } else {
+        await upsertInteractionMessage({
+          category: 'interact',
+          subcategory: key,
+          messages: updated,
+        });
+      }
+      await refreshBackendMessages();
+      scheduleAutoGen(value);
     },
-    [customMessages, getInteractMessages, scheduleAutoGen],
+    [backendMessages, getInteractMessages, refreshBackendMessages, scheduleAutoGen],
   );
 
   // 添加互动消息
   const addInteractMessage = useCallback(
-    (key: keyof typeof INTERACT_MESSAGES) => {
+    async (key: keyof typeof INTERACT_MESSAGES) => {
       const current = getInteractMessages(key);
-      const next = {
-        ...customMessages,
-        interact: { ...customMessages.interact, [key]: [...current, '新消息'] },
-      };
-      setCustomMessages(next);
-      saveCustomMessages(next);
+      const exist = backendMessages.find((m) => m.category === 'interact' && m.subcategory === key);
+      const next = [...current, '新消息'];
+      if (exist?.id) {
+        await updateInteractionMessage(exist.id, { messages: next });
+      } else {
+        await upsertInteractionMessage({ category: 'interact', subcategory: key, messages: next });
+      }
+      await refreshBackendMessages();
       scheduleAutoGen('新消息');
     },
-    [customMessages, getInteractMessages, scheduleAutoGen],
+    [backendMessages, getInteractMessages, refreshBackendMessages, scheduleAutoGen],
   );
 
   // 删除互动消息
   const removeInteractMessage = useCallback(
-    (key: keyof typeof INTERACT_MESSAGES, index: number) => {
+    async (key: keyof typeof INTERACT_MESSAGES, index: number) => {
       const current = getInteractMessages(key);
       if (current.length <= 1) {
         showToast('至少保留一条消息', 'warning');
         return;
       }
       const updated = current.filter((_, i) => i !== index);
-      const next = { ...customMessages, interact: { ...customMessages.interact, [key]: updated } };
-      setCustomMessages(next);
-      saveCustomMessages(next);
+      const exist = backendMessages.find((m) => m.category === 'interact' && m.subcategory === key);
+      if (exist?.id) {
+        await updateInteractionMessage(exist.id, { messages: updated });
+      } else {
+        await upsertInteractionMessage({
+          category: 'interact',
+          subcategory: key,
+          messages: updated,
+        });
+      }
+      await refreshBackendMessages();
     },
-    [customMessages, getInteractMessages, showToast],
+    [backendMessages, getInteractMessages, refreshBackendMessages, showToast],
   );
 
   // 重置互动消息为默认
   const resetInteractMessages = useCallback(
-    (key: keyof typeof INTERACT_MESSAGES) => {
-      const next = {
-        ...customMessages,
-        interact: { ...customMessages.interact, [key]: undefined },
-      };
-      delete next.interact![key];
-      setCustomMessages(next);
-      saveCustomMessages(next);
+    async (key: keyof typeof INTERACT_MESSAGES) => {
+      const exist = backendMessages.find((m) => m.category === 'interact' && m.subcategory === key);
+      const msgs = [...(DEFAULT_INTERACT_MESSAGES[key] as readonly string[])];
+      if (exist?.id) {
+        await updateInteractionMessage(exist.id, { messages: msgs });
+      } else {
+        await upsertInteractionMessage({
+          category: 'interact',
+          subcategory: key,
+          messages: msgs,
+        });
+      }
+      await refreshBackendMessages();
       showToast('已重置为默认', 'success');
     },
-    [customMessages, showToast],
+    [backendMessages, refreshBackendMessages, showToast],
   );
 
-  // 获取实际使用的闲聊消息
+  // 获取实际使用的闲聊消息（后端 > 默认）
   const getIdleMessages = useCallback((): IdleMessage[] => {
-    return customMessages.idle ?? IDLE_MESSAGES;
-  }, [customMessages.idle]);
+    const groups = backendMessages
+      .filter((m) => m.category === 'idle')
+      .sort((a, b) => (a.subcategory > b.subcategory ? 1 : -1))
+      .map((m) => ({
+        ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
+        ...(m.emotion ? { emotion: m.emotion as IdleMessage['emotion'] } : {}),
+        messages: m.messages,
+      }));
+    return groups.length ? groups : IDLE_MESSAGES;
+  }, [backendMessages]);
 
   // 更新闲聊消息
   const updateIdleMessage = useCallback(
-    (groupIndex: number, msgIndex: number, value: string) => {
+    async (groupIndex: number, msgIndex: number, value: string) => {
       const current = getIdleMessages();
       const updated = current.map((g, gi) =>
         gi === groupIndex
           ? { ...g, messages: g.messages.map((m, mi) => (mi === msgIndex ? value : m)) }
           : g,
       );
-      const next = { ...customMessages, idle: updated };
-      setCustomMessages(next);
-      saveCustomMessages(next);
+      const target = backendMessages.find(
+        (m) =>
+          (m.category === 'idle' && m.subcategory === updated[groupIndex].time) ||
+          updated[groupIndex].emotion,
+      );
+      if (target?.id) {
+        await updateInteractionMessage(target.id, { messages: updated[groupIndex].messages });
+      } else {
+        const first = updated[groupIndex];
+        await upsertInteractionMessage({
+          category: 'idle',
+          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          messages: updated[groupIndex].messages,
+          time_of_day: (first as any).time || null,
+          emotion: (first as any).emotion || null,
+        });
+      }
+      await refreshBackendMessages();
       scheduleAutoGen(value);
     },
-    [customMessages, getIdleMessages, scheduleAutoGen],
+    [backendMessages, getIdleMessages, refreshBackendMessages, scheduleAutoGen],
   );
 
   // 添加闲聊消息
   const addIdleMessage = useCallback(
-    (groupIndex: number) => {
+    async (groupIndex: number) => {
       const current = getIdleMessages();
       const updated = current.map((g, gi) =>
         gi === groupIndex ? { ...g, messages: [...g.messages, '新消息'] } : g,
       );
-      const next = { ...customMessages, idle: updated };
-      setCustomMessages(next);
-      saveCustomMessages(next);
+      const target = backendMessages.find(
+        (m) =>
+          (m.category === 'idle' && m.subcategory === (updated[groupIndex] as any).time) ||
+          (updated[groupIndex] as any).emotion,
+      );
+      if (target?.id) {
+        await updateInteractionMessage(target.id, { messages: updated[groupIndex].messages });
+      } else {
+        const first = updated[groupIndex];
+        await upsertInteractionMessage({
+          category: 'idle',
+          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          messages: updated[groupIndex].messages,
+          time_of_day: (first as any).time || null,
+          emotion: (first as any).emotion || null,
+        });
+      }
+      await refreshBackendMessages();
       scheduleAutoGen('新消息');
     },
-    [customMessages, getIdleMessages, scheduleAutoGen],
+    [backendMessages, getIdleMessages, refreshBackendMessages, scheduleAutoGen],
   );
 
   // 删除闲聊消息
   const removeIdleMessage = useCallback(
-    (groupIndex: number, msgIndex: number) => {
+    async (groupIndex: number, msgIndex: number) => {
       const current = getIdleMessages();
       const group = current[groupIndex];
       if (group.messages.length <= 1) {
@@ -314,11 +538,26 @@ export function InteractionPage() {
       const updated = current.map((g, gi) =>
         gi === groupIndex ? { ...g, messages: g.messages.filter((_, mi) => mi !== msgIndex) } : g,
       );
-      const next = { ...customMessages, idle: updated };
-      setCustomMessages(next);
-      saveCustomMessages(next);
+      const target = backendMessages.find(
+        (m) =>
+          (m.category === 'idle' && m.subcategory === (updated[groupIndex] as any).time) ||
+          (updated[groupIndex] as any).emotion,
+      );
+      if (target?.id) {
+        await updateInteractionMessage(target.id, { messages: updated[groupIndex].messages });
+      } else {
+        const first = updated[groupIndex];
+        await upsertInteractionMessage({
+          category: 'idle',
+          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          messages: updated[groupIndex].messages,
+          time_of_day: (first as any).time || null,
+          emotion: (first as any).emotion || null,
+        });
+      }
+      await refreshBackendMessages();
     },
-    [customMessages, getIdleMessages, showToast],
+    [backendMessages, getIdleMessages, refreshBackendMessages, showToast],
   );
 
   const tabs: { key: EditTab; label: string; icon: string }[] = [
@@ -453,10 +692,12 @@ export function InteractionPage() {
                       {isExpanded ? '收起' : `编辑 (${messages.length} 条)`}
                     </button>
 
-                    {customMessages.interact?.[key] && (
+                    {backendMessages.some(
+                      (m) => m.category === 'interact' && m.subcategory === key,
+                    ) && (
                       <button
                         type="button"
-                        onClick={() => resetInteractMessages(key)}
+                        onClick={() => void resetInteractMessages(key)}
                         className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-600 transition-colors"
                       >
                         <Icon icon="solar:refresh-bold" className="text-sm" />
@@ -551,14 +792,15 @@ export function InteractionPage() {
           })}
 
           {/* 全部重置按钮 */}
-          {customMessages.idle && (
+          {backendMessages.some((m) => m.category === 'idle') && (
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => {
-                  const next = { ...customMessages, idle: undefined };
-                  setCustomMessages(next);
-                  saveCustomMessages(next);
+                onClick={async () => {
+                  for (const m of backendMessages.filter((m) => m.category === 'idle')) {
+                    if (m.id) await updateInteractionMessage(m.id, { messages: [] });
+                  }
+                  await refreshBackendMessages();
                   showToast('已重置所有闲聊消息为默认', 'success');
                 }}
                 className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-600 transition-colors hover:bg-amber-100"

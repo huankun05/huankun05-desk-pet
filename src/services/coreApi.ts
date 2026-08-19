@@ -469,3 +469,76 @@ export async function getEmotionBridgeState(): Promise<EmotionBridgeState> {
 export async function getEmotionBridgeConfig(): Promise<Record<string, unknown>> {
   return request('/api/core/emotion/bridge/config');
 }
+
+// ============================================================
+// Interaction API（台词池）
+// ============================================================
+
+export interface InteractionMessage {
+  id: number;
+  character_id: string;
+  category: string;
+  subcategory: string;
+  messages: string[];
+  emotion?: string | null;
+  time_of_day?: string | null;
+  enabled: boolean;
+  updated_at?: string | null;
+}
+
+/** 列出互动台词（可按 category 过滤） */
+export async function listInteractionMessages(options?: {
+  character_id?: string;
+  category?: string;
+}): Promise<InteractionMessage[]> {
+  const params = new URLSearchParams();
+  if (options?.character_id) params.set('character_id', options.character_id);
+  if (options?.category) params.set('category', options.category);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request<InteractionMessage[]>(`/api/core/interaction/messages${qs}`);
+}
+
+/** 创建/整替代台词 */
+export async function upsertInteractionMessage(data: {
+  character_id?: string;
+  category: string;
+  subcategory: string;
+  messages: string[];
+  emotion?: string | null;
+  time_of_day?: string | null;
+  enabled?: boolean;
+}): Promise<InteractionMessage> {
+  return request<InteractionMessage>('/api/core/interaction/messages', {
+    method: 'POST',
+    body: JSON.stringify({
+      character_id: data.character_id || 'default',
+      category: data.category,
+      subcategory: data.subcategory,
+      messages: data.messages,
+      emotion: data.emotion ?? null,
+      time_of_day: data.time_of_day ?? null,
+      enabled: data.enabled ?? true,
+    }),
+  });
+}
+
+/** 局部更新台词（messages/emotion/time_of_day/enabled） */
+export async function updateInteractionMessage(
+  msgId: number,
+  data: {
+    messages?: string[];
+    emotion?: string | null;
+    time_of_day?: string | null;
+    enabled?: boolean;
+  },
+): Promise<InteractionMessage> {
+  const body: Record<string, unknown> = {};
+  if (data.messages !== undefined) body.messages = data.messages;
+  if (data.emotion !== undefined) body.emotion = data.emotion;
+  if (data.time_of_day !== undefined) body.time_of_day = data.time_of_day;
+  if (data.enabled !== undefined) body.enabled = data.enabled;
+  return request<InteractionMessage>(`/api/core/interaction/messages/${msgId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}

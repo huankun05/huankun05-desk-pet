@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -151,6 +152,20 @@ def init_db() -> None:
                 UNIQUE(character_id, user_id)
             );
             CREATE INDEX IF NOT EXISTS idx_lastseen_character_user ON last_seen(character_id, user_id);
+
+            CREATE TABLE IF NOT EXISTS interaction_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id TEXT DEFAULT 'default',
+                category TEXT NOT NULL,
+                subcategory TEXT NOT NULL,
+                messages TEXT NOT NULL,
+                emotion TEXT,
+                time_of_day TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(character_id, category, subcategory)
+            );
+            CREATE INDEX IF NOT EXISTS idx_interaction_messages_char_cat ON interaction_messages(character_id, category);
         """)
 
         # 插入默认情绪状态（如果不存在）
@@ -276,6 +291,25 @@ class EmotionBridgeEventRequest(BaseModel):
     event: str
     value: str | None = None
     source: str = "desk-pet"
+
+
+class InteractionMessage(BaseModel):
+    id: int | None = None
+    character_id: str = "default"
+    category: str
+    subcategory: str
+    messages: list[str]
+    emotion: str | None = None
+    time_of_day: str | None = None
+    enabled: bool = True
+    updated_at: str | None = None
+
+
+class InteractionMessageUpdate(BaseModel):
+    messages: list[str] | None = None
+    emotion: str | None = None
+    time_of_day: str | None = None
+    enabled: bool | None = None
 
 
 # ============================================================
@@ -893,8 +927,122 @@ class MemoryService:
         }
 
 
+class InteractionService:
+    """互动消息服务：台词池 CRUD。"""
+
+    @staticmethod
+    def _row_to_dict(row: sqlite3.Row) -> dict:
+        return {
+            "id": row["id"],
+            "character_id": row["character_id"],
+            "category": row["category"],
+            "subcategory": row["subcategory"],
+            "messages": json.loads(row["messages"]) if row["messages"] else [],
+            "emotion": row["emotion"] if "emotion" in row.keys() else None,
+            "time_of_day": row["time_of_day"] if "time_of_day" in row.keys() else None,
+            "enabled": bool(row["enabled"]),
+            "updated_at": row["updated_at"] if "updated_at" in row.keys() else None,
+        }
+
+    @staticmethod
+    def list_messages(character_id: str = "default", category: str | None = None) -> list[dict]:
+        with get_db() as db:
+            if category:
+                rows = db.execute(
+                    "SELECT * FROM interaction_messages WHERE character_id = ? AND category = ? ORDER BY subcategory",
+                    (character_id, category),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT * FROM interaction_messages WHERE character_id = ? ORDER BY category, subcategory",
+                    (character_id,),
+                ).fetchall()
+        return [InteractionService._row_to_dict(r) for r in rows]
+
+    @staticmethod
+    def get_message(character_id: str, category: str, subcategory: str) -> dict | None:
+        with get_db() as db:
+            row = db.execute(
+                "SELECT * FROM interaction_messages WHERE character_id = ? AND category = ? AND subcategory = ?",
+                (character_id, category, subcategory),
+            ).fetchone()
+        if row is None:
+            return None
+        return InteractionService._row_to_dict(row)
+
+    @staticmethod
+    def upsert_message(
+        character_id: str = "default",
+        category: str = "",
+        subcategory: str = "",
+        messages: list[str] | None = None,
+        emotion: str | None = None,
+        time_of_day: str | None = None,
+        enabled: bool = True,
+    ) -> dict:
+        if not category or not subcategory:
+            raise ValueError("category and subcategory are required")
+        with get_db() as db:
+            row = db.execute(
+                "SELECT * FROM interaction_messages WHERE character_id = ? AND category = ? AND subcategory = ?",
+                (character_id, category, subcategory),
+            ).fetchone()
+            messages_json = json.dumps(messages or [])
+            if row is None:
+                cursor = db.execute(
+                    "INSERT INTO interaction_messages (character_id, category, subcategory, messages, emotion, time_of_day, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (character_id, category, subcategory, messages_json, emotion, time_of_day, 1 if enabled else 0),
+                )
+                msg_id = cursor.lastrowid
+            else:
+                msg_id = row["id"]
+                sets = ["messages = ?", "updated_at = datetime('now')"]
+                params: list[Any] = [messages_json]
+                if emotion is not None:
+                    sets.append("emotion = ?")
+                    params.append(emotion)
+                if time_of_day is not None:
+                    sets.append("time_of_day = ?")
+                    params.append(time_of_day)
+                sets.append("enabled = ?")
+                params.append(1 if enabled else 0)
+                params.extend([character_id, category, subcategory])
+                db.execute(
+                    f"UPDATE interaction_messages SET {', '.join(sets)} WHERE character_id = ? AND category = ? AND subcategory = ?",
+                    params,
+                )
+        return InteractionService.get_message(character_id, category, subcategory) or {"id": msg_id}
+
+    @staticmethod
+    def update_message(msg_id: int, **fields) -> dict | None:
+        allowed = {"messages", "emotion", "time_of_day", "enabled"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return None
+        sets = ["updated_at = datetime('now')"]
+        params: list[Any] = []
+        for k, v in updates.items():
+            if k == "messages":
+                sets.append("messages = ?")
+                params.append(json.dumps(v if v is not None else []))
+            elif k == "enabled":
+                sets.append("enabled = ?")
+                params.append(1 if v else 0)
+            else:
+                sets.append(f"{k} = ?")
+                params.append(v)
+        params.append(msg_id)
+        with get_db() as db:
+            db.execute(f"UPDATE interaction_messages SET {', '.join(sets)} WHERE id = ?", params)
+        with get_db() as db:
+            row = db.execute("SELECT * FROM interaction_messages WHERE id = ?", (msg_id,)).fetchone()
+        if row is None:
+            return None
+        return InteractionService._row_to_dict(row)
+
+
 class TimeService:
-    """时间服务：昼夜节律 + 重逢机制。"""
+    "时间服务：昼夜节律 + 重逢机制。"
 
     @staticmethod
     def get_circadian() -> dict:
@@ -997,6 +1145,33 @@ def create_app() -> FastAPI:
     @app.get("/api/core/heart/emotion/history")
     def get_emotion_history(character_id: str = "default", limit: int = 50) -> list[dict]:
         return EmotionService.get_history(character_id, limit)
+
+    # ========================================================
+    # Interaction / 互动消息（台词池）
+    # ========================================================
+
+    @app.get("/api/core/interaction/messages")
+    def list_interaction_messages(character_id: str = "default", category: str | None = None) -> list[dict]:
+        return InteractionService.list_messages(character_id, category)
+
+    @app.post("/api/core/interaction/messages")
+    def create_interaction_message(req: InteractionMessage) -> dict:
+        return InteractionService.upsert_message(
+            character_id=req.character_id,
+            category=req.category,
+            subcategory=req.subcategory,
+            messages=req.messages,
+            emotion=req.emotion,
+            time_of_day=req.time_of_day,
+            enabled=req.enabled,
+        )
+
+    @app.put("/api/core/interaction/messages/{msg_id}")
+    def update_interaction_message(msg_id: int, req: InteractionMessageUpdate) -> dict | None:
+        result = InteractionService.update_message(msg_id, **req.model_dump(exclude_none=True))
+        if result is None:
+            raise HTTPException(status_code=404, detail="Interaction message not found")
+        return result
 
     # ========================================================
     # Soul / 人格系统
