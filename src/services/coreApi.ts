@@ -248,6 +248,25 @@ export async function getPersonality(character_id?: string): Promise<Personality
   };
 }
 
+/** 手动设定 HEXACO 人格（调整/设定初始状态）；reset=true 恢复默认 0.5 */
+export async function updatePersonality(
+  updates: {
+    honesty_humility?: number;
+    emotionality?: number;
+    extraversion?: number;
+    agreeableness?: number;
+    conscientiousness?: number;
+    openness?: number;
+    reset?: boolean;
+  },
+  character_id?: string,
+): Promise<PersonalityState> {
+  return request<PersonalityState>('/api/core/soul/personality', {
+    method: 'PUT',
+    body: JSON.stringify({ ...updates, ...(character_id ? { character_id } : {}) }),
+  });
+}
+
 // ============================================================
 // 健康检查
 // ============================================================

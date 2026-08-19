@@ -63,17 +63,37 @@
 | 5 | **前后端合并为一套** | 新增 `src/services/emotionBackendMap.ts`（PAD/mood_label → 本地 emotion/mood/intensity 映射）；`useEmotion` 初始化从 `GET /api/core/heart/emotion` 读后端状态覆盖本地情绪，`setNewEmotion` 等事件 `POST /api/core/heart/emotion/event` 双写（后端持久化 + 人格漂移）。后端为长期事实源，前端为运行时镜像，core 服务离线时自动降级纯本地 |
 | 6 | **时间节律接入** | `get_state` 叠加 `CircadianRhythm().pad_influence()`（±15% 权重，仅影响展示/表情，不写库），昼夜节律让情绪随时间自然起伏 |
 
-### 待后续（需要更多上下文/跨服务改造）
+| 7 | **PAD→prompt 注入** | ✅ 已实施：`hermes_gateway_server.py` 新增 `_fetch_emotion_context()`，每次对话从 core 拉情绪，构造 `<emotion-context>` 说话方式指南（愉悦>0.3→热情分享 / 愉悦<-0.3→克制带情绪 / 唤醒>0.3→兴奋话多 / 否则平静）注入 system prompt——生气时说话带情绪、开心时乐于分享（"像人"的关键链路） |
+| 8 | **人格可调整 + 设定初始状态** | ✅ 已实施：后端 `PUT /api/core/soul/personality`（六维手动设定 / `reset=true` 恢复默认 0.5）；PersonalityPage 加「编辑」（六维滑块）+「保存」+「恢复初始」 |
+| 9 | 情绪-记忆耦合 | 🔲 待办：记忆抽取时附带当时 PAD/情绪标签，回忆时影响当下情绪（`server/hermes_core/brain/`） |
+| 10 | 漂移历史可视化 | 🔲 待办：后端 `PersonalityDrifter.history` 已记录每次漂移，可在 PersonalityPage 展示变化轨迹 |
 
-| # | 项 | 说明 |
-|---|----|------|
-| 7 | **PAD→prompt 注入** | 聊天/主动消息的 system prompt 注入当前情绪标签（"愉悦·兴奋"），让人格一致性可感知（主窗 proactive 已注入 emotion/mood，聊天窗 gateway 未接） |
-| 8 | **情绪-记忆耦合** | 记忆抽取时附带当时 PAD/情绪标签，回忆时影响当下情绪（`server/hermes_core/brain/`） |
-| 9 | 人格页可视化"漂移历史" | 后端 `PersonalityDrifter.history` 已记录每次漂移，可在 PersonalityPage 展示变化轨迹 |
+## 五、端到端连通性（验证结论）
 
-## 五、结论
+```
+互动事件(摸头/拍打/踩脚/对话)
+  ├─ 前端 useEmotion 本地引擎(实时表情/行为) ──┐
+  └─ POST /api/core/heart/emotion/event ── 后端 PAD 变化(事件) 
+        ├─ 激素引擎(dopamine/cortisol/oxytocin)
+        ├─ HEXACO 漂移(apply_drift_from_event，情绪→人格)
+        └─ 写 SQLite emotion_states + emotion_history
+
+人格(HEXACO) ── pad_baseline_influence ──> 情绪基线 ── drift() 回落(人格→情绪)
+人格(PUT 手动设定/重置) <── PersonalityPage 编辑
+
+聊天对话 ── hermes_gateway ──> GET heart/emotion ──> <emotion-context> 说话方式注入(情绪→语气)
+主窗 proactive ──> 注入 emotion/mood(已有)
+
+表情 ── useBrainBridge 30s 轮询 bridge/state ──> expression:change ──> Live2D
+```
+
+所有链路已接线；core 服务（:9877）未启动时前端自动降级本地，不阻塞主流程。
+
+## 六、结论
 
 - 情绪系统（前端 useEmotion + 后端 heart/bridge）是**完整且活跃**的闭环。
 - **合并已完成**：后端为单一事实源（SQLite + 人格基线/漂移/时间节律），前端 useEmotion 初始化和事件均与后端同步（离线自动降级本地）。
 - **人格⇄情绪双向影响已打通**：人格→情绪（PAD 基线回落 + 衰减速率）、情绪→人格（事件驱动 HEXACO 漂移）。
+- **情绪→说话方式已打通**（"像人"的关键）：聊天与主动消息的 LLM 说话语气跟随当前情绪。
+- **人格可调整**：PersonalityPage 支持六维滑块编辑 + 恢复初始。
 - 结构不匹配（toFixed 崩溃）已治本修复；后续新增 soul 端点注意前后端字段对齐。

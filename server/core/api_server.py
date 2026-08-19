@@ -200,6 +200,19 @@ class PersonalityDriftRequest(BaseModel):
     character_id: str = "default"
 
 
+class PersonalityUpdateRequest(BaseModel):
+    """手动设定/调整 HEXACO 人格（用户设定初始状态）；reset=True 恢复默认 0.5。"""
+
+    honesty_humility: float | None = None
+    emotionality: float | None = None
+    extraversion: float | None = None
+    agreeableness: float | None = None
+    conscientiousness: float | None = None
+    openness: float | None = None
+    reset: bool = False
+    character_id: str = "default"
+
+
 class MemoryFragmentCreate(BaseModel):
     content: str
     importance: float = 0.5
@@ -568,6 +581,70 @@ class PersonalityService:
         }
 
     @staticmethod
+    def update_personality(
+        fields: dict,
+        character_id: str = "default",
+        reset: bool = False,
+    ) -> dict:
+        """手动设定/调整 HEXACO 人格（用户设定初始状态），或 reset 恢复默认 0.5。
+
+        手动设定会同步刷新情绪基线（下一次 get_state 生效），并保留后续自动漂移的
+        基线约束（MAX_DRIFT_DELTA 相对新值）。
+        """
+        dims = (
+            "honesty_humility",
+            "emotionality",
+            "extraversion",
+            "agreeableness",
+            "conscientiousness",
+            "openness",
+        )
+
+        with get_db() as db:
+            row = db.execute(
+                "SELECT * FROM personality_states WHERE character_id = ?",
+                (character_id,),
+            ).fetchone()
+            if row is None:
+                db.execute(
+                    "INSERT INTO personality_states (character_id) VALUES (?)",
+                    (character_id,),
+                )
+                row = db.execute(
+                    "SELECT * FROM personality_states WHERE character_id = ?",
+                    (character_id,),
+                ).fetchone()
+
+        if reset:
+            new_values = {d: 0.5 for d in dims}
+        else:
+            new_values = {
+                d: float(fields.get(d, row[d]))
+                for d in dims
+            }
+        new_values = {d: max(0.0, min(1.0, v)) for d, v in new_values.items()}
+
+        with get_db() as db:
+            db.execute(
+                """UPDATE personality_states SET
+                   honesty_humility=?, emotionality=?, extraversion=?,
+                   agreeableness=?, conscientiousness=?, openness=?,
+                   updated_at=datetime('now')
+                   WHERE character_id=?""",
+                (
+                    new_values["honesty_humility"],
+                    new_values["emotionality"],
+                    new_values["extraversion"],
+                    new_values["agreeableness"],
+                    new_values["conscientiousness"],
+                    new_values["openness"],
+                    character_id,
+                ),
+            )
+
+        return PersonalityService.get_personality(character_id)
+
+    @staticmethod
     def apply_drift(drift_type: str, character_id: str = "default") -> dict:
         from .soul.drift import PersonalityDrifter
 
@@ -931,6 +1008,12 @@ def create_app() -> FastAPI:
     @app.post("/api/core/soul/personality/drift", response_model=PersonalityResponse)
     def post_personality_drift(req: PersonalityDriftRequest) -> dict:
         return PersonalityService.apply_drift(req.drift_type, req.character_id)
+
+    @app.put("/api/core/soul/personality", response_model=PersonalityResponse)
+    def put_personality(req: PersonalityUpdateRequest) -> dict:
+        """手动设定 HEXACO 人格（用户调整/设定初始状态），reset=True 恢复默认。"""
+        fields = req.model_dump(exclude={"character_id", "reset"})
+        return PersonalityService.update_personality(fields, req.character_id, req.reset)
 
     # ========================================================
     # Brain / 记忆系统

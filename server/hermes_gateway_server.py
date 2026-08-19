@@ -687,6 +687,43 @@ async def _handle_voice(ws: WebSocket, data: dict) -> None:
         await ws.send_json({"type": "voice", "action": action, "error": str(exc)})
 
 
+async def _fetch_emotion_context() -> str:
+    """从 core 服务拉取当前情绪，构造「情绪 → 说话方式」注入块（让 LLM 像人一样
+    情绪影响说话语气：生气时克制带情绪、开心时乐于分享）。失败静默返回空串。"""
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(base_url="http://127.0.0.1:9877", timeout=2) as client:
+            resp = await client.get("/api/core/heart/emotion")
+            if resp.status_code != 200:
+                return ""
+            data = resp.json()
+        pad = data.get("pad") or {}
+        mood_cn = data.get("mood_label_cn") or "平静"
+        p = float(pad.get("pleasure", 0.0))
+        a = float(pad.get("arousal", 0.0))
+        d = float(pad.get("dominance", 0.0))
+
+        # 情绪 → 说话方式指南（让语气自然流露，不刻意声明）
+        if p > 0.3:
+            tone = "热情开朗、乐于分享，多用轻松语气和感叹"
+        elif p < -0.3:
+            tone = "情绪低落，语气克制、简短，流露一点难过或不满"
+        elif a > 0.3:
+            tone = "兴奋话多、愿意主动聊，语速和语气更活跃"
+        else:
+            tone = "平静温和，正常闲聊"
+
+        return (
+            "\n\n<emotion-context>\n"
+            f"【当前情绪】{mood_cn}（愉悦 {p:.2f} / 唤醒 {a:.2f} / 支配 {d:.2f}）\n"
+            f"【说话方式】当前应{tone}，让回复语气自然体现这个情绪，不要说出来。\n"
+            "</emotion-context>"
+        )
+    except Exception:
+        return ""
+
+
 async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     text = data.get("text", "")
     if not text:
@@ -730,6 +767,13 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
             "\n\n<memory-context>\n以下是关于用户已记住的信息，请自然运用，不要重复确认：\n"
             f"{mem_block}\n</memory-context>"
         )
+    # 情绪注入：说话方式跟随角色当前情绪（像人——生气时语气带情绪、开心时乐于分享）
+    try:
+        emotion_block = await _fetch_emotion_context()
+    except Exception:
+        emotion_block = ""
+    if emotion_block:
+        system_content += emotion_block
     _trace("[CHAT] fetching history...")
     history = engine.get_history(limit=cfg["history_limit"])
     _trace("[CHAT] history_len=%d", len(history))

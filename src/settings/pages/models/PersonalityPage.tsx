@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
 import { Section } from '../../components';
-import { healthCheck, getPersonality, type PersonalityState } from '../../../services/coreApi';
+import {
+  healthCheck,
+  getPersonality,
+  updatePersonality,
+  type PersonalityState,
+} from '../../../services/coreApi';
 
 const DIMS = [
   { key: 'honesty_humility', cn: '诚实-谦逊', en: 'Honesty-Humility', desc: '' },
@@ -27,6 +32,9 @@ export function PersonalityPage() {
   const [data, setData] = useState<PersonalityState | null>(null);
   const [loading, setLoading] = useState(false);
   const [health, setHealth] = useState<boolean | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +55,46 @@ export function PersonalityPage() {
       await load();
     })();
   }, [load]);
+
+  // 编辑模式：把当前六维载入草稿
+  const startEdit = useCallback(() => {
+    if (!data) return;
+    const d: Record<string, number> = {};
+    for (const dim of DIMS) {
+      d[dim.key] = Number(data[dim.key as keyof PersonalityState] ?? 0.5);
+    }
+    setDraft(d);
+    setEditing(true);
+  }, [data]);
+
+  // 保存手动设定的人格（用户调整/设定初始状态）
+  const saveEdit = useCallback(async () => {
+    if (!data) return;
+    setSaving(true);
+    try {
+      const updated = await updatePersonality(draft);
+      setData(updated);
+      setEditing(false);
+    } catch {
+      /* 保存失败：保持编辑态，用户可重试 */
+    } finally {
+      setSaving(false);
+    }
+  }, [data, draft]);
+
+  // 恢复初始人格（重置为默认 0.5）
+  const resetPersonality = useCallback(async () => {
+    setSaving(true);
+    try {
+      const updated = await updatePersonality({ reset: true });
+      setData(updated);
+      setEditing(false);
+    } catch {
+      /* ignore */
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   const pad = useMemo(() => {
     if (!data) return null;
@@ -158,6 +206,36 @@ export function PersonalityPage() {
                 />
                 {t('settings.personality.refresh')}
               </button>
+              {editing ? (
+                <button
+                  type="button"
+                  onClick={() => void saveEdit()}
+                  disabled={saving || !data}
+                  className="inline-flex items-center gap-1 rounded-md bg-[var(--primary-500)] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[var(--primary-600)] disabled:opacity-50"
+                >
+                  <Icon icon="solar:check-circle-bold" className="text-sm" />
+                  {t('settings.personality.save')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  disabled={!data}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50"
+                >
+                  <Icon icon="solar:pen-new-square-bold" className="text-sm" />
+                  {t('settings.personality.edit')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void resetPersonality()}
+                disabled={saving || !data}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50"
+              >
+                <Icon icon="solar:refresh-square-bold" className="text-sm" />
+                {t('settings.personality.reset')}
+              </button>
             </div>
           </div>
 
@@ -185,15 +263,27 @@ export function PersonalityPage() {
                       {isZh ? d.cn : d.en}
                     </span>
                     <span className="w-10 shrink-0 text-right text-xs text-neutral-400">
-                      {value.toFixed(2)}
+                      {(editing ? (draft[d.key] ?? 0.5) : value).toFixed(2)}
                     </span>
                   </div>
-                  <div className="relative h-1.5 overflow-hidden rounded-full bg-neutral-100">
-                    <div
-                      className="h-full rounded-full bg-[var(--primary-400)] transition-all duration-500"
-                      style={{ width: `${value * 100}%` }}
+                  {editing ? (
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={draft[d.key] ?? 0.5}
+                      onChange={(e) => setDraft((p) => ({ ...p, [d.key]: Number(e.target.value) }))}
+                      className="w-full accent-[var(--primary-500)]"
                     />
-                  </div>
+                  ) : (
+                    <div className="relative h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                      <div
+                        className="h-full rounded-full bg-[var(--primary-400)] transition-all duration-500"
+                        style={{ width: `${value * 100}%` }}
+                      />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2">
                     <span className="w-20 shrink-0 text-[10px] text-neutral-400">
                       {t('settings.personality.low')}

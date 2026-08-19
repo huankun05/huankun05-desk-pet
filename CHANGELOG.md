@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **情绪→说话方式打通（"像人"的关键）**: `hermes_gateway_server.py` 新增 `_fetch_emotion_context()`——每次聊天从 core 拉当前情绪，构造 `<emotion-context>` 说话方式指南注入 system prompt（愉悦高→热情分享、低落→语气克制带情绪、高唤醒→兴奋话多），生气时说话带情绪、开心时乐于分享。 (`server/hermes_gateway_server.py`)
+- **人格可调整 + 设定初始状态**: 后端新增 `PUT /api/core/soul/personality`（六维手动设定 / `reset=true` 恢复默认 0.5，设定后情绪基线自动跟随）；PersonalityPage 加「编辑」（六维滑块）「保存」「恢复初始」。 (`server/core/api_server.py`, `src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)
 - **情绪/人格系统合并为一套 + 双向影响打通**: 后端 core 服务成为单一事实源（SQLite + 引擎），前端 useEmotion 初始化和事件与后端同步（离线自动降级本地）。具体：
   - **人格→情绪**：`get_state` 读 HEXACO → `pad_baseline_influence()` 作为 `EmotionState.baseline`，每次读取向人格基线 `drift()` 回落并持久化；回落速率人格化（情绪性高→回落慢，0.01~0.05）
   - **情绪→人格**：`process_event` 自动触发 `apply_drift_from_event`（正向互动→诚实-谦逊/宜人性微升；负面→情绪性升/宜人性降；学习→开放性升），HEXACO 随使用缓慢漂移
