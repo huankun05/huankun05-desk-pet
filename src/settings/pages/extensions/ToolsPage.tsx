@@ -7,11 +7,7 @@ import { toolRegistry } from '../../../services/tools/registry';
 import { registerBuiltinTools } from '../../../services/tools/builtins';
 import { getAllServerStatuses } from '../../../services/mcp/manager';
 import { fetchModeTools, type ModeToolsInfo } from '../../../services/gatewayApi';
-import {
-  getDisabledTools,
-  setToolDisabled,
-  isToolDisabled,
-} from '../../../services/tools/toolManagement';
+import { getDisabledTools, setToolDisabled } from '../../../services/tools/toolManagement';
 
 interface ToolView {
   name: string;

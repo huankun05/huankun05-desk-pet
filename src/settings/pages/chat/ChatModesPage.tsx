@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Section, SettingRow } from '../../components';
 import { useToast } from '../../components';
-import { useMode, MODE_CHANGED_EVENT, type AppMode } from '../../../hooks/useMode';
+import { useMode, type AppMode } from '../../../hooks/useMode';
 import { toolRegistry } from '../../../services/tools/registry';
 import { registerBuiltinTools } from '../../../services/tools';
 import { getAllServerStatuses } from '../../../services/mcp/manager';
@@ -50,7 +50,6 @@ export function ChatModesPage() {
   const { mode, setMode, isWorkMode } = useMode();
 
   // 用于平滑过渡动画
-  const [prevMode, setPrevMode] = useState(mode);
   const [animating, setAnimating] = useState(false);
   const [modeTools, setModeTools] = useState<ModeToolsInfo | null>(null);
 
@@ -65,7 +64,6 @@ export function ChatModesPage() {
   const handleSwitch = (next: AppMode) => {
     if (next === mode) return;
     setAnimating(true);
-    setPrevMode(mode);
     setMode(next);
     setTimeout(() => setAnimating(false), 300);
     showToast(

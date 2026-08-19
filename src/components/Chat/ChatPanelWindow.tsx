@@ -26,10 +26,9 @@ import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { useMode } from '../../hooks/useMode';
-import { SlashCommand, BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
+import { BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 import { registerGatewayToolExecutor } from '../../services/tools/executor';
 import { registerBuiltinTools } from '../../services/tools/builtins';
-import { eventBus } from '../../services/eventBus';
 import { getHermesGatewayClient } from '../../services/hermesGateway';
 
 /** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
@@ -414,7 +413,7 @@ function ChatPanelWindow() {
   // Slash 命令列表（直接复用内置命令定义，避免与 useSlashCommands 漂移）
   const slashCommands = BUILTIN_COMMANDS;
 
-  const handleSlashHelpToggle = useCallback(() => {
+  const _handleSlashHelpToggle = useCallback(() => {
     setShowSlashHelp((p) => !p);
   }, []);
 

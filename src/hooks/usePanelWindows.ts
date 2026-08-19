@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriEnv } from '../utils/tauriEnv';
