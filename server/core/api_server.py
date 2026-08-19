@@ -98,6 +98,8 @@ def init_db() -> None:
                 dopamine REAL NOT NULL DEFAULT 0.5,
                 cortisol REAL NOT NULL DEFAULT 0.3,
                 oxytocin REAL NOT NULL DEFAULT 0.5,
+                boredom REAL NOT NULL DEFAULT 0.0,
+                loneliness REAL NOT NULL DEFAULT 0.0,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_emotion_character_id ON emotion_states(character_id);
@@ -137,7 +139,8 @@ def init_db() -> None:
                 last_accessed TEXT NOT NULL DEFAULT (datetime('now')),
                 is_permanent INTEGER NOT NULL DEFAULT 0,
                 embedding TEXT DEFAULT '[]',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                emotion_snapshot TEXT DEFAULT '{}'
             );
             CREATE INDEX IF NOT EXISTS idx_memory_character_id ON memory_fragments(character_id);
             CREATE INDEX IF NOT EXISTS idx_memory_importance ON memory_fragments(importance DESC);
@@ -235,6 +238,7 @@ class MemoryFragmentCreate(BaseModel):
     is_permanent: bool = False
     character_id: str = "default"
     user_id: str = "default"
+    emotion_snapshot: dict[str, float] | None = None
 
 
 
@@ -503,6 +507,8 @@ class EmotionService:
             "expression": expression.to_dict(),
             "circadian_pad": circadian.to_dict(),
             "updated_at": row["updated_at"],
+            "boredom": float(row["boredom"] or 0),
+            "loneliness": float(row["loneliness"] or 0),
         }
 
     @staticmethod
@@ -537,17 +543,22 @@ class EmotionService:
             dominance=max(-1.0, min(1.0, current_pad.dominance + hormone_pad.dominance * 0.3 + event_dominance_delta)),
         )
 
+        boredom = max(0.0, min(100.0, state.get("boredom", 0) - 15))
+        loneliness = max(0.0, min(100.0, state.get("loneliness", 0) - 10))
+
         # 写回数据库
         with get_db() as db:
             db.execute(
                 """UPDATE emotion_states
                    SET pleasure = ?, arousal = ?, dominance = ?,
                        dopamine = ?, cortisol = ?, oxytocin = ?,
+                       boredom = ?, loneliness = ?,
                        updated_at = datetime('now')
                    WHERE character_id = ?""",
                 (
                     new_pad.pleasure, new_pad.arousal, new_pad.dominance,
                     new_hormones.dopamine, new_hormones.cortisol, new_hormones.oxytocin,
+                    float(boredom), float(loneliness),
                     character_id,
                 ),
             )
@@ -733,11 +744,12 @@ class MemoryService:
         with get_db() as db:
             cursor = db.execute(
                 """INSERT INTO memory_fragments
-                   (character_id, user_id, content, importance, is_permanent)
-                   VALUES (?, ?, ?, ?, ?)""",
+                   (character_id, user_id, content, importance, is_permanent, emotion_snapshot)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     data.character_id, data.user_id, data.content,
-                    data.importance, 1 if data.is_permanent else 0,
+                    max(0.0, min(1.0, data.importance)), 1 if data.is_permanent else 0,
+                    json.dumps(data.emotion_snapshot or {}),
                 ),
             )
             frag_id = cursor.lastrowid
@@ -924,6 +936,7 @@ class MemoryService:
             "last_accessed": row["last_accessed"],
             "is_permanent": bool(row["is_permanent"]),
             "created_at": row["created_at"],
+            "emotion_snapshot": json.loads(row["emotion_snapshot"]) if row["emotion_snapshot"] else {},
         }
 
 

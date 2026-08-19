@@ -45,6 +45,8 @@ export interface EmotionState {
   dominance: number;
   mood: string | null;
   updated_at: string;
+  boredom?: number;
+  loneliness?: number;
 }
 
 export interface EmotionEventRequest {

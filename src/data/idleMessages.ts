@@ -196,15 +196,28 @@ interface CustomMessagesRaw {
 }
 
 /**
- * 获取实际使用的互动消息（自定义 > 默认）
- *
- * 带模块级内存缓存：仅当 localStorage 原始字符串变化时才重新解析，
- * 消除高频点击路径中的重复 JSON.parse 开销。
+ * 模块级缓存：支持运行时从后端注入台词，优先于 localStorage。
+ * 这样在去 localStorage 化的过渡期，运行时仍然可用。
  */
+let _backendInteractMessages: typeof INTERACT_MESSAGES | null = null;
+let _backendIdleMessages: IdleMessage[] | null = null;
+
+/** 从后端设置互动消息缓存 */
+export function setBackendInteractMessages(messages: typeof INTERACT_MESSAGES | null) {
+  _backendInteractMessages = messages;
+}
+
+/** 从后端设置闲聊消息缓存 */
+export function setBackendIdleMessages(messages: IdleMessage[] | null) {
+  _backendIdleMessages = messages;
+}
+
 let _interactCache: typeof INTERACT_MESSAGES | null = null;
 let _interactRaw = '';
 
 export function getActualInteractMessages(): typeof INTERACT_MESSAGES {
+  if (_backendInteractMessages) return _backendInteractMessages;
+
   const raw = localStorage.getItem(CUSTOM_MESSAGES_KEY) ?? '';
   if (raw === _interactRaw && _interactCache) return _interactCache;
   _interactRaw = raw;
@@ -226,15 +239,12 @@ export function getActualInteractMessages(): typeof INTERACT_MESSAGES {
   return _interactCache;
 }
 
-/**
- * 获取实际使用的闲聊消息（自定义 > 默认）
- *
- * 带模块级内存缓存：仅当 localStorage 原始字符串变化时才重新解析。
- */
 let _idleCache: IdleMessage[] | null = null;
 let _idleRaw = '';
 
 export function getActualIdleMessages(): IdleMessage[] {
+  if (_backendIdleMessages) return _backendIdleMessages;
+
   const raw = localStorage.getItem(CUSTOM_MESSAGES_KEY) ?? '';
   if (raw === _idleRaw && _idleCache) return _idleCache;
   _idleRaw = raw;
