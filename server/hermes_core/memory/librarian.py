@@ -105,6 +105,11 @@ class Librarian:
                 + 0.2 * importance_score
             )
 
+            # 记忆情绪与当前情绪相似度加成
+            current_pad = self._get_current_pad()
+            emotion_bonus = self._emotion_similarity_bonus(frag, current_pad)
+            score = score * 0.85 + emotion_bonus * 0.15
+
             results.append(
                 SearchResult(
                     fragment=frag,
@@ -135,9 +140,50 @@ class Librarian:
         for idx, r in enumerate(results, 1):
             frag = r.fragment
             marker = "（永久）" if frag.is_permanent else ""
-            lines.append(f"{idx}. {frag.content}{marker}")
+            emotion = frag.emotion_snapshot or {}
+            emotion_tag = ""
+            if emotion:
+                p = emotion.get("pleasure", 0)
+                a = emotion.get("arousal", 0)
+                label = self._pad_to_emotion_label(p, a)
+                emotion_tag = f" [{label}]"
+            lines.append(f"{idx}. {frag.content}{emotion_tag}{marker}")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _pad_to_emotion_label(pleasure: float, arousal: float) -> str:
+        if pleasure > 0.3 and arousal > 0.3:
+            return "开心"
+        if pleasure > 0.3 and arousal <= 0.3:
+            return "平静"
+        if pleasure < -0.3 and arousal > 0.3:
+            return "焦虑"
+        if pleasure < -0.3 and arousal <= 0.3:
+            return "悲伤"
+        return "中性"
+
+    def _get_current_pad(self) -> dict[str, float]:
+        try:
+            from core.heart.emotion import EmotionState
+            state = EmotionState()
+            return {
+                "pleasure": state.pad.pleasure,
+                "arousal": state.pad.arousal,
+                "dominance": state.pad.dominance,
+            }
+        except Exception:
+            return {"pleasure": 0.0, "arousal": 0.0, "dominance": 0.0}
+
+    def _emotion_similarity_bonus(self, frag: MemoryFragment, current_pad: dict[str, float]) -> float:
+        mem_pad = frag.emotion_snapshot or {}
+        if not mem_pad or not current_pad:
+            return 0.0
+
+        dp = abs(mem_pad.get("pleasure", 0) - current_pad.get("pleasure", 0))
+        da = abs(mem_pad.get("arousal", 0) - current_pad.get("arousal", 0))
+        similarity = 1.0 - min(1.0, (dp + da) / 2.0)
+        return similarity * frag.importance
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:

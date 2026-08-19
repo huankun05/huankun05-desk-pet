@@ -114,6 +114,9 @@ class Session:
             self._personality = HEXACOPersonality()
             logger.info("PAD 情绪系统已启用")
 
+        # 单轮对话 PAD 快照，用于提取整轮平均情绪
+        self._round_pad_snapshots: list[dict[str, float]] = []
+
         # 记忆检索与提取（可选）
         self._brain_available = _BRAIN_AVAILABLE and self.memory_enabled
         self._librarian = None
@@ -232,8 +235,33 @@ class Session:
         # 3. 事件对 PAD 的直接影响（对话交互强度 0.8）
         self._emotion_state.apply_event(event, intensity=0.8)
 
+        self._round_pad_snapshots.append(
+            {
+                "pleasure": self._emotion_state.pad.pleasure,
+                "arousal": self._emotion_state.pad.arousal,
+                "dominance": self._emotion_state.pad.dominance,
+            }
+        )
+
         mood = self._emotion_state.get_mood_label()
         logger.debug(f"🎭 情绪更新: {mood} (P={self._emotion_state.pad.pleasure:.3f}, A={self._emotion_state.pad.arousal:.3f})")
+
+    def _compute_round_emotion_snapshot(self) -> dict[str, float]:
+        if not self._round_pad_snapshots:
+            current = self._emotion_state.pad if self._emotion_state else None
+            if current is None:
+                return {}
+            return {
+                "pleasure": current.pleasure,
+                "arousal": current.arousal,
+                "dominance": current.dominance,
+            }
+        snapshots = self._round_pad_snapshots
+        return {
+            "pleasure": sum(s["pleasure"] for s in snapshots) / len(snapshots),
+            "arousal": sum(s["arousal"] for s in snapshots) / len(snapshots),
+            "dominance": sum(s["dominance"] for s in snapshots) / len(snapshots),
+        }
 
     def build_emotion_prompt(self) -> str:
         """生成当前情绪状态的系统提示注入文本。"""
@@ -334,11 +362,14 @@ class Session:
             return []
 
         try:
+            emotion_snapshot = self._compute_round_emotion_snapshot()
             fragments = self._scribe.reflect_and_save(
                 user_text=user_text,
                 assistant_text=assistant_text,
                 context=context,
+                emotion_snapshot=emotion_snapshot,
             )
+            self._round_pad_snapshots.clear()
             if fragments:
                 logger.info(f"🧠 提取并保存 {len(fragments)} 条记忆")
             return [frag.to_dict() for frag in fragments]
@@ -374,6 +405,7 @@ class Session:
         self._history.clear()
         self._current_user_input = ""
         self.session_id = f"session_{int(time.time())}"
+        self._round_pad_snapshots.clear()
         logger.info(f"会话已清空: {self.session_id}")
 
     def save(self, path: str):
