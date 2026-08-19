@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Lint 警告清理（92→74）**: 清理大量未使用导入/variable（`SlashCommand`、`eventBus`、`LogicalPosition`、`handleSlashHelpToggle`、`PANEL_INNER_W`、`prevMode`、`MODE_CHANGED_EVENT`、`guideTitle`、`guideIntro`、`idPrefix`、`ServiceSetupGuide`、`RiskLevel`、`CapabilityGroup`、`pluginRegistry`、`registerBuiltinPlugins`、`pluginConfigManager`、`PluginMetadata`、`PluginConfigProperty`、`isToolDisabled`、`registerBuiltinTools`、`useEffect`、`useState`、`Section`、`Switch` 等）；修正误删导入导致 TS 报错（`RiskLevel`、`useEffect`、`registerBuiltinTools`）；禁用不匹配的 `react-hooks/preserve-manual-memoization` 规则；修复 `audioFiles.ts` regex 多余转义；修复 `PermissionManager.ts` 无用数组初始化。 (`src/components/Chat/ChatPanelWindow.tsx`, `src/settings/components/ServiceWizard.tsx`, `src/settings/pages/extensions/PluginsPage.tsx`, `src/settings/pages/extensions/ToolsPage.tsx`, `src/hooks/usePanelWindows.ts`, `src/components/Pet/ControlsOrb.tsx`, `src/services/permission/capabilities.ts`, `src/settings/components/Toast.tsx`, `src/settings/components/Confirm.tsx`, `src/settings/pages/chat/ChatModesPage.tsx`, `eslint.config.js`, `src/services/audio/audioFiles.ts`, `src/services/permission/PermissionManager.ts`)
+- **Proactive Chat 统一调度**: 所有主动 LLM 消息统一通过 `proactiveScheduler` 调度；`useInteraction.ts` 空闲定时器降为 45s–105s 并降低触发概率；`MainPetApp.tsx` proactive 触发时注入 emotion/mood/recent topics 场景感知提示词；新增 `aiService.proactiveChat()` API 供自定义主动消息使用。
+- **TTS 全链路走大脑调度**: 所有 TTS 路径（主聊天、流式、主动、交互预生成）统一改为 `synthesizeViaBrain`，移除直接 `provider.synthesize()` 调用；`InteractTTS`、`streaming-tts.ts`、`pipeline/stages/tts.ts` 全部对齐。
 - **成长记忆查看页**: 新增「记忆体 → 成长记忆」（`/settings/memory/growth`，`GrowthPage.tsx`），可查看/删除/手动添加记忆（网关不可用时提示）。
 ### Added
 

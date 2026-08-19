@@ -30,6 +30,21 @@ permission system. Updated as items are triaged.
 > Note on #4: the Rust side already decodes GBK correctly. Any remaining console
 > mojibake is the *terminal* code page (GBK) rendering UTF-8 text, not a code bug.
 
+## 1b. ESLint frontend warnings (2026-08-19)
+
+The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanup
+74 remain. They are non-blocking but tracked here so the team does not ignore
+them.
+
+| # | File(s) | Warning pattern | Count | Suggested fix | Priority |
+|---|---------|-----------------|-------|---------------|----------|
+| 1 | `.test.ts` / `solar-icons-custom/index.d.ts` | `no-explicit-any` | 25 | Replace `any` with typed interfaces / generics, or add `// @ts-ignore` with reason. `.d.ts` files may need upstream package patch. | Medium |
+| 2 | `useHermesGateway.ts` / `ChatModesPage.tsx` / `useInteraction.ts` / ... | `set-state-in-effect` | 19 | Move initialization into a lazy `useState`/`useRef` pattern so state is set before mount, or remove the effect and use derived state. | Medium |
+| 3 | `routes.tsx` / `ChatPanelWindow.tsx` / `PluginsPage.tsx` | `react-refresh/only-export-components` | 12 | Extract HOCs / constants / non-component helpers into a separate module so each file only exports components / hooks. | Low |
+| 4 | `ChatPanelWindow.ts` / `useInteraction.ts` / ... | `exhaustive-deps` | 4 | Either add missing deps to the dependency array, or explicitly disable with a comment explaining why. | Low |
+| 5 | `SettingsSearch.tsx` / `PluginsPage.tsx` / ... | `no-unused-vars` | 6 | Remove unused imports / variables, or prefix with `_`. | Low |
+| 6 | `SettingsSearch.tsx` / `PluginsPage.tsx` / ... | `no-unused-vars` (remaining) | 8 | Same as #5 — most are dead imports after refactors. | Low |
+
 ## 3. Follow-up roadmap — permission system
 
 - **P3**: TTS consent speech / voice response / emergency-stop / first-run wizard.

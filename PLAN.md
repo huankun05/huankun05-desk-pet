@@ -22,7 +22,7 @@
 | 前端功能 | 系统托盘 ✅ / 番茄钟 ✅ / 每日问候 ✅ / 技能系统(5个) ✅ / 感知降级 ✅ |
 | 安全加固 | DPAPI 加密 + Token 鉴权 + ErrorBoundary ✅ |
 | 测试/CI | Vitest(136) ✅ / GitHub Actions CI ✅ / Playwright 配置 ✅ |
-| 工程化 | TypeScript strict ✅ / Rust 模块化 ✅ / ESLint + Prettier + Husky ✅ |
+| 工程化 | TypeScript strict ✅ / Rust 模块化 ✅ / ESLint + Prettier + Husky ✅ / Lint 警告清理（92→74） ✅ |
 | Tauri 打包 | 🔲 Phase 5 待实现 |
 | 虚拟环境 | 统一为 `./venv`（主 venv），CosyVoice 依赖已回归 |
 | 语音服务 | TTS (CosyVoice/Edge/GPT-SoVITS) / STT (FunASR/SenseVoice) / Embedding (Ollama) 全部走大脑 |
