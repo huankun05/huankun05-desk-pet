@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **修复老库 schema 迁移缺失（Core 疯狂报错）**: `emotion_states` 新增 `boredom/loneliness` 后旧库未补列，`row["boredom"]` 抛 `IndexError` 导致 `get_emotion`/`post_emotion_event` 全挂。新增 `_ensure_column` + `migrate_db`（幂等 `ALTER TABLE ADD COLUMN`），`init_db()` 启动时执行；覆盖 `emotion_states.boredom/loneliness`、`memory_fragments.emotion_snapshot`。 (`server/core/api_server.py`, commit `ba08ebc`)
+- **预制台词 prewarm 前同步后端权威文本**: 启动时 `main.tsx` 直接 prewarm 用默认文本，后端台词（Core:9877）要等设置页打开才注入 → 预热语音缓存与后端文本错位。新增 `syncInteractionMessagesFromBackend()`（`idleMessages.ts`，可传预取 items），main.tsx 在 prewarm 前先同步；`InteractionPage.refreshBackendMessages` 复用同一函数。 (commit `20c3c72`)
+- **清理 Sherpa ONNX 悬空接入**: 适配器调 `/recognize`@6000，启动规格却指向 FunASR `stt_server.py`@8002 且服务端无 sherpa 文件——三处错配选它必失败，整项移除（注册/启动规格/defaults/适配器）。
+- **补齐 `delete_backup_files` 命令**: 前端「清空全部会话」调用但 Rust 从未实现，备份文件实际删不掉。已实现（仅删 `dataDir/backups/` 下 `desk-pet-backup-*.json`，保持数据目录安全限制）并注册。 (`src-tauri/src/lib.rs`)
+- **修复探活命令未注册（TTS/STT 实时合成链路的隐藏根因）**: `check_http_health`/`check_tcp_health` 从未加入 `generate_handler`，前端 `ServiceLifecycle` 探活永远失败 → `waitReady` 全部超时 → `synthesizeViaBrain`/`transcribeViaBrain` 实时合成静默失败（只能播旧缓存）。已补注册；`getDefaultProfile` 端口映射同步修正（8004/8005 → 实际 8002/9880）并补 `gpt_sovits` 资源画像。
+- **清理 Piper TTS 悬空接入**: `server/piper_server.py` 不存在但启动规格指向它（端口 5000），选 Piper 必失败；整项移除（注册/启动规格/defaults/设置页/i18n/适配器文件），`DEFAULT_ENDPOINTS.gptsovits` 命名统一为 `gpt_sovits`。 (commit `5454d42`)
 - **后端记忆系统接入情绪快照**：`memory_fragments` 增加 `emotion_snapshot` 字段；`Session.reflect_on_exchange` 记录单轮 PAD 快照并计算整轮平均后持久化。
 - **记忆检索情绪相似度加分**：`Librarian.search` 支持 `current_pad`，按记忆 `emotion_snapshot` 与当前 PAD 距离做加分；`format_prompt` 增加情绪标签。
 - **情绪状态持久化扩展**：`emotion_states` 增加 `boredom/loneliness`；互动后下降，作为内在状态持久化在后端。

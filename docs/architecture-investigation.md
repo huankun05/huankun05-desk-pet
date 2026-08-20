@@ -103,7 +103,7 @@ from hermes_core import EmotionState, HEXACOPersonality, MemoryStore
 
 | 服务 | 状态 | 调度器 |
 |------|------|--------|
-| TTS (CosyVoice/Edge/GPT-SoVITS/Piper) | ✅ | `synthesizeViaBrain()` → `ServiceLifecycle` |
+| TTS (CosyVoice/Edge/GPT-SoVITS) | ✅ | `synthesizeViaBrain()` → `ServiceLifecycle` |
 | STT (FunASR/SenseVoice) | ✅ | `transcribeViaBrain()` → `ServiceLifecycle` |
 | Embedding (Ollama) | ✅ | `getEmbeddingViaBrain()` → `ServiceLifecycle` |
 | LLM | ✅ | `llmScheduler.schedule()` → 并发限制 + 优先级排队 |
