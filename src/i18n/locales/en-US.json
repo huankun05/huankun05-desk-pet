@@ -1149,7 +1149,12 @@
       "ago_days": "{{n}}d ago",
       "pad_pleasure": "Pleasure",
       "pad_arousal": "Arousal",
-      "pad_dominance": "Dominance"
+      "pad_dominance": "Dominance",
+      "inner_title": "Inner State",
+      "inner_desc": "boredom / loneliness from backend",
+      "boredom": "Boredom",
+      "loneliness": "Loneliness",
+      "loading": "Loading..."
     },
     "sessions": {
       "stats_title": "Session Stats",

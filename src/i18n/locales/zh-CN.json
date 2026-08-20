@@ -1153,7 +1153,12 @@
       "ago_days": "{{n}}天前",
       "pad_pleasure": "愉悦",
       "pad_arousal": "唤醒",
-      "pad_dominance": "支配"
+      "pad_dominance": "支配",
+      "inner_title": "内在状态",
+      "inner_desc": " boredom / loneliness 等内在状态（来自后端）",
+      "boredom": "无聊",
+      "loneliness": "孤独",
+      "loading": "加载中…"
     },
     "sessions": {
       "stats_title": "会话统计",

@@ -5,7 +5,9 @@ import { Section } from '../../components';
 import {
   healthCheck,
   getEmotionBridgeState,
+  getEmotion,
   type EmotionBridgeState,
+  type EmotionState,
 } from '../../../services/coreApi';
 
 /** 九维情绪中文名（顺序决定雷达图轴序） */
@@ -102,6 +104,8 @@ export function EmotionPage() {
   const [health, setHealth] = useState<boolean | null>(null);
   const [emotion, setEmotion] = useState<EmotionBridgeState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [backendEmotion, setBackendEmotion] = useState<EmotionState | null>(null);
+  const [backendLoading, setBackendLoading] = useState(false);
 
   const load = useCallback(async () => {
     setHealth(await healthCheck());
@@ -112,6 +116,15 @@ export function EmotionPage() {
       setEmotion(null);
     } finally {
       setLoading(false);
+    }
+
+    setBackendLoading(true);
+    try {
+      setBackendEmotion(await getEmotion());
+    } catch {
+      setBackendEmotion(null);
+    } finally {
+      setBackendLoading(false);
     }
   }, []);
 
@@ -450,6 +463,55 @@ export function EmotionPage() {
             {t('settings.emotion.no_history')}
           </div>
         )}
+      </Section>
+
+      {/* 后端内在状态 */}
+      <Section
+        title={t('settings.emotion.inner_title')}
+        description={t('settings.emotion.inner_desc')}
+      >
+        <div className="p-4">
+          {backendLoading ? (
+            <div className="text-sm text-neutral-400">{t('settings.emotion.loading')}</div>
+          ) : backendEmotion ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg bg-neutral-50 p-3">
+                <div className="text-xs text-neutral-500">{t('settings.emotion.boredom')}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100">
+                    <div
+                      className="h-full rounded-full bg-[var(--primary-400)] transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, backendEmotion.boredom ?? 0))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-9 shrink-0 text-right text-xs text-neutral-400">
+                    {Math.round(backendEmotion.boredom ?? 0)}
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-lg bg-neutral-50 p-3">
+                <div className="text-xs text-neutral-500">{t('settings.emotion.loneliness')}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100">
+                    <div
+                      className="h-full rounded-full bg-[var(--primary-400)] transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, backendEmotion.loneliness ?? 0))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-9 shrink-0 text-right text-xs text-neutral-400">
+                    {Math.round(backendEmotion.loneliness ?? 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-neutral-400">{t('settings.emotion.offline')}</div>
+          )}
+        </div>
       </Section>
     </div>
   );
