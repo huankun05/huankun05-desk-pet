@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 详见 `docs/emotion-personality-system.md`（含 PAD/OCC 调研与待办：prompt 注入、情绪-记忆耦合）
 - **修复人格画像页 toFixed 崩溃（前后端结构不匹配）**: 后端 `/api/core/soul/personality` 返回 `{hexaco: {六维}, description, pad_baseline, updated_at}`，前端却从顶层取 `data.honesty_humility` → undefined → `.toFixed(2)` 崩。`coreApi.getPersonality()` 适配解包 hexaco 并带回 `description`/`pad_baseline`；PersonalityPage 优先采用后端描述与 PAD 基线（缺失时回退前端规则）。 (`src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)
 - **情绪/人格页硬编码中文接入 i18n**: 人格页「中间型人格」「低/高」，情绪页相对时间（刚刚/秒前/分钟前…）与 PAD 三维标签（愉悦/唤醒/支配）全部接入 zh/en。
+- **EmotionPage 展示后端内在状态**: 情绪状态页新增「内在状态」区块，通过 `GET /api/core/heart/emotion` 读取后端 `boredom`/`loneliness` 并以进度条展示，让用户可直接看到后端持久化数值的变化。 (`src/settings/pages/models/EmotionPage.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
 - **新增情绪与人格系统分析文档**: `docs/emotion-personality-system.md`——梳理前端 useEmotion 与后端九维/HEXACO 两套体系、事件→数值变化链路，并基于 PAD/OCC 三层模型调研给出 7 项优化建议（人格→PAD 基线回路、漂移触发接线、半衰期衰减等）。**结论：九维情绪是活的，HEXACO 人格只读不漂移（drift 端点前端零调用）**。
 - **修复悬浮球窗口仍出现在任务栏**: 根因是 tao 的 `skip_taskbar`（构造期与 JS `setSkipTaskbar`）走 `ITaskbarList::DeleteTab`，窗口未注册进任务栏或重新显示时存在时序失效。改为 Rust 侧 Win32 方案：新增 `force_hide_from_taskbar` 命令，直接设置 `WS_EX_TOOLWINDOW` 并清除 `WS_EX_APPWINDOW`（APPWINDOW 会覆盖 TOOLWINDOW），窗口样式持久生效。 (`src-tauri/src/lib.rs`, `src/components/Pet/ControlsOrb.tsx`)
 - **插件市场 roadmap 记录**: 市场数据源（GitHub 仓库 `huankun05/desk-pet-registry`）待建，实现步骤写入 `docs/known-warnings-and-roadmap.md`；顺带把 ESLint 74 警告清零状态同步进该文档。
