@@ -85,6 +85,29 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 
+def _ensure_column(db: sqlite3.Connection, table: str, column: str, ddl: str) -> bool:
+    """幂等补列：老库升级时 CREATE TABLE IF NOT EXISTS 不会给已存在的旧表补列，
+    需显式 ALTER TABLE ADD COLUMN。返回是否执行了补列。"""
+    try:
+        existing = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
+    except sqlite3.Error:
+        return False
+    if column in existing:
+        return False
+    db.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+    log.info("Schema migrate: %s.%s added", table, column)
+    return True
+
+
+def migrate_db(db: sqlite3.Connection) -> None:
+    """老库 schema 增量迁移（幂等）：新增列必须显式补上，避免
+    row['<新列>'] 抛 IndexError（如 emotion_states.boredom/loneliness）。
+    传入已打开的连接，由调用方管理事务/关闭。"""
+    _ensure_column(db, "emotion_states", "boredom", "boredom REAL NOT NULL DEFAULT 0.0")
+    _ensure_column(db, "emotion_states", "loneliness", "loneliness REAL NOT NULL DEFAULT 0.0")
+    _ensure_column(db, "memory_fragments", "emotion_snapshot", "emotion_snapshot TEXT DEFAULT '{}'")
+
+
 def init_db() -> None:
     """初始化数据库表。"""
     with get_db() as db:
@@ -170,6 +193,9 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_interaction_messages_char_cat ON interaction_messages(character_id, category);
         """)
+
+        # 老库增量迁移：CREATE TABLE IF NOT EXISTS 不会给旧表补列，缺列显式 ALTER
+        migrate_db(db)
 
         # 插入默认情绪状态（如果不存在）
         cursor = db.execute("SELECT COUNT(*) as cnt FROM emotion_states WHERE character_id = 'default'")
