@@ -650,9 +650,18 @@ function MainPetApp() {
         sendMessage: async (text: string) => {
           return new Promise<string>((resolve) => {
             const timer = setTimeout(() => resolve(''), 30000);
-            const off = eventBus.on('message:response', (payload) => {
+            const targetId = (async () => {
+              try {
+                const m = await import('./services/chatStorage');
+                return m.getActiveSession()?.id ?? 'default';
+              } catch {
+                return 'default';
+              }
+            })();
+            const off = eventBus.on('message:response', async (payload) => {
+              const id = await targetId;
               const p = payload as { text: string; sessionId: string };
-              if (p.sessionId !== 'proactive') {
+              if (p.sessionId === id) {
                 clearTimeout(timer);
                 off();
                 resolve(p.text);

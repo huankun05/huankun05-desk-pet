@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **后端记忆系统接入情绪快照**：`memory_fragments` 增加 `emotion_snapshot` 字段；`Session.reflect_on_exchange` 记录单轮 PAD 快照并计算整轮平均后持久化。
+- **记忆检索情绪相似度加分**：`Librarian.search` 支持 `current_pad`，按记忆 `emotion_snapshot` 与当前 PAD 距离做加分；`format_prompt` 增加情绪标签。
+- **情绪状态持久化扩展**：`emotion_states` 增加 `boredom/loneliness`；互动后下降，作为内在状态持久化在后端。
+- **主动消息调度增强**：ProactiveScheduler 支持情绪优先 + 2h 冷却 + 随机兜底；用户发消息重置冷却。
+- **聊天活跃会话路由**：主动消息 `sessionId` 路由到当前活跃会话；`deskpet_active_session_id` localStorage 跨窗口同步。
+- **未读消息徽标**：`ControlsOrb` 右上角展示未读；用户发送消息 +1，打开聊天窗口清空。
+
+### TODO（明日继续）
+
+- [ ] 主动消息生成：LLM 优先 + 前端台词池 fallback
+- [ ] `boredom/loneliness` idle 增长：无互动随时间上升
+- [ ] 回忆情绪叠加：30% × importance PAD 叠加 + 10s 指数衰减回原状态，前端表情/状态叠加接入
+- [ ] 运行时验证：`InteractionPage.tsx` 后端消息热更新、未读徽标实际行为
+
 - **物理互动低频聚合沉淀（摸头/拍打/踩脚 → 长期记忆）**: 新增 `server/core/interaction_agg.py`——每次互动只做轻量计数（`interaction_stats` 累计 + `interaction_events` 近 7 天窗口样本，样本上限 1000），某类互动累计较上次沉淀新增 ≥5 次时，才沉淀**一条**偏好记忆（`client_ref=interact-settle:{type}` 幂等更新，内容带累计次数，随频率增长更新），不逐条入库。接入：①`POST /api/core/emotion/bridge/event` 收到 `interaction:*` 事件先聚合计数（不受情绪节流影响）；②新增 `GET /api/core/interaction/stats`；③gateway 新增 `_fetch_interaction_context()`（60s 缓存）在每次聊天注入 `<interaction-context>`——角色知道"最近互动过什么、频率多少"（如"摸头 23 次（近 7 天 8 次）"），可自然提起但不生硬复述次数。已验证：5 次摸头沉淀 1 条、再攒 5 次幂等更新不新增、拍打独立成第二条。 (`server/core/interaction_agg.py`, `server/core/api_server.py`, `server/hermes_gateway_server.py`)
 - **情绪→说话方式打通（"像人"的关键）**: `hermes_gateway_server.py` 新增 `_fetch_emotion_context()`——每次聊天从 core 拉当前情绪，构造 `<emotion-context>` 说话方式指南注入 system prompt（愉悦高→热情分享、低落→语气克制带情绪、高唤醒→兴奋话多），生气时说话带情绪、开心时乐于分享。 (`server/hermes_gateway_server.py`)
 - **人格可调整 + 设定初始状态**: 后端新增 `PUT /api/core/soul/personality`（六维手动设定 / `reset=true` 恢复默认 0.5，设定后情绪基线自动跟随）；PersonalityPage 加「编辑」（六维滑块）「保存」「恢复初始」。 (`server/core/api_server.py`, `src/services/coreApi.ts`, `src/settings/pages/models/PersonalityPage.tsx`)

@@ -240,6 +240,7 @@ export interface EmotionState {
   idleExpressions?: string[];
   customEmotions?: { key: string; label: string }[];
   boredom?: number;
+  loneliness?: number;
 }
 
 export interface EmotionConfig {

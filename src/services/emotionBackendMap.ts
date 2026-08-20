@@ -35,7 +35,10 @@ function padToMood(p: number, a: number): MoodType {
 /** 后端 heart/emotion 响应 → 本地情绪字段 */
 export function apiEmotionToLocal(
   api: ApiEmotionState,
-): Pick<EmotionState, 'mood' | 'moodIntensity' | 'emotion' | 'emotionIntensity'> {
+): Pick<
+  EmotionState,
+  'mood' | 'moodIntensity' | 'emotion' | 'emotionIntensity' | 'boredom' | 'loneliness'
+> {
   const p = Number(api.pleasure) || 0;
   const a = Number(api.arousal) || 0;
   const intensity = Math.max(0.1, Math.min(1, (Math.abs(p) + Math.abs(a)) / 2 + 0.2));
@@ -48,5 +51,7 @@ export function apiEmotionToLocal(
     moodIntensity: intensity,
     emotion,
     emotionIntensity: intensity,
+    boredom: Number(api.boredom) || 0,
+    loneliness: Number(api.loneliness) || 0,
   };
 }
