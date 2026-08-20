@@ -160,7 +160,7 @@ def _row_to_fragment(row: sqlite3.Row) -> MemoryFragment:
         is_permanent=bool(row["is_permanent"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]) if "updated_at" in row.keys() else datetime.fromisoformat(row["created_at"]),
-        emotion_snapshot=json.loads(row["emotion_snapshot"]) if row.get("emotion_snapshot") else {},
+        emotion_snapshot=json.loads(row["emotion_snapshot"]) if "emotion_snapshot" in row.keys() and row["emotion_snapshot"] else {},
     )
 
 
