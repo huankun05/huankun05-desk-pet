@@ -724,6 +724,37 @@ fn delete_file(path: String) -> CmdResult<()> {
     Ok(())
 }
 
+/// 删除项目数据目录 backups/ 下的全部备份文件（「清空全部会话」时调用）。
+/// 仅匹配 `desk-pet-backup-*.json`，不触碰其他文件；目录不存在时静默返回 0。
+#[tauri::command]
+fn delete_backup_files() -> CmdResult<usize> {
+    let data_dir = crate::utils::get_project_data_dir()?;
+    let backups_dir = data_dir.join("backups");
+    if !backups_dir.exists() {
+        return Ok(0);
+    }
+    let mut count = 0usize;
+    for entry in fs::read_dir(&backups_dir)
+        .map_err(|e| AppError::Generic(format!("Failed to read backups dir: {}", e)))?
+    {
+        let path = entry
+            .map_err(|e| AppError::Generic(format!("Failed to read backup entry: {}", e)))?
+            .path();
+        if path.is_file() {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            if name.starts_with("desk-pet-backup-") && name.ends_with(".json") {
+                fs::remove_file(&path)
+                    .map_err(|e| AppError::Generic(format!("Failed to delete backup: {}", e)))?;
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
+}
+
 /// 用系统默认浏览器打开 URL
 #[tauri::command]
 fn open_url(url: String) -> CmdResult<()> {
@@ -1427,6 +1458,7 @@ pub fn run() {
             read_audio_file,
             list_directory,
             delete_file,
+            delete_backup_files,
             download_and_extract_plugin,
             remove_plugin_dir,
             get_desktop_path,

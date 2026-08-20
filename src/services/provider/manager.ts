@@ -31,8 +31,6 @@ import { CustomTTSProvider } from './tts/custom';
 import type { CustomTTSConfig } from './tts/custom';
 import { FunASRProvider } from './stt/funasr';
 import { SenseVoiceProvider } from './stt/sensevoice';
-import { SherpaONNXProvider } from './stt/sherpaonnx';
-import type { SherpaONNXConfig } from './stt/sherpaonnx';
 import { OllamaEmbeddingProvider } from './embedding/ollama';
 import { OpenAIEmbeddingProvider } from './embedding/openai';
 import type {
@@ -139,16 +137,6 @@ providerRegistry.registerTTSProvider(
       '接入你自己部署的任意 TTS 服务（fish-speech / ChatTTS / Bert-VITS2 等），填网址即可',
   },
   (config) => new CustomTTSProvider(config as CustomTTSConfig),
-);
-
-// STT: Sherpa ONNX（轻量本地 ASR，多模型支持）
-providerRegistry.registerSTTProvider(
-  'sherpa_onnx',
-  {
-    displayName: 'Sherpa ONNX',
-    description: '轻量本地 ASR，支持 SenseVoice/Paraformer/Nemo 等模型',
-  },
-  (config) => new SherpaONNXProvider(config as SherpaONNXConfig),
 );
 
 // ===== 状态类型 =====

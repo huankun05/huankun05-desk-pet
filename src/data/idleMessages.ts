@@ -2,6 +2,8 @@
  * 闲聊消息池 + 互动反馈消息
  */
 
+import { listInteractionMessages, type InteractionMessage } from '../services/coreApi';
+
 export interface IdleMessage {
   time?: 'morning' | 'afternoon' | 'evening' | 'night';
   emotion?: string;
@@ -210,6 +212,40 @@ export function setBackendInteractMessages(messages: typeof INTERACT_MESSAGES | 
 /** 从后端设置闲聊消息缓存 */
 export function setBackendIdleMessages(messages: IdleMessage[] | null) {
   _backendIdleMessages = messages;
+}
+
+/**
+ * 从后端 Core(:9877) 拉取互动/闲聊台词并注入模块缓存。
+ * 在 prewarm / 设置页加载前调用，确保「重新生成全部」与启动预热
+ * 使用的文本与后端权威源一致（避免用默认/旧文本生成语音缓存）。
+ * @param items 已拉取的后端台词（可选；不传则内部拉取一次）
+ * @returns 是否注入成功（后端不可达时返回 false，调用方回退本地）
+ */
+export async function syncInteractionMessagesFromBackend(
+  items?: InteractionMessage[],
+): Promise<boolean> {
+  try {
+    const backendMessages = items ?? (await listInteractionMessages());
+    const interactMap: Record<string, string[]> = {};
+    const idleGroups: IdleMessage[] = [];
+    for (const m of backendMessages) {
+      if (m.category === 'interact') {
+        interactMap[m.subcategory] = m.messages;
+      } else if (m.category === 'idle') {
+        idleGroups.push({
+          ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
+          ...(m.emotion ? { emotion: m.emotion } : {}),
+          messages: m.messages,
+        });
+      }
+    }
+    if (Object.keys(interactMap).length)
+      setBackendInteractMessages(interactMap as typeof INTERACT_MESSAGES);
+    if (idleGroups.length) setBackendIdleMessages(idleGroups);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 let _interactCache: typeof INTERACT_MESSAGES | null = null;

@@ -36,7 +36,7 @@ export interface GPTSoVitsConfig extends TTSProviderConfig {
 }
 
 const DEFAULT_CONFIG: Partial<GPTSoVitsConfig> = {
-  apiBase: DEFAULT_ENDPOINTS.gptsovits,
+  apiBase: DEFAULT_ENDPOINTS.gpt_sovits,
   refAudioPath: 'nahida/slicer_opt_trimmed/trimmed_vo_HSEQ002_11_nahida_12.wav',
   promptText: '我没事。最近我的空余时间不少，能做的事情也不少。',
   promptLang: 'zh',

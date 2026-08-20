@@ -61,13 +61,6 @@ export const STT_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
     workDir: '.',
     port: 8002,
   },
-  sherpaonnx: {
-    id: 'service_8002',
-    command: 'venv/Scripts/python.exe',
-    args: ['server/stt_server.py', '--port', '8002'],
-    workDir: '.',
-    port: 8002,
-  },
 };
 
 /** 把 provider 配置解析成启动规格（优先 launch，回退默认映射）。 */

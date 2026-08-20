@@ -5,8 +5,7 @@ import {
   IDLE_MESSAGES,
   INTERACT_MESSAGES,
   type IdleMessage,
-  setBackendInteractMessages,
-  setBackendIdleMessages,
+  syncInteractionMessagesFromBackend,
 } from '../../../data/idleMessages';
 import { interactTTS } from '../../../services/audio/interact-tts';
 import { audioPlayer } from '../../../services/audio/player';
@@ -363,24 +362,9 @@ export function InteractionPage() {
 
   const refreshBackendMessages = useCallback(async () => {
     const items = await listInteractionMessages();
-    const backendMessages = items;
-    const interactMap: Record<string, string[]> = {};
-    const idleGroups: IdleMessage[] = [];
-    for (const m of backendMessages) {
-      if (m.category === 'interact') {
-        interactMap[m.subcategory] = m.messages;
-      } else if (m.category === 'idle') {
-        idleGroups.push({
-          ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
-          ...(m.emotion ? { emotion: m.emotion } : {}),
-          messages: m.messages,
-        });
-      }
-    }
-    if (Object.keys(interactMap).length)
-      setBackendInteractMessages(interactMap as typeof INTERACT_MESSAGES);
-    if (idleGroups.length) setBackendIdleMessages(idleGroups);
-    setBackendMessages(backendMessages);
+    // 注入模块缓存（prewarm/播放路径共用同一份后端权威文本）
+    await syncInteractionMessagesFromBackend(items);
+    setBackendMessages(items);
   }, []);
 
   const updateConfig = useCallback((patch: Partial<InteractionConfig>) => {
