@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **修复互动沉淀 AttributeError（`sqlite3.Row` 无 `.get()`）**: `store.py` 的 `_row_to_fragment` 读 `emotion_snapshot` 时误用 `row.get()`，而 `store.get_db` 的行工厂是 `sqlite3.Row`（无 `.get()`）→ 互动累计达阈值首次触发 `maybe_settle → add_memory` 时抛 `'sqlite3.Row' object has no attribute 'get'`，沉淀永远失败。改用与同文件一致的 `"列名" in row.keys()` 兼容写法。 (commit `4b12e70b` 引入，`ab2c11e` 修复)
 - **修复老库 schema 迁移缺失（Core 疯狂报错）**: `emotion_states` 新增 `boredom/loneliness` 后旧库未补列，`row["boredom"]` 抛 `IndexError` 导致 `get_emotion`/`post_emotion_event` 全挂。新增 `_ensure_column` + `migrate_db`（幂等 `ALTER TABLE ADD COLUMN`），`init_db()` 启动时执行；覆盖 `emotion_states.boredom/loneliness`、`memory_fragments.emotion_snapshot`。 (`server/core/api_server.py`, commit `ba08ebc`)
 - **预制台词 prewarm 前同步后端权威文本**: 启动时 `main.tsx` 直接 prewarm 用默认文本，后端台词（Core:9877）要等设置页打开才注入 → 预热语音缓存与后端文本错位。新增 `syncInteractionMessagesFromBackend()`（`idleMessages.ts`，可传预取 items），main.tsx 在 prewarm 前先同步；`InteractionPage.refreshBackendMessages` 复用同一函数。 (commit `20c3c72`)
 - **清理 Sherpa ONNX 悬空接入**: 适配器调 `/recognize`@6000，启动规格却指向 FunASR `stt_server.py`@8002 且服务端无 sherpa 文件——三处错配选它必失败，整项移除（注册/启动规格/defaults/适配器）。
