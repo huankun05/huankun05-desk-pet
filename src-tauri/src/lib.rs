@@ -1487,7 +1487,9 @@ pub fn run() {
             local_tools::set_volume,
             local_tools::notify,
             local_tools::get_time,
-            service::get_service_logs
+            service::get_service_logs,
+            service::check_http_health,
+            service::check_tcp_health
         ])
         .setup(|app| {
             // 生成管理后台鉴权 token
@@ -1498,87 +1500,6 @@ pub fn run() {
                 *token_ref = token.clone();
             }
             println!("[Admin] Auth token: {}", token);
-            // 自启动默认 Provider 的后端服务（后台线程，不阻塞窗口创建）
-            let app_handle_for_services = app.handle().clone();
-            std::thread::spawn(move || {
-                if let Ok(data_dir) = get_data_dir() {
-                    let providers_path = data_dir.join("providers.json");
-                    if let Ok(content) = std::fs::read_to_string(&providers_path) {
-                        if let Ok(providers) = serde_json::from_str::<serde_json::Value>(&content) {
-                            let default_keys = [
-                                "activeChatId",
-                                "activeTTSId",
-                                "activeSTTId",
-                                "activePerceptionId",
-                            ];
-                            for key in &default_keys {
-                                if let Some(id) = providers[key].as_str().filter(|s| !s.is_empty())
-                                {
-                                    if let Some(cfg) =
-                                        providers["configs"].as_array().and_then(|configs| {
-                                            configs.iter().find(|c| c["id"].as_str() == Some(id))
-                                        })
-                                    {
-                                        let command = cfg["command"].as_str().unwrap_or("");
-                                        let port = cfg["port"].as_u64().unwrap_or(0) as u16;
-                                        let ptype = cfg["type"].as_str().unwrap_or("");
-                                        if !command.is_empty() && port > 0 {
-                                            let is_healthy = if ptype == "perception" {
-                                                service::check_tcp_health(port)
-                                            } else {
-                                                service::check_http_health(port)
-                                            };
-                                            if !is_healthy {
-                                                let raw_work_dir = cfg["workDir"]
-                                                    .as_str()
-                                                    .unwrap_or(".")
-                                                    .to_string();
-                                                let app_root = crate::backend::backend_root(
-                                                    &app_handle_for_services,
-                                                );
-                                                let work_dir = if raw_work_dir.is_empty()
-                                                    || raw_work_dir == "."
-                                                {
-                                                    app_root.to_string_lossy().to_string()
-                                                } else {
-                                                    raw_work_dir
-                                                };
-                                                let args: Vec<String> = cfg["commandArgs"]
-                                                    .as_array()
-                                                    .map(|a| {
-                                                        a.iter()
-                                                            .filter_map(|v| {
-                                                                v.as_str().map(|s| s.to_string())
-                                                            })
-                                                            .collect()
-                                                    })
-                                                    .unwrap_or_default();
-                                                let resolved_command = if command.contains('/')
-                                                    || command.contains('\\')
-                                                {
-                                                    std::path::Path::new(&work_dir)
-                                                        .join(command)
-                                                        .to_string_lossy()
-                                                        .to_string()
-                                                } else {
-                                                    command.to_string()
-                                                };
-                                                let _ = service::service_start_raw(
-                                                    &resolved_command,
-                                                    &args,
-                                                    &work_dir,
-                                                    port,
-                                                    &app_handle_for_services,
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
 
             // 启动 Core API + Hermes Gateway（含 Python 探测）：整体放入后台线程，
             // 避免同步 `python -c "import fastapi"` 探测阻塞 setup 主线程、拖延窗口首屏显示

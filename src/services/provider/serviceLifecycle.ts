@@ -87,6 +87,14 @@ const RESOURCE_PROFILES: Record<string, ServiceResourceProfile> = {
     keepAlive: true,
     priority: 10,
   },
+  gpt_sovits: {
+    estimatedCpuPercent: 30,
+    estimatedGpuMb: 2048,
+    estimatedMemoryMb: 2048,
+    startupTimeMs: 20000,
+    keepAlive: true,
+    priority: 10,
+  },
   // STT
   funasr: {
     estimatedCpuPercent: 25,
@@ -523,13 +531,12 @@ class ServiceLifecycle {
     }
   }
 
-  /** 默认资源画像 */
+  /** 默认资源画像：端口 → 引擎名（端口与 serviceLauncher 的 launch spec 保持一致） */
   private getDefaultProfile(port: number): ServiceResourceProfile {
-    // 根据端口猜测类型（简化）
-    if (port === 8003) return getProfile('cosyvoice');
     if (port === 8001) return getProfile('edge-tts');
-    if (port === 8004) return getProfile('funasr');
-    if (port === 8005) return getProfile('ollama-embedding');
+    if (port === 8002) return getProfile('funasr');
+    if (port === 8003) return getProfile('cosyvoice');
+    if (port === 9880) return getProfile('gpt_sovits');
     return getProfile('default');
   }
 }

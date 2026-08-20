@@ -450,7 +450,6 @@
       "engine_req_edge_tts": "微软在线语音合成，无需任何权重，填好地址即可用（地址可留空走默认公共接口）。",
       "engine_req_gpt_sovits": "本地声音克隆。需把 GPT 权重(.ckpt)、SoVITS 权重(.pth) 与参考音频放进权重文件夹。",
       "engine_req_cosyvoice": "本地高质量语音（纳西妲微调）。需要 Python venv 与模型目录，由参考工程提供。",
-      "engine_req_piper": "轻量本地 TTS。需要 .onnx 模型文件与同名 .json 配置。",
       "add_first_service": "添加语音服务",
       "wizard_pick_hint": "先选一个引擎，我们会自动带出默认地址与名称。",
       "wizard_edge_hint": "在线引擎，地址留空即使用默认公共接口，无需任何模型权重。",

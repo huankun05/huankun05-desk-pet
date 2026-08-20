@@ -25,21 +25,19 @@ import { switchActiveTTSBackend } from '../../../services/provider/ttsBackend';
  *  用户可在配置页一键打开该目录放入/查看模型权重。 */
 const WEIGHTS_DIRS: Record<string, string> = {
   gpt_sovits: 'server/gpt_sovits/GPT_SoVITS/pretrained_models',
-  piper: 'server/piper/models',
 };
 
 /** 权重已随软件内置、无需用户手动放置的引擎（如 CosyVoice 走参考项目自动加载）*/
 const BUNDLED_TTS_ENGINES = new Set(['cosyvoice']);
 
 /** 需要本地模型权重的 TTS 引擎（决定指引面板显示「需权重」标签）*/
-const LOCAL_TTS_ENGINES = new Set(['gpt_sovits', 'piper', 'cosyvoice']);
+const LOCAL_TTS_ENGINES = new Set(['gpt_sovits', 'cosyvoice']);
 
 /** 各 TTS 引擎的默认 API 地址（向导自动填入，用户可改）*/
 const DEFAULT_ENDPOINTS: Record<string, string> = {
   edge_tts: '',
   gpt_sovits: 'http://localhost:9880',
   cosyvoice: 'http://localhost:8003',
-  piper: 'http://localhost:5000',
   custom: '',
 };
 

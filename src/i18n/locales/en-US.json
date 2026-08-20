@@ -446,7 +446,6 @@
       "engine_req_edge_tts": "Microsoft online TTS. No weights needed; fill the address (or leave blank for the default public endpoint).",
       "engine_req_gpt_sovits": "Local voice cloning. Place the GPT weight (.ckpt), SoVITS weight (.pth) and a reference audio into the weights folder.",
       "engine_req_cosyvoice": "Local high-quality TTS (Nahida fine-tune). Requires a Python venv and model directory from the reference project.",
-      "engine_req_piper": "Lightweight local TTS. Requires an .onnx model file plus its .json config.",
       "add_first_service": "Add TTS service",
       "wizard_pick_hint": "Pick an engine — we'll auto-fill the default address and name.",
       "wizard_edge_hint": "Online engine. Leave the address empty to use the default public endpoint; no model weights needed.",

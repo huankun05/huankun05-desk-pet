@@ -6,7 +6,6 @@ export const DEFAULT_ENDPOINTS = {
   sensevoice: 'http://localhost:8002',
   sherpaonnx: 'http://localhost:6000',
   edge_tts: 'http://localhost:8001',
-  piper: 'http://localhost:5000',
   gptsovits: 'http://localhost:9880',
   cosyvoice: 'http://localhost:8003',
   perception_ws: 'ws://127.0.0.1:8765',

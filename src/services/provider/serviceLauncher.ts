@@ -44,13 +44,6 @@ export const TTS_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {
     workDir: '.',
     port: 8003,
   },
-  piper: {
-    id: 'service_5000',
-    command: 'venv/Scripts/python.exe',
-    args: ['server/piper_server.py', '--port', '5000'],
-    workDir: '.',
-    port: 5000,
-  },
 };
 
 export const STT_LAUNCH_SPECS: Record<string, ResolvedLaunchSpec> = {

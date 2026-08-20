@@ -27,8 +27,6 @@ import { GPTSoVitsProvider } from './tts/gptsovits';
 import type { GPTSoVitsConfig } from './tts/gptsovits';
 import { CosyVoiceProvider } from './tts/cosyvoice';
 import type { CosyVoiceConfig } from './tts/cosyvoice';
-import { PiperTTSProvider } from './tts/piper';
-import type { PiperTTSConfig } from './tts/piper';
 import { CustomTTSProvider } from './tts/custom';
 import type { CustomTTSConfig } from './tts/custom';
 import { FunASRProvider } from './stt/funasr';
@@ -130,16 +128,6 @@ providerRegistry.registerSTTProvider(
     description: '语音识别 + 情绪标签检测（happy/sad/angry/neutral）',
   },
   (config) => new SenseVoiceProvider(config as STTProviderConfig),
-);
-
-// TTS: Piper（轻量本地 TTS，CPU 友好，RTF < 0.5）
-providerRegistry.registerTTSProvider(
-  'piper',
-  {
-    displayName: 'Piper TTS',
-    description: '轻量本地 TTS，CPU 友好，合成速度快，适合低配置设备',
-  },
-  (config) => new PiperTTSProvider(config as PiperTTSConfig),
 );
 
 // TTS: 自定义 / 其他模型（通用 HTTP，用户自带任意 TTS 服务）
