@@ -345,6 +345,8 @@ function ChatPanelWindow() {
       return true;
     }
   });
+  // 语音通话是否激活（用于通话期间临时关闭聊天管线 TTS，避免与通话自身 playTts 双播）
+  const [callActive, setCallActive] = useState(false);
 
   // 本地 RAG 记忆写入：面板对话完成后同样落盘（消息 id 唯一，与主窗口不会双写）
   const { addToRag } = useRagPersistence();
@@ -360,7 +362,8 @@ function ChatPanelWindow() {
     loadSession,
     setGatewayEnabled,
   } = useHermesGateway({
-    ttsEnabled,
+    // 通话激活时临时关闭聊天 TTS，避免同一回复被聊天 onDone 与通话 playTts 各播一次
+    ttsEnabled: ttsEnabled && !callActive,
     onMessageComplete: async (
       userText,
       assistantText,
@@ -383,6 +386,11 @@ function ChatPanelWindow() {
     sendMessage,
     showError: (m) => showToast(m, 'error'),
   });
+
+  // 通话激活期间，把聊天管线的 TTS 临时置 false，朗读完全交给通话自身的 playTts（消除双播）
+  useEffect(() => {
+    setCallActive(voiceCall.active);
+  }, [voiceCall.active]);
 
   // 详情面板状态
   const [showDetails, setShowDetails] = useState(false);
