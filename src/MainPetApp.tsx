@@ -240,7 +240,8 @@ function MainPetApp() {
   // 使用 useMemo 稳定回调引用，避免每次渲染创建新对象导致下游 hook 连锁重渲染
   const hermesOptions = useMemo(
     () => ({
-      ttsEnabled: true,
+      // 读取与聊天面板窗一致的 TTS 总开关，避免主窗口聊天朗读无法关闭
+      ttsEnabled: localStorage.getItem('deskpet_tts_enabled') !== 'false',
       onToken: () => {},
       onMessageComplete: async (
         userText: string,
