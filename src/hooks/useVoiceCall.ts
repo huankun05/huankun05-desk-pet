@@ -15,7 +15,9 @@ import { providerManager } from '../services/provider/manager';
 import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { getHermesGatewayClient } from '../services/hermesGateway';
+import { type SendMessageFn } from '../hooks/useHermesGateway';
 import { eventBus } from '../services/eventBus';
+import { createCallSummary } from '../services/callSummaries';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceCall');
@@ -24,11 +26,18 @@ export type VoiceCallState = 'idle' | 'connecting' | 'incall' | 'listening' | 's
 
 export interface UseVoiceCallOptions {
   /** 发送消息到聊天（含 LLM + 工具 + 气泡渲染） */
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: SendMessageFn;
+  /** 当前聊天模式（工作/聊天），通话轮次透传，工具行为与打字聊天一致 */
+  mode?: 'work' | 'chat';
   /** 通话状态变化回调（用于 UI） */
   onStateChange?: (s: VoiceCallState) => void;
   /** 错误提示 */
   showError?: (msg: string) => void;
+}
+
+interface CallTranscriptTurn {
+  role: 'user' | 'assistant';
+  text: string;
 }
 
 export interface UseVoiceCallReturn {
@@ -43,6 +52,7 @@ export interface UseVoiceCallReturn {
 
 export function useVoiceCall({
   sendMessage,
+  mode,
   onStateChange,
   showError,
 }: UseVoiceCallOptions): UseVoiceCallReturn {
@@ -55,6 +65,12 @@ export function useVoiceCall({
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceStartResolveRef = useRef<((ok: boolean) => void) | null>(null);
+  const modeRef = useRef<'work' | 'chat' | undefined>(mode);
+  const transcriptRef = useRef<CallTranscriptTurn[]>([]);
+  const callStartRef = useRef<number>(0);
+
+  // 同步当前模式（通话轮次透传，使工具行为与打字聊天一致）
+  modeRef.current = mode;
 
   const setCallState = useCallback(
     (s: VoiceCallState) => {
@@ -111,6 +127,65 @@ export function useVoiceCall({
     });
   }, []);
 
+  /** 用当前 LLM 跑一次纯文本补全（不通工具、不渲染），返回文本 */
+  const askLlmOnce = (prompt: string): Promise<string> =>
+    new Promise((resolve) => {
+      try {
+        getHermesGatewayClient().sendChat(
+          prompt,
+          {
+            frontendTools: [],
+            onDone: (t) => resolve(t),
+            onError: () => resolve(''),
+          },
+          modeRef.current,
+        );
+      } catch {
+        resolve('');
+      }
+    });
+
+  /** 挂断后生成口语化通话总结并落库（开关关闭或无内容时跳过） */
+  const generateSummary = useCallback(async () => {
+    let enabled = true;
+    try {
+      enabled = localStorage.getItem('deskpet_call_summary_enabled') !== 'false';
+    } catch {
+      enabled = true;
+    }
+    const turns = transcriptRef.current;
+    if (!enabled || turns.length === 0) return;
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const duration = callStartRef.current
+      ? Math.max(0, Math.round((Date.now() - callStartRef.current) / 1000))
+      : 0;
+    const transcriptText = turns
+      .map((t) => `${t.role === 'user' ? '我' : '你'}：${t.text}`)
+      .join('\n');
+
+    const prompt =
+      '我们刚用语音聊了一会儿天。下面是我们这段对话的内容。\n' +
+      '请用轻松、亲切、像朋友之间聊完天后的口吻，写一段简短的复盘总结（不要正式、不要像会议纪要），' +
+      '2 到 5 句话即可，可以提我们聊了什么、有什么好玩的、或者你记住了什么小事。\n\n对话内容：\n' +
+      transcriptText;
+
+    try {
+      const summaryText = await askLlmOnce(prompt);
+      if (!summaryText) return;
+      await createCallSummary({
+        title: `通话 · ${dateStr}`,
+        call_date: dateStr,
+        duration_seconds: duration,
+        summary_text: summaryText,
+        transcript_json: JSON.stringify(turns),
+      });
+    } catch (e) {
+      log.warn('通话总结生成失败', e);
+    }
+  }, []);
+
   // 停止通话的内部实现（声明在 startTurn 之前，供其 catch 调用，避免 TDZ）
   const stopCallInternal = useCallback(() => {
     if (!activeRef.current && stateRef.current === 'idle') return;
@@ -129,7 +204,11 @@ export function useVoiceCall({
     setSeconds(0);
     getHermesGatewayClient().sendVoice('stop');
     setCallState('idle');
-  }, [stopTts, setCallState]);
+    // 挂断后生成口语化总结（fire-and-forget，失败仅记日志）
+    void generateSummary();
+    transcriptRef.current = [];
+    callStartRef.current = 0;
+  }, [stopTts, setCallState, generateSummary]);
 
   /** 开始一轮聆听 */
   const startTurn = useCallback(async () => {
@@ -144,9 +223,10 @@ export function useVoiceCall({
         const result = await transcribeViaBrain(audio, 'wav');
         const text = result?.text?.trim();
         if (text) {
+          transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
           setCallState('speaking');
-          // 发到聊天（渲染用户+助手气泡）；TTS 由 hermes:done 事件触发
-          await sendMessage(text);
+          // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
+          await sendMessage(text, modeRef.current, { silent: true });
         }
       } catch (e) {
         log.error('stt transcribe failed', e);
@@ -171,6 +251,7 @@ export function useVoiceCall({
     if (activeRef.current) return;
     activeRef.current = true;
     setSeconds(0);
+    callStartRef.current = Date.now();
     setCallState('connecting');
 
     // 计时
@@ -243,6 +324,7 @@ export function useVoiceCall({
         if (activeRef.current) startTurn();
         return;
       }
+      transcriptRef.current = [...transcriptRef.current, { role: 'assistant', text: full }];
       void playTts(full).then(() => {
         if (activeRef.current) startTurn();
       });
@@ -257,6 +339,14 @@ export function useVoiceCall({
   // 卸载时清理
   useEffect(() => {
     return () => {
+      // 若通话仍在进行（未正常挂断），通知网关释放 STT/TTS 服务，避免显存/内存泄漏
+      if (activeRef.current) {
+        try {
+          getHermesGatewayClient().sendVoice('stop');
+        } catch {
+          /* ignore */
+        }
+      }
       activeRef.current = false;
       try {
         recorderRef.current?.cancel();

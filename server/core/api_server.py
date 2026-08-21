@@ -192,6 +192,17 @@ def init_db() -> None:
                 UNIQUE(character_id, category, subcategory)
             );
             CREATE INDEX IF NOT EXISTS idx_interaction_messages_char_cat ON interaction_messages(character_id, category);
+
+            CREATE TABLE IF NOT EXISTS call_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL DEFAULT '通话',
+                call_date TEXT NOT NULL,
+                duration_seconds INTEGER NOT NULL DEFAULT 0,
+                summary_text TEXT NOT NULL DEFAULT '',
+                transcript_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_call_summaries_date ON call_summaries(call_date);
         """)
 
         # 老库增量迁移：CREATE TABLE IF NOT EXISTS 不会给旧表补列，缺列显式 ALTER
@@ -340,6 +351,18 @@ class InteractionMessageUpdate(BaseModel):
     emotion: str | None = None
     time_of_day: str | None = None
     enabled: bool | None = None
+
+
+class CallSummaryCreate(BaseModel):
+    title: str = "通话"
+    call_date: str
+    duration_seconds: int = 0
+    summary_text: str = ""
+    transcript_json: str = "[]"
+
+
+class CallSummaryRename(BaseModel):
+    title: str
 
 
 # ============================================================
@@ -1219,6 +1242,100 @@ def create_app() -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="Interaction message not found")
         return result
+
+    # ========================================================
+    # Call / 通话总结（口语化复盘，像朋友聊完天后的总结）
+    # ========================================================
+
+    @app.get("/api/core/call/summaries")
+    def list_call_summaries(search: str | None = None) -> list[dict]:
+        with get_db() as db:
+            if search:
+                like = f"%{search}%"
+                rows = db.execute(
+                    "SELECT id, title, call_date, duration_seconds, created_at "
+                    "FROM call_summaries WHERE title LIKE ? OR call_date LIKE ? ORDER BY created_at DESC",
+                    (like, like),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT id, title, call_date, duration_seconds, created_at "
+                    "FROM call_summaries ORDER BY created_at DESC"
+                ).fetchall()
+            return [
+                {
+                    "id": r["id"],
+                    "title": r["title"],
+                    "call_date": r["call_date"],
+                    "duration_seconds": r["duration_seconds"],
+                    "created_at": r["created_at"],
+                }
+                for r in rows
+            ]
+
+    @app.get("/api/core/call/summaries/{summary_id}")
+    def get_call_summary(summary_id: int) -> dict:
+        with get_db() as db:
+            row = db.execute("SELECT * FROM call_summaries WHERE id = ?", (summary_id,)).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Call summary not found")
+            return {
+                "id": row["id"],
+                "title": row["title"],
+                "call_date": row["call_date"],
+                "duration_seconds": row["duration_seconds"],
+                "summary_text": row["summary_text"],
+                "transcript_json": row["transcript_json"],
+                "created_at": row["created_at"],
+            }
+
+    @app.post("/api/core/call/summaries")
+    def create_call_summary(req: CallSummaryCreate) -> dict:
+        with get_db() as db:
+            cur = db.execute(
+                "INSERT INTO call_summaries (title, call_date, duration_seconds, summary_text, transcript_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (req.title, req.call_date, req.duration_seconds, req.summary_text, req.transcript_json),
+            )
+            db.commit()
+            row = db.execute("SELECT * FROM call_summaries WHERE id = ?", (cur.lastrowid,)).fetchone()
+            return {
+                "id": row["id"],
+                "title": row["title"],
+                "call_date": row["call_date"],
+                "duration_seconds": row["duration_seconds"],
+                "summary_text": row["summary_text"],
+                "transcript_json": row["transcript_json"],
+                "created_at": row["created_at"],
+            }
+
+    @app.put("/api/core/call/summaries/{summary_id}")
+    def rename_call_summary(summary_id: int, req: CallSummaryRename) -> dict:
+        with get_db() as db:
+            row = db.execute("SELECT id FROM call_summaries WHERE id = ?", (summary_id,)).fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Call summary not found")
+            db.execute("UPDATE call_summaries SET title = ? WHERE id = ?", (req.title, summary_id))
+            db.commit()
+            updated = db.execute(
+                "SELECT * FROM call_summaries WHERE id = ?", (summary_id,)
+            ).fetchone()
+            return {
+                "id": updated["id"],
+                "title": updated["title"],
+                "call_date": updated["call_date"],
+                "duration_seconds": updated["duration_seconds"],
+                "summary_text": updated["summary_text"],
+                "transcript_json": updated["transcript_json"],
+                "created_at": updated["created_at"],
+            }
+
+    @app.delete("/api/core/call/summaries/{summary_id}")
+    def delete_call_summary(summary_id: int) -> dict:
+        with get_db() as db:
+            db.execute("DELETE FROM call_summaries WHERE id = ?", (summary_id,))
+            db.commit()
+            return {"ok": True}
 
     # ========================================================
     # Soul / 人格系统

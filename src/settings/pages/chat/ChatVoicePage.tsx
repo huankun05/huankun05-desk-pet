@@ -51,6 +51,15 @@ export function ChatVoicePage() {
     }
   });
 
+  // ---- 通话总结开关 ----
+  const [callSummaryEnabled, setCallSummaryEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('deskpet_call_summary_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
   // ---- TTS 引擎状态 ----
   const [ttsProvider, setTtsProvider] = useState<TTSProvider | null>(null);
   const [voices, setVoices] = useState(FALLBACK_VOICES);
@@ -125,6 +134,15 @@ export function ChatVoicePage() {
     }
   }, []);
 
+  const updateCallSummary = useCallback((value: boolean) => {
+    setCallSummaryEnabled(value);
+    try {
+      localStorage.setItem('deskpet_call_summary_enabled', value ? 'true' : 'false');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // ---- TTS 参数写入 ProviderManager ----
   const handleVoiceChange = (voiceId: string) => {
     setSelectedVoice(voiceId);
@@ -180,6 +198,28 @@ export function ChatVoicePage() {
               <span
                 className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                   ttsEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </SettingRow>
+
+          {/* 通话总结 */}
+          <SettingRow
+            title={t('settings.chat.call_summary', { defaultValue: '通话总结' })}
+            description={t('settings.chat.call_summary_desc', {
+              defaultValue: '语音通话挂断后生成口语化复盘，可在「聊天 → 通话记录」查看与管理',
+            })}
+          >
+            <button
+              type="button"
+              onClick={() => updateCallSummary(!callSummaryEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                callSummaryEnabled ? 'bg-[var(--primary-500)]' : 'bg-neutral-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  callSummaryEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

@@ -33,6 +33,20 @@ import {
 import type { Message } from '../components/Chat/ChatWindow';
 import { mergeSyncedMessage } from './msgSync';
 
+/** 聊天消息发送选项（共享类型，供语音通话等复用，避免函数类型逆变报错） */
+export interface SendMessageOptions {
+  attachments?: Message['attachments'];
+  quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
+  /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡（用于语音通话等） */
+  silent?: boolean;
+}
+
+export type SendMessageFn = (
+  content: string,
+  mode?: 'work' | 'chat',
+  opts?: SendMessageOptions,
+) => Promise<void>;
+
 const log = createLogger('HermesGatewayHook');
 
 const GATEWAY_READY_KEY = 'deskpet_hermes_gateway_enabled';
@@ -174,10 +188,13 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       opts?: {
         attachments?: Message['attachments'];
         quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
+        /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡（用于语音通话等） */
+        silent?: boolean;
       },
     ) => {
       const session = sessionRef.current;
       if (!session) return;
+      const silent = opts?.silent ?? false;
 
       if (isOfflineModeEnabled()) {
         showToast(t('settings.system.offline_mode_hint'), 'warning');
@@ -218,11 +235,13 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           : {}),
         ...(opts?.quoted ? { quoted: opts.quoted } : {}),
       };
-      saveMessage(userMessage);
-      setMessages((prev) => [...prev, userMessage]);
-      // 广播给其他窗口（主窗/面板窗同步同一会话）
-      if (isTauriEnv()) {
-        emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: userMessage }).catch(() => {});
+      if (!silent) {
+        saveMessage(userMessage);
+        setMessages((prev) => [...prev, userMessage]);
+        // 广播给其他窗口（主窗/面板窗同步同一会话）
+        if (isTauriEnv()) {
+          emit(MSG_SYNC_EVENT, { sessionId: session.id, msg: userMessage }).catch(() => {});
+        }
       }
 
       // 占位助手消息：不再提前占位，等首 token 到达后再插入消息，
@@ -275,47 +294,51 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           disabledTools: getDisabledTools(),
           onToken: (token) => {
             if (abortedRef.current) return;
-            if (!placeholderCreated) {
-              appendAssistant(token);
-              currentResponseRef.current = token;
-            } else {
-              currentResponseRef.current += token;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
-                ),
-              );
+            if (!silent) {
+              if (!placeholderCreated) {
+                appendAssistant(token);
+                currentResponseRef.current = token;
+              } else {
+                currentResponseRef.current += token;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
+                  ),
+                );
+              }
             }
             log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
             options?.onToken?.(token);
           },
           onDone: async (fullResponse) => {
             if (abortedRef.current) return;
-            if (!placeholderCreated) {
-              appendAssistant(fullResponse);
-            } else {
-              const finalMsg: Message = {
-                id: assistantId,
-                role: 'assistant',
-                content: fullResponse,
-                timestamp: new Date(),
-              };
-              if (sessionRef.current?.id === session.id) {
-                saveMessage(finalMsg);
-                setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
-              }
-            }
-            // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
-            if (isTauriEnv()) {
-              emit(MSG_SYNC_EVENT, {
-                sessionId: session.id,
-                msg: {
+            if (!silent) {
+              if (!placeholderCreated) {
+                appendAssistant(fullResponse);
+              } else {
+                const finalMsg: Message = {
                   id: assistantId,
                   role: 'assistant',
                   content: fullResponse,
                   timestamp: new Date(),
-                },
-              }).catch(() => {});
+                };
+                if (sessionRef.current?.id === session.id) {
+                  saveMessage(finalMsg);
+                  setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+                }
+              }
+              // 广播最终消息给其他窗口（不随 token 广播，避免事件风暴）
+              if (isTauriEnv()) {
+                emit(MSG_SYNC_EVENT, {
+                  sessionId: session.id,
+                  msg: {
+                    id: assistantId,
+                    role: 'assistant',
+                    content: fullResponse,
+                    timestamp: new Date(),
+                  },
+                }).catch(() => {});
+              }
             }
             setIsLoading(false);
             setIsStreaming(false);

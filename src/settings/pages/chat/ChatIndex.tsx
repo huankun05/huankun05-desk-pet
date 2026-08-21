@@ -47,6 +47,14 @@ export function ChatIndex() {
       }),
       to: '/settings/chat/session',
     },
+    {
+      icon: 'solar:phone-calling-bold-duotone',
+      title: t('settings.chat.call_summaries_title', { defaultValue: '通话记录' }),
+      description: t('settings.chat.call_summaries_desc', {
+        defaultValue: '语音通话的口语化复盘，可查看/搜索/重命名/导出',
+      }),
+      to: '/settings/chat/call-summaries',
+    },
   ];
 
   return (

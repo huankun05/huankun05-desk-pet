@@ -384,6 +384,7 @@ function ChatPanelWindow() {
   // 语音通话（QQ 式）：用到时由网关按需拉起本地 STT/TTS 服务
   const voiceCall = useVoiceCall({
     sendMessage,
+    mode,
     showError: (m) => showToast(m, 'error'),
   });
 
