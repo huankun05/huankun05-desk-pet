@@ -64,6 +64,15 @@ The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanu
 - **待办 2**: 按 `RegistryPlugin` 字段把现有内置插件（久坐提醒、语音助手等，见 `src/services/skills/plugins/`）录入 registry.json。
 - **待办 3**: 可选——增加 registry 版本号/变更检测、离线缓存策略、安装统计上报（现有 `fetchIssueStats` 已接 GitHub Issue reactions）。
 
+## 4b. Follow-up roadmap — docs 定期清理 (2026-08-21 新增)
+
+`docs/` 下存在一次性调研/任务产物，落地后应定期清理，避免误导后续维护：
+
+- **原则**：只维护"仍在演进的活文档"（如本文件、CHANGELOG、emotion/performance/tts/permission 计划）；**过时的临时任务文档不更新、定期归档**。
+- **待办 1（候选归档）**：`architecture-investigation.md`（2026-08-18 架构调研，已标 ✅ 已完成、架构已落地）——属一次性结论，可移入 `docs/archive/`。
+- **待办 2（方式）**：清理采用**移入 `docs/archive/` 归档**（非硬删，保留历史追溯）；执行前先 `git mv` 备份、确认无其它文件引用后再提交。
+- **待办 3（触发）**：用户明确说"清理"时，或定期维护窗口执行；不自动删。
+
 ## 5. Build-environment note
 
 `cargo check` / `tauri dev` can be very slow (~15–20 min) because the Tauri
