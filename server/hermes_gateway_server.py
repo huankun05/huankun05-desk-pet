@@ -547,6 +547,14 @@ _CHAT_HEURISTICS = [
     "今天天气", "好可爱", "好漂亮", "好厉害", "好棒", "谢谢", "感谢", "辛苦",
 ]
 
+# 强工作意图特征：命中则直接判定需要用工作人设（完整工具 + 有条理回复）
+_WORK_HEURISTICS = [
+    "帮我写", "写个", "写一段", "写代码", "写脚本", "代码", "脚本", "bug", "报错", "调试", "编译",
+    "帮我做", "帮我分析", "分析一下", "数据分析", "帮我查", "查资料", "搜一下", "搜索", "调研",
+    "帮我运行", "运行命令", "执行命令", "打开应用", "打开软件", "文件操作", "读文件", "写文件",
+    "总结", "翻译", "生成", "排版", "表格", "报告", "方案", "计划", "整理", "重构", "优化",
+]
+
 
 def _looks_like_pure_chat(text: str) -> bool:
     """规则快路径：极短句或命中纯聊天关键词 → 判定无需工具。"""
@@ -559,31 +567,59 @@ def _looks_like_pure_chat(text: str) -> bool:
     return any(k in low for k in _CHAT_HEURISTICS)
 
 
+def _looks_like_work(text: str) -> bool:
+    """规则快路径：命中强工作意图词 → 判定走工作人设（零额外延迟）。"""
+    low = text.strip().lower()
+    if not low:
+        return False
+    return any(k in low for k in _WORK_HEURISTICS)
+
+
 def _classify_intent(
     engine: "HermesEngine", text: str, all_tool_names: list[str]
-) -> list[str] | None:
-    """自动意图识别：返回应下发给 LLM 的工具子集；None = 全部可用（降级/失败）。
+) -> dict:
+    """自动意图识别：返回结构化结果，让 auto 模式同时自适人设/历史与工具子集。
 
-    设计：规则快路径覆盖大部分闲聊（零延迟）；其余用本地/在线 LLM 做 JSON-mode
-    轻量分类，只挑选与本条消息相关的工具，避免每轮把全部工具塞进 prompt
-    （省 token、降选错率、加快首字）。
+    返回 dict：
+        {
+            "intent": "chat" | "work" | "neutral",  # 决定人设与历史长度
+            "tools":  list[str] | None,             # None = 全部工具（降级）
+            "confidence": float,
+            "source": "rule" | "llm" | "fallback",
+        }
+
+    设计：
+        - 规则快路径覆盖绝大多数闲聊与强工作指令（零额外延迟、零 LLM 调用）。
+        - 其余用本地/在线 LLM 做 JSON-mode 轻量分类，同时判断意图类别与所需工具，
+          避免每轮把全部工具塞进 prompt（省 token、降选错率、加快首字）。
+        - 降级：LLM 不可用/失败 → intent="chat"（聊天人设兜底）+ tools=None（全部工具）。
     """
-    # 规则快路径
+    # 规则快路径 1：纯聊天 → chat 人设、零工具
     if _looks_like_pure_chat(text):
-        return []  # 纯聊天，零工具
+        return {"intent": "chat", "tools": [], "confidence": 1.0, "source": "rule"}
+    # 规则快路径 2：强工作意图 → work 人设（工具由下方 LLM 精挑，规则不抢答）
+    if _looks_like_work(text):
+        # 工作意图仍让 LLM 精挑工具；若 LLM 不可用则下方统一降级
+        pass
 
     try:
         llm = engine._get_llm()
         if llm is None:
-            return None
+            # 无 LLM：强工作词走 work 人设 + 全部工具；其余聊天人设 + 全部工具
+            intent = "work" if _looks_like_work(text) else "chat"
+            return {"intent": intent, "tools": None, "confidence": 0.5, "source": "fallback"}
         tool_list = "\n".join(f"- {n}" for n in all_tool_names)
         sys_prompt = (
-            "你是一个意图分类器。判断用户消息是否需要调用工具来完成，"
-            "以及需要哪些工具。只输出 JSON，不要任何解释。\n"
-            "格式：{\"needs_tools\": bool, \"tools\": [工具名列表], \"confidence\": 0-1}\n"
+            "你是一个意图分类器。判断用户消息的意图类别、是否需要调用工具、以及需要哪些工具。\n"
+            "只输出 JSON，不要任何解释。\n"
+            "格式：{\"intent\": \"chat\"|\"work\"|\"neutral\", \"needs_tools\": bool, "
+            "\"tools\": [工具名列表], \"confidence\": 0-1}\n"
+            "intent 含义：chat=闲聊/情感/陪伴/观点讨论；work=编程/写作/分析/搜索/文件/命令等任务；"
+            "neutral=介于两者之间（用聊天人设即可）。\n"
             "可选工具：\n" + tool_list + "\n"
-            "规则：闲聊/问候/情感交流/观点讨论 → needs_tools=false, tools=[]；"
-            "需要搜索/查时间/文件操作/代码/运行命令/打开应用等 → 选对应工具。"
+            "规则：闲聊/问候/情感交流/观点讨论 → intent=chat, needs_tools=false, tools=[]；"
+            "需要搜索/查时间/文件操作/代码/运行命令/打开应用等 → intent 取 work 或 neutral，"
+            "并选对应工具；若不确定是否需要工具，intent=neutral, needs_tools=false。"
         )
         resp = llm.chat(
             [
@@ -594,7 +630,8 @@ def _classify_intent(
             temperature=0.0,
         )
         if not resp:
-            return None
+            intent = "work" if _looks_like_work(text) else "chat"
+            return {"intent": intent, "tools": None, "confidence": 0.5, "source": "fallback"}
         # 容错：抽取第一个 JSON 块
         raw = resp.strip()
         if "```" in raw:
@@ -604,15 +641,27 @@ def _classify_intent(
         start = raw.find("{")
         end = raw.rfind("}")
         if start == -1 or end == -1:
-            return None
+            intent = "work" if _looks_like_work(text) else "chat"
+            return {"intent": intent, "tools": None, "confidence": 0.5, "source": "fallback"}
         data = json.loads(raw[start : end + 1])
+        intent = data.get("intent", "neutral")
+        if intent not in ("chat", "work", "neutral"):
+            intent = "neutral"
+        # neutral 回落到聊天人设（更轻、更亲切），保持体验一致
+        if intent == "neutral":
+            intent = "chat"
         if not data.get("needs_tools"):
-            return []
+            return {"intent": intent, "tools": [], "confidence": float(data.get("confidence", 0.8)), "source": "llm"}
         picked = [t for t in (data.get("tools") or []) if t in set(all_tool_names)]
-        return picked if picked else None
+        return {
+            "intent": intent,
+            "tools": picked if picked else None,
+            "confidence": float(data.get("confidence", 0.8)),
+            "source": "llm",
+        }
     except Exception as exc:
-        log.warning("[INTENT] 分类失败，降级为全部工具: %s", exc)
-        return None
+        log.warning("[INTENT] 分类失败，降级为聊天人设+全部工具: %s", exc)
+        return {"intent": "chat", "tools": None, "confidence": 0.0, "source": "fallback"}
 
 
 def _resolve_ids(data: dict) -> tuple[str, str]:
@@ -870,14 +919,17 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     _trace("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
 
     if mode == "auto":
-        # 自动意图识别：按本条消息动态决定工具子集（用户无感知切换）
+        # 自动意图识别：按本条消息动态决定【人设/历史】与【工具子集】（用户无感知切换）。
+        # intent 选 MODE_CONFIGS 的人设与历史长度；tools 决定下发给 LLM 的工具白名单。
         all_names = [t.get("name") for t in frontend_tools if t.get("name")] + [
             t.get("name") for t in tool_executor.tool_definitions() if t.get("name")
         ]
         classified = _classify_intent(engine, text, list(dict.fromkeys(all_names)))
-        whitelist = classified  # [] = 零工具；None = 全部
-        _trace("[CHAT][auto] classified tools=%s", whitelist)
-        log.info("[CHAT][auto] intent tools=%s", whitelist)
+        # 人设/历史随意图自适应：chat 用聊天人设(轻、亲切)，work 用工作人设(全工具、有条理)
+        cfg = engine.MODE_CONFIGS.get(classified["intent"], engine.MODE_CONFIGS["chat"])
+        whitelist = classified["tools"]  # [] = 零工具；None = 全部
+        _trace("[CHAT][auto] intent=%s source=%s tools=%s", classified["intent"], classified["source"], whitelist)
+        log.info("[CHAT][auto] intent=%s source=%s tools=%s", classified["intent"], classified["source"], whitelist)
     else:
         whitelist = cfg.get("tool_names", None)
         _trace("[CHAT] whitelist=%s", whitelist)
