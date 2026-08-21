@@ -1,12 +1,14 @@
 /**
- * StreamingTTSController — 流式 TTS 并行合成 + 有序播放控制器
+ * StreamingTTSPlayer — 流式 TTS 渐进式播放器
  *
- * 工作流程：
- * 1. LLM 流式输出期间，句子边界触发 onStreamingTTS 回调，句子入队
- * 2. Pipeline 完成后，并行合成所有收集到的句子
- * 3. 按序投放到 AudioPlayer，实现"边说边生成"
+ * 设计目标：边生成边播，降低「首音延迟 (TTFA)」，让多句回复更快出声。
+ * - push(text)：喂入流式增量文本；自动按句末标点切句，逐句送合成。
+ * - 合成与播放重叠：句子 N 正在播放时，句子 N+1 已在后台合成。
+ * - finish()：标记流式结束，把残留片段作为最后一句合成播放。
+ * - whenDone()：Promise，全部合成并播放完毕时 resolve（供「播完才下一轮」场景）。
  *
- * 借鉴 Open-LLM-VTuber 的 SentenceDivider + TTSTaskManager 模式
+ * 注意：本播放器仅降低「听到第一句的时间」，不改变总音频时长；
+ * 仅对支持流式/逐句合成的引擎（Edge / CosyVoice）有感知收益，极短句收益很小。
  */
 
 import { createLogger } from '../../utils/logger';
@@ -14,123 +16,95 @@ import { synthesizeViaBrain } from '../provider/ttsBackend';
 
 const log = createLogger('StreamingTTS');
 
-interface SentenceJob {
-  seq: number;
-  text: string;
-}
+export type TtsPlayFn = (audio: ArrayBuffer, sampleRate: number) => void | Promise<void>;
 
-interface SynthesisResult {
-  seq: number;
-  audio: ArrayBuffer;
-  sampleRate: number;
-}
+const SENTENCE_END = /[。！？!?；;\n]/;
 
-export class StreamingTTSController {
-  private sentences: SentenceJob[] = [];
-  private seqCounter = 0;
-  private results: Map<number, SynthesisResult> = new Map();
-  private emotion?: string;
+export class StreamingTTSPlayer {
+  private buffer = '';
+  private readyQueue: { audio: ArrayBuffer; sampleRate: number }[] = [];
+  private playing = false;
+  private finished = false;
+  private active = true;
+  private inflight = 0;
+  private playFn: TtsPlayFn;
 
-  /** 设置情感参数 */
-  setup(emotion?: string): void {
-    this.emotion = emotion;
+  constructor(playFn: TtsPlayFn) {
+    this.playFn = playFn;
   }
 
-  /** 是否已配置（不再强依赖 provider 实例） */
-  get isReady(): boolean {
-    return true;
+  /** 喂入增量文本（来自流式 token）。 */
+  push(text: string): void {
+    if (!this.active || !text) return;
+    this.buffer += text;
+    this.extractSentences();
   }
 
-  /** 添加一个完整句子（在 LLM 流式期间调用） */
-  addSentence(text: string): void {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const seq = this.seqCounter++;
-    this.sentences.push({ seq, text: trimmed });
-    log.debug('Sentence collected', { seq, text: trimmed.slice(0, 40) });
-  }
-
-  /** 已收集的句子数量 */
-  get pendingCount(): number {
-    return this.sentences.length;
-  }
-
-  /**
-   * 并行合成所有收集到的句子
-   * 返回按 seq 排序的音频结果数组
-   */
-  async synthesizeAll(): Promise<SynthesisResult[]> {
-    if (this.sentences.length === 0) {
-      return [];
+  private extractSentences(): void {
+    let idx = this.buffer.search(SENTENCE_END);
+    while (idx >= 0) {
+      const sentence = this.buffer.slice(0, idx + 1).trim();
+      this.buffer = this.buffer.slice(idx + 1);
+      if (sentence) this.enqueueSentence(sentence);
+      idx = this.buffer.search(SENTENCE_END);
     }
-
-    log.info('Streaming TTS: 开始并行合成', {
-      count: this.sentences.length,
-      emotion: this.emotion,
-    });
-
-    const ttsStart = performance.now();
-
-    // 并行合成所有句子
-    const promises = this.sentences.map((job) =>
-      this.synthesizeSentence(job).catch((err) => {
-        log.warn('Sentence synthesis failed', { seq: job.seq, text: job.text.slice(0, 40), err });
-        return null;
-      }),
-    );
-
-    const results = await Promise.all(promises);
-    const validResults = results.filter((r): r is SynthesisResult => r !== null);
-
-    const durationMs = Math.round(performance.now() - ttsStart);
-    log.info('Streaming TTS: 合成完成', {
-      total: this.sentences.length,
-      success: validResults.length,
-      durationMs,
-    });
-
-    // 按 seq 排序（并行合成可能乱序完成）
-    validResults.sort((a, b) => a.seq - b.seq);
-
-    // 清空已合成的句子
-    this.sentences = [];
-    this.seqCounter = 0;
-
-    return validResults;
   }
 
-  /**
-   * 合成单个句子
-   */
-  private async synthesizeSentence(job: SentenceJob): Promise<SynthesisResult> {
-    const ttsStart = performance.now();
-    const result = await synthesizeViaBrain(job.text, {
-      emotion: this.emotion,
-    });
-    if (!result) {
-      throw new Error('synthesizeViaBrain returned null');
+  private enqueueSentence(sentence: string): void {
+    void this.synthesize(sentence);
+  }
+
+  private async synthesize(sentence: string): Promise<void> {
+    this.inflight += 1;
+    try {
+      const res = await synthesizeViaBrain(sentence);
+      if (!res) return;
+      this.readyQueue.push({ audio: res.audio, sampleRate: res.sampleRate });
+      this.pump();
+    } catch (e) {
+      log.warn('sentence synthesis failed', e);
+    } finally {
+      this.inflight -= 1;
     }
-
-    const durationMs = Math.round(performance.now() - ttsStart);
-    log.debug('Sentence synthesized', {
-      seq: job.seq,
-      textLen: job.text.length,
-      audioSize: result.audio.byteLength,
-      durationMs,
-    });
-
-    return {
-      seq: job.seq,
-      audio: result.audio,
-      sampleRate: result.sampleRate,
-    };
   }
 
-  /** 重置状态 */
-  reset(): void {
-    this.sentences = [];
-    this.seqCounter = 0;
-    this.results.clear();
+  private pump(): void {
+    if (!this.active || this.playing) return;
+    const next = this.readyQueue.shift();
+    if (!next) return;
+    this.playing = true;
+    Promise.resolve(this.playFn(next.audio, next.sampleRate)).finally(() => {
+      this.playing = false;
+      this.pump();
+    });
+  }
+
+  /** 标记流式结束，把残留文本作为最后一句合成播放。 */
+  finish(): void {
+    this.finished = true;
+    const rem = this.buffer.trim();
+    this.buffer = '';
+    if (rem) this.enqueueSentence(rem);
+  }
+
+  /** 全部合成并播放完毕时 resolve。 */
+  whenDone(): Promise<void> {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (this.finished && !this.playing && this.readyQueue.length === 0 && this.inflight === 0) {
+          resolve();
+        } else {
+          setTimeout(check, 80);
+        }
+      };
+      check();
+    });
+  }
+
+  /** 立即停止（不再播放后续句子）。 */
+  stop(): void {
+    this.active = false;
+    this.readyQueue = [];
+    this.buffer = '';
   }
 }

@@ -14,6 +14,7 @@ import { AudioRecorder } from '../services/audio/recorder';
 import { providerManager } from '../services/provider/manager';
 import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
+import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
 import { getHermesGatewayClient } from '../services/hermesGateway';
 import { type SendMessageFn } from '../hooks/useHermesGateway';
 import { eventBus } from '../services/eventBus';
@@ -21,6 +22,27 @@ import { createCallSummary } from '../services/callSummaries';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceCall');
+
+/** 静音询问节奏：每多少次「静音超时(空音频)」触发一次询问（AudioRecorder 静音阈值 1.5s → 约 7.5s 一次） */
+const EMPTY_PER_INQUIRY = 5;
+/** 最多询问次数，超过则优雅告别并挂断 */
+const MAX_INQUIRIES = 3;
+
+/**
+ * 按尝试次数生成情绪递进的「你在吗」询问文案：
+ * 1 温柔提醒 → 2 略带委屈/小抱怨 → 3 撒娇式「生气」/不舍 → 4 告别。
+ * 当前为离线模板；人设化（傲娇/温柔/活泼差异化）可由 LLM 据角色 personality 生成进一步增强。
+ */
+function buildInquiry(level: number): string {
+  const pools: Record<number, string[]> = {
+    1: ['还在吗？我等你哦~', '诶？人呢？我在这儿呢', '怎么不说话啦，在听吗？'],
+    2: ['人去哪儿啦……又不理我了？', '喂喂，你是不是走神了呀', '你怎么又不说话了，我会难过的诶'],
+    3: ['不理我，那我先挂啦啊，想聊随时找我~', '哼，你都不理我，那我先撤了哦', '再不理我我可真生气了……算了，先挂啦'],
+    4: ['那我先挂啦，想聊了随时喊我~', '好啦不逗你了，我先撤，拜拜~'],
+  };
+  const arr = pools[level] ?? pools[3];
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export type VoiceCallState = 'idle' | 'connecting' | 'incall' | 'listening' | 'speaking' | 'error';
 
@@ -68,6 +90,8 @@ export function useVoiceCall({
   const modeRef = useRef<'work' | 'chat' | undefined>(mode);
   const transcriptRef = useRef<CallTranscriptTurn[]>([]);
   const callStartRef = useRef<number>(0);
+  /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→自动挂断） */
+  const silenceCountRef = useRef(0);
 
   // 同步当前模式（通话轮次透传，使工具行为与打字聊天一致）
   modeRef.current = mode;
@@ -94,36 +118,32 @@ export function useVoiceCall({
     }
   }, []);
 
-  /** 合成并播放宠物语音，返回播放结束的 Promise */
+  /** 合成并播放宠物语音，返回播放结束的 Promise（流式：逐句合成+顺序播，降低首音延迟） */
   const playTts = useCallback((text: string): Promise<void> => {
     return new Promise((resolve) => {
-      synthesizeViaBrain(text)
-        .then((res) => {
-          if (!res) {
-            log.warn('voice call: TTS 后端不可用，跳过回话');
-            resolve();
-            return;
-          }
-          const blob = new Blob([res.audio], { type: 'audio/wav' });
+      if (!text?.trim()) {
+        resolve();
+        return;
+      }
+      const player = new StreamingTTSPlayer((audio, sr) => {
+        return new Promise<void>((res) => {
+          const blob = new Blob([audio], { type: 'audio/wav' });
           const url = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          ttsAudioRef.current = audio;
-          audio.onended = () => {
+          const audioEl = new Audio(url);
+          ttsAudioRef.current = audioEl;
+          const done = () => {
             URL.revokeObjectURL(url);
-            ttsAudioRef.current = null;
-            resolve();
+            if (ttsAudioRef.current === audioEl) ttsAudioRef.current = null;
+            res();
           };
-          audio.onerror = () => {
-            URL.revokeObjectURL(url);
-            ttsAudioRef.current = null;
-            resolve();
-          };
-          return audio.play();
-        })
-        .catch((e) => {
-          log.error('tts synthesize/play failed', e);
-          resolve();
+          audioEl.onended = done;
+          audioEl.onerror = done;
+          audioEl.play().catch(() => res());
         });
+      });
+      player.push(text);
+      player.finish();
+      player.whenDone().then(() => resolve());
     });
   }, []);
 
@@ -215,6 +235,12 @@ export function useVoiceCall({
     if (!activeRef.current) return;
     setCallState('listening');
 
+    // 取消上一轮可能仍在运行的录音器，避免叠加
+    try {
+      recorderRef.current?.cancel();
+    } catch {
+      /* ignore */
+    }
     const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1500 });
     recorderRef.current = rec;
     rec.onAutoStop = async (audio: ArrayBuffer) => {
@@ -223,13 +249,33 @@ export function useVoiceCall({
         const result = await transcribeViaBrain(audio, 'wav');
         const text = result?.text?.trim();
         if (text) {
+          // 用户说话：重置静音计数，正常进入对话
+          silenceCountRef.current = 0;
           transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
           setCallState('speaking');
           // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
           await sendMessage(text, modeRef.current, { silent: true });
+          return;
+        }
+        // 静音超时（未检测到语音）：由静音看门狗驱动询问 → 自动挂断
+        silenceCountRef.current += 1;
+        if (silenceCountRef.current % EMPTY_PER_INQUIRY === 0) {
+          const level = silenceCountRef.current / EMPTY_PER_INQUIRY; // 1,2,3...
+          const line = buildInquiry(Math.min(level, MAX_INQUIRIES + 1));
+          setCallState('speaking');
+          await playTts(line);
+          if (!activeRef.current) return;
+          if (level > MAX_INQUIRIES) {
+            stopCallInternal();
+            return;
+          }
+          startTurn(); // 继续聆听
+        } else if (activeRef.current) {
+          startTurn(); // 尚未到询问间隔，继续聆听
         }
       } catch (e) {
         log.error('stt transcribe failed', e);
+        if (activeRef.current) startTurn();
       }
       // 下一轮聆听由 TTS 播放结束（或异常）后触发，避免抢话
     };
@@ -245,12 +291,13 @@ export function useVoiceCall({
       }
       stopCallInternal();
     }
-  }, [sendMessage, setCallState, showError, stopCallInternal]);
+  }, [sendMessage, setCallState, showError, stopCallInternal, playTts]);
 
   const startCall = useCallback(async () => {
     if (activeRef.current) return;
     activeRef.current = true;
     setSeconds(0);
+    silenceCountRef.current = 0;
     callStartRef.current = Date.now();
     setCallState('connecting');
 

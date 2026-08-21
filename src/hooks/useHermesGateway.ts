@@ -20,6 +20,8 @@ import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { isOfflineModeEnabled } from '../services/provider/watchdog';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
+import { audioPlayer } from '../services/audio/player';
+import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
 import { llmScheduler } from '../services/provider/llmScheduler';
 import { toolRegistry } from '../services/tools/registry';
 import { getDisabledTools } from '../services/tools/toolManagement';
@@ -270,6 +272,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       // 通过 LLM 调度器发送（限制并发，避免 GPU/CPU 瞬间过载）
       const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
+      let ttsStream: StreamingTTSPlayer | null = null;
       log.info(
         '[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d',
         assistantId,
@@ -309,6 +312,15 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
             }
             log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
             options?.onToken?.(token);
+            // 流式 TTS：把 token 增量喂给渐进式播放器（仅聊天回复、且未静音时）
+            if (options?.ttsEnabled && !silent) {
+              if (!ttsStream) {
+                ttsStream = new StreamingTTSPlayer((audio, sr) =>
+                  audioPlayer.enqueue(audio, sr, `tts-${assistantId}`),
+                );
+              }
+              ttsStream.push(token);
+            }
           },
           onDone: async (fullResponse) => {
             if (abortedRef.current) return;
@@ -352,15 +364,13 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
               assistantId,
             );
             if (options?.ttsEnabled && fullResponse.trim()) {
-              try {
-                const result = await synthesizeViaBrain(fullResponse.trim());
-                if (result) {
-                  const { audioPlayer } = await import('../services/audio/player');
-                  audioPlayer.enqueue(result.audio, result.sampleRate, `tts-${assistantId}`);
-                }
-              } catch {
-                // ignore TTS playback errors
+              // 流式 TTS：收尾，把残留文本作为最后一句合成播放
+              if (!ttsStream) {
+                ttsStream = new StreamingTTSPlayer((audio, sr) =>
+                  audioPlayer.enqueue(audio, sr, `tts-${assistantId}`),
+                );
               }
+              ttsStream.finish();
             }
           },
           onError: (error) => {
