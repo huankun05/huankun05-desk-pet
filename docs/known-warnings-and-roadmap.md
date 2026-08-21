@@ -17,6 +17,12 @@ permission system. Updated as items are triaged.
 - **7 compile errors in `local_tools.rs`**: `IAudioEndpointVolume` path
   (`Win32::Media::Audio::Endpoints` + Cargo feature), missing `write_clipboard`,
   `SendInput`/`LockWorkStation`/`LoadXml` signatures.
+- **智能模式（auto）人设/历史随意图自适应** (commit `646c924`, 未推送):
+  原 `_classify_intent` 只挑工具、人设/历史永远回落聊天档。现升级为结构化
+  返回 `{intent, tools, confidence, source}`（规则快路径纯聊天→chat / 强工作词→work
+  + LLM 分类判 intent + 降级 chat/work 人设），`_handle_chat` 用 `intent` 选
+  `MODE_CONFIGS` 人设与历史长度，tools 仍按消息精挑；chat/work 显式档保留为兜底。
+  前端 `ChatModesPage` 文案同步。详见 `CHANGELOG.md` [Unreleased]。
 
 ## 2. Known warnings (non-blocking)
 

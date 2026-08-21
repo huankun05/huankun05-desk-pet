@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **主动消息调度增强**：ProactiveScheduler 支持情绪优先 + 2h 冷却 + 随机兜底；用户发消息重置冷却。
 - **聊天活跃会话路由**：主动消息 `sessionId` 路由到当前活跃会话；`deskpet_active_session_id` localStorage 跨窗口同步。
 - **未读消息徽标**：`ControlsOrb` 右上角展示未读；用户发送消息 +1，打开聊天窗口清空。
+- **智能模式（auto）人设与历史随意图自适应**: 原 `_classify_intent` 只挑工具、人设/历史永远回落聊天档。现升级为返回结构化结果 `{intent, tools, confidence, source}`——规则快路径（纯聊天→chat 人设零工具；强工作词→work 人设）+ LLM 分类（prompt 增 `intent` 字段，neutral 回落 chat）+ 降级（LLM 不可用→chat/work 人设 + 全部工具）。`_handle_chat` 在 auto 模式下用 `intent` 选 `MODE_CONFIGS` 决定系统人设与历史长度，`tools` 仍按消息精挑；chat/work 显式档保留为异常兜底，用户无感。前端 `ChatModesPage` 智能模式说明文案同步：明确"说话方式与人设也随意图切换"。 (`server/hermes_gateway_server.py`, `src/settings/pages/chat/ChatModesPage.tsx`, commit `646c924`)
 
 ### TODO（明日继续）
 
