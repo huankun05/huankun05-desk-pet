@@ -5,15 +5,16 @@ import { isTauriEnv } from '../utils/tauriEnv';
 const MODE_STORAGE_KEY = 'deskpet_mode';
 export const MODE_CHANGED_EVENT = 'mode-changed';
 
-export type AppMode = 'chat' | 'work';
+/** 'auto' = 由后端意图分类器按消息动态决定工具（默认）；'chat'/'work' 为显式固定模式兜底。 */
+export type AppMode = 'auto' | 'chat' | 'work';
 
 /** 从 localStorage 读取模式，带默认值和校验。 */
 function readMode(): AppMode {
   try {
     const m = localStorage.getItem(MODE_STORAGE_KEY);
-    return m === 'work' ? 'work' : 'chat';
+    return m === 'work' || m === 'chat' || m === 'auto' ? m : 'auto';
   } catch {
-    return 'chat';
+    return 'auto';
   }
 }
 

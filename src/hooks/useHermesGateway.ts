@@ -45,7 +45,7 @@ export interface SendMessageOptions {
 
 export type SendMessageFn = (
   content: string,
-  mode?: 'work' | 'chat',
+  mode?: 'auto' | 'work' | 'chat',
   opts?: SendMessageOptions,
 ) => Promise<void>;
 
@@ -88,7 +88,7 @@ export interface HermesGatewayState {
   gatewayReady: boolean;
   sendMessage: (
     content: string,
-    mode?: 'work' | 'chat',
+    mode?: 'auto' | 'work' | 'chat',
     opts?: {
       attachments?: Message['attachments'];
       quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
@@ -186,7 +186,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
   const handleSendMessage = useCallback(
     async (
       content: string,
-      mode?: 'work' | 'chat',
+      mode?: 'auto' | 'work' | 'chat',
       opts?: {
         attachments?: Message['attachments'];
         quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };

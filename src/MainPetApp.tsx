@@ -204,18 +204,7 @@ function MainPetApp() {
   });
 
   const { t } = useTranslation();
-  const { mode, toggleMode } = useMode();
-
-  const handleToggleMode = useCallback(() => {
-    const next = mode === 'chat' ? 'work' : 'chat';
-    toggleMode();
-    showToast(
-      next === 'work'
-        ? t('settings.chat.switch_to_work', { defaultValue: '已切换到工作模式' })
-        : t('settings.chat.switch_to_chat', { defaultValue: '已切换到聊天模式' }),
-      'success',
-    );
-  }, [mode, toggleMode, t]);
+  const { mode } = useMode();
 
   const showBubble = useCallback((text: string, duration?: number) => {
     const raw = localStorage.getItem(APPEARANCE_KEYS.bubbleDuration);
@@ -285,6 +274,11 @@ function MainPetApp() {
   });
 
   const { toggleChatPanel, openSettingsPanel, openControlsOrb } = usePanelWindows();
+
+  // 点击托盘/快捷键的"模式"项 → 打开设置页的「智能模式」说明（不再手动切换）
+  const handleOpenModePage = useCallback(() => {
+    openSettingsPanel();
+  }, [openSettingsPanel]);
 
   // "一起看"模式：Ctrl+Shift+S 触发
   const { isWatching, toggleWatch } = useWatchTogether({
@@ -962,7 +956,7 @@ function MainPetApp() {
           toggleTransform();
           break;
         case 'mode':
-          handleToggleMode();
+          handleOpenModePage();
           break;
         case 'fade':
           toggleFadeOnHover();
@@ -990,7 +984,7 @@ function MainPetApp() {
     toggleChatPanel,
     handleToggleLive2D,
     toggleTransform,
-    handleToggleMode,
+    handleOpenModePage,
     toggleFadeOnHover,
     toggleLock,
     handleClose,
@@ -1004,7 +998,7 @@ function MainPetApp() {
       petVisible: appearance.petVisible,
       isLocked,
       isTransforming,
-      mode,
+      mode: mode === 'work' ? 'work' : 'chat',
       fadeOnHover,
       currentModelId,
       availableModels,
@@ -1029,7 +1023,7 @@ function MainPetApp() {
         petVisible: appearance.petVisible,
         isLocked,
         isTransforming,
-        mode,
+        mode: mode === 'work' ? 'work' : 'chat',
         fadeOnHover,
         currentModelId,
         availableModels,

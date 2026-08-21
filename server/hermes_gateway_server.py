@@ -535,6 +535,86 @@ def _filter_tools(
     return [t for t in tools if t.get("name") in allowed_set]
 
 
+# 纯聊天特征：命中则直接判定无需工具，跳过分类器调用（零额外延迟）
+_CHAT_HEURISTICS = [
+    # 问候 / 礼貌
+    "你好", "您好", "hi", "hello", "嗨", "在吗", "在么", "早", "晚安", "午安", "拜拜", "再见", "辛苦了",
+    # 情感 / 陪伴
+    "想你", "喜欢", "爱你", "难过", "开心", "不开心", "生气", "委屈", "孤单", "陪我", "抱抱", "摸摸",
+    "烦", "累", "饿", "困", "无聊", "郁闷", "压力大", "焦虑", "失眠",
+    # 闲聊 / 观点
+    "你觉得", "你认为", "怎么看", "是不是", "对不对", "哈哈", "嘻嘻", "嘿嘿", "呜呜", "唔", "嗯", "哦",
+    "今天天气", "好可爱", "好漂亮", "好厉害", "好棒", "谢谢", "感谢", "辛苦",
+]
+
+
+def _looks_like_pure_chat(text: str) -> bool:
+    """规则快路径：极短句或命中纯聊天关键词 → 判定无需工具。"""
+    low = text.strip().lower()
+    if not low:
+        return True
+    # 极短（<=6 字符，如"在吗""哈哈""嗯"）且非明显指令
+    if len(low) <= 6 and not any(k in low for k in ["帮我", "打开", "查", "写", "做", "搜", "运行", "执行"]):
+        return True
+    return any(k in low for k in _CHAT_HEURISTICS)
+
+
+def _classify_intent(
+    engine: "HermesEngine", text: str, all_tool_names: list[str]
+) -> list[str] | None:
+    """自动意图识别：返回应下发给 LLM 的工具子集；None = 全部可用（降级/失败）。
+
+    设计：规则快路径覆盖大部分闲聊（零延迟）；其余用本地/在线 LLM 做 JSON-mode
+    轻量分类，只挑选与本条消息相关的工具，避免每轮把全部工具塞进 prompt
+    （省 token、降选错率、加快首字）。
+    """
+    # 规则快路径
+    if _looks_like_pure_chat(text):
+        return []  # 纯聊天，零工具
+
+    try:
+        llm = engine._get_llm()
+        if llm is None:
+            return None
+        tool_list = "\n".join(f"- {n}" for n in all_tool_names)
+        sys_prompt = (
+            "你是一个意图分类器。判断用户消息是否需要调用工具来完成，"
+            "以及需要哪些工具。只输出 JSON，不要任何解释。\n"
+            "格式：{\"needs_tools\": bool, \"tools\": [工具名列表], \"confidence\": 0-1}\n"
+            "可选工具：\n" + tool_list + "\n"
+            "规则：闲聊/问候/情感交流/观点讨论 → needs_tools=false, tools=[]；"
+            "需要搜索/查时间/文件操作/代码/运行命令/打开应用等 → 选对应工具。"
+        )
+        resp = llm.chat(
+            [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": text},
+            ],
+            max_tokens=256,
+            temperature=0.0,
+        )
+        if not resp:
+            return None
+        # 容错：抽取第一个 JSON 块
+        raw = resp.strip()
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start == -1 or end == -1:
+            return None
+        data = json.loads(raw[start : end + 1])
+        if not data.get("needs_tools"):
+            return []
+        picked = [t for t in (data.get("tools") or []) if t in set(all_tool_names)]
+        return picked if picked else None
+    except Exception as exc:
+        log.warning("[INTENT] 分类失败，降级为全部工具: %s", exc)
+        return None
+
+
 def _resolve_ids(data: dict) -> tuple[str, str]:
     """从消息体中解析 character_id / user_id（缺省 default）。"""
     return (data.get("character_id") or "default", data.get("user_id") or "default")
@@ -775,7 +855,9 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
         return
     msg_id = data.get("id", f"msg_{time.time()}")
     t_chat_start = time.time()
-    mode = data.get("mode", "chat")
+    # 默认 auto：由意图分类器按消息动态决定工具子集（用户无感知切换）。
+    # 仍支持显式 'chat'/'work'（走 MODE_CONFIGS 固定白名单，作为可控兜底）。
+    mode = data.get("mode", "auto")
     frontend_tools = data.get("frontend_tools", []) or []
 
     log.info("[CHAT] start id=%s mode=%s text=%s", msg_id, mode, text[:120])
@@ -787,8 +869,18 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     log.info("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
     _trace("[CHAT] frontend_tools=%s disabled=%s", [t.get("name") for t in frontend_tools], list(disabled))
 
-    whitelist = cfg.get("tool_names", None)
-    _trace("[CHAT] whitelist=%s", whitelist)
+    if mode == "auto":
+        # 自动意图识别：按本条消息动态决定工具子集（用户无感知切换）
+        all_names = [t.get("name") for t in frontend_tools if t.get("name")] + [
+            t.get("name") for t in tool_executor.tool_definitions() if t.get("name")
+        ]
+        classified = _classify_intent(engine, text, list(dict.fromkeys(all_names)))
+        whitelist = classified  # [] = 零工具；None = 全部
+        _trace("[CHAT][auto] classified tools=%s", whitelist)
+        log.info("[CHAT][auto] intent tools=%s", whitelist)
+    else:
+        whitelist = cfg.get("tool_names", None)
+        _trace("[CHAT] whitelist=%s", whitelist)
 
     # Persist user message
     engine.append_message("user", text)

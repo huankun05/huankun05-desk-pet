@@ -26,6 +26,7 @@ import { useHermesGateway } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { useMode } from '../../hooks/useMode';
+import { usePanelWindows } from '../../hooks/usePanelWindows';
 import { BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 import { registerGatewayToolExecutor } from '../../services/tools/executor';
 import { registerBuiltinTools } from '../../services/tools/builtins';
@@ -337,7 +338,8 @@ function ChatPanelWindow() {
     }
     return 0;
   });
-  const { mode, toggleMode } = useMode();
+  const { mode } = useMode();
+  const { openSettingsPanel } = usePanelWindows();
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem('deskpet_tts_enabled') !== 'false';
@@ -384,7 +386,7 @@ function ChatPanelWindow() {
   // 语音通话（QQ 式）：用到时由网关按需拉起本地 STT/TTS 服务
   const voiceCall = useVoiceCall({
     sendMessage,
-    mode,
+    mode: 'auto',
     showError: (m) => showToast(m, 'error'),
   });
 
@@ -910,14 +912,6 @@ function ChatPanelWindow() {
     setSessions(listSessions());
   }, [activeSessionId, loadSession, resetContextDisplay]);
 
-  // 模式切换：写入 localStorage + 一次弹跳动画作为明确反馈
-  const [modePop, setModePop] = useState(false);
-  const handleToggleMode = useCallback(() => {
-    toggleMode();
-    setModePop(true);
-    setTimeout(() => setModePop(false), 280);
-  }, [toggleMode]);
-
   const handleToggleTts = useCallback(() => {
     setTtsEnabled((prev) => {
       const next = !prev;
@@ -1237,22 +1231,16 @@ function ChatPanelWindow() {
             </span>
           </div>
 
-          {/* 右侧：工具图标（精简分组） */}
+          {/* 智能模式指示（点击查看说明，不再手动切换） */}
           <button
             type="button"
-            onClick={handleToggleMode}
-            className={`chat-chip ${mode === 'work' ? 'chat-chip--active' : ''}${
-              modePop ? ' chat-chip--pop' : ''
-            }`}
-            title={mode === 'work' ? '切换到聊天模式' : '切换到工作模式'}
+            onClick={() => openSettingsPanel()}
+            className="chat-chip chat-chip--active"
+            title="智能模式：自动识别意图，无需手动切换"
             style={{ fontSize: '10px', padding: '2px 8px' }}
           >
-            <Icon
-              icon={mode === 'work' ? 'solar:case-minimalistic-bold' : 'solar:chat-round-bold'}
-              width={11}
-              height={11}
-            />
-            {mode === 'work' ? '工作' : '聊天'}
+            <Icon icon="solar:magic-stick-3-bold" width={11} height={11} />
+            智能
           </button>
 
           <BarButton

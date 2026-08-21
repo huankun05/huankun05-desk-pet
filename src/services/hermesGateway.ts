@@ -22,7 +22,7 @@ const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
 export interface HermesGatewayCallbacks {
-  mode?: 'work' | 'chat';
+  mode?: 'auto' | 'work' | 'chat';
   /** 可执行的前端工具 schema，Gateway 可据此发起 tool:execute */
   frontendTools?: Array<Record<string, unknown>>;
   /** 被用户在「工具管理」中禁用的工具名（前端 + 后端），Gateway 会剔除它们 */
@@ -156,7 +156,7 @@ export class HermesGatewayClient {
   }
 
   /** 发送聊天消息 */
-  sendChat(text: string, callbacks?: HermesGatewayCallbacks, mode?: 'work' | 'chat'): string {
+  sendChat(text: string, callbacks?: HermesGatewayCallbacks, mode?: 'auto' | 'work' | 'chat'): string {
     const msgId = `msg_${++this.messageIdCounter}_${Date.now()}`;
     const payload: Record<string, unknown> = { type: 'chat', text, id: msgId };
     // 携带当前活跃角色 id，确保对话记忆注入与设置页处于同一作用域（否则规则/偏好不会被注入）

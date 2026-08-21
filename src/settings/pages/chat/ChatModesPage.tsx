@@ -18,6 +18,15 @@ const BACKEND_DESC: Record<string, string> = {
 
 /** 模式元数据（静态描述） */
 const MODE_META: Record<AppMode, { icon: string; features: string[] }> = {
+  auto: {
+    icon: 'solar:magic-stick-3-bold',
+    features: [
+      '自动识别意图，无需手动切换',
+      '闲聊时零工具、最快最省',
+      '需要查资料/操作文件时自动调用对应工具',
+      '中途从聊天切到工作也完全无感',
+    ],
+  },
   chat: {
     icon: 'fluent:chat-24-regular',
     features: [
@@ -47,10 +56,8 @@ interface ToolView {
 export function ChatModesPage() {
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { mode, setMode, isWorkMode } = useMode();
+  const { mode, isWorkMode } = useMode();
 
-  // 用于平滑过渡动画
-  const [animating, setAnimating] = useState(false);
   const [modeTools, setModeTools] = useState<ModeToolsInfo | null>(null);
 
   useEffect(() => {
@@ -60,19 +67,6 @@ export function ChatModesPage() {
       .then(setModeTools)
       .catch(() => setModeTools(null));
   }, []);
-
-  const handleSwitch = (next: AppMode) => {
-    if (next === mode) return;
-    setAnimating(true);
-    setMode(next);
-    setTimeout(() => setAnimating(false), 300);
-    showToast(
-      next === 'work'
-        ? t('settings.chat.switch_to_work', { defaultValue: '已切换到工作模式' })
-        : t('settings.chat.switch_to_chat', { defaultValue: '已切换到聊天模式' }),
-      'success',
-    );
-  };
 
   const currentMeta = MODE_META[mode];
 
@@ -97,8 +91,9 @@ export function ChatModesPage() {
       }));
 
     const all = [...frontend, ...backend, ...mcp];
-    const whitelist = mode === 'chat' ? modeTools?.chat : modeTools?.work;
-    if (!whitelist) return all; // work = 全部
+    // auto / work = 全部工具；chat = 仅轻量子集
+    const whitelist = mode === 'chat' ? modeTools?.chat : null;
+    if (!whitelist) return all;
     const set = new Set(whitelist);
     return all.filter((x) => set.has(x.name));
   })();
@@ -111,51 +106,31 @@ export function ChatModesPage() {
 
   return (
     <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
-      {/* 模式选择区 */}
+      {/* 智能模式说明 */}
       <Section
-        title={t('settings.chat.modes_title', { defaultValue: '模式' })}
-        description={t('settings.chat.modes_desc', { defaultValue: '工作模式/聊天模式切换' })}
+        title={t('settings.chat.modes_title', { defaultValue: '智能模式' })}
+        description={t('settings.chat.modes_desc', {
+          defaultValue: '自动识别你的意图，无需手动切换聊天/工作',
+        })}
       >
         <div className="space-y-3 p-4">
-          {/* 聊天模式 */}
-          <SettingRow
-            title={t('settings.chat.mode_chat', { defaultValue: '聊天模式' })}
-            description={t('settings.chat.mode_chat_desc', {
-              defaultValue: '轻量对话，仅启用联网/时间等少量工具',
+          <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-4">
+            <p className="text-sm font-semibold text-neutral-800">
+              {t('settings.chat.auto_mode_badge', { defaultValue: '● 已启用智能模式' })}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-neutral-600">
+              {t('settings.chat.auto_mode_desc', {
+                defaultValue:
+                  '角色会根据你每条消息自动判断：闲聊时零工具、最快最省；需要查资料/操作文件/运行命令时自动调用对应工具。中途从聊天切到工作也无需手动切换，完全无感。',
+              })}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-500">
+            {t('settings.chat.auto_mode_fallback', {
+              defaultValue:
+                '仍可在代码中显式指定 chat / work 作为固定模式兜底；默认即为智能模式。',
             })}
-          >
-            <button
-              type="button"
-              onClick={() => handleSwitch('chat')}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
-                mode === 'chat'
-                  ? 'bg-[var(--primary-500)] text-white shadow-sm'
-                  : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              {t('settings.chat.mode_chat', { defaultValue: '聊天模式' })}
-            </button>
-          </SettingRow>
-
-          {/* 工作模式 */}
-          <SettingRow
-            title={t('settings.chat.mode_work', { defaultValue: '工作模式' })}
-            description={t('settings.chat.mode_work_desc', {
-              defaultValue: '完整能力，允许全部工具调用，上下文更长',
-            })}
-          >
-            <button
-              type="button"
-              onClick={() => handleSwitch('work')}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
-                mode === 'work'
-                  ? 'bg-[var(--primary-500)] text-white shadow-sm'
-                  : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              {t('settings.chat.mode_work', { defaultValue: '工作模式' })}
-            </button>
-          </SettingRow>
+          </div>
         </div>
       </Section>
 
@@ -168,8 +143,8 @@ export function ChatModesPage() {
       >
         <div
           className={`mx-4 mb-4 rounded-xl border p-4 transition-all duration-300 ${
-            animating ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-          } ${mode === 'work' ? 'border-blue-200 bg-blue-50/50' : 'border-pink-200 bg-pink-50/50'}`}
+            mode === 'work' ? 'border-blue-200 bg-blue-50/50' : 'border-pink-200 bg-pink-50/50'
+          }`}
         >
           <div className="flex items-center gap-3">
             {/* 模式图标 + 名称 */}
@@ -230,7 +205,7 @@ export function ChatModesPage() {
           {/* 本模式可用工具清单 */}
           <div className="mt-4 border-t border-neutral-200/70 pt-3">
             <p className="mb-2 text-xs font-medium text-neutral-700">
-              {t('settings.chat.mode_tools_title', { defaultValue: '本模式可用工具' })}
+              {t('settings.chat.mode_tools_title', { defaultValue: '全部可用工具' })}
               <span className="ml-1 text-neutral-400">（{availableTools.length}）</span>
             </p>
             {availableTools.length === 0 ? (

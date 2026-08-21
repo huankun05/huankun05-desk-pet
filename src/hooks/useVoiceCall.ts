@@ -50,7 +50,7 @@ export interface UseVoiceCallOptions {
   /** 发送消息到聊天（含 LLM + 工具 + 气泡渲染） */
   sendMessage: SendMessageFn;
   /** 当前聊天模式（工作/聊天），通话轮次透传，工具行为与打字聊天一致 */
-  mode?: 'work' | 'chat';
+  mode?: 'auto' | 'work' | 'chat';
   /** 通话状态变化回调（用于 UI） */
   onStateChange?: (s: VoiceCallState) => void;
   /** 错误提示 */
@@ -87,7 +87,7 @@ export function useVoiceCall({
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceStartResolveRef = useRef<((ok: boolean) => void) | null>(null);
-  const modeRef = useRef<'work' | 'chat' | undefined>(mode);
+  const modeRef = useRef<'auto' | 'work' | 'chat' | undefined>(mode);
   const transcriptRef = useRef<CallTranscriptTurn[]>([]);
   const callStartRef = useRef<number>(0);
   /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→自动挂断） */
