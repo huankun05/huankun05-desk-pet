@@ -17,6 +17,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { transcribeViaBrain } from '../services/provider/sttBackend';
 import { createLogger } from '../utils/logger';
+import { eventBus } from '../services/eventBus';
 
 const log = createLogger('VoiceAssistant');
 
@@ -91,6 +92,8 @@ export function useVoiceAssistant({
 
       log.info('Recognized text', { text: trimmed, length: trimmed.length });
       showBubble(`🎤 ${trimmed}`, 3500);
+      // 顶部刘海字幕：显示识别出的用户语句（recognized 态）
+      eventBus.emit('subtitle:update', { phase: 'recognized', text: trimmed });
       updateState('processing');
 
       try {
@@ -132,6 +135,8 @@ export function useVoiceAssistant({
     updateState('listening');
     setListeningEmotion?.();
     showBubble('正在聆听...', 2000);
+    // 顶部刘海字幕：进入聆听态
+    eventBus.emit('subtitle:update', { phase: 'listening', text: '正在聆听…' });
 
     try {
       await recorder.start();
@@ -163,8 +168,10 @@ export function useVoiceAssistant({
       return;
     }
 
-    updateState('recognizing');
-    showBubble('识别中...', 2000);
+      updateState('recognizing');
+      showBubble('识别中...', 2000);
+      // 顶部刘海字幕：识别中
+      eventBus.emit('subtitle:update', { phase: 'listening', text: '识别中…' });
 
     try {
       const audioBuffer = await recorder.stop();

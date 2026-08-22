@@ -50,6 +50,14 @@ type EventMap = {
   'hermes:error': { message: string; msgId?: string };
   'hermes:voice': Record<string, unknown>;
   'hermes:skill': { command: string; args: string; behaviorEvent: string };
+  // 顶部刘海字幕层事件（唤醒/聊天回复/语音通话 全场景共用）
+  // phase: 'listening' 识别中(partial) | 'recognized' 识别完成 | 'speaking' 角色回复(流式)
+  'subtitle:update': {
+    phase: 'listening' | 'recognized' | 'speaking' | 'idle';
+    text: string;
+    /** 声波振幅 0~1（listening/speaking 时驱动律动），缺省由文本长度估算 */
+    amplitude?: number;
+  };
   // Service Watchdog events
   'service:recovered': { name: string; port: number };
   'service:restart:request': { name: string; port: number };

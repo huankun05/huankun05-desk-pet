@@ -8,6 +8,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import i18n from './i18n';
 import { Live2DViewer } from './components/Pet/Live2DViewer';
 import { ChatBubble } from './components/Bubble/ChatBubble';
+import { SubtitleNotch } from './components/Pet/SubtitleNotch';
 import {
   type ControlsStatePayload,
   type ControlsActionPayload,
@@ -52,6 +53,7 @@ import ConsentGate from './components/ConsentGate';
 import { permissionManager } from './services/permission/PermissionManager';
 import { useBrainBridge } from './hooks/useBrainBridge';
 import { isPointOverCharacter } from './lib/live2d';
+import { triggerAnimation } from './lib/live2d/lappdelegate';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
 import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
@@ -316,10 +318,17 @@ function MainPetApp() {
     voiceStateRef.current = voiceState;
   }, [voiceState]);
 
+  // 唤醒瞬间的视觉反馈：惊喜表情 + 唤醒动作（招手/身体前倾），形成「惊喜→聆听」过渡
+  const wakeVisual = useCallback(() => {
+    setEmotionFromResponse('surprised');
+    triggerAnimation('wake');
+  }, [setEmotionFromResponse]);
+
   // 语音唤醒词"汐月"：检测到后自动触发语音助手
   useWakeWord({
     showBubble,
     onWake: () => wake(),
+    onWakeVisual: wakeVisual,
     isVoiceAssistantActive: () => voiceStateRef.current !== 'idle',
   });
 
@@ -1107,6 +1116,9 @@ function MainPetApp() {
           <ChatBubble message={bubble} onComplete={() => setBubble(null)} />
         </div>
       )}
+
+      {/* 顶部中央「刘海位」字幕 + 声波层（唤醒/聊天回复/语音通话全场景共用） */}
+      <SubtitleNotch />
 
       {/* 权限确认卡（工具执行前的授权弹窗） */}
       <ConsentGate />

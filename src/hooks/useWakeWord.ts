@@ -83,6 +83,8 @@ export interface UseWakeWordOptions {
   showBubble: (text: string, duration?: number) => void;
   /** 触发语音助手（检测到唤醒词后调用） */
   onWake: () => void;
+  /** 唤醒瞬间触发的视觉反馈（表情+动作），在 onWake 之前调用 */
+  onWakeVisual?: () => void;
   /** 检查语音助手是否活跃（活跃时暂停唤醒词监听） */
   isVoiceAssistantActive: () => boolean;
 }
@@ -103,6 +105,7 @@ export interface UseWakeWordReturn {
 export function useWakeWord({
   showBubble,
   onWake,
+  onWakeVisual,
   isVoiceAssistantActive,
 }: UseWakeWordOptions): UseWakeWordReturn {
   const [state, setState] = useState<WakeWordState>('idle');
@@ -156,10 +159,16 @@ export function useWakeWord({
       ? configRef.current.responses
       : DEFAULT_CONFIG.responses;
     const picked = responses[Math.floor(Math.random() * responses.length)];
+    // 唤醒瞬间的视觉反馈（惊喜表情 + 动作），先于语音助手进入聆听态
+    try {
+      onWakeVisual?.();
+    } catch (err) {
+      log.warn('onWakeVisual failed (non-fatal)', { err });
+    }
     showBubble(picked, 1500);
     playResponse(picked);
     onWake();
-  }, [showBubble, playResponse, onWake, isVoiceAssistantActive]);
+  }, [showBubble, playResponse, onWake, onWakeVisual, isVoiceAssistantActive]);
 
   /** 下载模型 */
   const downloadModel = useCallback(async (onProgress?: (d: number, t: number) => void) => {

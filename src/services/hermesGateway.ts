@@ -62,6 +62,8 @@ export class HermesGatewayClient {
   private reconnectAttempt = 0;
   private messageQueue: string[] = [];
   private pendingCallbacks: Map<string, HermesGatewayCallbacks> = new Map();
+  /** 流式回复累积文本（按 msgId 隔离），用于驱动顶部刘海字幕 */
+  private streamingText: Map<string, string> = new Map();
   private messageIdCounter = 0;
   /** 记忆请求的 Promise 登记表（按 req_id 解析） */
   private pendingMemory: Map<
@@ -411,6 +413,12 @@ export class HermesGatewayClient {
       const msgId = (data.id as string) || '';
       const cb = msgId ? this.pendingCallbacks.get(msgId) : undefined;
       cb?.onToken?.(token);
+      // 累积全文并驱动顶部刘海字幕（speaking 态）
+      if (msgId) {
+        const acc = (this.streamingText.get(msgId) || '') + token;
+        this.streamingText.set(msgId, acc);
+        eventBus.emit('subtitle:update', { phase: 'speaking', text: acc });
+      }
       // 也通过事件总线广播
       eventBus.emit('hermes:token', { token, msgId });
       return;
@@ -421,14 +429,20 @@ export class HermesGatewayClient {
       const msgId = (data.id as string) || '';
       const cb = msgId ? this.pendingCallbacks.get(msgId) : undefined;
       cb?.onDone?.(fullResponse);
-      if (msgId) this.pendingCallbacks.delete(msgId);
+      if (msgId) {
+        this.pendingCallbacks.delete(msgId);
+        this.streamingText.delete(msgId);
+      }
       // 兼容旧网关：未携带 id 时回退通知所有活跃 callback
       if (!msgId) {
         for (const [, c] of this.pendingCallbacks) {
           c?.onDone?.(fullResponse);
         }
         this.pendingCallbacks.clear();
+        this.streamingText.clear();
       }
+      // 顶部刘海字幕：回复结束，淡出隐藏
+      eventBus.emit('subtitle:update', { phase: 'idle', text: '' });
       eventBus.emit('hermes:done', { fullResponse, msgId });
       return;
     }
@@ -451,7 +465,10 @@ export class HermesGatewayClient {
           c?.onError?.(message);
         }
         this.pendingCallbacks.clear();
+        this.streamingText.clear();
       }
+      // 顶部刘海字幕：出错时也淡出隐藏
+      eventBus.emit('subtitle:update', { phase: 'idle', text: '' });
       eventBus.emit('hermes:error', { message, msgId });
       return;
     }

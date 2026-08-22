@@ -234,6 +234,8 @@ export function useVoiceCall({
   const startTurn = useCallback(async () => {
     if (!activeRef.current) return;
     setCallState('listening');
+    // 顶部刘海字幕：通话聆听态
+    eventBus.emit('subtitle:update', { phase: 'listening', text: '正在聆听…' });
 
     // 取消上一轮可能仍在运行的录音器，避免叠加
     try {
@@ -252,6 +254,8 @@ export function useVoiceCall({
           // 用户说话：重置静音计数，正常进入对话
           silenceCountRef.current = 0;
           transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
+          // 顶部刘海字幕：显示用户说的（recognized 态）
+          eventBus.emit('subtitle:update', { phase: 'recognized', text });
           setCallState('speaking');
           // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
           await sendMessage(text, modeRef.current, { silent: true });
