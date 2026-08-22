@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **紧急停止 Kill Switch + 快捷键提示（#19 收尾）**: `shortcuts.rs` 默认快捷键新增 `Ctrl+Shift+X → shortcut-kill`；`useGlobalShortcuts` 加 `onKill` 监听——触发时 `cancelVoice()` 中断录音/播放 + `eventBus.emit('tool:abort')`（待 #33 工具循环接入）+ 角色气泡提示。唤醒词设置页快捷键说明同步。 (`src-tauri/src/shortcuts.rs`, `src/hooks/useGlobalShortcuts.ts`, `src/MainPetApp.tsx`, commit `7d86716`)
 - **主动消息 TTS 朗读开关（#20）**: 主动聊天/问候此前只显示气泡、不朗读。现 `BehaviorConfig` 新增 `proactiveTts`（默认 `false`，避免升级后突然出声）；`MainPetApp` 的 `proactiveScheduler.onTrigger` 在生成文本后，若开关开启则调 `synthesizeViaBrain(text)` + `audioPlayer.enqueue(...)` 用语音播报（复用 `useWakeWord` 的离线合成模式，`synthesizeViaBrain` 无 provider/未就绪时返回 `null` 安全降级）。设置页「角色行为 → 智能闲聊」下方新增「主动消息朗读」开关，i18n `settings.models.proactive_tts` 中英文同步。 (`src/services/behavior/behaviorConfig.ts`, `src/MainPetApp.tsx`, `src/settings/pages/models/BehaviorPage.tsx`, `src/i18n/locales/zh-CN.json`, `src/i18n/locales/en-US.json`)
 
+- **预制台词单条配音重生成（#21 增强）**: 此前某条配音生成异常 / 想换声，只能改文字触发或「重新生成全部」全量重做。现 `InteractTTS` 新增 `regenerate(text)`——先清掉该文本的内存缓存 + IndexedDB + 磁盘镜像，再用当前活跃 TTS 引擎重新合成落盘，不影响其它台词；设置页「模型 → 交互消息」的点击反馈 / 闲聊消息每条新增「重新生成配音」按钮（🔄），点击后单独重做该条并提示结果。 (`src/services/audio/interact-tts.ts`, `src/settings/pages/models/InteractionPage.tsx`)
+
 ### TODO（功能完成度清单 — 供逐项目测对照）
 
 > 本地提交均未推送（最新 #20 `58bb1dc`、#21 核实本轮）。以下按模块列出已完成 / 待测试 / 待做，测试通过后可逐项勾掉。

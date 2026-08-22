@@ -399,6 +399,43 @@ export class InteractTTS {
     }
   }
 
+  /**
+   * 强制重新生成单条文本的音频（覆盖已有缓存 / IndexedDB / 磁盘镜像）。
+   * 用于「某条配音生成异常 / 想换声 / 文件损坏」时单独重做，不影响其它台词。
+   * 与 ensureAudio 不同：ensureAudio 命中旧缓存即跳过，本方法总是先清旧再合成。
+   * @returns 是否成功生成
+   */
+  async regenerate(text: string): Promise<boolean> {
+    const t = (text ?? '').trim();
+    if (!t) return false;
+    this.ensureInitialized();
+    if (!this.enabled || !this.provider) {
+      log.warn('regenerate: TTS 未启用或无 Provider');
+      return false;
+    }
+    // 1. 清掉旧记录（内存 + IndexedDB + 磁盘），否则会被命中跳过
+    this.cache.delete(t);
+    idbDelete(t).catch(() => undefined);
+    try {
+      await deleteAudioFile(`${INTERACT_AUDIO_DIR}/${audioFileNameOf(t)}`);
+    } catch {
+      /* ignore */
+    }
+    // 2. 重新合成并落盘
+    try {
+      const result = await synthesizeViaBrain(t);
+      if (!result) {
+        log.warn('regenerate: 后端不可用', { text: t.slice(0, 30) });
+        return false;
+      }
+      this.setCache(t, result.audio, result.sampleRate);
+      return true;
+    } catch (err) {
+      log.warn('regenerate 合成失败', { text: t.slice(0, 30), err });
+      return false;
+    }
+  }
+
   /** 获取缓存状态 */
   getStats(): { size: number; ready: boolean; generating: boolean } {
     return {

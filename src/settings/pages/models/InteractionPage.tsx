@@ -264,6 +264,20 @@ export function InteractionPage() {
     }, 800);
   }, []);
 
+  /** 单独重新生成某条台词的配音（覆盖旧缓存/磁盘，不影响其它台词） */
+  const regenerateSingle = useCallback(
+    async (text: string) => {
+      const t = (text ?? '').trim();
+      if (!t) return;
+      const ok = await interactTTS.regenerate(t);
+      showToast(
+        ok ? '已重新生成该条配音' : '重新生成失败，请检查 TTS 引擎是否可用',
+        ok ? 'success' : 'error',
+      );
+    },
+    [showToast],
+  );
+
   // 获取实际使用的互动消息（自定义 > 默认）
   // 获取实际使用的互动消息（后端 > 默认）
   const getInteractMessages = useCallback(
@@ -667,6 +681,14 @@ export function InteractionPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => void regenerateSingle(msg)}
+                            title="重新生成配音"
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-amber-100 text-amber-400 transition-colors hover:bg-amber-50 hover:text-amber-500"
+                          >
+                            <Icon icon="solar:refresh-circle-bold" className="text-sm" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => removeInteractMessage(key, i)}
                             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-red-100 text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
                           >
@@ -759,6 +781,14 @@ export function InteractionPage() {
                             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-green-100 text-green-400 transition-colors hover:bg-green-50 hover:text-green-500"
                           >
                             <Icon icon="solar:play-bold" className="text-sm" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void regenerateSingle(msg)}
+                            title="重新生成配音"
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-amber-100 text-amber-400 transition-colors hover:bg-amber-50 hover:text-amber-500"
+                          >
+                            <Icon icon="solar:refresh-circle-bold" className="text-sm" />
                           </button>
                           <button
                             type="button"
