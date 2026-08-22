@@ -501,7 +501,7 @@ Phase 7（Provider 懒加载优化）— P2，性能优化最后做
 |------|------|--------|------|
 | #20 | 主动消息 TTS 开关（主动消息是否朗读） | P2 | 无 | ✅ 已完成（默认关，待实测） |
 | #21 | 预制台词管理（用户可编辑/新增） | P2 | ✅ 已实现（`models/InteractionPage.tsx`，接「模型→交互消息」菜单，端到端生效） |
-| #22 | 一起看插件（自动截屏+视觉分析+角色反应） | P1 | Phase 1+3（已具备） |
+| #22 | 一起看插件（自动截屏+视觉分析+角色反应） | P1 | ✅ 已实现（`useWatchTogether` + `services/scenes/watchTogether.ts` + `plugins/watch-together`；`Ctrl+Shift+S` 触发；设置页 `/settings/services/multimodal` 可配，端到端生效） |
 | #23 | 大脑合并后失效功能回归探查 | P3 | 最后做 |
 | #33 | 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式中断） | P1 | 工具循环 |
 | #34 | 流式 TTS 对比测试（各引擎首包/自然度） | P2 | 无 |
