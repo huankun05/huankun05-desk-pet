@@ -809,6 +809,8 @@
       "smart_chat_daily_limit": "Daily Limit",
       "smart_chat_daily_limit_desc": "Max number of proactive chats per day",
       "smart_chat_daily_limit_unit": "times",
+      "proactive_tts": "Proactive Message TTS",
+      "proactive_tts_desc": "Read proactive chats/greetings aloud (requires a configured TTS engine)",
       "reset_behavior": "Reset to Default",
       "global_prompt_title": "Global Default Prompt",
       "global_prompt_desc": "Base prompt shared by all characters, character prompts override this",

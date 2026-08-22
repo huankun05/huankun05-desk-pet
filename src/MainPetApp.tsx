@@ -42,6 +42,9 @@ import {
 } from './settings/appearanceConfig';
 
 import { aiService, type ChatMessage } from './services/ai';
+import { synthesizeViaBrain } from './services/provider/ttsBackend';
+import { audioPlayer } from './services/audio/player';
+import { loadBehaviorConfig } from './services/behavior/behaviorConfig';
 import { createStorage } from './services/storage';
 import { settingsStorage } from './services/storage/settingsStorage';
 import { safetyChecker } from './services/safety';
@@ -601,6 +604,18 @@ function MainPetApp() {
         .then((text) => {
           if (!text) return;
           showBubble(text, 6000);
+          // #20 主动消息 TTS 朗读开关：开启时把主动消息用语音播报
+          if (loadBehaviorConfig().proactiveTts) {
+            void synthesizeViaBrain(text)
+              .then((res) => {
+                if (res?.audio) {
+                  audioPlayer.enqueue(res.audio, res.sampleRate, `proactive-${Date.now()}`);
+                }
+              })
+              .catch(() => {
+                /* TTS 未就绪/合成失败：静默降级，气泡已展示 */
+              });
+          }
           const sessionId = (() => {
             try {
               return import('./services/chatStorage').then((m) => m.getActiveSession()?.id ?? null);

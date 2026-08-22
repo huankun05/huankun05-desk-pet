@@ -152,6 +152,16 @@ export function BehaviorPage() {
               onClick={() => update({ enableSmartChat: !config.enableSmartChat })}
             />
           </SettingRow>
+
+          <SettingRow
+            title={t('settings.models.proactive_tts')}
+            description={t('settings.models.proactive_tts_desc')}
+          >
+            <Switch
+              checked={config.proactiveTts}
+              onClick={() => update({ proactiveTts: !config.proactiveTts })}
+            />
+          </SettingRow>
         </div>
       </Section>
 

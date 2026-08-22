@@ -813,6 +813,8 @@
       "smart_chat_daily_limit": "主动聊天每日上限",
       "smart_chat_daily_limit_desc": "每天最多主动聊天次数",
       "smart_chat_daily_limit_unit": "次",
+      "proactive_tts": "主动消息朗读",
+      "proactive_tts_desc": "主动聊天/问候用语音播报（需已配置 TTS 引擎）",
       "reset_behavior": "恢复默认",
       "global_prompt_title": "全局默认提示词",
       "global_prompt_desc": "所有角色共享的基础提示词，角色提示词会覆盖此设置",

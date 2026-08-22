@@ -20,6 +20,8 @@ export interface BehaviorConfig {
   smartChatInterval: number;
   /** 主动聊天每日上限（次） */
   smartChatDailyLimit: number;
+  /** 主动消息 TTS 朗读：主动聊天/问候是否用语音播报（默认关闭，避免突然出声） */
+  proactiveTts: boolean;
   /** 行为总开关 */
   enable: boolean;
 }
@@ -29,6 +31,7 @@ export const DEFAULT_BEHAVIOR: BehaviorConfig = {
   enableSmartChat: false,
   smartChatInterval: 60,
   smartChatDailyLimit: 20,
+  proactiveTts: false,
   enable: true,
 };
 
