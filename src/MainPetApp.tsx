@@ -367,6 +367,15 @@ function MainPetApp() {
     onScreenshotAnalyze: () => {
       toggleWatch();
     },
+    onKill: () => {
+      // 紧急停止：中断当前语音助手活动
+      if (voiceStateRef.current !== 'idle') {
+        cancelVoice();
+      }
+      // 广播中断信号，供工具循环/子 Agent 后续接入（#33）
+      eventBus.emit('tool:abort', { reason: 'kill-switch' });
+      showBubble('已紧急停止', 1500);
+    },
   });
 
   // 监听托盘菜单发出的 open-settings 事件

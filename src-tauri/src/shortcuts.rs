@@ -71,6 +71,13 @@ pub fn default_shortcuts() -> Vec<ShortcutConfig> {
             keys: "Ctrl+Shift+S".into(),
             enabled: true,
         },
+        ShortcutConfig {
+            id: "kill".into(),
+            label: "紧急停止（中断语音/工具）".into(),
+            action: "shortcut-kill".into(),
+            keys: "Ctrl+Shift+X".into(),
+            enabled: true,
+        },
     ]
 }
 

@@ -15,6 +15,7 @@ const log = createLogger('GlobalShortcuts');
 export interface ShortcutActions {
   onVoiceWake: () => void;
   onScreenshotAnalyze: () => void;
+  onKill: () => void;
 }
 
 export function useGlobalShortcuts(actions: ShortcutActions) {
@@ -35,6 +36,11 @@ export function useGlobalShortcuts(actions: ShortcutActions) {
     actionsRef.current.onScreenshotAnalyze();
   }, []);
 
+  const handleKill = useCallback(() => {
+    log.info('Kill switch triggered');
+    actionsRef.current.onKill();
+  }, []);
+
   useEffect(() => {
     if (!isTauriEnv()) return;
 
@@ -49,8 +55,11 @@ export function useGlobalShortcuts(actions: ShortcutActions) {
       const u2 = await listen('shortcut-screenshot', () => {
         handleScreenshot();
       });
+      const u3 = await listen('shortcut-kill', () => {
+        handleKill();
+      });
 
-      unlisteners = [u1, u2];
+      unlisteners = [u1, u2, u3];
       log.info('Global shortcut listeners registered');
     })().catch((err) => {
       log.error('Failed to register shortcut listeners:', err);
@@ -59,5 +68,5 @@ export function useGlobalShortcuts(actions: ShortcutActions) {
     return () => {
       unlisteners.forEach((u) => u());
     };
-  }, [handleVoiceWake, handleScreenshot]);
+  }, [handleVoiceWake, handleScreenshot, handleKill]);
 }

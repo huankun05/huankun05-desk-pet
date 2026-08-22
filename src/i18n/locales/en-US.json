@@ -1357,6 +1357,7 @@
       "retry_btn": "Retry",
       "enable_no_model": "Please download the voice model first",
       "tip": "When enabled, say \"{{keyword}}\" to wake the character. The character will respond \"Here\" and enter voice assistant mode. Wake word uses the local Vosk engine for offline recognition — no internet required, no audio uploaded. Listening is automatically paused while the voice assistant is active to avoid echo false triggers.",
+      "shortcut_hint": "Prefer not to say the wake word? Press {{keys}} to wake the character directly (Settings → System → Shortcuts to customize).",
       "advanced_title": "Wake Advanced",
       "advanced_desc": "Sensitivity, near-homophone fallback and response phrases",
       "sensitivity_label": "Sensitivity",

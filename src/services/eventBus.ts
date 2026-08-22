@@ -58,6 +58,8 @@ type EventMap = {
     /** 声波振幅 0~1（listening/speaking 时驱动律动），缺省由文本长度估算 */
     amplitude?: number;
   };
+  // 紧急停止（Kill Switch）：中断当前工具循环/语音链路
+  'tool:abort': { reason: string };
   // Service Watchdog events
   'service:recovered': { name: string; port: number };
   'service:restart:request': { name: string; port: number };

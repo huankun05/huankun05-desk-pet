@@ -407,6 +407,9 @@ export function WakeWordPage() {
           />
           <div className="text-xs text-neutral-500 leading-relaxed">
             {t('settings.wake_word.tip', { keyword: config.keyword })}
+            <div className="mt-1.5 pt-1.5 border-t border-neutral-100">
+              {t('settings.wake_word.shortcut_hint', { keys: 'Ctrl+Space' })}
+            </div>
           </div>
         </div>
       </div>
