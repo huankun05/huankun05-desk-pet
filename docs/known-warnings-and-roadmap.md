@@ -62,7 +62,7 @@ The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanu
 
 - **#19 已完成（待实测）**: 唤醒词近似音/灵敏度三档/回应个性化（`99644ae`）、唤醒表情动作+刘海字幕声波层（`75008c4`，视觉待实测微调）、Kill Switch Ctrl+Shift+X + 快捷键提示（`7d86716`）。`tool:abort` 事件已 emit，待 #33 接入工具循环。
 - **#20**: 主动消息 TTS 开关（主动消息是否朗读）—— ✅ 已落地（默认关，BehaviorConfig.proactiveTts，待实测）。
-- **#21**: 预制台词管理（用户可编辑/新增互动台词）。
+- **#21**: 预制台词管理（用户可编辑/新增互动台词）。✅ 已实现（`models/InteractionPage.tsx`，端到端生效）。
 - **#22**: 一起看插件（自动截屏 + 视觉分析 + 角色反应）。
 - **#23**: 大脑合并后失效功能回归探查（最后做）。
 - **#33**: 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式 TTS 中断）。
