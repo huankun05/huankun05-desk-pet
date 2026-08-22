@@ -165,6 +165,121 @@ export function WakeWordPage() {
         </div>
       </Section>
 
+      {/* 唤醒进阶配置 */}
+      <Section
+        title={t('settings.wake_word.advanced_title')}
+        description={t('settings.wake_word.advanced_desc')}
+      >
+        <div className="p-4 flex flex-col gap-4">
+          {/* 灵敏度三档 */}
+          <SettingRow
+            title={t('settings.wake_word.sensitivity_label')}
+            description={t('settings.wake_word.sensitivity_desc')}
+          >
+            <div className="flex gap-1.5">
+              {(['strict', 'standard', 'loose'] as const).map((lv) => (
+                <button
+                  key={lv}
+                  onClick={() => updateConfig({ sensitivity: lv })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    config.sensitivity === lv
+                      ? 'bg-[var(--primary-500)] text-white border-[var(--primary-500)]'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  {t(`settings.wake_word.sensitivity_${lv}`)}
+                </button>
+              ))}
+            </div>
+          </SettingRow>
+
+          {/* 近音候选词 */}
+          <SettingRow
+            title={t('settings.wake_word.variants_label')}
+            description={t('settings.wake_word.variants_desc')}
+          >
+            <div className="flex flex-col gap-2 w-64">
+              <div className="flex flex-wrap gap-1.5">
+                {config.variants.map((v, i) => (
+                  <span
+                    key={`${v}-${i}`}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-100 text-xs text-neutral-600"
+                  >
+                    {v}
+                    <button
+                      onClick={() =>
+                        updateConfig({ variants: config.variants.filter((_, idx) => idx !== i) })
+                      }
+                      className="text-neutral-400 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {config.variants.length === 0 && (
+                  <span className="text-xs text-neutral-300">（无，严格模式仅认主词）</span>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder={t('settings.wake_word.variants_placeholder')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val && !config.variants.includes(val)) {
+                      updateConfig({ variants: [...config.variants, val] });
+                    }
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm text-neutral-700 focus:outline-none focus:border-[var(--primary-500)]"
+              />
+            </div>
+          </SettingRow>
+
+          {/* 唤醒回应语 */}
+          <SettingRow
+            title={t('settings.wake_word.responses_label')}
+            description={t('settings.wake_word.responses_desc')}
+          >
+            <div className="flex flex-col gap-2 w-64">
+              <div className="flex flex-wrap gap-1.5">
+                {config.responses.map((r, i) => (
+                  <span
+                    key={`${r}-${i}`}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-100 text-xs text-neutral-600"
+                  >
+                    {r}
+                    <button
+                      onClick={() =>
+                        updateConfig({ responses: config.responses.filter((_, idx) => idx !== i) })
+                      }
+                      className="text-neutral-400 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder={t('settings.wake_word.responses_placeholder')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val && !config.responses.includes(val)) {
+                      updateConfig({ responses: [...config.responses, val] });
+                    }
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg border border-neutral-200 bg-white text-sm text-neutral-700 focus:outline-none focus:border-[var(--primary-500)]"
+              />
+            </div>
+          </SettingRow>
+        </div>
+      </Section>
+
       {/* 运行状态 */}
       <Section
         title={t('settings.wake_word.status_title')}

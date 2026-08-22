@@ -111,8 +111,13 @@ export class VoskEngine {
    *
    * @param keyword 唤醒词（如"汐月"）
    * @param onDetected 检测到唤醒词时的回调
+   * @param options 匹配选项：variants=近音候选词；sensitivity=灵敏度档
    */
-  async start(keyword: string, onDetected: () => void): Promise<void> {
+  async start(
+    keyword: string,
+    onDetected: () => void,
+    options?: { variants?: string[]; sensitivity?: 'strict' | 'standard' | 'loose' },
+  ): Promise<void> {
     if (!this.model) {
       throw new Error('Model not loaded. Call ensureModelLoaded() first.');
     }
@@ -121,27 +126,42 @@ export class VoskEngine {
       return;
     }
 
+    const sensitivity = options?.sensitivity ?? 'standard';
+    const variants = options?.variants ?? [];
+    // strict 档不启用候选词，仅精确主词
+    const matchWords = sensitivity === 'strict' ? [keyword] : [keyword, ...variants];
+
     // 创建识别器，使用关键词列表 grammar
-    // grammar 格式：JSON 字符串数组，包含关键词和 [unk]（未知词占位）
-    const grammar = JSON.stringify([keyword, '[unk]']);
+    // grammar 格式：JSON 字符串数组，包含关键词（含候选）和 [unk]（未知词占位）
+    const grammar = JSON.stringify([...matchWords, '[unk]']);
     this.recognizer = new this.model.KaldiRecognizer(16000, grammar);
+
+    // 是否接受 partial 结果触发：仅 loose 档，避免普通对话误唤醒
+    const acceptPartial = sensitivity === 'loose';
+
+    const hit = (text: string): boolean => {
+      const t = text.trim();
+      if (!t) return false;
+      return matchWords.some((w) => w && t.includes(w));
+    };
 
     // 监听识别结果
     this.recognizer.on('result', (msg) => {
       if (!('result' in msg) || !('text' in msg.result)) return;
       const text = msg.result.text.trim();
       log.debug('Recognition result', { text });
-      if (text.includes(keyword)) {
-        log.info('Wake word detected', { keyword, text });
+      if (hit(text)) {
+        log.info('Wake word detected', { keyword, matchWords, text });
         onDetected();
       }
     });
 
     this.recognizer.on('partialresult', (msg) => {
+      if (!acceptPartial) return;
       if (!('result' in msg) || !('partial' in msg.result)) return;
       const partial = msg.result.partial.trim();
-      if (partial && partial.includes(keyword)) {
-        log.info('Wake word detected (partial)', { keyword, partial });
+      if (partial && hit(partial)) {
+        log.info('Wake word detected (partial)', { keyword, matchWords, partial });
         onDetected();
       }
     });

@@ -1356,7 +1356,20 @@
       "model_error": "Model status check failed, please retry",
       "retry_btn": "Retry",
       "enable_no_model": "Please download the voice model first",
-      "tip": "When enabled, say \"{{keyword}}\" to wake the character. The character will respond \"Here\" and enter voice assistant mode. Wake word uses the local Vosk engine for offline recognition — no internet required, no audio uploaded. Listening is automatically paused while the voice assistant is active to avoid echo false triggers."
+      "tip": "When enabled, say \"{{keyword}}\" to wake the character. The character will respond \"Here\" and enter voice assistant mode. Wake word uses the local Vosk engine for offline recognition — no internet required, no audio uploaded. Listening is automatically paused while the voice assistant is active to avoid echo false triggers.",
+      "advanced_title": "Wake Advanced",
+      "advanced_desc": "Sensitivity, near-homophone fallback and response phrases",
+      "sensitivity_label": "Sensitivity",
+      "sensitivity_desc": "Strict=exact keyword only; Standard=keyword+near-homophones (recommended); Loose=includes live partials, fastest but slightly more false triggers",
+      "sensitivity_strict": "Strict",
+      "sensitivity_standard": "Standard",
+      "sensitivity_loose": "Loose",
+      "variants_label": "Near-homophone variants",
+      "variants_desc": "Vosk may mishear the wake word as a homophone; matching any variant triggers wake, fixing \"called but no response\"",
+      "variants_placeholder": "Type a homophone and press Enter",
+      "responses_label": "Wake responses",
+      "responses_desc": "One is picked at random after wake; customize the character's reply style",
+      "responses_placeholder": "Type a response and press Enter"
     },
     "storage": {
       "title": "Storage",

@@ -1360,7 +1360,20 @@
       "model_error": "模型状态检查失败，请重试",
       "retry_btn": "重试",
       "enable_no_model": "请先下载语音模型",
-      "tip": "启用后，叫「{{keyword}}」即可唤醒角色，角色会回答「在」并进入语音助手模式。唤醒词使用本地 Vosk 引擎离线识别，无需联网，音频不会上传。语音助手活跃期间唤醒词监听会自动暂停以避免回声误触发。"
+      "tip": "启用后，叫「{{keyword}}」即可唤醒角色，角色会回答「在」并进入语音助手模式。唤醒词使用本地 Vosk 引擎离线识别，无需联网，音频不会上传。语音助手活跃期间唤醒词监听会自动暂停以避免回声误触发。",
+      "advanced_title": "唤醒进阶",
+      "advanced_desc": "灵敏度、近音容错与唤醒回应语设置",
+      "sensitivity_label": "唤醒灵敏度",
+      "sensitivity_desc": "严格=仅精确主词；标准=主词+近音候选（推荐）；宽松=含实时片段，最快但有轻微误唤醒",
+      "sensitivity_strict": "严格",
+      "sensitivity_standard": "标准",
+      "sensitivity_loose": "宽松",
+      "variants_label": "近音候选词",
+      "variants_desc": "Vosk 中文识别易把唤醒词误听成同音词，命中任一候选即唤醒，缓解「叫了不理」",
+      "variants_placeholder": "输入近音词后回车添加",
+      "responses_label": "唤醒回应语",
+      "responses_desc": "唤醒后随机选一条播放，可自定义角色的回应风格",
+      "responses_placeholder": "输入回应语后回车添加"
     },
     "storage": {
       "title": "存储管理",

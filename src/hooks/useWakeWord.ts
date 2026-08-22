@@ -31,22 +31,42 @@ const log = createLogger('useWakeWord');
 const CONFIG_KEY = 'deskpet_wakeWordConfig';
 const STATE_KEY = 'deskpet_wakeWord';
 
+/** 唤醒灵敏度档位 */
+export type WakeSensitivity = 'strict' | 'standard' | 'loose';
+
 /** 唤醒词配置 */
 export interface WakeWordConfig {
   enabled: boolean;
+  /** 主唤醒词 */
   keyword: string;
+  /** 近音/同音候选词（命中任一即唤醒），用于缓解 Vosk 中文同音误识别 */
+  variants: string[];
+  /** 灵敏度：strict=仅精确主词+最终结果；standard=主词+候选+最终结果；loose=主词+候选+partial 也触发 */
+  sensitivity: WakeSensitivity;
+  /** 唤醒后角色回应的候选语（随机选一条） */
+  responses: string[];
 }
 
 const DEFAULT_CONFIG: WakeWordConfig = {
   enabled: false,
   keyword: '汐月',
+  variants: ['西月', '溪月', '昔月', '喜悦'],
+  sensitivity: 'standard',
+  responses: ['在~', '嗯？', '怎么啦', '我在呢', '叫我有事吗'],
 };
 
-/** 读取唤醒词配置 */
+/** 读取唤醒词配置（旧配置缺字段时补齐默认值，保证向后兼容） */
 export function readWakeWordConfig(): WakeWordConfig {
-  const saved = readStorage<WakeWordConfig | null>(CONFIG_KEY, null);
+  const saved = readStorage<Partial<WakeWordConfig> | null>(CONFIG_KEY, null);
   if (saved && typeof saved === 'object' && 'enabled' in saved && 'keyword' in saved) {
-    return saved;
+    return {
+      ...DEFAULT_CONFIG,
+      ...saved,
+      variants: Array.isArray(saved.variants) ? saved.variants : DEFAULT_CONFIG.variants,
+      responses: Array.isArray(saved.responses) && saved.responses.length > 0
+        ? saved.responses
+        : DEFAULT_CONFIG.responses,
+    };
   }
   return DEFAULT_CONFIG;
 }
@@ -132,8 +152,12 @@ export function useWakeWord({
     }, 500);
 
     log.info('Wake word detected, triggering voice assistant');
-    showBubble('在！', 1500);
-    playResponse('在');
+    const responses = configRef.current.responses.length
+      ? configRef.current.responses
+      : DEFAULT_CONFIG.responses;
+    const picked = responses[Math.floor(Math.random() * responses.length)];
+    showBubble(picked, 1500);
+    playResponse(picked);
     onWake();
   }, [showBubble, playResponse, onWake, isVoiceAssistantActive]);
 
@@ -178,7 +202,10 @@ export function useWakeWord({
       await engineRef.current.ensureModelLoaded();
 
       const keyword = configRef.current.keyword;
-      await engineRef.current.start(keyword, handleDetected);
+      await engineRef.current.start(keyword, handleDetected, {
+        variants: configRef.current.variants,
+        sensitivity: configRef.current.sensitivity,
+      });
 
       updateState('listening');
       log.info('Wake word enabled', { keyword });
