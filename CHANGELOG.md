@@ -47,10 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] **待实测**：Kill Switch 在录音中 / TTS 播放中 / 工具执行中的中断效果
 - [ ] **待接入**：`tool:abort` 事件接入工具循环（见 #33）
 
+#### 维护（2026-08-22）
+- 清理磁盘构建产物（均已被 `.gitignore` 忽略、可重建，不影响仓库）：删除 `src-tauri/target`（~38G，含 Tauri 复制进来的 `server` 权重副本 `_up_/server/`）、`node_modules`(743M)、`dist`(23M)、`src-tauri/gen`、Python `__pycache__`、`.tmp/`。注意：下次 `tauri dev/build` 需从零重新编译并重新复制 server 权重，构建本就极慢，会因此更久。
+- #23 / #33 / #34 经确认**暂时搁置，后续再做**（用户决定），文档相应标记。
+
 #### 语音助手待续（尚未实现）
-- [ ] #23 大脑合并后失效功能回归探查（最后做）
-- [ ] #33 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式中断）
-- [ ] #34 流式 TTS 对比测试（各引擎流式首包/自然度对比）
+- [~] #23 大脑合并后失效功能回归探查（**已搁置，后续再做**）
+- [~] #33 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式中断，**已搁置**）
+- [~] #34 流式 TTS 对比测试（各引擎流式首包/自然度对比，**已搁置**）
 
 #### 对比小爱同学的差距（已确认不做 / 待补）
 - [ ] 声纹识别：**明确不做**（server/voiceprint/ 仅空壳），靠唤醒词 + 快捷键区分
