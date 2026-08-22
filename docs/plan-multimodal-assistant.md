@@ -37,6 +37,9 @@
 | Phase 7 | Provider 懒加载优化（性能优化） | P2 | 无 | ✅ 已完成 |
 | Phase 8 | 语音助手模式（快捷键唤醒语音 + 意图识别 + 工具链路） | P2 | Phase 3（已具备） | ✅ 已完成 |
 | Phase 9 | 语音唤醒词（Vosk 离线关键词检测，叫"汐月"即唤醒） | P2 | Phase 8（已具备） | ✅ 已完成 |
+| Phase 9a | 唤醒词完善：近似音容错（variants）+ 灵敏度三档 + 回应个性化（responses） | P2 | Phase 9 | ✅ 已完成（commit `99644ae`） |
+| Phase 9b | 唤醒后表情动作（surprised + wake 动作）+ 顶部刘海字幕声波层（覆盖所有说话场景） | P2 | Phase 9a | ✅ 已完成（commit `75008c4`），视觉待实测微调 |
+| Phase 9c | 紧急停止 Kill Switch（Ctrl+Shift+X）+ 唤醒词页快捷键提示 | P1 | Phase 9a | ✅ 已完成（commit `7d86716`），`tool:abort` 待 #33 接入 |
 
 ---
 
@@ -474,3 +477,40 @@ Phase 7（Provider 懒加载优化）— P2，性能优化最后做
 | 语音识别失败 | STT 不可用时降级为文本输入框 |
 | MCP Server 启动失败 | 超时机制 + 错误提示 + 不影响其他 Server |
 | Phase 7 重构引入回归 | 保留旧接口兼容，分步切换，每步验证 |
+
+---
+
+## 十一、语音助手收尾待办（对照完成度）
+
+> 状态说明：✅ 已落地 / 🔧 已落地待实测 / ⬜ 未实现。最新本地提交 `7d86716`。
+
+### 11.1 已完成（#19 系列）
+
+| 项 | 文件 | 备注 |
+|----|------|------|
+| 唤醒词近似音容错 | `src/services/wakeWord/voskEngine.ts` / `src/hooks/useWakeWord.ts` | variants 候选词 |
+| 灵敏度三档 | 同上 | strict / standard / loose |
+| 唤醒回应个性化 | `useWakeWord.ts` / `WakeWordPage.tsx` | responses 随机 |
+| 唤醒表情动作 | `src/MainPetApp.tsx` | surprised + wake 动作 |
+| 刘海字幕声波层 | `src/components/Pet/SubtitleNotch.tsx` + `eventBus.ts` | 覆盖所有说话场景，🔧 视觉待实测 |
+| Kill Switch 紧急停止 | `src-tauri/src/shortcuts.rs` / `useGlobalShortcuts.ts` | Ctrl+Shift+X，🛑 `tool:abort` 待 #33 |
+
+### 11.2 待实现（尚未开工）
+
+| 编号 | 内容 | 优先级 | 依赖 |
+|------|------|--------|------|
+| #20 | 主动消息 TTS 开关（主动消息是否朗读） | P2 | 无 |
+| #21 | 预制台词管理（用户可编辑/新增） | P2 | 无 |
+| #22 | 一起看插件（自动截屏+视觉分析+角色反应） | P1 | Phase 1+3（已具备） |
+| #23 | 大脑合并后失效功能回归探查 | P3 | 最后做 |
+| #33 | 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式中断） | P1 | 工具循环 |
+| #34 | 流式 TTS 对比测试（各引擎首包/自然度） | P2 | 无 |
+
+### 11.3 对比小爱同学的差距
+
+| 能力 | 当前状态 | 决策 |
+|------|----------|------|
+| 声纹识别（谁在说话） | ⬜ 空壳 `server/voiceprint/` | **不做**，靠唤醒词+快捷键区分 |
+| 灵动进度条/字幕视觉 | 🔧 刘海字幕已实现 | 待实测打磨对标 |
+| 多设备跨端唤醒 | ⬜ 无 | 暂不做 |
+| 纯离线指令集 | ⬜ 依赖 Vosk 模型 | 暂不做 |

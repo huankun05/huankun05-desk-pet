@@ -23,6 +23,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **聊天活跃会话路由**：主动消息 `sessionId` 路由到当前活跃会话；`deskpet_active_session_id` localStorage 跨窗口同步。
 - **未读消息徽标**：`ControlsOrb` 右上角展示未读；用户发送消息 +1，打开聊天窗口清空。
 - **智能模式（auto）人设与历史随意图自适应**: 原 `_classify_intent` 只挑工具、人设/历史永远回落聊天档。现升级为返回结构化结果 `{intent, tools, confidence, source}`——规则快路径（纯聊天→chat 人设零工具；强工作词→work 人设）+ LLM 分类（prompt 增 `intent` 字段，neutral 回落 chat）+ 降级（LLM 不可用→chat/work 人设 + 全部工具）。`_handle_chat` 在 auto 模式下用 `intent` 选 `MODE_CONFIGS` 决定系统人设与历史长度，`tools` 仍按消息精挑；chat/work 显式档保留为异常兜底，用户无感。前端 `ChatModesPage` 智能模式说明文案同步：明确"说话方式与人设也随意图切换"。 (`server/hermes_gateway_server.py`, `src/settings/pages/chat/ChatModesPage.tsx`, commit `646c924`)
+- **语音唤醒词完善（#19）**: `useWakeWord` 增加 `variants`（近似音候选词）+ `sensitivity`（strict/standard/loose 三档）+ `responses`（个性化唤醒回应语，随机挑选）；`voskEngine.start(keyword, onDetected, options?)` 支持按灵敏度档分别处理最终结果/候选/partial 匹配。前端唤醒词设置页新增「唤醒进阶」Section（灵敏度三档单选 + 候选词/回应语标签增删），并在提示下补充全局快捷键说明（Ctrl+Space 唤醒、Ctrl+Shift+X 紧急停止等）。 (`src/hooks/useWakeWord.ts`, `src/services/wakeWord/voskEngine.ts`, `src/settings/pages/services/WakeWordPage.tsx`, i18n `wake_word.variants/sensitivity/responses/shortcut_hint`, commit `99644ae`)
+- **唤醒表情动作 + 顶部刘海字幕声波层（#19 完善）**: 唤醒命中后 `MainPetApp` 调 `setEmotionFromResponse('surprised')` + `triggerAnimation('wake')`（无对应 motion group 回退 TapBody），并挂载 `SubtitleNotch` 组件——屏幕上方中央刘海位置，默认隐藏、8s 自动淡出，覆盖**所有说话场景**（唤醒倾听/识别中/流式播放中/空闲），由 `eventBus` 的 `subtitle:update` 驱动，文本 + CSS 声波动画。`useVoiceAssistant`/`useVoiceCall` 发射 listening/recognized，`hermesGateway` 按流式 token 累积驱动 speaking 字幕、`done/error` 复位 idle。 (`src/MainPetApp.tsx`, `src/components/Pet/SubtitleNotch.tsx`, `src/services/eventBus.ts`, `src/services/hermesGateway.ts`, `src/hooks/useVoiceAssistant.ts`, `src/hooks/useVoiceCall.ts`, commit `75008c4`)
+- **紧急停止 Kill Switch + 快捷键提示（#19 收尾）**: `shortcuts.rs` 默认快捷键新增 `Ctrl+Shift+X → shortcut-kill`；`useGlobalShortcuts` 加 `onKill` 监听——触发时 `cancelVoice()` 中断录音/播放 + `eventBus.emit('tool:abort')`（待 #33 工具循环接入）+ 角色气泡提示。唤醒词设置页快捷键说明同步。 (`src-tauri/src/shortcuts.rs`, `src/hooks/useGlobalShortcuts.ts`, `src/MainPetApp.tsx`, commit `7d86716`)
+
+### TODO（功能完成度清单 — 供逐项目测对照）
+
+> 本地提交均未推送（最新 `7d86716`）。以下按模块列出已完成 / 待测试 / 待做，测试通过后可逐项勾掉。
+
+#### 语音 / 唤醒（#19 系列，已落地待实测）
+- [x] 唤醒词近似音容错（variants 候选词）
+- [x] 灵敏度三档（strict / standard / loose）
+- [x] 唤醒回应个性化（responses 随机挑选）
+- [x] 唤醒后表情动作（surprised + wake 动作）
+- [x] 刘海字幕声波层（覆盖所有说话场景）
+- [ ] **待实测**：刘海字幕视觉（位置/配色/字号/淡出时长）按用户反馈微调
+- [ ] **待实测**：Kill Switch 在录音中 / TTS 播放中 / 工具执行中的中断效果
+- [ ] **待接入**：`tool:abort` 事件接入工具循环（见 #33）
+
+#### 语音助手待续（尚未实现）
+- [ ] #20 主动消息 TTS 开关（主动消息是否朗读）
+- [ ] #21 预制台词管理（用户可编辑/新增预制互动台词）
+- [ ] #22 一起看插件（自动截屏 + 视觉分析 + 角色反应，Phase 6 规划但独立于 #22 收口）
+- [ ] #23 大脑合并后失效功能回归探查（最后做）
+- [ ] #33 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式中断）
+- [ ] #34 流式 TTS 对比测试（各引擎流式首包/自然度对比）
+
+#### 对比小爱同学的差距（已确认不做 / 待补）
+- [ ] 声纹识别：**明确不做**（server/voiceprint/ 仅空壳），靠唤醒词 + 快捷键区分
+- [ ] 刘海字幕视觉打磨（对标小爱"灵动进度条"，待实测）
+- [ ] 多设备 / 跨端唤醒：暂无
+- [ ] 离线命令词：当前依赖 Vosk 模型，未做纯离线指令集
 
 ### TODO（明日继续）
 

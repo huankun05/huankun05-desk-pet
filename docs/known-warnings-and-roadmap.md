@@ -56,6 +56,20 @@ The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanu
 - **P4**: high-risk + PIN / undo preview / smart escalation / rate-limit.
 - **P5**: wake sound-wave layer + live STT subtitles.
 
+## 3b. Follow-up roadmap — 语音助手收尾（#19 后，2026-08-22 新增）
+
+> 全部本地提交（最新 `7d86716`），未推送。供逐项测试对照完成度。
+
+- **#19 已完成（待实测）**: 唤醒词近似音/灵敏度三档/回应个性化（`99644ae`）、唤醒表情动作+刘海字幕声波层（`75008c4`，视觉待实测微调）、Kill Switch Ctrl+Shift+X + 快捷键提示（`7d86716`）。`tool:abort` 事件已 emit，待 #33 接入工具循环。
+- **#20**: 主动消息 TTS 开关（主动消息是否朗读）。
+- **#21**: 预制台词管理（用户可编辑/新增互动台词）。
+- **#22**: 一起看插件（自动截屏 + 视觉分析 + 角色反应）。
+- **#23**: 大脑合并后失效功能回归探查（最后做）。
+- **#33**: 子 Agent + 任务队列（`tool:abort` 接入工具循环、流式 TTS 中断）。
+- **#34**: 流式 TTS 对比测试（各引擎首包延迟/自然度）。
+- **对比差距**：声纹识别明确不做（`server/voiceprint/` 空壳）；刘海字幕视觉对标小爱"灵动进度条"待实测；多设备跨端唤醒、纯离线指令集暂不做。
+- **测试入口文档**：详见 `docs/feature-completion-checklist.md`（逐模块勾选清单）。
+
 ## 4. Follow-up roadmap — plugin marketplace (数据源待建)
 
 插件市场页（`/settings/extensions/marketplace`）UI 已完成，但 registry 数据源尚未创建：
