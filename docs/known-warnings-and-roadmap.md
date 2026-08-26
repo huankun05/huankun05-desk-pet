@@ -24,6 +24,12 @@ permission system. Updated as items are triaged.
   `MODE_CONFIGS` 人设与历史长度，tools 仍按消息精挑；chat/work 显式档保留为兜底。
   前端 `ChatModesPage` 文案同步。详见 `CHANGELOG.md` [Unreleased]。
 
+- **清理误删 dist 导致 tauri 构建失败 (2026-08-26)**: 清理时误删 `dist`/`node_modules`，
+  Tauri `build.rs`（`tauri_build::build()`）校验资源时报
+  `resource path ..\dist doesn't exist` (exit 101)。修复：`pnpm install` + `pnpm build`
+  重生 `dist`(23M)；`pnpm tauri dev` 全量编译 29.63s 通过，Admin/STT(8002)/Core(9877)/
+  Gateway(8765)/CosyVoice(8003) 全部启动。清理纪律见 5.1 节。
+
 ## 2. Known warnings (non-blocking)
 
 | #   | Source               | Warning                                                                              | Impact                                                | Suggested fix                                                           | Priority |
@@ -94,3 +100,15 @@ build script registers the entire `../server` tree (GB model weights) as
 `rerun-if-changed`, and Windows Defender real-time scan touches every file.
 Add Defender exclusions for both `../server` and `../dist` to fix. The dev
 machine already has exclusions, so local builds finish in seconds.
+
+### 5.1 清理构建产物纪律（2026-08-26 固化）
+
+- **只删**：`src-tauri/target`（Rust 构建缓存，最大 ~38G）、`src-tauri/gen`。
+- **绝不删**：`dist/`、`node_modules/`、`server/`。误删 `dist` 会让 tauri 构建报
+  `resource path ..\dist doesn't exist` (exit 101)，需重新 `pnpm build` 才能恢复。
+- **Defender 排除**（删除/重编译慢的根因，根治）：
+  `Add-MpPreference -ExclusionPath 'F:\Work\Create\desk_pet'`
+- **误删后恢复**：`pnpm install`（恢复 node_modules）→ `pnpm build`（重生 dist）。
+- **验证记录（2026-08-26）**：本地 `pnpm tauri dev` 全量编译 29.63s 通过，
+  Admin / STT(8002) / Core(9877) / Gateway(8765) / CosyVoice TTS(8003) 全部启动，
+  纳西妲 CosyVoice V3 模型正常加载。
