@@ -20,6 +20,8 @@ import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { isOfflineModeEnabled } from '../services/provider/watchdog';
 import { synthesizeViaBrain } from '../services/provider/ttsBackend';
+import { detectEmotionFromText, type EmotionType } from '../hooks/useEmotion';
+import { parseExplicitEmotion, stripControlTags } from '../services/live2d/visualMapping';
 import { audioPlayer } from '../services/audio/player';
 import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
 import { llmScheduler } from '../services/provider/llmScheduler';
@@ -51,6 +53,9 @@ export type SendMessageFn = (
 
 const log = createLogger('HermesGatewayHook');
 
+/** 句子结束符（与 StreamingTTSPlayer 切句规则一致），用于首句完成时判定情绪 */
+const SENTENCE_END_RE = /[。！？!?；;\n]/;
+
 const GATEWAY_READY_KEY = 'deskpet_hermes_gateway_enabled';
 
 /** 跨窗口消息同步事件：完成态消息广播（主窗 ↔ 聊天面板窗，共享同一 localStorage 会话） */
@@ -79,6 +84,10 @@ export interface UseHermesGatewayOptions {
   onInterrupt?: () => void;
   /** TTS 是否启用 */
   ttsEnabled?: boolean;
+  /** 说话开始（首句出声前）触发，用于立即进入 talking 态 */
+  onSpeechStart?: () => void;
+  /** 首句情绪判定完成触发，参数为检测到的情绪（显式标签优先，否则关键词），用于即时同步表情/语气 */
+  onSpeechEmotion?: (emotion: EmotionType) => void;
 }
 
 export interface HermesGatewayState {
@@ -273,6 +282,8 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       const frontendTools = buildFrontendTools();
       const client = getHermesGatewayClient();
       let ttsStream: StreamingTTSPlayer | null = null;
+      let speechText = '';
+      let firstSentenceFired = false;
       log.info(
         '[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d',
         assistantId,
@@ -297,12 +308,14 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
           disabledTools: getDisabledTools(),
           onToken: (token) => {
             if (abortedRef.current) return;
+            // 显示/落库用剥离控制标签（[emotion:xxx]）后的文本；情绪判定仍用原始 token
+            const displayToken = stripControlTags(token);
             if (!silent) {
               if (!placeholderCreated) {
-                appendAssistant(token);
-                currentResponseRef.current = token;
+                appendAssistant(displayToken);
+                currentResponseRef.current = displayToken;
               } else {
-                currentResponseRef.current += token;
+                currentResponseRef.current += displayToken;
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
@@ -318,20 +331,36 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
                 ttsStream = new StreamingTTSPlayer((audio, sr) =>
                   audioPlayer.enqueue(audio, sr, `tts-${assistantId}`),
                 );
+                // 说话开始：立即进入 talking 态（说话脸 + 口型），消除「脸慢半拍」
+                options?.onSpeechStart?.();
+              }
+              // 首句完成即判定情绪：驱动表情 + 透传 TTS 语气，使「脸 / 语气 / 话」同源统一
+              speechText += token;
+              if (!firstSentenceFired) {
+                const boundary = speechText.search(SENTENCE_END_RE);
+                if (boundary >= 0) {
+                  firstSentenceFired = true;
+                  const firstSentence = speechText.slice(0, boundary + 1).trim();
+                  const e = parseExplicitEmotion(firstSentence) ?? detectEmotionFromText(firstSentence);
+                  ttsStream.setEmotion(e);
+                  options?.onSpeechEmotion?.(e);
+                }
               }
               ttsStream.push(token);
             }
           },
           onDone: async (fullResponse) => {
             if (abortedRef.current) return;
+            // 剥离 [emotion:xxx] 等控制标签后再显示/落库；原始文本仍传给 onMessageComplete 供情绪解析
+            const cleanResponse = stripControlTags(fullResponse);
             if (!silent) {
               if (!placeholderCreated) {
-                appendAssistant(fullResponse);
+                appendAssistant(cleanResponse);
               } else {
                 const finalMsg: Message = {
                   id: assistantId,
                   role: 'assistant',
-                  content: fullResponse,
+                  content: cleanResponse,
                   timestamp: new Date(),
                 };
                 if (sessionRef.current?.id === session.id) {
@@ -346,7 +375,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
                   msg: {
                     id: assistantId,
                     role: 'assistant',
-                    content: fullResponse,
+                    content: cleanResponse,
                     timestamp: new Date(),
                   },
                 }).catch(() => {});
@@ -354,7 +383,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
             }
             setIsLoading(false);
             setIsStreaming(false);
-            eventBus.emit('message:response', { text: fullResponse, sessionId: session.id });
+            eventBus.emit('message:response', { text: cleanResponse, sessionId: session.id });
 
             options?.onMessageComplete?.(
               content,

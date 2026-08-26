@@ -16,7 +16,8 @@ import {
 
 import { useInteraction } from './hooks/useInteraction';
 import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
-import { useEmotion, DEFAULT_PERSONALITY, type EmotionState } from './hooks/useEmotion';
+import { useEmotion, DEFAULT_PERSONALITY, type EmotionState, type EmotionType } from './hooks/useEmotion';
+import { stripControlTags } from './services/live2d/visualMapping';
 import { useWindowManager } from './hooks/useWindowManager';
 import { useMode } from './hooks/useMode';
 import { useHermesGateway } from './hooks/useHermesGateway';
@@ -157,6 +158,7 @@ function MainPetApp() {
   const {
     emotionState,
     setEmotionFromResponse,
+    setNewEmotion,
     updateFromVoice,
     setTalkingEmotion,
     getLive2DEmotion,
@@ -236,6 +238,10 @@ function MainPetApp() {
     () => ({
       // 读取与聊天面板窗一致的 TTS 总开关，避免主窗口聊天朗读无法关闭
       ttsEnabled: localStorage.getItem('deskpet_tts_enabled') !== 'false',
+      // 说话开始：立即进入 talking 态（说话脸），消除「脸慢半拍」
+      onSpeechStart: () => setNewEmotion('talking', 0.6, 'AI 说话中'),
+      // 首句情绪判定后即时同步表情（与 TTS 语气同源，由 useHermesGateway 内部判定）
+      onSpeechEmotion: (e: EmotionType) => setNewEmotion(e, 0.8, 'AI 说话中'),
       onToken: () => {},
       onMessageComplete: async (
         userText: string,
@@ -245,13 +251,16 @@ function MainPetApp() {
         assistantMessageId?: string,
       ) => {
         try {
-          if (assistantText.trim()) {
+          // assistantText 含原始 [emotion:xxx] 标签：情绪解析用原文（显式标签优先），
+          // 气泡展示与 RAG 落库用剥离后的文本（避免标签外泄到界面/记忆）
+          const clean = stripControlTags(assistantText);
+          if (clean.trim()) {
             setEmotionFromResponse(assistantText);
-            showBubble(assistantText);
+            showBubble(clean);
           }
           // 新 Gateway 路径此前未落盘记忆：把本轮对话写入本地 RAG（长期记忆 + 结构化抽取）
           if (userMessageId && assistantMessageId && sessionId) {
-            await addToRag(userText, assistantText, {
+            await addToRag(userText, clean, {
               userMessageId,
               assistantMessageId,
               sessionId,
@@ -264,7 +273,7 @@ function MainPetApp() {
       onInterrupt: () => {},
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [addToRag],
+    [addToRag, setNewEmotion],
   );
 
   const { isStreaming, sendMessage, interruptResponse, injectAssistantMessage } =

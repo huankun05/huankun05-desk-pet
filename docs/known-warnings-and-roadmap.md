@@ -38,6 +38,9 @@ permission system. Updated as items are triaged.
 | 2   | hermes-gateway       | SQLite 3.49.1 WAL-reset corruption bug; auto switches to `journal_mode=DELETE`       | None (auto-mitigated)                                 | `hermes update` to upgrade embedded SQLite >= 3.51.3, or pin SQLite     | Low      |
 | 3   | torch / transformers | `FutureWarning` (weight_norm, `torch.cuda.amp.autocast`), `UserWarning` (flash-attn) | Log noise only                                        | Add `warnings.filterwarnings` suppression in server entry, or bump deps | Low      |
 | 4   | PowerShell console   | Chinese shown as mojibake in attached console                                        | Display only — app-internal logs now decode correctly | `chcp 65001` / use Windows Terminal (UTF-8)                             | Low      |
+| 5   | venv pydub           | `SyntaxWarning: invalid escape sequence '\('` (utils.py) + `Couldn't find ffmpeg`     | Log noise only — we pass wav directly, ffmpeg unused  | Pin pydub>=0.25 (fixed regex) or suppress; install ffmpeg if wav path changes | Low |
+| 6   | CosyVoice / onnxruntime | `Sliding Window Attention ... not implemented for sdpa`; `Memcpy nodes added`; `nodes not assigned to preferred EP` | Perf hint only — inference correct, tiny CPU fallback | Ignore; tune `session_options` if latency regresses                      | Low      |
+| 7   | CosyVoice torch      | `FutureWarning: torch.cuda.amp.autocast(args...) is deprecated` (CosyVoice 第三方代码) | Log noise only — runs fine on CUDA 12.x               | Patch `server/cosyvoice` (third-party) to `torch.amp.autocast('cuda')`; low priority | Low |
 
 > Note on #4: the Rust side already decodes GBK correctly. Any remaining console
 > mojibake is the _terminal_ code page (GBK) rendering UTF-8 text, not a code bug.

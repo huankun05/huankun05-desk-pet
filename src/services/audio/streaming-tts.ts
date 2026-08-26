@@ -28,9 +28,16 @@ export class StreamingTTSPlayer {
   private active = true;
   private inflight = 0;
   private playFn: TtsPlayFn;
+  /** 说话情绪（透传给 TTS 后端，使语气与表情同源）；首句判定前为 null */
+  private emotion: string | null = null;
 
   constructor(playFn: TtsPlayFn) {
     this.playFn = playFn;
+  }
+
+  /** 设置本段回复的说话情绪（首句判定后调用，影响后续每句的合成语气） */
+  setEmotion(emotion: string | null): void {
+    this.emotion = emotion;
   }
 
   /** 喂入增量文本（来自流式 token）。 */
@@ -57,7 +64,10 @@ export class StreamingTTSPlayer {
   private async synthesize(sentence: string): Promise<void> {
     this.inflight += 1;
     try {
-      const res = await synthesizeViaBrain(sentence);
+      const res = await synthesizeViaBrain(
+        sentence,
+        this.emotion ? { emotion: this.emotion } : undefined,
+      );
       if (!res) return;
       this.readyQueue.push({ audio: res.audio, sampleRate: res.sampleRate });
       this.pump();

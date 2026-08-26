@@ -2,7 +2,7 @@
 
 > 用途：逐项对照测试、勾选完成度。
 > 范围：语音 / 唤醒（#19 系列）及语音助手收尾待办。
-> 最新本地提交：#20 `58bb1dc`、#21 核实+增强 `7dca4c9`/`4dc1adb`、#22 核实 `（本轮）`（截至 2026-08-22，全部未推送）。
+> 最新本地提交：#20 `58bb1dc`、#21 核实+增强 `7dca4c9`/`4dc1adb`、#22 核实 `（本轮）`、统一说话编排层（B 方案）`（本轮）`（截至 2026-08-22，全部未推送）。
 > 关联文档：`CHANGELOG.md` [Unreleased]、`docs/plan-multimodal-assistant.md` 第十一章、`docs/known-warnings-and-roadmap.md` 3b 节。
 
 标记说明：
@@ -158,7 +158,44 @@
 
 ---
 
-## 六、提交追踪（本地未推送）
+## 六、统一说话编排层（表情/动作/语气与语音同源）
+
+> 解决「角色说话时表情/动作与语音/语气脱节、像分裂的多人」问题（用户反馈）。
+> 方案 B：前端说话编排 + 后端提示词主动吐 `[emotion:xxx]`，逐句切换（方案 C）暂缓。
+> 核心思路：把「脸 / 语气 / 话」三者统一到同一个情绪信号源，说话期间不再冻结表情。
+
+### 6.1 说话开始立即进 talking 态
+- [x] 首 token 出声前即置 `talking` 态（`onSpeechStart` → `setNewEmotion('talking', 0.6)`）
+- [x] 消除「脸慢半拍」：之前表情要等整条 onMessageComplete 才设，说话途中脸是空的
+
+### 6.2 首句完成即时判定情绪
+- [x] 首句（遇句末符 `。！？!?；;\n`）完成即判定情绪
+- [x] 显式标签优先：`parseExplicitEmotion(firstSentence)` 解析 `[emotion:xxx]`
+- [x] 关键词兜底：`detectEmotionFromText(firstSentence)`（从 useEmotion 抽出的纯函数）
+- [x] 判定结果同步两路：① `setNewEmotion(e, 0.8)` 即时驱动 Live2D 表情/动作；② `ttsStream.setEmotion(e)` 透传 TTS 语气（语气与表情同源）
+
+### 6.3 控制标签全链路剥离
+- [x] `stripControlTags` 已在显示/落库路径全量接入（之前定义却从未调用，会原样进气泡/记忆）
+- [x] 气泡展示、RAG 落库、跨窗 `message:response` 广播均用剥离后文本
+- [x] 情绪解析（`setEmotionFromResponse`）仍用含 `[emotion:xxx]` 的原文，保证显式标签不被吞
+- [x] 聊天面板窗（`ChatPanelWindow`）RAG 落库同样剥离，防标签污染长期记忆
+
+### 6.4 后端主动输出情绪信号
+- [x] `server/prompts/system_prompt.txt` 新增「情绪表情标注（重要）」段
+- [x] 要求每轮回复开头用 `[emotion:xxx]`（11 选 1：idle/happy/sad/thinking/surprised/talking/angry/shy/excited/curious/sleepy）
+- [x] 标签对用户不可见、不重复表达（如「开心地说」）
+
+**测试点**
+1. 角色开始说话的瞬间，观察是否立刻进入说话脸（不再空脸半拍）。
+2. 让角色回答带明显情绪的问题（如「你害怕吗？」→ curious/surprised；「这事好难过」→ sad），观察首句后表情是否即时切换。
+3. 听 TTS 语气：开心/难过时语气是否与表情一致（同源）。
+4. 检查气泡与聊天记录：绝不能出现 `[emotion:xxx]` 字样的标签泄露。
+5. 检查长期记忆（RAG）：对话被落库后不含 `[emotion:xxx]` 标签。
+6. （真机跑顺后再评估）方案 C 逐句切换表情是否值得做。
+
+---
+
+## 七、提交追踪（本地未推送）
 
 | 提交 | 内容 |
 |------|------|
@@ -168,5 +205,6 @@
 | `99644ae` | 唤醒词近似音/灵敏度三档/回应个性化（#19） |
 | `75008c4` | 唤醒表情动作 + 刘海字幕声波层（#19 完善） |
 | `7d86716` | Kill Switch 紧急停止 + 快捷键提示（#19 收尾） |
+| 统一说话编排层（B 方案） | 表情/动作/语气与语音同源 ✅ 已落地（待真机实测），见第六章 6.1–6.4 |
 
 > 测试全部通过、确认完成度后，再统一提交推送。

@@ -31,6 +31,7 @@ import { BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 import { registerGatewayToolExecutor } from '../../services/tools/executor';
 import { registerBuiltinTools } from '../../services/tools/builtins';
 import { getHermesGatewayClient } from '../../services/hermesGateway';
+import { stripControlTags } from '../../services/live2d/visualMapping';
 
 /** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
 let _contextResetTs = 0;
@@ -373,8 +374,10 @@ function ChatPanelWindow() {
       userMessageId,
       assistantMessageId,
     ) => {
+      // 剥离 [emotion:xxx] 控制标签后再落库 RAG（避免标签污染长期记忆）
+      const clean = stripControlTags(assistantText);
       if (userMessageId && assistantMessageId && sessionId) {
-        await addToRag(userText, assistantText, {
+        await addToRag(userText, clean, {
           userMessageId,
           assistantMessageId,
           sessionId,

@@ -202,6 +202,22 @@ function getCompiledPatterns(): CompiledPattern[] {
   return _compiledPatterns;
 }
 
+/**
+ * 纯函数：从文本快速检测情绪（不含用户自定义情绪，因那依赖 React state）。
+ * 显式 [emotion:xxx] 标签由调用方先用 parseExplicitEmotion 解析；本函数做关键词兜底。
+ * 供流式首句即时判定复用，避免与 useEmotion 强耦合。
+ */
+export function detectEmotionFromText(text: string): EmotionType {
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  if (!cleaned) return 'thinking';
+  const t = cleaned.toLowerCase();
+  const compiled = getCompiledPatterns();
+  for (const { word, emotion } of compiled) {
+    if (t.includes(word)) return emotion;
+  }
+  return 'happy';
+}
+
 // ===== 类型定义 =====
 
 export type MoodType = 'cheerful' | 'content' | 'melancholy' | 'excited' | 'calm';
@@ -534,15 +550,10 @@ export function useEmotion() {
   );
 
   const analyzeTextEmotion = useCallback((text: string): EmotionType => {
-    const cleaned = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-    if (!cleaned) return 'thinking';
-    const t = cleaned.toLowerCase();
-
-    const compiled = getCompiledPatterns();
-    for (const { word, emotion } of compiled) {
-      if (t.includes(word)) return emotion;
-    }
-
+    const base = detectEmotionFromText(text);
+    if (base !== 'happy') return base;
+    // 仅当关键词默认 happy 时，再回退检查用户自定义情绪
+    const t = text.toLowerCase();
     for (const ce of customEmotionsRef.current) {
       if (t.includes(ce.key) || t.includes(ce.label)) return ce.key as EmotionType;
     }
