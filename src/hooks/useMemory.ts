@@ -65,7 +65,22 @@ function readMetaValue(it: MemoryItem): unknown {
   return it.content;
 }
 
-/** 展示层：事实条目（id 用字符串，兼容页面既有比较逻辑） */
+/** 把一条记忆规整到分层（兼容 layer 缺失的旧条目，按 category 兜底） */
+function resolveLayer(it: MemoryItem): 'L0' | 'L1' | 'L2' | 'L3' {
+  if (it.layer === 'L0' || it.layer === 'L1' || it.layer === 'L2' || it.layer === 'L3') {
+    return it.layer;
+  }
+  switch (it.category) {
+    case 'persona':
+      return 'L3';
+    case 'scene':
+      return 'L2';
+    case 'raw':
+      return 'L0';
+    default:
+      return 'L1';
+  }
+}
 export interface MemoryFactItem {
   id: string;
   content: string;
@@ -88,6 +103,19 @@ export interface MemoryView {
   facts: MemoryFactItem[];
   preferences: Record<string, unknown>;
   rules: MemoryRuleItem[];
+  /** 分层记忆（L0 原始对话 / L1 原子记忆 / L2 场景块 / L3 长期画像） */
+  layers: {
+    L0: MemoryItem[];
+    L1: MemoryItem[];
+    L2: MemoryItem[];
+    L3: MemoryItem[];
+  };
+  /** 最新一份 L3 长期画像（取 updated_at 最新的 persona 条目） */
+  persona: MemoryItem | null;
+  /** L2 场景块列表（按 updated_at 倒序） */
+  scenes: MemoryItem[];
+  /** 各层条目数 + 总数，用于 Tab/标题展示 */
+  counts: { L0: number; L1: number; L2: number; L3: number; total: number };
 }
 
 export function useMemory() {
@@ -376,12 +404,59 @@ export function useMemory() {
     await Promise.all(snapshot.map((it) => client.deleteMemory({ id: it.id }).catch(() => {})));
   }, [personaId, items]);
 
+  // ===== 重新拉取远端记忆 =====
+  const refresh = useCallback(async (): Promise<void> => {
+    const persona = personaId;
+    try {
+      const remote = await getHermesGatewayClient().listMemories(persona, 'default');
+      setItems(remote);
+      saveCache(persona, remote);
+      setLoaded(true);
+    } catch {
+      /* 离线：保留本地缓存 */
+    }
+  }, [personaId]);
+
+  // ===== 重新生成 L2 场景 + L3 画像（触发后端 LLM/启发式汇总） =====
+  const regenerateMemory = useCallback(async (): Promise<{
+    scene: string | null;
+    persona: string | null;
+    used_llm: boolean;
+  }> => {
+    const result = await getHermesGatewayClient().regenerateMemory(personaId, 'default');
+    await refresh();
+    return result;
+  }, [personaId, refresh]);
+
+  // ===== 清空指定分层（L0/L1/L2/L3）的全部记忆 =====
+  const clearLayer = useCallback(
+    async (layer: 'L0' | 'L1' | 'L2' | 'L3'): Promise<void> => {
+      const targets = items.filter((it) => resolveLayer(it) === layer);
+      if (!targets.length) return;
+      const client = getHermesGatewayClient();
+      await Promise.all(targets.map((it) => client.deleteMemory({ id: it.id }).catch(() => {})));
+      // 本地即时移除，随后用最新远端状态校正
+      setItems((prev) => {
+        const next = prev.filter((it) => resolveLayer(it) !== layer);
+        saveCache(personaId, next);
+        return next;
+      });
+      await refresh();
+    },
+    [items, personaId, refresh],
+  );
+
   // ===== 归一化展示视图 =====
   const memory = useMemo<MemoryView>(() => {
     const facts: MemoryFactItem[] = [];
     const rules: MemoryRuleItem[] = [];
     const preferences: Record<string, unknown> = {};
+    const layers: MemoryView['layers'] = { L0: [], L1: [], L2: [], L3: [] };
+    let persona: MemoryItem | null = null;
+    const scenes: MemoryItem[] = [];
     for (const it of items) {
+      const layer = resolveLayer(it);
+      layers[layer].push(it);
       if (it.category === 'fact') {
         facts.push({
           id: String(it.id),
@@ -400,9 +475,22 @@ export function useMemory() {
         });
       } else if (it.category === 'preference') {
         if (it.content) preferences[it.content] = readMetaValue(it);
+      } else if (it.category === 'persona') {
+        if (!persona || it.updated_at > persona.updated_at) persona = it;
+      } else if (it.category === 'scene') {
+        scenes.push(it);
       }
     }
-    return { facts, preferences, rules };
+    // 场景按更新时间倒序（最新聚类在前）
+    scenes.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+    const counts = {
+      L0: layers.L0.length,
+      L1: layers.L1.length,
+      L2: layers.L2.length,
+      L3: layers.L3.length,
+      total: items.length,
+    };
+    return { facts, preferences, rules, layers, persona, scenes, counts };
   }, [items]);
 
   return {
@@ -420,5 +508,8 @@ export function useMemory() {
     toggleRule,
     removeRule,
     clearMemory,
+    refresh,
+    regenerateMemory,
+    clearLayer,
   };
 }

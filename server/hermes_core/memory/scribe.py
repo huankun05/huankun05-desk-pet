@@ -14,7 +14,17 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .fragment import MemoryFragment
+from .fragment import (
+    LAYER_L1,
+    MEM_TYPE_EPISODIC,
+    MEM_TYPE_INSTRUCTION,
+    MEM_TYPE_PERSONA,
+    CATEGORY_EVENT,
+    CATEGORY_FACT,
+    CATEGORY_PREFERENCE,
+    CATEGORY_RULE,
+    MemoryFragment,
+)
 from .store import MemoryStore
 
 
@@ -32,34 +42,42 @@ class ExtractionConfig:
     max_fragments_per_turn: int = 3
     # 最低重要性阈值
     min_importance: float = 0.3
+    # L0 原始对话保留条数（每角色/用户）
+    l0_keep: int = 200
 
 
 class Scribe:
     """记忆抄写员：从对话中提炼事实性记忆。"""
 
-    # 常见事实模式（中文）
-    RULE_PATTERNS: list[tuple[re.Pattern, str, float]] = [
-        # 用户身份
-        (re.compile(r"我(?:叫|是)\s*([^，。！？\n]{1,20})"), "用户的名字/身份是{}", 0.75),
-        (re.compile(r"我的名字是\s*([^，。！？\n]{1,20})"), "用户的名字是{}", 0.8),
-        # 喜好
-        (re.compile(r"我喜欢\s*([^，。！？\n]{1,30})"), "用户喜欢{}", 0.7),
-        (re.compile(r"我喜欢吃\s*([^，。！？\n]{1,30})"), "用户喜欢吃{}", 0.72),
-        (re.compile(r"我喜欢喝\s*([^，。！？\n]{1,30})"), "用户喜欢喝{}", 0.72),
-        (re.compile(r"我爱\s*([^，。！？\n]{1,30})"), "用户喜欢/热爱{}", 0.7),
-        (re.compile(r"我钟爱\s*([^，。！？\n]{1,30})"), "用户钟爱{}", 0.75),
-        # 厌恶
-        (re.compile(r"我讨厌\s*([^，。！？\n]{1,30})"), "用户讨厌{}", 0.7),
-        (re.compile(r"我不喜欢\s*([^，。！？\n]{1,30})"), "用户不喜欢{}", 0.68),
-        (re.compile(r"我害怕\s*([^，。！？\n]{1,30})"), "用户害怕{}", 0.7),
-        # 状态/计划
-        (re.compile(r"我今天\s*([^，。！？\n]{1,40})"), "用户今天{}", 0.6),
-        (re.compile(r"我明天\s*([^，。！？\n]{1,40})"), "用户明天{}", 0.6),
-        (re.compile(r"我计划\s*([^，。！？\n]{1,40})"), "用户计划{}", 0.65),
-        (re.compile(r"我要\s*([^，。！？\n]{1,40})"), "用户打算{}", 0.6),
-        # 关系/约定
-        (re.compile(r"(?:记住|别忘了)\s*([^，。！？\n]{1,40})"), "用户希望记住：{}", 0.78),
-        (re.compile(r"(?:答应我|约定)\s*([^，。！？\n]{1,40})"), "用户约定的内容是：{}", 0.75),
+    # 常见事实模式（中文）。
+    # 每项：(正则, 模板, 重要性, 类别, 原子记忆子类型)。
+    # 类别/子类型用于把抽取结果映射到 L1 原子记忆（借鉴 TencentDB 的
+    # persona/episodic/instruction 三分法）。
+    RULE_PATTERNS: list[tuple[re.Pattern, str, float, str, str]] = [
+        # 用户身份（稳定属性 → persona）
+        (re.compile(r"我(?:叫|是)\s*([^，。！？\n]{1,20})"), "用户的名字/身份是{}", 0.75, CATEGORY_FACT, MEM_TYPE_PERSONA),
+        (re.compile(r"我的名字是\s*([^，。！？\n]{1,20})"), "用户的名字是{}", 0.8, CATEGORY_FACT, MEM_TYPE_PERSONA),
+        # 喜好（偏好 → persona）
+        (re.compile(r"我喜欢\s*([^，。！？\n]{1,30})"), "用户喜欢{}", 0.7, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我喜欢吃\s*([^，。！？\n]{1,30})"), "用户喜欢吃{}", 0.72, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我喜欢喝\s*([^，。！？\n]{1,30})"), "用户喜欢喝{}", 0.72, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我爱\s*([^，。！？\n]{1,30})"), "用户喜欢/热爱{}", 0.7, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我钟爱\s*([^，。！？\n]{1,30})"), "用户钟爱{}", 0.75, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        # 厌恶（偏好 → persona）
+        (re.compile(r"我讨厌\s*([^，。！？\n]{1,30})"), "用户讨厌{}", 0.7, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我不喜欢\s*([^，。！？\n]{1,30})"), "用户不喜欢{}", 0.68, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        (re.compile(r"我害怕\s*([^，。！？\n]{1,30})"), "用户害怕{}", 0.7, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        # 隐性习惯（无「喜欢/讨厌」动词，靠频率副词表达 → 偏好）
+        (re.compile(r"我(?:每天|经常|平时|习惯|一般|通常)\s*([喝吃做去玩看听买][^，。！？\n]{1,15})"),
+         "用户经常{}", 0.62, CATEGORY_PREFERENCE, MEM_TYPE_PERSONA),
+        # 状态/计划（事件 → episodic）
+        (re.compile(r"我今天\s*([^，。！？\n]{1,40})"), "用户今天{}", 0.6, CATEGORY_EVENT, MEM_TYPE_EPISODIC),
+        (re.compile(r"我明天\s*([^，。！？\n]{1,40})"), "用户明天{}", 0.6, CATEGORY_EVENT, MEM_TYPE_EPISODIC),
+        (re.compile(r"我计划\s*([^，。！？\n]{1,40})"), "用户计划{}", 0.65, CATEGORY_EVENT, MEM_TYPE_EPISODIC),
+        (re.compile(r"我要\s*([^，。！？\n]{1,40})"), "用户打算{}", 0.6, CATEGORY_EVENT, MEM_TYPE_EPISODIC),
+        # 关系/约定（规则 → instruction）
+        (re.compile(r"(?:记住|别忘了)\s*([^，。！？\n]{1,40})"), "用户希望记住：{}", 0.78, CATEGORY_RULE, MEM_TYPE_INSTRUCTION),
+        (re.compile(r"(?:答应我|约定)\s*([^，。□]{1,40})"), "用户约定的内容是：{}", 0.75, CATEGORY_RULE, MEM_TYPE_INSTRUCTION),
     ]
 
     def __init__(
@@ -135,7 +153,7 @@ class Scribe:
     def _extract_with_rules(self, text: str, max_count: int) -> list[MemoryFragment]:
         """基于正则模式提取记忆。"""
         fragments: list[MemoryFragment] = []
-        for pattern, template, importance in self.RULE_PATTERNS:
+        for pattern, template, importance, category, mem_type in self.RULE_PATTERNS:
             for match in pattern.finditer(text):
                 if len(fragments) >= max_count:
                     return fragments
@@ -147,7 +165,10 @@ class Scribe:
                 fragments.append(
                     MemoryFragment(
                         content=content,
+                        category=category,
                         importance=min(importance, 0.9),
+                        layer=LAYER_L1,
+                        mem_type=mem_type,
                     )
                 )
         return fragments
@@ -185,18 +206,26 @@ class Scribe:
     def _build_llm_prompt(self, user_text: str, assistant_text: str, context: str) -> str:
         ctx_part = f"\n额外上下文：{context}\n" if context else ""
         return (
-            "请从以下对话中提取 1-3 条值得长期保留的事实性记忆。\n"
-            "只提取重要信息，例如：用户偏好、身份、重要约定、情感关系、计划等。\n"
-            "用第三人称表述，每条不超过 200 字。\n"
-            "如果没有值得提取的记忆，返回空数组 []。\n"
-            "必须返回 JSON 数组，格式如下：\n"
-            '[{"content": "用户喜欢喝抹茶拿铁", "importance": 0.7}]\n\n'
+            "你是一个长期记忆抽取器。请从下面的对话中提取值得长期记住的用户相关信息。\n\n"
+            "【抽取原则】\n"
+            "1. 情境切分：如果对话切换了话题，请分别按情境独立提取，不要混为一谈。\n"
+            "2. 三类原子记忆（mem_type）：\n"
+            "   - persona：用户的稳定属性/身份/长期偏好（如『用户是大学生』『用户爱喝咖啡』）\n"
+            "   - episodic：客观发生的具体事件/经历/计划（如『用户明天要去北京』）\n"
+            "   - instruction：用户给出的全局指令或约定（如『回答用简体中文』）\n"
+            "3. 宁缺毋滥：只提取真正长期有用的信息。过滤一次性问答、临时闲聊、可从上下文直接推得的常识。\n"
+            "4. 独立完整：每条记忆必须脱离上下文也能看懂，用第三人称、客观表述。\n"
+            "5. priority：0.0-1.0 的重要性打分（身份/强偏好/约定 ≥ 0.7；一般事实 0.4-0.6；易变计划 ≤ 0.5）。\n"
+            "6. 每条不超过 200 字。没有值得提取的内容时返回空数组 []。\n\n"
+            "【输出格式】严格返回 JSON 数组，元素字段：\n"
+            '{"content": "记忆内容", "category": "fact|preference|rule|feedback|event", '
+            '"mem_type": "persona|episodic|instruction", "priority": 0.7, "is_permanent": false}\n\n'
             f"用户：{user_text}\n"
             f"助手：{assistant_text}{ctx_part}"
         )
 
     def _parse_llm_response(self, raw: str) -> list[MemoryFragment]:
-        """解析 LLM 返回的 JSON。"""
+        """解析 LLM 返回的 JSON（兼容 mem_type / priority / layer 字段）。"""
         raw = raw.strip()
         # 尝试提取 JSON 代码块
         if "```" in raw:
@@ -219,13 +248,19 @@ class Scribe:
             content = str(item.get("content", "")).strip()
             if not content:
                 continue
-            importance = float(item.get("importance", 0.5))
+            importance = float(item.get("priority", item.get("importance", 0.5)))
             is_permanent = bool(item.get("is_permanent", False))
+            mem_type = str(item.get("mem_type", ""))
+            layer = str(item.get("layer", LAYER_L1))
+            category = str(item.get("category", CATEGORY_FACT))
             fragments.append(
                 MemoryFragment(
                     content=self._truncate(content),
+                    category=category,
                     importance=max(0.0, min(1.0, importance)),
                     is_permanent=is_permanent,
+                    mem_type=mem_type,
+                    layer=layer or LAYER_L1,
                 )
             )
         return fragments

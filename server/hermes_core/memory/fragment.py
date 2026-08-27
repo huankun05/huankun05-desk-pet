@@ -24,6 +24,10 @@ CATEGORY_PREFERENCE = "preference"
 CATEGORY_RULE = "rule"
 CATEGORY_FEEDBACK = "feedback"
 CATEGORY_EVENT = "event"
+# 分层新增类别（借鉴 TencentDB Agent Memory 的 L0-L3 金字塔）
+CATEGORY_RAW = "raw"          # L0 原始对话片段
+CATEGORY_SCENE = "scene"      # L2 场景块（话题簇聚合）
+CATEGORY_PERSONA = "persona"  # L3 长期用户画像
 
 VALID_CATEGORIES = (
     CATEGORY_FACT,
@@ -31,7 +35,25 @@ VALID_CATEGORIES = (
     CATEGORY_RULE,
     CATEGORY_FEEDBACK,
     CATEGORY_EVENT,
+    CATEGORY_RAW,
+    CATEGORY_SCENE,
+    CATEGORY_PERSONA,
 )
+
+# 记忆层级（L0 原始对话 → L1 原子事实 → L2 场景块 → L3 用户画像）
+LAYER_L0 = "L0"
+LAYER_L1 = "L1"
+LAYER_L2 = "L2"
+LAYER_L3 = "L3"
+
+VALID_LAYERS = (LAYER_L0, LAYER_L1, LAYER_L2, LAYER_L3)
+
+# L1 原子记忆的子类型（借鉴 TencentDB 的 persona/episodic/instruction）
+MEM_TYPE_PERSONA = "persona"        # 稳定属性/身份
+MEM_TYPE_EPISODIC = "episodic"      # 客观事件/经历
+MEM_TYPE_INSTRUCTION = "instruction"  # 全局指令/约定
+
+VALID_MEM_TYPES = (MEM_TYPE_PERSONA, MEM_TYPE_EPISODIC, MEM_TYPE_INSTRUCTION)
 
 # 合法的来源
 SOURCE_UI = "ui"
@@ -82,6 +104,9 @@ class MemoryFragment:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     emotion_snapshot: dict[str, float] = field(default_factory=dict)
+    # ---- 分层字段（L0-L3 金字塔）----
+    layer: str = LAYER_L1
+    mem_type: str = ""
 
     # ---- 领域方法 ----
 
@@ -122,6 +147,8 @@ class MemoryFragment:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "emotion_snapshot": self.emotion_snapshot,
+            "layer": self.layer,
+            "mem_type": self.mem_type,
         }
 
     def to_api_dict(self) -> dict[str, Any]:
@@ -142,6 +169,8 @@ class MemoryFragment:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "emotion_snapshot": self.emotion_snapshot,
+            "layer": self.layer,
+            "mem_type": self.mem_type,
         }
 
     @classmethod
@@ -163,4 +192,6 @@ class MemoryFragment:
             access_count=data.get("access_count", 0),
             is_permanent=data.get("is_permanent", False),
             emotion_snapshot=data.get("emotion_snapshot", {}) or {},
+            layer=data.get("layer", LAYER_L1),
+            mem_type=data.get("mem_type", ""),
         )

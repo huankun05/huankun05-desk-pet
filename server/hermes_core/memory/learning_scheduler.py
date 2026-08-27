@@ -132,6 +132,7 @@ class LearningScheduler:
             llm = self._llm_provider() if self._llm_provider else None
             use_llm = bool(llm and getattr(llm, "is_available", lambda: False)())
             llm_fn = (lambda msgs, _llm=llm: _llm.chat(msgs)) if use_llm else None
+            group_total = 0
             for turn in turns:
                 try:
                     saved = await loop.run_in_executor(
@@ -142,11 +143,18 @@ class LearningScheduler:
                     )
                     if saved:
                         total += len(saved)
+                        group_total += len(saved)
                         logger.info(
                             "空闲自学习：%s/%s 抽取 %d 条记忆", cid, uid, len(saved)
                         )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("空闲自学习单轮异常: %s", exc)
+            # 累积达阈值后自动聚合 L2 场景 / L3 画像（离线可用；有 LLM 时质量更高）
+            if group_total and hasattr(svc, "maybe_autogenerate"):
+                try:
+                    svc.maybe_autogenerate(new_count=group_total, llm_fn=llm_fn, use_llm=use_llm)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("空闲自学习自动分层生成异常: %s", exc)
         if total:
             logger.info("空闲自学习本轮共抽取 %d 条记忆", total)
         self._persist()

@@ -5,7 +5,23 @@ import { Icon } from '@iconify/react';
 import { useMemory } from '../../../hooks/useMemory';
 import { Section, SliderRow, useToast, useConfirm } from '../../components';
 
-type Tab = 'facts' | 'preferences' | 'rules';
+/** L1 原子记忆类型徽标（persona / episodic / instruction） */
+function MemTypeBadge({ type }: { type?: string }) {
+  if (!type) return null;
+  const map: Record<string, { label: string; cls: string }> = {
+    persona: { label: '画像', cls: 'bg-sky-50 text-sky-600' },
+    episodic: { label: '情景', cls: 'bg-violet-50 text-violet-600' },
+    instruction: { label: '指令', cls: 'bg-amber-50 text-amber-600' },
+  };
+  const info = map[type] ?? { label: type, cls: 'bg-neutral-100 text-neutral-500' };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${info.cls}`}>
+      {info.label}
+    </span>
+  );
+}
+
+type Tab = 'facts' | 'preferences' | 'rules' | 'layers';
 
 /**
  * 记忆查看页
@@ -39,13 +55,18 @@ export function MemoryViewPage() {
     updatePreference,
     deletePreference,
     updateRule,
+    regenerateMemory,
+    clearLayer,
   } = useMemory();
 
   const [tab, setTab] = useState<Tab>(() => {
     const p = searchParams.get('tab');
-    if (p === 'preferences' || p === 'rules' || p === 'facts') return p;
+    if (p === 'preferences' || p === 'rules' || p === 'facts' || p === 'layers') return p;
     return 'facts';
   });
+
+  // ── 分层记忆 ──
+  const [regenerating, setRegenerating] = useState(false);
 
   // ── 事实记忆 ──
   const [newFactText, setNewFactText] = useState('');
@@ -179,6 +200,36 @@ export function MemoryViewPage() {
 
   const formatDate = (d: Date | string) => new Date(d).toLocaleString();
 
+  // ── 分层记忆操作 ──
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const r = await regenerateMemory();
+      showToast(
+        r.used_llm
+          ? `${t('settings.memoryview.regenerate_done')} · ${t('settings.memoryview.used_llm')}`
+          : `${t('settings.memoryview.regenerate_done')} · ${t('settings.memoryview.offline_fallback')}`,
+        'success',
+      );
+    } catch (e) {
+      showToast(
+        t('settings.memoryview.regenerate_err', {
+          msg: e instanceof Error ? e.message : String(e),
+        }),
+        'error',
+      );
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleClearLayer = async (layer: 'L0' | 'L1' | 'L2' | 'L3') => {
+    const ok = await confirm(t('settings.memoryview.confirm_clear_layer', { layer }));
+    if (!ok) return;
+    await clearLayer(layer);
+    showToast(t('settings.memoryview.cleared'), 'success');
+  };
+
   const tabLabels: { key: Tab; label: string; icon: string }[] = [
     {
       key: 'facts',
@@ -194,6 +245,11 @@ export function MemoryViewPage() {
       key: 'rules',
       label: t('settings.memoryview.tab_rules'),
       icon: 'solar:checklist-bold-duotone',
+    },
+    {
+      key: 'layers',
+      label: t('settings.memoryview.tab_layers'),
+      icon: 'solar:layers-bold-duotone',
     },
   ];
 
@@ -649,6 +705,218 @@ export function MemoryViewPage() {
             </div>
           </div>
         </Section>
+      )}
+      {/* ═══════════════════ 分层记忆：总览 + 各层 ═══════════════════ */}
+      {tab === 'layers' && (
+        <div className="space-y-4">
+          {/* 总览 */}
+          <Section
+            title={t('settings.memoryview.layers_title')}
+            description={t('settings.memoryview.layers_desc', {
+              count: String(memory.counts.total),
+            })}
+          >
+            <div className="px-4 py-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                  className="flex items-center gap-1.5 rounded-lg bg-[var(--primary-500)] px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  <Icon
+                    icon={
+                      regenerating ? 'solar:refresh-bold-duotone' : 'solar:magic-stick-bold-duotone'
+                    }
+                    className="text-sm"
+                  />
+                  {regenerating
+                    ? t('settings.memoryview.regenerating')
+                    : t('settings.memoryview.regenerate')}
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {(['L0', 'L1', 'L2', 'L3'] as const).map((l) => (
+                  <div
+                    key={l}
+                    className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-center"
+                  >
+                    <div className="text-[11px] text-neutral-400">{l}</div>
+                    <div className="text-lg font-semibold text-neutral-800">{memory.counts[l]}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          {/* L3 长期画像 */}
+          <Section
+            title={t('settings.memoryview.persona_title')}
+            description={t('settings.memoryview.persona_desc')}
+          >
+            {memory.persona ? (
+              <div className="px-4 py-3">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
+                  {memory.persona.content}
+                </div>
+                <div className="mt-2 text-[11px] text-neutral-400">
+                  {formatDate(memory.persona.updated_at)} · {t('settings.memoryview.src')}:{' '}
+                  {memory.persona.source}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-sm text-neutral-400">
+                <Icon icon="solar:user-bold-duotone" className="text-3xl mb-2" />
+                <span>{t('settings.memoryview.no_persona')}</span>
+              </div>
+            )}
+            <div className="border-t border-neutral-100 px-4 py-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleClearLayer('L3')}
+                disabled={!memory.counts.L3}
+                className="text-xs text-neutral-400 hover:text-red-500 disabled:opacity-40"
+              >
+                {t('settings.memoryview.clear_layer')}
+              </button>
+            </div>
+          </Section>
+
+          {/* L2 场景块 */}
+          <Section
+            title={t('settings.memoryview.scene_title')}
+            description={t('settings.memoryview.scene_desc')}
+          >
+            {memory.scenes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-sm text-neutral-400">
+                <Icon icon="solar:widget-bold-duotone" className="text-3xl mb-2" />
+                <span>{t('settings.memoryview.no_scene')}</span>
+              </div>
+            ) : (
+              <div className="flex flex-col -mx-4">
+                {memory.scenes.map((s) => (
+                  <div key={s.id} className="border-b border-neutral-100 last:border-b-0 px-4 py-3">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
+                      {s.content}
+                    </div>
+                    <div className="mt-1 text-[11px] text-neutral-400">
+                      {formatDate(s.updated_at)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-neutral-100 px-4 py-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleClearLayer('L2')}
+                disabled={!memory.counts.L2}
+                className="text-xs text-neutral-400 hover:text-red-500 disabled:opacity-40"
+              >
+                {t('settings.memoryview.clear_layer')}
+              </button>
+            </div>
+          </Section>
+
+          {/* L1 原子记忆 */}
+          <Section
+            title={t('settings.memoryview.layer_l1_title')}
+            description={t('settings.memoryview.layer_l1_desc', {
+              count: String(memory.counts.L1),
+            })}
+          >
+            {memory.counts.L1 === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-sm text-neutral-400">
+                <Icon icon="solar:document-bold-duotone" className="text-3xl mb-2" />
+                <span>{t('settings.memoryview.empty_layer')}</span>
+              </div>
+            ) : (
+              <div className="px-4 py-3 space-y-3">
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {(['fact', 'preference', 'rule', 'feedback', 'event'] as const).map((c) => {
+                    const n = memory.layers.L1.filter((it) => it.category === c).length;
+                    if (!n) return null;
+                    return (
+                      <span
+                        key={c}
+                        className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-500"
+                      >
+                        {c}: {n}
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="max-h-80 overflow-auto -mx-4 border-t border-neutral-100">
+                  {memory.layers.L1.map((it) => (
+                    <div
+                      key={it.id}
+                      className="flex items-start gap-2 border-b border-neutral-100 last:border-b-0 px-4 py-2"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-neutral-700 leading-relaxed break-words">
+                          {it.content}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-neutral-400">
+                          <span>{it.category}</span>
+                          <MemTypeBadge type={it.mem_type} />
+                          <span>· {it.source}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="border-t border-neutral-100 px-4 py-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleClearLayer('L1')}
+                disabled={!memory.counts.L1}
+                className="text-xs text-neutral-400 hover:text-red-500 disabled:opacity-40"
+              >
+                {t('settings.memoryview.clear_layer')}
+              </button>
+            </div>
+          </Section>
+
+          {/* L0 原始对话 */}
+          <Section
+            title={t('settings.memoryview.layer_l0_title')}
+            description={t('settings.memoryview.layer_l0_desc', {
+              count: String(memory.counts.L0),
+            })}
+          >
+            {memory.counts.L0 === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-sm text-neutral-400">
+                <Icon icon="solar:chat-round-bold-duotone" className="text-3xl mb-2" />
+                <span>{t('settings.memoryview.empty_layer')}</span>
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-auto -mx-4">
+                {memory.layers.L0.slice(0, 20).map((it) => (
+                  <div
+                    key={it.id}
+                    className="border-b border-neutral-100 last:border-b-0 px-4 py-2"
+                  >
+                    <div className="text-sm text-neutral-600 leading-relaxed break-words">
+                      {it.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-neutral-100 px-4 py-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleClearLayer('L0')}
+                disabled={!memory.counts.L0}
+                className="text-xs text-neutral-400 hover:text-red-500 disabled:opacity-40"
+              >
+                {t('settings.memoryview.clear_layer')}
+              </button>
+            </div>
+          </Section>
+        </div>
       )}
     </div>
   );

@@ -10,6 +10,26 @@
 """
 
 from .fragment import MemoryFragment
+from .fragment import (
+    CATEGORY_FACT,
+    CATEGORY_PREFERENCE,
+    CATEGORY_RULE,
+    CATEGORY_FEEDBACK,
+    CATEGORY_EVENT,
+    CATEGORY_RAW,
+    CATEGORY_SCENE,
+    CATEGORY_PERSONA,
+    LAYER_L0,
+    LAYER_L1,
+    LAYER_L2,
+    LAYER_L3,
+    MEM_TYPE_PERSONA,
+    MEM_TYPE_EPISODIC,
+    MEM_TYPE_INSTRUCTION,
+    VALID_CATEGORIES,
+    VALID_LAYERS,
+    VALID_MEM_TYPES,
+)
 from .decay import (
     compute_importance,
     classify_stage,
@@ -37,6 +57,24 @@ from .memory_service import MemoryService, get_memory_service, reset_memory_serv
 
 __all__ = [
     "MemoryFragment",
+    "CATEGORY_FACT",
+    "CATEGORY_PREFERENCE",
+    "CATEGORY_RULE",
+    "CATEGORY_FEEDBACK",
+    "CATEGORY_EVENT",
+    "CATEGORY_RAW",
+    "CATEGORY_SCENE",
+    "CATEGORY_PERSONA",
+    "LAYER_L0",
+    "LAYER_L1",
+    "LAYER_L2",
+    "LAYER_L3",
+    "MEM_TYPE_PERSONA",
+    "MEM_TYPE_EPISODIC",
+    "MEM_TYPE_INSTRUCTION",
+    "VALID_CATEGORIES",
+    "VALID_LAYERS",
+    "VALID_MEM_TYPES",
     "compute_importance",
     "classify_stage",
     "apply_decay",

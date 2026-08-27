@@ -16,6 +16,9 @@ from typing import Any, Generator
 
 from .fragment import (
     CATEGORY_FACT,
+    CATEGORY_RAW,
+    LAYER_L0,
+    LAYER_L1,
     SOURCE_CHAT,
     MemoryFragment,
 )
@@ -54,6 +57,8 @@ _EXPECTED_COLUMNS: dict[str, str] = {
     "client_ref": "TEXT DEFAULT ''",
     "updated_at": "TEXT DEFAULT ''",
     "emotion_snapshot": "TEXT DEFAULT '{}'",
+    "layer": "TEXT DEFAULT 'L1'",
+    "mem_type": "TEXT DEFAULT ''",
 }
 
 
@@ -161,6 +166,8 @@ def _row_to_fragment(row: sqlite3.Row) -> MemoryFragment:
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]) if "updated_at" in row.keys() else datetime.fromisoformat(row["created_at"]),
         emotion_snapshot=json.loads(row["emotion_snapshot"]) if "emotion_snapshot" in row.keys() and row["emotion_snapshot"] else {},
+        layer=row["layer"] if "layer" in row.keys() else LAYER_L1,
+        mem_type=row["mem_type"] if "mem_type" in row.keys() else "",
     )
 
 
@@ -182,8 +189,9 @@ class MemoryStore:
                 """
                 INSERT INTO memory_fragments
                 (character_id, user_id, content, category, source, enabled, meta,
-                 client_ref, importance, is_permanent, embedding, updated_at, emotion_snapshot)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+                 client_ref, importance, is_permanent, embedding, updated_at, emotion_snapshot,
+                 layer, mem_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
                 """,
                 (
                     fragment.character_id or self.character_id,
@@ -198,6 +206,8 @@ class MemoryStore:
                     1 if fragment.is_permanent else 0,
                     json.dumps(fragment.embedding or []),
                     json.dumps(fragment.emotion_snapshot or {}),
+                    fragment.layer or LAYER_L1,
+                    fragment.mem_type or "",
                 ),
             )
             fragment.id = cursor.lastrowid
@@ -252,6 +262,7 @@ class MemoryStore:
         allowed = {
             "content", "category", "source", "enabled", "meta",
             "importance", "is_permanent", "client_ref", "embedding",
+            "layer", "mem_type",
         }
         set_clauses: list[str] = []
         params: list[Any] = []
@@ -340,6 +351,67 @@ class MemoryStore:
     def list_permanent(self, limit: int = 1000) -> list[MemoryFragment]:
         """列出所有永久记忆。"""
         return self.list_by_filter(is_permanent=True, limit=limit)
+
+    def list_by_layer(
+        self,
+        layer: str,
+        category: str | None = None,
+        limit: int = 1000,
+    ) -> list[MemoryFragment]:
+        """按记忆层级列出（L0/L1/L2/L3）。可选按类别二次过滤。"""
+        clauses = ["character_id = ?", "user_id = ?", "layer = ?"]
+        params: list[Any] = [self.character_id, self.user_id, layer]
+        if category is not None:
+            clauses.append("category = ?")
+            params.append(category)
+        params.append(limit)
+        with get_db() as db:
+            rows = db.execute(
+                f"""
+                SELECT * FROM memory_fragments
+                WHERE {' AND '.join(clauses)}
+                ORDER BY importance DESC, updated_at DESC, created_at DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return [_row_to_fragment(r) for r in rows]
+
+    def count_by_layer(self, layer: str) -> int:
+        """统计某层级的记忆数量。"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) AS n FROM memory_fragments "
+                "WHERE character_id = ? AND user_id = ? AND layer = ?",
+                (self.character_id, self.user_id, layer),
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def prune_old_l0(self, keep: int = 200) -> int:
+        """L0 原始对话只保留最近 keep 条，删除更早的（防止无限增长）。
+
+        返回被删除的条数。
+        """
+        with get_db() as db:
+            # 找到需要保留的最旧边界（按 created_at 升序，跳过最近 keep 条）
+            rows = db.execute(
+                """
+                SELECT id FROM memory_fragments
+                WHERE character_id = ? AND user_id = ? AND layer = 'L0'
+                ORDER BY created_at DESC
+                LIMIT -1 OFFSET ?
+                """,
+                (self.character_id, self.user_id, keep),
+            ).fetchall()
+            ids = [r["id"] for r in rows]
+            if not ids:
+                return 0
+            placeholders = ",".join("?" * len(ids))
+            db.execute(
+                f"DELETE FROM memory_fragments WHERE id IN ({placeholders})",
+                ids,
+            )
+        return len(ids)
 
     def search_like(
         self,

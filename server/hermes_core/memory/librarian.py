@@ -53,6 +53,7 @@ class Librarian:
         query: str,
         top_k: int | None = None,
         current_pad: dict[str, float] | None = None,
+        layer: str | None = None,
     ) -> list[SearchResult]:
         """检索与 query 相关的记忆碎片。
 
@@ -60,6 +61,7 @@ class Librarian:
             query: 用户输入或检索主题
             top_k: 返回数量，默认 self.top_k
             current_pad: 当前情绪 PAD（可选），用于情绪相似度加分
+            layer: 仅召回指定层级（L0/L1/L2/L3），None 表示全部
 
         Returns:
             SearchResult 列表（按分数降序）
@@ -72,6 +74,8 @@ class Librarian:
             return []
 
         candidates = self.store.search_like(query, limit=self.DEFAULT_CANDIDATE_LIMIT)
+        if layer is not None:
+            candidates = [c for c in candidates if c.layer == layer]
         if not candidates:
             return []
 

@@ -18,6 +18,8 @@ import { personaManager } from './persona';
 const log = createLogger('HermesGateway');
 
 const GATEWAY_URL = 'ws://127.0.0.1:8765/ws';
+/** 由 WS 地址推导的 REST 基址（网关同源同端口，CORS 已放开） */
+const GATEWAY_REST_BASE = GATEWAY_URL.replace('ws://', 'http://').replace(/\/ws$/, '');
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
@@ -34,8 +36,12 @@ export interface HermesGatewayCallbacks {
   onError?: (error: string) => void;
 }
 
-/** 记忆类别（与后端 core.brain 对齐） */
-export type MemoryCategory = 'fact' | 'preference' | 'rule' | 'feedback' | 'event';
+/** 记忆类别（与后端 core.brain 对齐；scene/persona/raw 由管线自动生成） */
+export type MemoryCategory =
+  'fact' | 'preference' | 'rule' | 'feedback' | 'event' | 'scene' | 'persona' | 'raw';
+
+/** 记忆分层（L0 原始对话 → L1 原子记忆 → L2 场景块 → L3 长期画像） */
+export type MemoryLayer = 'L0' | 'L1' | 'L2' | 'L3';
 
 /** 记忆条目（与后端 MemoryFragment.to_api_dict 对齐） */
 export interface MemoryItem {
@@ -53,6 +59,10 @@ export interface MemoryItem {
   access_count: number;
   created_at: string;
   updated_at: string;
+  /** 分层记忆所属层级（后端 to_api_dict 提供；旧条目可能缺失） */
+  layer?: MemoryLayer;
+  /** 原子记忆类型：persona / episodic / instruction（用于 L1 去噪与展示） */
+  mem_type?: string;
 }
 
 export class HermesGatewayClient {
@@ -158,7 +168,11 @@ export class HermesGatewayClient {
   }
 
   /** 发送聊天消息 */
-  sendChat(text: string, callbacks?: HermesGatewayCallbacks, mode?: 'auto' | 'work' | 'chat'): string {
+  sendChat(
+    text: string,
+    callbacks?: HermesGatewayCallbacks,
+    mode?: 'auto' | 'work' | 'chat',
+  ): string {
     const msgId = `msg_${++this.messageIdCounter}_${Date.now()}`;
     const payload: Record<string, unknown> = { type: 'chat', text, id: msgId };
     // 携带当前活跃角色 id，确保对话记忆注入与设置页处于同一作用域（否则规则/偏好不会被注入）
@@ -394,6 +408,39 @@ export class HermesGatewayClient {
       const r = res as { saved?: number };
       return r.saved ?? 0;
     });
+  }
+
+  /**
+   * 触发后端重新生成 L2 场景块 + L3 长期画像（走 REST，因为生成可能耗时且需 LLM）。
+   * 返回最新 persona / scene 内容，用于前端即时预览。
+   */
+  async regenerateMemory(
+    characterId: string,
+    userId = 'default',
+  ): Promise<{ scene: string | null; persona: string | null; used_llm: boolean }> {
+    const res = await fetch(`${GATEWAY_REST_BASE}/api/gateway/memory/regenerate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ character_id: characterId, user_id: userId }),
+    });
+    if (!res.ok) {
+      throw new Error(`regenerate failed: ${res.status}`);
+    }
+    const data = (await res.json()) as {
+      scene?: string | null;
+      persona?: string | null;
+      used_llm?: boolean;
+      ok?: boolean;
+      error?: string;
+    };
+    if (data.ok === false && data.error) {
+      throw new Error(data.error);
+    }
+    return {
+      scene: data.scene ?? null,
+      persona: data.persona ?? null,
+      used_llm: Boolean(data.used_llm),
+    };
   }
 
   // ===== 内部 =====

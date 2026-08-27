@@ -21,9 +21,12 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 from hermes_gateway_server import create_app  # noqa: E402
-import core.brain.learning_scheduler as ls_mod  # noqa: E402
-from core.brain.learning_scheduler import LearningScheduler  # noqa: E402
-from core.brain.memory_service import get_memory_service  # noqa: E402
+# 注意：core.brain.learning_scheduler 只是兼容层 shim，真实实现位于
+# hermes_core.memory.learning_scheduler；_drain 内的 get_memory_service /
+# get_db_path 解析自真实模块，因此 monkeypatch 必须打在真实模块上才能生效。
+import hermes_core.memory.learning_scheduler as ls_mod  # noqa: E402
+from hermes_core.memory.learning_scheduler import LearningScheduler  # noqa: E402
+from hermes_core.memory.memory_service import get_memory_service  # noqa: E402
 
 
 # ============================================================

@@ -430,6 +430,38 @@ def create_app() -> FastAPI:
         ok = svc.delete_memory(mid)
         return {"ok": bool(ok)}
 
+    @app.post("/api/gateway/memory/regenerate")
+    async def regenerate_memory(body: dict):
+        """手动触发分层记忆的 L2 场景 / L3 画像重新生成（白盒文件随之更新）。
+
+        仅供「记忆查看」页的「重新生成」按钮使用；正常由空闲自学习调度器自动触发。
+        优先使用 engine 的 LLM（若可用），否则走离线聚类/拼装。
+        """
+        character_id = body.get("character_id", "default")
+        user_id = body.get("user_id", "default")
+        svc = get_memory_service(character_id=character_id, user_id=user_id)
+        llm = None
+        use_llm = False
+        try:
+            if engine is not None:
+                llm = engine._get_llm()
+                use_llm = bool(llm and getattr(llm, "is_available", lambda: False)())
+        except Exception:  # noqa: BLE001
+            use_llm = False
+        llm_fn = (lambda msgs, _llm=llm: _llm.chat(msgs)) if use_llm else None
+        result: dict[str, Any] = {"scene": None, "persona": None, "used_llm": use_llm}
+        try:
+            scene = svc.generate_scene(llm_fn=llm_fn, use_llm=use_llm)
+            if scene:
+                result["scene"] = scene.get("content")
+            persona = svc.generate_persona(llm_fn=llm_fn, use_llm=use_llm)
+            if persona:
+                result["persona"] = persona.get("content")
+        except Exception as exc:  # noqa: BLE001
+            return {"error": str(exc), "ok": False}
+        result["ok"] = True
+        return result
+
     # ========================================================
     # WebSocket
     # ========================================================
