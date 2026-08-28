@@ -31,7 +31,7 @@ export function usePanelWindows(): PanelWindowsState {
         const mainPos = await mainWin.outerPosition();
         await mainWin.outerSize();
         let panelW = 820,
-          panelH = 460,
+          panelH = 600,
           panelX: number | undefined,
           panelY: number | undefined;
         try {
@@ -40,8 +40,8 @@ export function usePanelWindows(): PanelWindowsState {
           if (raw) {
             const s = JSON.parse(raw);
             panelW = s.w || 850;
-            // 旧默认 620/540 过高导致底部空白，读取时若超过 520 则重置为 460
-            panelH = s.h && s.h <= 520 ? s.h : 460;
+            // 面板可自由缩放，保存的尺寸直接采用，不再强制改写
+            panelH = s.h || 600;
             panelX = s.x;
             panelY = s.y;
           }

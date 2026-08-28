@@ -10,6 +10,17 @@
  * 注意：这套外观与「设置 → 外观」（桌宠气泡、角色）是两套独立配置。
  */
 
+/* 聊天面板窗口只引入本文件，未引入 App.css（#root{height:100%} 定义在 App.css）。
+   若不在此补满高，.chat-root 的 height:100% 解析失败，整条 flex 高度链塌缩成
+   「内容高度」：ChatWindow 变矮、输入区挤在顶部、窗口下方露出一片背景留白。
+   输入区需始终贴窗底，依赖这条满高链，故必须保证 html/body/#root 占满视口。
+   设置窗已自带该规则，此处重复声明无副作用。 */
+html,
+body,
+#root {
+  height: 100%;
+}
+
 .chat-root {
   --radius-sm: 4px;
   --radius-md: 10px;
