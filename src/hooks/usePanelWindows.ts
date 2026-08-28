@@ -31,7 +31,7 @@ export function usePanelWindows(): PanelWindowsState {
         const mainPos = await mainWin.outerPosition();
         await mainWin.outerSize();
         let panelW = 820,
-          panelH = 540,
+          panelH = 460,
           panelX: number | undefined,
           panelY: number | undefined;
         try {
@@ -40,7 +40,8 @@ export function usePanelWindows(): PanelWindowsState {
           if (raw) {
             const s = JSON.parse(raw);
             panelW = s.w || 850;
-            panelH = s.h || 620;
+            // 旧默认 620/540 过高导致底部空白，读取时若超过 520 则重置为 460
+            panelH = s.h && s.h <= 520 ? s.h : 460;
             panelX = s.x;
             panelY = s.y;
           }

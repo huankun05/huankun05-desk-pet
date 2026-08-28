@@ -922,15 +922,16 @@ export const ChatWindow = memo(
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   padding: '12px 16px 6px',
                 }}
               >
                 <div
                   style={{
                     width: '100%',
-                    maxWidth: '380px',
-                    margin: '0 auto auto',
-                    padding: '24px',
+                    maxWidth: '360px',
+                    padding: '20px',
                     borderRadius: '16px',
                     background: 'var(--bg-surface)',
                     border: '1px solid var(--border)',
@@ -938,7 +939,7 @@ export const ChatWindow = memo(
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '10px',
+                    gap: '8px',
                   }}
                 >
                   <div
@@ -1161,8 +1162,8 @@ export const ChatWindow = memo(
         <form
           onSubmit={handleSubmit}
           style={{
-            margin: '0 8px 8px',
-            padding: '6px 8px',
+          margin: '0 8px 4px',
+          padding: '6px 8px',
             background: 'var(--bg-surface)',
             borderRadius: '12px',
             border: '1px solid var(--border)',
