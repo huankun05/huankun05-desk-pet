@@ -7,6 +7,15 @@
 
 import type { ConsentRequest, ConsentDecision } from './permission/types';
 
+/**
+ * 跨窗口（Tauri 全局）事件名常量。
+ * eventBus 是内存级的、不跨窗；这些事件通过 @tauri-apps/api/event 的
+ * emit/listen 跨 WebView 传播，用于聊天面板窗 ↔ 主窗口 的状态同步。
+ */
+export const CHAT_EMOTION_EVENT = 'deskpet:chat-emotion';
+export const CHAT_ACTIVE_EVENT = 'deskpet:chat-active';
+export const RAG_UPDATED_EVENT = 'deskpet:rag-updated';
+
 type EventMap = {
   'message:sent': { text: string; sessionId: string };
   'message:response': { text: string; sessionId: string };

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { RAGEngine } from './engine';
+import { RAGEngine, resetRagStoreForTests } from './engine';
 
 function doc(
   id: string,
@@ -26,6 +26,8 @@ describe('RAGEngine 持久化与超限降级', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    resetRagStoreForTests();
+    localStorage.clear();
   });
 
   it('saveToStorage 超限时按有效重要性逐出非永久文档（最多 20%），永久记忆保留', async () => {

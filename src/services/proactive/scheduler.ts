@@ -71,6 +71,8 @@ export class ProactiveScheduler {
   private emotionCheckInterval = 5 * 60 * 1000; // 每 5 分钟检查一次
   private lastEmotionTrigger = 0;
   private emotionTriggerCooldown = 30 * 60 * 1000;
+  /** 忙碌标志：语音通话/语音助手活跃/回复流式中为 true，忙碌时暂停一切主动触发 */
+  private busy = false;
 
   constructor(config: Partial<ProactiveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -86,6 +88,16 @@ export class ProactiveScheduler {
     this.todayTurns = 0;
     this.lastEmotionTrigger = 0;
     this.emotionTriggerCooldown = 30 * 60 * 1000;
+  }
+
+  /** 设置/清除忙碌状态（语音通话、语音助手、回复流式中调用；忙碌时暂停主动触发） */
+  setBusy(busy: boolean): void {
+    this.busy = busy;
+  }
+
+  /** 当前是否忙碌（对话/通话进行中，不应被主动消息打扰） */
+  isBusy(): boolean {
+    return this.busy;
   }
 
   private todayKey(): string {
@@ -108,7 +120,6 @@ export class ProactiveScheduler {
     this.unsubscribers.push(
       eventBus.on('message:sent', (payload) => {
         this.lastInteractionTime = Date.now();
-        this.lastProactiveTime = 0;
         this.todayTurns += 1;
         const p = payload as { text?: string };
         if (p.text) {
@@ -119,13 +130,16 @@ export class ProactiveScheduler {
         this.lastInteractionTime = Date.now();
       }),
       eventBus.on('emotion:changed', (payload) => {
-        // 如果情绪变差，触发安慰场景
+        // 如果情绪变差，触发安慰场景（忙碌时跳过，避免打断对话）
+        if (this.busy) return;
         const intensity = (payload as unknown as { intensity?: number })?.intensity;
         const emotion = (payload as unknown as { emotion?: string })?.emotion;
         if (
           emotion &&
           ['sad', 'angry', 'lonely', 'upset'].includes(emotion) &&
-          (intensity ?? 0) > 0.5
+          (intensity ?? 0) > 0.5 &&
+          // 距上次互动超过短空闲阈值才触发：对话期间情绪波动不抢话
+          Date.now() - this.lastInteractionTime > IDLE_THRESHOLDS.short
         ) {
           this.tryTrigger('mood_change', '检测到情绪变化');
         }
@@ -202,6 +216,9 @@ export class ProactiveScheduler {
 
   /** 定时检查逻辑 */
   private tick(): void {
+    // 忙碌（语音通话/语音助手/回复流式）时暂停一切主动触发，避免打断对话
+    if (this.busy) return;
+
     const today = this.todayKey();
     if (today !== this.dailyResetDate) {
       this.dailyResetDate = today;
@@ -220,9 +237,10 @@ export class ProactiveScheduler {
     const hour = new Date().getHours();
     const minute = new Date().getMinutes();
 
-    // 情绪驱动：高优先级，但限制频率
+    // 情绪驱动：高优先级，但限制频率 + 需闲置超过短空闲阈值（对话期间不抢话）
     if (
       now - this.lastEmotionTrigger > this.emotionTriggerCooldown &&
+      idleDuration > IDLE_THRESHOLDS.short &&
       this.shouldTriggerEmotionScene()
     ) {
       this.lastEmotionTrigger = now;
@@ -236,8 +254,8 @@ export class ProactiveScheduler {
       return;
     }
 
-    // 早安问候
-    if (!this.morningGreeted && hour >= 7 && hour < 9) {
+    // 早安问候（同样要求闲置超过短空闲阈值，避免对话中被问候打断）
+    if (!this.morningGreeted && hour >= 7 && hour < 9 && idleDuration > IDLE_THRESHOLDS.short) {
       this.morningGreeted = true;
       this.tryTrigger('morning_greeting', '早安问候');
       return;
@@ -255,26 +273,29 @@ export class ProactiveScheduler {
       return;
     }
 
-    // 午餐提醒
-    if (hour === 12 && minute < 30) {
+    // 午餐提醒（需闲置超过短空闲阈值，对话中到点不打扰）
+    if (hour === 12 && minute < 30 && idleDuration > IDLE_THRESHOLDS.short) {
       this.tryTrigger('lunch_time', '午餐时间');
       return;
     }
 
     // 晚餐提醒
-    if (hour === 18 || (hour === 19 && minute < 30)) {
+    if (
+      (hour === 18 || (hour === 19 && minute < 30)) &&
+      idleDuration > IDLE_THRESHOLDS.short
+    ) {
       this.tryTrigger('dinner_time', '晚餐时间');
       return;
     }
 
     // 深夜提醒
-    if (hour >= 23 || hour < 2) {
+    if ((hour >= 23 || hour < 2) && idleDuration > IDLE_THRESHOLDS.short) {
       this.tryTrigger('late_night', '深夜提醒');
       return;
     }
 
     // 每日状态简报（21:00 当天一次，本地生成，无外部写）
-    if (!this.dailyBriefed && hour === 21) {
+    if (!this.dailyBriefed && hour === 21 && idleDuration > IDLE_THRESHOLDS.short) {
       this.dailyBriefed = true;
       this.tryTrigger('daily_brief', '每日状态简报');
       return;

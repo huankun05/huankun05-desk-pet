@@ -174,6 +174,21 @@
   animation: chat-mode-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ---------- 输入框 ---------- */
+.chat-input {
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.chat-input:focus {
+  border-color: var(--accent) !important;
+  background: var(--bg-surface) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ---------- AI 状态条（思考/回复/调用工具） ---------- */
 @keyframes ai-status-pulse {
   0%,

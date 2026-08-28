@@ -170,6 +170,18 @@ export function createStorage<T>(key: string, defaultValue: T, options?: Storage
     },
 
     /**
+     * 从文件重新读取并覆盖当前内存（localStorage 仅作本会话缓存）。
+     * 跨窗口共享场景下，另一窗口写入文件后，本窗口调用 reload 即可拿到最新数据。
+     */
+    async reload(): Promise<void> {
+      const fileData = await readFile<T>(key, options);
+      if (fileData) {
+        currentData = fileData;
+        writeLocal(key, currentData);
+      }
+    },
+
+    /**
      * 重置为默认值
      */
     reset(): void {

@@ -34,12 +34,6 @@ export function ChatIndex() {
       to: '/settings/chat/voice',
     },
     {
-      icon: 'solar:settings-bold-duotone',
-      title: t('settings.chat.modes_title', { defaultValue: '模式' }),
-      description: t('settings.chat.modes_desc', { defaultValue: '工作模式/聊天模式切换' }),
-      to: '/settings/chat/modes',
-    },
-    {
       icon: 'solar:folder-with-files-bold-duotone',
       title: t('settings.chat.session_title', { defaultValue: '会话与数据' }),
       description: t('settings.chat.session_desc', {

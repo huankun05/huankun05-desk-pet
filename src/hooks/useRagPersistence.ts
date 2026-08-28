@@ -1,6 +1,9 @@
-import { useCallback } from 'react';
-import { getRAGEngine, type RAGDocument } from '../services/rag/engine';
+import { useCallback, useEffect } from 'react';
+import { emit, listen } from '@tauri-apps/api/event';
+import { getRAGEngine, reloadRAGFromStore, type RAGDocument } from '../services/rag/engine';
 import { createLogger } from '../utils/logger';
+import { isTauriEnv } from '../utils/tauriEnv';
+import { RAG_UPDATED_EVENT } from '../services/eventBus';
 
 const log = createLogger('RagPersistence');
 
@@ -20,6 +23,10 @@ export type AddToRag = (userText: string, aiText: string, meta: AddToRagMeta) =>
  * - 抽取端统一走本地 extractStructuredMemories（M2 规则抽取）；
  *   若开启「LLM 增强记忆抽取」，引擎内部会再叠加 LLM 调用。
  * 这样记忆永不离线，也不存在后端 / 本地双存储漂移。
+ *
+ * 跨窗口同步：RAG 引擎改用共享文件后端（见 rag/engine.ts 的 ragStore），
+ * 任一窗口写入后广播 RAG_UPDATED_EVENT，另一窗口监听后从共享文件重载内存态，
+ * 保证主窗与聊天面板窗记忆一致。
  */
 export function useRagPersistence(): { addToRag: AddToRag } {
   const addToRag = useCallback<AddToRag>(async (userText, aiText, meta) => {
@@ -57,9 +64,35 @@ export function useRagPersistence(): { addToRag: AddToRag } {
       await ragEngine.extractStructuredMemories(userText, aiText);
 
       ragEngine.saveToStorage();
+
+      // 广播：另一窗口（主窗 / 面板窗）从共享文件重载，保持记忆一致
+      if (isTauriEnv()) {
+        emit(RAG_UPDATED_EVENT, {}).catch(() => {});
+      }
     } catch (ragErr) {
       log.warn('RAG persistence failed', { err: String(ragErr) });
     }
+  }, []);
+
+  // 监听其他窗口的 RAG 写入，重载本窗口内存态
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<Record<string, unknown>>(RAG_UPDATED_EVENT, () => {
+      reloadRAGFromStore().catch(() => {});
+    })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 非 Tauri 环境忽略 */
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   return { addToRag };

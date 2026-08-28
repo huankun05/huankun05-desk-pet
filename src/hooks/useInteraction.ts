@@ -6,6 +6,7 @@ import type { Personality } from './useEmotion';
 import { loadBehaviorConfig } from '../services/behavior/behaviorConfig';
 import { loadInteractionConfig } from '../settings/pages/models/interactionConfig';
 import { interactTTS } from '../services/audio/interact-tts';
+import { proactiveScheduler } from '../services/proactive/scheduler';
 
 interface UseInteractionOptions {
   onPatHead: () => void;
@@ -236,6 +237,14 @@ export function useInteraction({
     const soc = personality?.sociability ?? 0.7;
     const cheer = personality?.cheerfulness ?? 0.7;
 
+    // 聊天窗口发消息/收到回复也算互动：刷新"上次点击/互动"计时，避免聊天中闲聊抢话
+    const offSent = eventBus.on('message:sent', () => {
+      lastInteractRef.current = Date.now();
+    });
+    const offResponse = eventBus.on('message:response', () => {
+      lastInteractRef.current = Date.now();
+    });
+
     const scheduleNext = () => {
       const baseInterval = 45000 + (1 - soc) * 60000; // soc=1: 45s, soc=0: 105s
       const jitter = Math.random() * 30000;
@@ -244,7 +253,22 @@ export function useInteraction({
       idleTimerRef.current = setTimeout(async () => {
         const timeSince = Date.now() - lastInteractRef.current;
 
-        if (timeSince > 120000) {
+        // 行为总开关或主动聊天未开启：不触发任何主动消息
+        const behavior = loadBehaviorConfig();
+        if (!behavior.enable || !behavior.enableSmartChat) {
+          scheduleNext();
+          return;
+        }
+
+        // 对话/通话忙碌中（语音通话、语音助手、回复流式）：跳过本次闲聊，等下一轮
+        if (proactiveScheduler.isBusy()) {
+          scheduleNext();
+          return;
+        }
+
+        // 发言门槛 = 行为设置的「多久没互动才触发」（分钟→毫秒，默认 30 分钟）
+        const idleMs = (behavior.smartChatIdleThreshold ?? 30) * 60 * 1000;
+        if (timeSince > idleMs) {
           if (timeSince > 300000) {
             onIdleTooLong();
           }
@@ -271,6 +295,8 @@ export function useInteraction({
     scheduleNext();
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      offSent();
+      offResponse();
     };
   }, [
     currentEmotion,

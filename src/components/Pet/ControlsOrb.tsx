@@ -32,7 +32,6 @@ export interface ControlsStatePayload {
   petVisible: boolean;
   isLocked: boolean;
   isTransforming: boolean;
-  mode: 'chat' | 'work';
   fadeOnHover: boolean;
   currentModelId: string;
   availableModels: ControlsOrbModelOption[];
@@ -40,7 +39,7 @@ export interface ControlsStatePayload {
 
 /** 悬浮球 → 主窗 的动作 */
 export type ControlsActionType =
-  'settings' | 'chat' | 'hidepet' | 'transform' | 'mode' | 'fade' | 'lock' | 'exit' | 'switchModel';
+  'settings' | 'chat' | 'hidepet' | 'transform' | 'fade' | 'lock' | 'exit' | 'switchModel';
 
 export interface ControlsActionPayload {
   type: ControlsActionType;
@@ -52,7 +51,6 @@ const buttons = [
   { icon: 'solar:chat-round-dots-linear', label: 'chat' },
   { icon: 'solar:eye-closed-linear', label: 'hidepet' },
   { icon: 'solar:cursor-linear', label: 'transform' },
-  { icon: 'solar:code-linear', label: 'mode' },
   { icon: 'solar:users-group-rounded-linear', label: 'model' },
   { icon: 'solar:eye-bold', label: 'fade' },
   { icon: 'solar:lock-keyhole-linear', label: 'lock' },
@@ -122,7 +120,6 @@ export default function ControlsOrb() {
     petVisible: true,
     isLocked: true,
     isTransforming: false,
-    mode: 'chat',
     fadeOnHover: true,
     currentModelId: '',
     availableModels: [],
@@ -521,7 +518,6 @@ export default function ControlsOrb() {
       chat: 'chat',
       hidepet: 'hidepet',
       transform: 'transform',
-      mode: 'mode',
       fade: 'fade',
       lock: 'lock',
       exit: 'exit',
@@ -533,7 +529,6 @@ export default function ControlsOrb() {
 
   const activeMap: Record<string, boolean> = {
     transform: state.isTransforming,
-    mode: state.mode === 'work',
     model: showModelPicker,
     fade: state.fadeOnHover,
     lock: state.isLocked,
@@ -551,15 +546,11 @@ export default function ControlsOrb() {
           ? state.fadeOnHover
             ? 'solar:eye-bold'
             : 'solar:eye-closed-linear'
-          : b.label === 'lock'
-            ? state.isLocked
-              ? 'solar:lock-keyhole-linear'
-              : 'solar:lock-keyhole-unlocked-linear'
-            : b.label === 'mode'
-              ? state.mode === 'work'
-                ? 'solar:code-linear'
-                : 'solar:chat-line-linear'
-              : b.icon,
+        : b.label === 'lock'
+          ? state.isLocked
+            ? 'solar:lock-keyhole-linear'
+            : 'solar:lock-keyhole-unlocked-linear'
+          : b.icon,
   }));
 
   const modelPicker = showModelPicker &&

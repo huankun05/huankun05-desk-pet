@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 import { Icon } from '@iconify/react';
 import { ChatWindow, type ChatWindowHandle, type Message } from './ChatWindow';
 import { ChatDetailsPanel } from './ChatDetailsPanel';
@@ -25,13 +26,14 @@ import { transcribeViaBrain } from '../../services/provider/sttBackend';
 import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
-import { useMode } from '../../hooks/useMode';
-import { usePanelWindows } from '../../hooks/usePanelWindows';
 import { BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 import { registerGatewayToolExecutor } from '../../services/tools/executor';
 import { registerBuiltinTools } from '../../services/tools/builtins';
 import { getHermesGatewayClient } from '../../services/hermesGateway';
-import { stripControlTags } from '../../services/live2d/visualMapping';
+import { stripControlTags, parseExplicitEmotion } from '../../services/live2d/visualMapping';
+import { detectEmotionFromText, type EmotionType } from '../../hooks/useEmotion';
+import { isTauriEnv } from '../../utils/tauriEnv';
+import { CHAT_EMOTION_EVENT, CHAT_ACTIVE_EVENT } from '../../services/eventBus';
 
 /** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
 let _contextResetTs = 0;
@@ -104,8 +106,6 @@ function ChatPanelWindow() {
     }
     return 0;
   });
-  const { mode } = useMode();
-  const { openSettingsPanel } = usePanelWindows();
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem('deskpet_tts_enabled') !== 'false';
@@ -129,6 +129,11 @@ function ChatPanelWindow() {
     sendMessage: sendMessageViaRef,
     mode: 'auto',
     showError: (m) => showToast(m, 'error'),
+    // 通话状态跨窗广播给主窗口：通话中 → 主窗暂停主动闲聊，避免"打电话时突然冒一句"
+    onStateChange: (s) => {
+      const active = s === 'incall' || s === 'listening' || s === 'speaking';
+      emit('voicecall-active', { active }).catch(() => {});
+    },
   });
 
   const {
@@ -160,6 +165,21 @@ function ChatPanelWindow() {
           sessionId,
         });
       }
+      // 跨窗回传情绪：让主窗宠物的表情跟着聊天内容变化（面板自身不渲染 Live2D）
+      try {
+        const head = assistantText.slice(0, 80);
+        const e: EmotionType | null =
+          parseExplicitEmotion(head) ?? detectEmotionFromText(head);
+        if (e && isTauriEnv()) {
+          emit(CHAT_EMOTION_EVENT, {
+            emotion: e,
+            intensity: 0.7,
+            reason: '聊天回复',
+          }).catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
     },
   });
 
@@ -167,6 +187,13 @@ function ChatPanelWindow() {
   useEffect(() => {
     sendMessageRef.current = sendMessage;
   }, [sendMessage]);
+
+  // 跨窗广播“聊天进行中”：发送/流式输出期间 active=true，
+  // 主窗据此暂停主动闲聊，避免“我正在打字它突然冒一句”
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    emit(CHAT_ACTIVE_EVENT, { active: isLoading }).catch(() => {});
+  }, [isLoading]);
 
   // 详情面板显隐（详情面板本身已拆到 ChatDetailsPanel.tsx，内部状态内聚）
   const [showDetails, setShowDetails] = useState(false);
@@ -523,9 +550,10 @@ function ChatPanelWindow() {
       if (!text.trim() || isLoading) return;
       const quoted = typeof payload === 'string' ? undefined : payload.quoted;
       const attachments = typeof payload === 'string' ? undefined : payload.attachments;
-      await sendMessage(text.trim(), mode, { quoted, attachments });
+      // 固定使用智能模式，不再提供手动切换
+      await sendMessage(text.trim(), 'auto', { quoted, attachments });
     },
-    [sendMessage, isLoading, mode],
+    [sendMessage, isLoading],
   );
 
   const handleCancelStream = useCallback(() => {
@@ -880,51 +908,52 @@ function ChatPanelWindow() {
             </span>
           </div>
 
-          {/* 智能模式指示（点击查看说明，不再手动切换） */}
-          <button
-            type="button"
-            onClick={() => openSettingsPanel()}
-            className="chat-chip chat-chip--active"
-            title="智能模式：自动识别意图，无需手动切换"
-            style={{ fontSize: '10px', padding: '2px 8px' }}
-          >
-            <Icon icon="solar:magic-stick-3-bold" width={11} height={11} />
-            智能
-          </button>
+          {/* 右侧工具按钮组 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <BarButton
+              icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
+              title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'}
+              active={ttsEnabled}
+              onClick={handleToggleTts}
+            />
+            <BarButton
+              icon="solar:hamburger-menu-linear"
+              title="会话列表"
+              active={showSessionList}
+              onClick={() => setShowSessionList((p) => !p)}
+            />
+            <BarButton
+              icon="solar:add-circle-linear"
+              title={t('chat.new_chat')}
+              onClick={handleNewChat}
+            />
+            <BarButton
+              icon="solar:menu-dots-linear"
+              title={t('chat.more', { defaultValue: '更多' })}
+              active={showDetails}
+              onClick={() => setShowDetails((p) => !p)}
+            />
 
-          <BarButton
-            icon={ttsEnabled ? 'solar:volume-loud-linear' : 'solar:volume-cross-linear'}
-            title={ttsEnabled ? 'TTS 开启' : 'TTS 关闭'}
-            active={ttsEnabled}
-            onClick={handleToggleTts}
-          />
-          <BarButton
-            icon="solar:hamburger-menu-linear"
-            title="会话列表"
-            active={showSessionList}
-            onClick={() => setShowSessionList((p) => !p)}
-          />
-          <BarButton
-            icon="solar:add-circle-linear"
-            title={t('chat.new_chat')}
-            onClick={handleNewChat}
-          />
-          <BarButton
-            icon="solar:menu-dots-linear"
-            title={t('chat.more', { defaultValue: '更多' })}
-            active={showDetails}
-            onClick={() => setShowDetails((p) => !p)}
-          />
-          <BarButton
-            icon="solar:minimize-linear"
-            title={t('chat.minimize', { defaultValue: '缩小' })}
-            onClick={handleMinimize}
-          />
-          <BarButton
-            icon="solar:close-circle-linear"
-            title={t('chat.collapse', { defaultValue: '收起' })}
-            onClick={handleCloseWindow}
-          />
+            <div
+              style={{
+                width: '1px',
+                height: '18px',
+                background: 'var(--border)',
+                margin: '0 6px',
+              }}
+            />
+
+            <BarButton
+              icon="solar:minimize-linear"
+              title={t('chat.minimize', { defaultValue: '缩小' })}
+              onClick={handleMinimize}
+            />
+            <BarButton
+              icon="solar:close-circle-linear"
+              title={t('chat.collapse', { defaultValue: '收起' })}
+              onClick={handleCloseWindow}
+            />
+          </div>
 
           {/* 上下文占用进度条（贴底） */}
           <div

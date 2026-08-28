@@ -70,8 +70,15 @@ export function BehaviorPage() {
       // smartChatInterval 单位为秒，messageCooldown 单位为毫秒
       messageCooldown: config.smartChatInterval * 1000,
       dailyLimit: config.smartChatDailyLimit,
+      // smartChatIdleThreshold 单位为分钟：多久没互动才触发主动消息
+      longIdleThreshold: config.smartChatIdleThreshold * 60 * 1000,
     });
-  }, [config.enableSmartChat, config.smartChatInterval, config.smartChatDailyLimit]);
+  }, [
+    config.enableSmartChat,
+    config.smartChatInterval,
+    config.smartChatDailyLimit,
+    config.smartChatIdleThreshold,
+  ]);
 
   const handleReset = useCallback(() => {
     setConfig({ ...DEFAULT_BEHAVIOR });
@@ -189,6 +196,16 @@ export function BehaviorPage() {
           title={t('settings.models.smart_chat_settings_title')}
           description={t('settings.models.smart_chat_settings_desc')}
         >
+          <SliderRow
+            label={t('settings.models.smart_chat_idle_threshold')}
+            value={config.smartChatIdleThreshold}
+            min={5}
+            max={120}
+            step={5}
+            unit={t('settings.models.smart_chat_idle_threshold_unit')}
+            desc={t('settings.models.smart_chat_idle_threshold_desc')}
+            onChange={(v) => update({ smartChatIdleThreshold: v })}
+          />
           <SliderRow
             label={t('settings.models.smart_chat_interval')}
             value={config.smartChatInterval}

@@ -290,6 +290,19 @@ export function InteractionPage() {
     [backendMessages],
   );
 
+  // 获取实际使用的闲聊消息（后端 > 默认）
+  const getIdleMessages = useCallback((): IdleMessage[] => {
+    const groups = backendMessages
+      .filter((m) => m.category === 'idle')
+      .sort((a, b) => (a.subcategory > b.subcategory ? 1 : -1))
+      .map((m) => ({
+        ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
+        ...(m.emotion ? { emotion: m.emotion as IdleMessage['emotion'] } : {}),
+        messages: m.messages,
+      }));
+    return groups.length ? groups : IDLE_MESSAGES;
+  }, [backendMessages]);
+
   /** 当前全部生效的台词文本集合（后端 > 默认），用于清理孤儿音频 */
   const allCurrentTexts = useMemo(() => {
     const set = new Set<string>();
@@ -298,8 +311,7 @@ export function InteractionPage() {
     );
     (getIdleMessages() ?? []).forEach((g) => g.messages.forEach((t) => set.add(t)));
     return set;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendMessages]);
+  }, [getInteractMessages, getIdleMessages]);
 
   /** 播放磁盘上的音频文件 */
   const playAudioFile = useCallback(async (name: string) => {
@@ -469,19 +481,6 @@ export function InteractionPage() {
     },
     [backendMessages, refreshBackendMessages, showToast],
   );
-
-  // 获取实际使用的闲聊消息（后端 > 默认）
-  const getIdleMessages = useCallback((): IdleMessage[] => {
-    const groups = backendMessages
-      .filter((m) => m.category === 'idle')
-      .sort((a, b) => (a.subcategory > b.subcategory ? 1 : -1))
-      .map((m) => ({
-        ...(m.time_of_day ? { time: m.time_of_day as IdleMessage['time'] } : {}),
-        ...(m.emotion ? { emotion: m.emotion as IdleMessage['emotion'] } : {}),
-        messages: m.messages,
-      }));
-    return groups.length ? groups : IDLE_MESSAGES;
-  }, [backendMessages]);
 
   // 更新闲聊消息
   const updateIdleMessage = useCallback(

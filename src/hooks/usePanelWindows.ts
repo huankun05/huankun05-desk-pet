@@ -30,8 +30,8 @@ export function usePanelWindows(): PanelWindowsState {
         const mainWin = getCurrentWindow();
         const mainPos = await mainWin.outerPosition();
         await mainWin.outerSize();
-        let panelW = 850,
-          panelH = 620,
+        let panelW = 820,
+          panelH = 540,
           panelX: number | undefined,
           panelY: number | undefined;
         try {

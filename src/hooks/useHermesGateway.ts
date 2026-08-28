@@ -40,8 +40,10 @@ import { mergeSyncedMessage } from './msgSync';
 export interface SendMessageOptions {
   attachments?: Message['attachments'];
   quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
-  /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡（用于语音通话等） */
+  /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡、不播 TTS（用于语音通话等） */
   silent?: boolean;
+  /** 不落历史：不写聊天历史、不渲染气泡，但回复 TTS 照常播放（用于唤醒词/VAD 语音交流） */
+  noHistory?: boolean;
 }
 
 export type SendMessageFn = (
@@ -100,6 +102,8 @@ export interface HermesGatewayState {
     opts?: {
       attachments?: Message['attachments'];
       quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
+      silent?: boolean;
+      noHistory?: boolean;
     },
   ) => Promise<void>;
   interruptResponse: () => void;
@@ -198,13 +202,16 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       opts?: {
         attachments?: Message['attachments'];
         quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
-        /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡（用于语音通话等） */
+        /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡、不播 TTS（用于语音通话等） */
         silent?: boolean;
+        /** 不落历史：不写聊天历史、不渲染气泡，但回复 TTS 照常播放（用于唤醒词/VAD 语音交流） */
+        noHistory?: boolean;
       },
     ) => {
       const session = sessionRef.current;
       if (!session) return;
-      const silent = opts?.silent ?? false;
+      // noHistory 与 silent 都不落历史/不渲染；仅显式 silent 额外关闭回复 TTS
+      const silent = (opts?.silent ?? false) || (opts?.noHistory ?? false);
 
       if (isOfflineModeEnabled()) {
         showToast(t('settings.system.offline_mode_hint'), 'warning');
@@ -324,8 +331,8 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
             }
             log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
             options?.onToken?.(token);
-            // 流式 TTS：把 token 增量喂给渐进式播放器（仅聊天回复、且未静音时）
-            if (options?.ttsEnabled && !silent) {
+            // 流式 TTS：把 token 增量喂给渐进式播放器（仅聊天回复、且未显式静默时；noHistory 保留语音）
+            if (options?.ttsEnabled && !(opts?.silent ?? false)) {
               if (!ttsStream) {
                 ttsStream = new StreamingTTSPlayer((audio, sr) =>
                   audioPlayer.enqueue(audio, sr, `tts-${assistantId}`),
@@ -392,7 +399,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
               userMessage.id,
               assistantId,
             );
-            if (options?.ttsEnabled && fullResponse.trim()) {
+            if (options?.ttsEnabled && fullResponse.trim() && !(opts?.silent ?? false)) {
               // 流式 TTS：收尾，把残留文本作为最后一句合成播放
               if (!ttsStream) {
                 ttsStream = new StreamingTTSPlayer((audio, sr) =>

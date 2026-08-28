@@ -919,57 +919,162 @@ export const ChatWindow = memo(
             {messages.length === 0 && (
               <div
                 style={{
-                  textAlign: 'center',
-                  color: 'var(--text-muted)',
-                  marginTop: '48px',
+                  flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '0 16px',
+                  padding: '12px 16px 6px',
                 }}
               >
-                <Icon icon="solar:chat-round-dots-linear" width={44} height={44} />
-                <div style={{ color: 'var(--text-secondary)' }}>{t('chat.welcome_hi')}</div>
-                <div style={{ fontSize: '0.9em' }}>{t('chat.welcome_start')}</div>
-
-                {!llmConfigured && (
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: '380px',
+                    margin: '0 auto auto',
+                    padding: '24px',
+                    borderRadius: '16px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                  }}
+                >
                   <div
                     style={{
-                      marginTop: '4px',
+                      width: 56,
+                      height: 56,
+                      borderRadius: '16px',
+                      background: 'var(--accent-soft)',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      background: 'var(--warning-bg)',
-                      border: '1px solid var(--warning-border)',
-                      color: 'var(--warning-text)',
-                      maxWidth: '260px',
+                      justifyContent: 'center',
+                      color: 'var(--accent)',
                     }}
                   >
-                    <div style={{ fontSize: '0.9em', lineHeight: 1.5 }}>
-                      {t('chat.llm_not_configured')}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void openSettingsAt('/settings/services/llm')}
+                    <Icon icon="solar:stars-minimalistic-bold-duotone" width={28} height={28} />
+                  </div>
+                  <div>
+                    <div
                       style={{
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '6px 14px',
-                        fontSize: '0.9em',
+                        fontSize: '1.15em',
                         fontWeight: 600,
-                        cursor: 'pointer',
-                        color: '#fff',
-                        background: 'var(--accent)',
+                        color: 'var(--text-primary)',
                       }}
                     >
-                      {t('chat.go_configure')}
-                    </button>
+                      {t('chat.welcome_title', { defaultValue: '有什么可以帮你的？' })}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: '4px',
+                        fontSize: '0.9em',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {t('chat.welcome_subtitle', {
+                        defaultValue: '随时聊天、查资料、写代码、管理文件——我都在。',
+                      })}
+                    </div>
                   </div>
-                )}
+
+                  {!llmConfigured ? (
+                    <div
+                      style={{
+                        width: '100%',
+                        marginTop: '4px',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        background: 'var(--warning-bg)',
+                        border: '1px solid var(--warning-border)',
+                        color: 'var(--warning-text)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '10px',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.9em', lineHeight: 1.5 }}>
+                        {t('chat.llm_not_configured')}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void openSettingsAt('/settings/services/llm')}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 14px',
+                          fontSize: '0.9em',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          color: '#fff',
+                          background: 'var(--accent)',
+                        }}
+                      >
+                        {t('chat.go_configure')}
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        marginTop: '2px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                        {t('chat.welcome_hint', { defaultValue: '试试这样问我' })}
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          justifyContent: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        {[
+                          t('chat.welcome_suggestion_1', { defaultValue: '今天天气怎么样' }),
+                          t('chat.welcome_suggestion_2', { defaultValue: '帮我写一段 Python' }),
+                          t('chat.welcome_suggestion_3', {
+                            defaultValue: '总结一下桌面上的文档',
+                          }),
+                        ].map((text) => (
+                          <button
+                            key={text}
+                            type="button"
+                            onClick={() => onSendMessage(text)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '999px',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-glass)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.85em',
+                              cursor: 'pointer',
+                              transition: 'background 0.15s, border-color 0.15s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'var(--bg-hover)';
+                              e.currentTarget.style.borderColor = 'var(--accent)';
+                              e.currentTarget.style.color = 'var(--accent)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'var(--bg-glass)';
+                              e.currentTarget.style.borderColor = 'var(--border)';
+                              e.currentTarget.style.color = 'var(--text-secondary)';
+                            }}
+                          >
+                            {text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1056,9 +1161,12 @@ export const ChatWindow = memo(
         <form
           onSubmit={handleSubmit}
           style={{
-            padding: '6px 10px 8px',
+            margin: '0 8px 8px',
+            padding: '6px 8px',
             background: 'var(--bg-surface)',
-            borderTop: '1px solid var(--border)',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
             flexShrink: 0,
           }}
         >
@@ -1403,9 +1511,10 @@ export const ChatWindow = memo(
               placeholder={t('chat.placeholder')}
               disabled={isLoading}
               rows={1}
+              className="chat-input"
               style={{
                 flex: 1,
-                padding: '7px 10px',
+                padding: '8px 12px',
                 borderRadius: '10px',
                 border: '1px solid var(--border)',
                 background: 'var(--bg-glass)',

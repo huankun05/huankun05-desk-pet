@@ -9,6 +9,7 @@ import type { PetContext } from './context';
 import { DeskPetBehavior } from './base';
 import { EventType } from './types';
 import type { EmotionState } from '../../hooks/useEmotion';
+import { loadBehaviorConfig } from './behaviorConfig';
 
 // ============================================================
 // 1. 回归问候：WINDOW_FOCUS 时根据离开时长说不同的话
@@ -160,6 +161,9 @@ export class IdleChatBehavior extends DeskPetBehavior {
       EventType.IDLE,
       async () => {
         if (!this.ctx) return;
+        // 主动聊天关闭时不应触发空闲闲聊气泡
+        const behavior = loadBehaviorConfig();
+        if (!behavior.enable || !behavior.enableSmartChat) return;
         const now = Date.now();
         if (now - this.lastAt < this.minInterval) return;
         this.lastAt = now;

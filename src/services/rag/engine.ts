@@ -27,6 +27,7 @@ import { memoryExtractor, mergeExtractedMemories } from '../memory/extractor';
 import { EmbeddingIndex } from './embedding-index';
 import type { EmbeddingProvider } from '../provider/types';
 import { enhanceMemoriesWithLLM, type LLMCall } from '../memory/llm-enhancer';
+import { createStorage } from '../storage';
 
 const log = createLogger('RAG');
 
@@ -96,6 +97,32 @@ export const DEFAULT_RAG_CONFIG: RAGConfig = {
 };
 
 // ===== BM25 索引 =====
+
+/**
+ * RAG 持久化形态（跨窗口共享）。
+ * 改用 createStorage 的「project 文件后端」，使主窗与聊天面板窗共用同一份记忆文件，
+ * 不再各自写隔离的 localStorage（每 WebView 的 localStorage 互不可见，会导致记忆分叉）。
+ */
+interface RAGPersistDoc {
+  id: string;
+  content: string;
+  metadata?: Record<string, string>;
+  createdAt: string;
+  accessCount: number;
+  lastAccessed: string;
+  importance: number;
+  baseImportance: number;
+}
+
+interface RAGPersistShape {
+  docs: RAGPersistDoc[];
+}
+
+const ragStore = createStorage<RAGPersistShape>(
+  'rag_docs',
+  { docs: [] },
+  { location: 'project', subdir: 'memory' },
+);
 
 class BM25Index {
   private k1 = 1.5;
@@ -538,38 +565,60 @@ export class RAGEngine {
     log.info('RAG engine cleared');
   }
 
-  // ===== 持久化（localStorage，重启不丢） =====
+  // ===== 持久化（跨窗口共享文件，见文件顶部 ragStore） =====
 
-  private static readonly STORAGE_KEY = 'deskpet_rag_docs_v1';
-
-  /** 序列化持久化到 localStorage（重启不丢）；超限时按重要性降级逐出 */
+  /** 序列化并写入共享文件 + 每窗 localStorage 缓存（跨窗口权威源 + 兼容历史键） */
   saveToStorage(): void {
     try {
-      const serialize = (): string =>
-        JSON.stringify(
-          Array.from(this.docs.values()).map((d) => ({
-            ...d,
-            baseImportance: d.baseImportance ?? d.importance,
-            createdAt: d.createdAt.toISOString(),
-            lastAccessed: d.lastAccessed.toISOString(),
-          })),
-        );
-      let json = serialize();
+      // 软上限保护：超过配置上限时逐出最低效文档，避免无限增长
+      if (this.docs.size > this.config.maxDocuments) {
+        this.evictLowestForStorage();
+      }
+      const docs: RAGPersistDoc[] = Array.from(this.docs.values()).map((d) => ({
+        id: d.id,
+        content: d.content,
+        metadata: d.metadata,
+        createdAt: d.createdAt.toISOString(),
+        accessCount: d.accessCount,
+        lastAccessed: d.lastAccessed.toISOString(),
+        importance: d.importance,
+        baseImportance: d.baseImportance ?? d.importance,
+      }));
+      // 1) 共享文件（主窗/面板窗共用，跨窗口权威源；fire-and-forget，忽略配额）
       try {
-        localStorage.setItem(RAGEngine.STORAGE_KEY, json);
+        ragStore.set({ docs });
       } catch {
-        // 超限（约 5MB，localStorage 硬上限）：逐出最低效的非永久文档后重试，
-        // 避免新记忆静默丢失（内存态始终保留，仅持久化降级）。
+        /* ignore */
+      }
+      // 2) 每窗 localStorage 缓存（保留旧键 deskpet_rag_docs_v1，兼容历史与配额降级逻辑）
+      try {
+        localStorage.setItem('deskpet_rag_docs_v1', JSON.stringify(docs));
+      } catch {
+        // 配额超限：逐出最低效文档后重试（内存态始终保留，仅持久化降级）
         if (this.evictLowestForStorage() > 0) {
-          json = serialize();
+          const trimmed: RAGPersistDoc[] = Array.from(this.docs.values()).map((d) => ({
+            id: d.id,
+            content: d.content,
+            metadata: d.metadata,
+            createdAt: d.createdAt.toISOString(),
+            accessCount: d.accessCount,
+            lastAccessed: d.lastAccessed.toISOString(),
+            importance: d.importance,
+            baseImportance: d.baseImportance ?? d.importance,
+          }));
           try {
-            localStorage.setItem(RAGEngine.STORAGE_KEY, json);
+            localStorage.setItem('deskpet_rag_docs_v1', JSON.stringify(trimmed));
           } catch {
-            /* 仍超限则忽略：内存态保留，刷新后丢失的只是最低效记忆 */
+            /* ignore */
+          }
+          try {
+            ragStore.set({ docs: trimmed });
+          } catch {
+            /* ignore */
           }
         }
       }
-      log.debug('RAG persisted', { docs: this.docs.size, bytes: json.length });
+      log.debug('RAG persisted', { docs: docs.length });
     } catch (err) {
       log.warn('RAG persist failed', { err: String(err) });
     }
@@ -595,17 +644,29 @@ export class RAGEngine {
     return evicted;
   }
 
-  /** 从 localStorage 反序列化恢复 */
+  /** 从共享存储（先内存/文件，再迁移旧版 localStorage）反序列化恢复 */
   loadFromStorage(): void {
     try {
-      const raw = localStorage.getItem(RAGEngine.STORAGE_KEY);
-      if (!raw) return;
-      const arr = JSON.parse(raw) as Array<
-        Omit<RAGDocument, 'createdAt' | 'lastAccessed'> & {
-          createdAt: string;
-          lastAccessed: string;
+      let arr: RAGPersistDoc[] | undefined = ragStore.get()?.docs;
+      if (!arr || arr.length === 0) {
+        // 迁移旧版 localStorage 数据（deskpet_rag_docs_v1），仅首次运行一次
+        const legacy = localStorage.getItem('deskpet_rag_docs_v1');
+        if (legacy) {
+          try {
+            arr = JSON.parse(legacy) as RAGPersistDoc[];
+            log.info('RAG migrated from legacy localStorage', { count: arr.length });
+          } catch {
+            // 旧键损坏则清掉，避免下次继续解析失败
+            try {
+              localStorage.removeItem('deskpet_rag_docs_v1');
+            } catch {
+              /* ignore */
+            }
+            arr = undefined;
+          }
         }
-      >;
+      }
+      if (!arr || arr.length === 0) return;
       let restored = 0;
       for (const rawDoc of arr) {
         const doc: RAGDocument = {
@@ -622,15 +683,11 @@ export class RAGEngine {
         this.bm25.index(doc.id, doc.content);
         restored++;
       }
+      // 同步写入新存储，保证迁移后格式一致
+      ragStore.set({ docs: arr });
       log.info('RAG restored from storage', { restored });
     } catch (err) {
       log.warn('RAG restore failed', { err: String(err) });
-      // 损坏则清空，避免下次继续失败
-      try {
-        localStorage.removeItem(RAGEngine.STORAGE_KEY);
-      } catch {
-        /* ignore */
-      }
     }
   }
 
@@ -638,7 +695,7 @@ export class RAGEngine {
   wipeAll(): void {
     this.clear();
     try {
-      localStorage.removeItem(RAGEngine.STORAGE_KEY);
+      ragStore.reset();
     } catch {
       /* ignore */
     }
@@ -651,9 +708,41 @@ let _ragEngine: RAGEngine | null = null;
 export function getRAGEngine(): RAGEngine {
   if (!_ragEngine) {
     _ragEngine = new RAGEngine();
+    // 同步加载本会话 localStorage 缓存（若有）；随后从共享文件异步恢复最新记忆
     _ragEngine.loadFromStorage();
+    ragStore
+      .init()
+      .then(() => _ragEngine?.loadFromStorage())
+      .catch(() => {});
   }
   return _ragEngine;
+}
+
+/**
+ * 跨窗口重载：另一窗口写入共享文件后，本窗口调用此方法把最新记忆读入内存。
+ * 由 useRagPersistence 在收到 'rag:updated' 事件时触发。
+ */
+export async function reloadRAGFromStore(): Promise<void> {
+  try {
+    await ragStore.reload();
+    getRAGEngine().loadFromStorage();
+  } catch (err) {
+    log.warn('RAG reload from store failed', { err: String(err) });
+  }
+}
+
+/** 测试用：重置共享存储与旧键，隔离用例（避免模块级单例跨用例残留） */
+export function resetRagStoreForTests(): void {
+  try {
+    ragStore.reset();
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem('deskpet_rag_docs_v1');
+  } catch {
+    /* ignore */
+  }
 }
 
 export function resetRAGEngine(): void {

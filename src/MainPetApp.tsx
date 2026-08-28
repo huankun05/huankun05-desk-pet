@@ -24,7 +24,6 @@ import {
 } from './hooks/useEmotion';
 import { stripControlTags } from './services/live2d/visualMapping';
 import { useWindowManager } from './hooks/useWindowManager';
-import { useMode } from './hooks/useMode';
 import { useHermesGateway } from './hooks/useHermesGateway';
 import { useRagPersistence } from './hooks/useRagPersistence';
 import { useVoiceInteraction } from './hooks/useVoiceInteraction';
@@ -81,6 +80,7 @@ import { useAutoBackup } from './hooks/useAutoBackup';
 import './services/behavior/builtins'; // side-effect: 自动注册 5 个内置行为
 import type { PetContextDependencies } from './services/behavior';
 import { EMOTION_CHANGED_EVENT } from './services/emotionSync';
+import { CHAT_EMOTION_EVENT, CHAT_ACTIVE_EVENT } from './services/eventBus';
 import './App.css';
 
 const emotionStorage = createStorage(
@@ -215,8 +215,6 @@ function MainPetApp() {
     modelInfo,
   });
 
-  const { mode } = useMode();
-
   const showBubble = useCallback((text: string, duration?: number) => {
     const raw = localStorage.getItem(APPEARANCE_KEYS.bubbleDuration);
     const dur = duration ?? (raw ? Number(raw) : DEFAULT_APPEARANCE.bubbleDuration);
@@ -299,18 +297,16 @@ function MainPetApp() {
   const { vadIsSpeaking } = useVoiceInteraction({
     isStreaming,
     onInterrupt: interruptResponse,
-    onSendMessage: sendMessage,
+    // 语音驱动的对话（VAD 自动聆听/按住说话）不落聊天历史，但回复语音照常播放
+    onSendMessage: (text: string) => {
+      void sendMessage(text, undefined, { noHistory: true });
+    },
     onUpdateFromVoice: updateFromVoice,
     onSetTalkingEmotion: setTalkingEmotion,
     autoListen: voiceAutoListen,
   });
 
   const { toggleChatPanel, openSettingsPanel, openControlsOrb } = usePanelWindows();
-
-  // 点击托盘/快捷键的"模式"项 → 打开设置页的「智能模式」说明（不再手动切换）
-  const handleOpenModePage = useCallback(() => {
-    openSettingsPanel();
-  }, [openSettingsPanel]);
 
   // "一起看"模式：Ctrl+Shift+S 触发
   const { isWatching, toggleWatch } = useWatchTogether({
@@ -336,7 +332,8 @@ function MainPetApp() {
     cancel: cancelVoice,
   } = useVoiceAssistant({
     showBubble,
-    sendMessage,
+    // 语音助手（Ctrl+Space / 唤醒词）说的话不落聊天历史，但回复语音照常播放
+    sendMessage: (text: string) => sendMessage(text, undefined, { noHistory: true }),
     setListeningEmotion: setTalkingEmotion,
     setIdleEmotion: () => setEmotionFromResponse('neutral'),
     manualStop: voiceManualStop,
@@ -371,6 +368,88 @@ function MainPetApp() {
       /* ignore */
     }
   }, [voiceState]);
+
+  // ===== 主动闲聊"忙碌"闸 =====
+  // 语音助手活跃 / 回复流式 / VAD 检测到语音 / 聊天窗语音通话中 / 聊天面板文字对话中 →
+  // 暂停主动消息与静态闲聊，避免"正在对话时突然冒一句"。用 ref 聚合各路来源，统一写入 proactiveScheduler。
+  const busySourcesRef = useRef({ voice: false, streaming: false, vad: false, call: false, chat: false });
+  const syncBusy = useCallback(() => {
+    const s = busySourcesRef.current;
+    proactiveScheduler.setBusy(s.voice || s.streaming || s.vad || s.call || s.chat);
+  }, []);
+  useEffect(() => {
+    busySourcesRef.current.voice = voiceState !== 'idle';
+    busySourcesRef.current.streaming = isStreaming;
+    busySourcesRef.current.vad = vadIsSpeaking;
+    syncBusy();
+  }, [voiceState, isStreaming, vadIsSpeaking, syncBusy]);
+  // 聊天面板窗口的语音通话状态（跨窗广播 'voicecall-active'）
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<{ active: boolean }>('voicecall-active', (e) => {
+      busySourcesRef.current.call = e.payload.active;
+      syncBusy();
+    })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 事件不可用时退化为仅本地 busy 来源 */
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [syncBusy]);
+  // 聊天面板窗口的文字对话状态（跨窗广播 'deskpet:chat-active'）：打字/流式期间暂停主动闲聊
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<{ active: boolean }>(CHAT_ACTIVE_EVENT, (e) => {
+      busySourcesRef.current.chat = e.payload.active;
+      syncBusy();
+    })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 事件不可用时退化为仅本地 busy 来源 */
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [syncBusy]);
+
+  // 聊天面板窗口产出的情绪跨窗回传：让主窗宠物表情跟着聊天回复变化
+  useEffect(() => {
+    if (!isTauriEnv()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<{ emotion: string; intensity: number; reason: string }>(CHAT_EMOTION_EVENT, (e) => {
+      setNewEmotion(
+        e.payload.emotion as Parameters<typeof setNewEmotion>[0],
+        e.payload.intensity,
+        e.payload.reason,
+      );
+    })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 事件不可用时忽略 */
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [setNewEmotion]);
 
   // Esc 键取消语音助手（仅在语音助手活跃时生效，避免与 watchTogether Esc 冲突）
   useEffect(() => {
@@ -602,6 +681,8 @@ function MainPetApp() {
             enabled: bc.enableSmartChat,
             messageCooldown: (bc.smartChatInterval ?? 60) * 1000,
             dailyLimit: bc.smartChatDailyLimit ?? 20,
+            // 闲置触发阈值（分钟 → 毫秒）：多久没互动才发主动消息
+            longIdleThreshold: (bc.smartChatIdleThreshold ?? 30) * 60 * 1000,
           });
         }
       }
@@ -1033,9 +1114,6 @@ function MainPetApp() {
         case 'transform':
           toggleTransform();
           break;
-        case 'mode':
-          handleOpenModePage();
-          break;
         case 'fade':
           toggleFadeOnHover();
           break;
@@ -1062,7 +1140,6 @@ function MainPetApp() {
     toggleChatPanel,
     handleToggleLive2D,
     toggleTransform,
-    handleOpenModePage,
     toggleFadeOnHover,
     toggleLock,
     handleClose,
@@ -1076,7 +1153,6 @@ function MainPetApp() {
       petVisible: appearance.petVisible,
       isLocked,
       isTransforming,
-      mode: mode === 'work' ? 'work' : 'chat',
       fadeOnHover,
       currentModelId,
       availableModels,
@@ -1086,7 +1162,6 @@ function MainPetApp() {
     appearance.petVisible,
     isLocked,
     isTransforming,
-    mode,
     fadeOnHover,
     currentModelId,
     availableModels,
@@ -1101,7 +1176,6 @@ function MainPetApp() {
         petVisible: appearance.petVisible,
         isLocked,
         isTransforming,
-        mode: mode === 'work' ? 'work' : 'chat',
         fadeOnHover,
         currentModelId,
         availableModels,
@@ -1119,7 +1193,6 @@ function MainPetApp() {
     appearance.petVisible,
     isLocked,
     isTransforming,
-    mode,
     fadeOnHover,
     currentModelId,
     availableModels,
