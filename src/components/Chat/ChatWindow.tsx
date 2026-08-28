@@ -1158,16 +1158,16 @@ export const ChatWindow = memo(
           </div>
         </div>
 
-        {/* 输入区（仿 QQ 底部风格） */}
+        {/* 输入区（底栏：和顶部标题栏一样横向拓展满窗口） */}
         <form
           onSubmit={handleSubmit}
           style={{
-          margin: '0 8px 4px',
-          padding: '6px 8px',
+            margin: 0,
+            padding: '8px 12px',
             background: 'var(--bg-surface)',
-            borderRadius: '12px',
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-sm)',
+            borderTop: '1px solid var(--border)',
+            borderRadius: 0,
+            boxShadow: 'none',
             flexShrink: 0,
           }}
         >
