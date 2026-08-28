@@ -270,6 +270,33 @@ export const ChatWindow = memo(
     const fileInputRef = useRef<HTMLInputElement>(null);
     // 追踪附件创建的 blob URL，组件卸载时统一释放
     const blobUrlsRef = useRef<string[]>([]);
+
+    /** 把一组文件（来自文件选择或剪贴板粘贴）作为待发送附件 */
+    const appendFiles = useCallback((files: FileList | File[]) => {
+      const arr = Array.from(files);
+      if (!arr.length) return;
+      const newAttachments: NonNullable<Message['attachments']> = [];
+      const newBlobUrls: string[] = [];
+      arr.forEach((file) => {
+        const isImage = file.type.startsWith('image/');
+        const url = isImage ? URL.createObjectURL(file) : '';
+        if (url) newBlobUrls.push(url);
+        newAttachments.push({
+          type: isImage ? 'image' : 'file',
+          url,
+          name: file.name,
+          size: file.size,
+          mimeType: file.type,
+        });
+      });
+      setPendingAttachments((prev) => {
+        prev.forEach((a) => {
+          if (a.url && a.url.startsWith('blob:')) URL.revokeObjectURL(a.url);
+        });
+        return [...prev, ...newAttachments];
+      });
+      blobUrlsRef.current.push(...newBlobUrls);
+    }, []);
     // 是否已配置 LLM：未配置时在空状态给出引导横幅（配置来自独立 webview，监听聚焦时复检）
     const [llmConfigured, setLlmConfigured] = useState<boolean>(() => {
       try {
@@ -1474,28 +1501,8 @@ export const ChatWindow = memo(
               multiple
               style={{ display: 'none' }}
               onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                const newAttachments: Message['attachments'] = [];
-                const newBlobUrls: string[] = [];
-                files.forEach((file) => {
-                  const isImage = file.type.startsWith('image/');
-                  const url = isImage ? URL.createObjectURL(file) : '';
-                  if (url) newBlobUrls.push(url);
-                  newAttachments.push({
-                    type: isImage ? 'image' : 'file',
-                    url,
-                    name: file.name,
-                    size: file.size,
-                    mimeType: file.type,
-                  });
-                });
-                setPendingAttachments((prev) => {
-                  prev.forEach((a) => {
-                    if (a.url && a.url.startsWith('blob:')) URL.revokeObjectURL(a.url);
-                  });
-                  return [...prev, ...newAttachments];
-                });
-                blobUrlsRef.current.push(...newBlobUrls);
+                const files = e.target.files;
+                if (files && files.length) appendFiles(files);
                 e.target.value = '';
               }}
             />
@@ -1509,6 +1516,23 @@ export const ChatWindow = memo(
                 handleAutoResize(e);
               }}
               onKeyDown={handleKeyDown}
+              onPaste={(e) => {
+                const dt = e.clipboardData;
+                if (!dt) return;
+                let files: File[] = [];
+                if (dt.files && dt.files.length) {
+                  files = Array.from(dt.files);
+                } else if (dt.items && dt.items.length) {
+                  files = Array.from(dt.items)
+                    .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+                    .map((it) => it.getAsFile())
+                    .filter((f): f is File => !!f);
+                }
+                if (files.length) {
+                  e.preventDefault();
+                  appendFiles(files);
+                }
+              }}
               placeholder={t('chat.placeholder')}
               disabled={isLoading}
               rows={1}
