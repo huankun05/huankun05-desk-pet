@@ -221,7 +221,7 @@ function ChatPanelWindow() {
     if (splash) splash.remove();
   }, [setGatewayEnabled]);
 
-  // 录音器初始化 + STT 可用性（通过 localStorage 标志从主窗口同步）
+  // 录音器初始化 + STT 可用性
   useEffect(() => {
     if (AudioRecorder.isSupported()) {
       recorderRef.current = new AudioRecorder({
@@ -233,14 +233,38 @@ function ChatPanelWindow() {
         },
       });
     }
-    const timer = setInterval(() => {
+
+    let cancelled = false;
+    /**
+     * 面板窗口是独立 webview，其 localStorage 与主窗口相互隔离，
+     * 只读主窗口写入的 deskpet_sttAvailable 标志会一直得到 false，
+     * 导致「按住说话」按钮始终不显示。
+     * 改为以 providerManager 为权威来源——它的配置从 %APPDATA% 文件加载，
+     * 是跨窗口、跨重启一致的；同时也回写标志位以兼容其他读取方。
+     */
+    const checkStt = async () => {
       try {
-        setSttAvailable(localStorage.getItem('deskpet_sttAvailable') === 'true');
+        await providerManager.ready;
+        if (cancelled) return;
+        const available = providerManager.getActiveSTTConfig() !== null;
+        setSttAvailable(available);
+        try {
+          localStorage.setItem('deskpet_sttAvailable', String(available));
+        } catch {
+          /* ignore */
+        }
       } catch {
         /* ignore */
       }
-    }, 3000);
-    return () => clearInterval(timer);
+    };
+
+    // 立即探测一次，避免首屏 3 秒内录音按钮缺失
+    void checkStt();
+    const timer = setInterval(() => void checkStt(), 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
   // 读取当前模型和上下文信息

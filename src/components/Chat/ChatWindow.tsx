@@ -730,7 +730,10 @@ export const ChatWindow = memo(
     const handleAutoResize = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const el = e.target;
       el.style.height = 'auto';
-      setTextareaHeight(Math.min(el.scrollHeight, 132) + 'px');
+      const next = Math.min(el.scrollHeight, 132) + 'px';
+      // 高度没变时返回原值，React 会跳过这次重渲染。
+      // 否则每敲一个字符都会额外触发一轮整个 ChatWindow 的渲染。
+      setTextareaHeight((prev) => (prev === next ? prev : next));
     }, []);
 
     const handleQuote = (message: Message) => {

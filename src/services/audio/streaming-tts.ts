@@ -27,6 +27,12 @@ export class StreamingTTSPlayer {
   private finished = false;
   private active = true;
   private inflight = 0;
+  /**
+   * 熔断标志：任一句合成返回 null（后端不可用 / 无 provider）后，
+   * 后续句子直接跳过。否则每个句子都会各自触发一次后端就绪轮询，
+   * 在服务不可用时形成 N × 超时 的等待与 IPC 风暴。
+   */
+  private failed = false;
   private playFn: TtsPlayFn;
   /** 说话情绪（透传给 TTS 后端，使语气与表情同源）；首句判定前为 null */
   private emotion: string | null = null;
@@ -62,13 +68,20 @@ export class StreamingTTSPlayer {
   }
 
   private async synthesize(sentence: string): Promise<void> {
+    // 已熔断：后端不可用，后续句子不再尝试（避免重复等待超时）
+    if (this.failed) return;
     this.inflight += 1;
     try {
       const res = await synthesizeViaBrain(
         sentence,
         this.emotion ? { emotion: this.emotion } : undefined,
       );
-      if (!res) return;
+      if (!res) {
+        // 后端不可用或无 provider：熔断本轮，后续句子直接跳过
+        this.failed = true;
+        log.warn('TTS 后端不可用，熔断本轮剩余句子的合成');
+        return;
+      }
       this.readyQueue.push({ audio: res.audio, sampleRate: res.sampleRate });
       this.pump();
     } catch (e) {

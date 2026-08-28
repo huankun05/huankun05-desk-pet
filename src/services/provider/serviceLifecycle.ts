@@ -205,9 +205,27 @@ class ServiceLifecycle {
   /** port -> LifecycleRecord */
   records = new Map<number, LifecycleRecord>();
 
+  /**
+   * 同一端口 in-flight 的就绪轮询，用于并发去重。
+   *
+   * 背景：流式 TTS 会对每个句子并发调用 waitReady()，若不 dedupe，
+   * N 个句子会同时起 N 个轮询，每个每秒 2 次 Tauri IPC（Rust 侧是同步
+   * 阻塞探测），形成 IPC 风暴，直接拖垮 webview（输入框卡顿、回复变慢）。
+   */
+  private pollPromises = new Map<number, Promise<boolean>>();
+
+  /**
+   * 端口最近一次探测失败的时间戳，用于失败冷却（negative caching）。
+   * 冷却期内 waitReady 直接返回 false，不再发起探测，避免反复轮询一个
+   * 已经确认不可用的服务。
+   */
+  private lastFailedAt = new Map<number, number>();
+
   private readonly LAUNCH_COOLDOWN_MS = 4000;
   private readonly HEALTH_PROBE_INTERVAL_MS = 1000;
   private readonly BOOTSTRAP_TIMEOUT_MS = 30000;
+  /** 探测失败后的冷却时长：冷却期内不再重复探测（防止 IPC 风暴） */
+  private readonly FAILURE_COOLDOWN_MS = 15000;
 
   // ============================================================
   // 应用启动：分批、按优先级、资源感知
@@ -420,7 +438,23 @@ class ServiceLifecycle {
     const existing = this.records.get(port);
     if (existing?.phase === ServicePhase.Running) return true;
     if (existing?.phase === ServicePhase.Failed) return false;
-    return this.pollReady(port, timeoutMs);
+
+    // 失败冷却：短时间内刚确认不可用，直接返回 false，不再发起探测。
+    // 这是防止「服务挂掉后每句话都轮询 30 秒」的关键闸门。
+    const failedAt = this.lastFailedAt.get(port) ?? 0;
+    if (Date.now() - failedAt < this.FAILURE_COOLDOWN_MS) {
+      return false;
+    }
+
+    // 并发去重：同一端口复用同一个 in-flight 轮询，N 个并发调用只探测一轮
+    const inflight = this.pollPromises.get(port);
+    if (inflight) return inflight;
+
+    const promise = this.pollReady(port, timeoutMs).finally(() => {
+      this.pollPromises.delete(port);
+    });
+    this.pollPromises.set(port, promise);
+    return promise;
   }
 
   isReady(port: number): boolean {
@@ -515,17 +549,19 @@ class ServiceLifecycle {
       await new Promise((r) => setTimeout(r, this.HEALTH_PROBE_INTERVAL_MS));
     }
     log.warn('pollReady: 等待就绪超时', { port, timeoutMs });
+    this.lastFailedAt.set(port, Date.now());
     return false;
   }
 
   /** 探测端口健康 */
   private async probePortHealth(port: number): Promise<boolean> {
     try {
-      const [tcpOk, httpOk] = await Promise.all([
-        invoke<boolean>('check_tcp_health', { port }),
-        invoke<boolean>('check_http_health', { port }),
-      ]);
-      return tcpOk || httpOk;
+      // 先做轻量 TCP 探活；成功即视为健康。
+      // 原实现每次都并发发两个 IPC，而 Rust 侧是同步阻塞探测（各 500ms 超时），
+      // 高频轮询时代价被成倍放大。改为串行短路后，服务在跑时只需 1 次 IPC。
+      const tcpOk = await invoke<boolean>('check_tcp_health', { port });
+      if (tcpOk) return true;
+      return await invoke<boolean>('check_http_health', { port });
     } catch {
       return false;
     }

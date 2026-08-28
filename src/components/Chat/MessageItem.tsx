@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { memo, useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { parseThinkTags } from '../../utils/thinkTagParser';
 import MarkdownContent from './MarkdownContent';
@@ -228,7 +228,7 @@ function Attachments({ attachments }: { attachments: ChatMessage['attachments'] 
   );
 }
 
-export function MessageItem({
+function MessageItemImpl({
   message,
   onRetry,
   onDelete,
@@ -499,3 +499,33 @@ export function MessageItem({
     </div>
   );
 }
+
+/**
+ * memo 比较：只比对真正影响渲染的数据字段。
+ *
+ * 背景：ChatWindow 是单一大组件，输入框每敲一个字符都会让整个组件重渲染，
+ * 消息列表随之全量重渲染。历史会话可达数百上千条（chat_sessions.json 近 1MB），
+ * 每条都要重新解析 markdown，直接表现为「输入卡顿」。加入 memo 后，
+ * 输入时所有历史消息均跳过重渲染，流式输出时也只重渲染最后一条。
+ *
+ * 回调（onRetry/onDelete/onQuote）是每次渲染新建的闭包，刻意不参与比较；
+ * 它们在语义上是稳定的（作用于本条 message），跳过比较不会导致渲染陈旧。
+ */
+function areMessageItemPropsEqual(prev: MessageItemProps, next: MessageItemProps): boolean {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.isStreaming === next.message.isStreaming &&
+    prev.message.role === next.message.role &&
+    prev.message.favorite === next.message.favorite &&
+    prev.highlighted === next.highlighted &&
+    prev.sessionId === next.sessionId &&
+    prev.appearance?.bubbleRadius === next.appearance?.bubbleRadius &&
+    prev.appearance?.bubbleTail === next.appearance?.bubbleTail &&
+    prev.appearance?.showAvatar === next.appearance?.showAvatar &&
+    prev.appearance?.userAvatar === next.appearance?.userAvatar &&
+    prev.appearance?.aiAvatar === next.appearance?.aiAvatar
+  );
+}
+
+export const MessageItem = memo(MessageItemImpl, areMessageItemPropsEqual);

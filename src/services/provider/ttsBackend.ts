@@ -21,6 +21,9 @@ import { lifecycle } from './serviceLifecycle';
 
 const log = createLogger('TTSBackend');
 
+/** TTS 后端就绪等待上限（ms）。后端不可用时应快速失败，避免阻塞语音与回复。 */
+const TTS_READY_TIMEOUT_MS = 10000;
+
 /** 获取活跃 TTS 配置对应的本地端口 */
 function getActiveTTSPort(): number {
   const cfg = providerManager.getActiveTTSConfig();
@@ -44,7 +47,9 @@ export async function synthesizeViaBrain(
   }
 
   // 1. 大脑检查/等待后端就绪（不触发新启动）
-  const ready = await lifecycle.waitReady(port, 30000);
+  // 超时从 30s 收紧到 10s：后端真没起来时，30s 的等待会阻塞整句合成，
+  // 且流式场景下多句并发会叠加成数十秒的卡顿。
+  const ready = await lifecycle.waitReady(port, TTS_READY_TIMEOUT_MS);
   if (!ready) {
     log.warn('synthesizeViaBrain: TTS 后端未就绪', { port });
     return null;
@@ -85,7 +90,7 @@ export function ensureActiveTTSBackend(opts?: {
   }
 
   const waitReady = opts?.waitReady ?? true;
-  const timeoutMs = opts?.timeoutMs ?? 30000;
+  const timeoutMs = opts?.timeoutMs ?? TTS_READY_TIMEOUT_MS;
 
   // 仅检查/等待，不触发启动
   if (waitReady) {

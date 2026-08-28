@@ -26,7 +26,8 @@ export class TTSStage implements Stage {
 
     // 自动拉起活跃 TTS 后端（避免"后端未运行→静默跳过合成"）。
     // 应用启动预热通常会先拉起；此处兜底，确保任何 speak 路径都能触发。
-    const backendOk = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 30000 });
+    // 超时收紧到 10s：TTS 只是朗读，后端不可用时不应拖慢回复链路
+    const backendOk = await ensureActiveTTSBackend({ waitReady: true, timeoutMs: 10000 });
     if (!backendOk) {
       log.warn('TTS 后端不可用，跳过本次合成', { text: ctx.speakableText.slice(0, 30) });
       showToast('TTS 服务不可用，请检查配置', 'warning');
