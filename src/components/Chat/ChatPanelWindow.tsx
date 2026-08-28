@@ -22,7 +22,7 @@ import {
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
 import { transcribeViaBrain } from '../../services/provider/sttBackend';
-import { useHermesGateway } from '../../hooks/useHermesGateway';
+import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { useMode } from '../../hooks/useMode';
@@ -348,11 +348,23 @@ function ChatPanelWindow() {
       return true;
     }
   });
-  // 语音通话是否激活（用于通话期间临时关闭聊天管线 TTS，避免与通话自身 playTts 双播）
-  const [callActive, setCallActive] = useState(false);
 
   // 本地 RAG 记忆写入：面板对话完成后同样落盘（消息 id 唯一，与主窗口不会双写）
   const { addToRag } = useRagPersistence();
+
+  // 语音通话（QQ 式）：用到时由网关按需拉起本地 STT/TTS 服务。
+  // 声明提前：useVoiceCall 依赖 sendMessage（来自 useHermesGateway），经 ref 中转，
+  // 使下方 ttsEnabled 可直接用 voiceCall.active 渲染期派生（消除 effect 镜像 state 反模式）。
+  const sendMessageRef = useRef<SendMessageFn | null>(null);
+  const sendMessageViaRef = useCallback<SendMessageFn>(
+    (text, mode, opts) => sendMessageRef.current?.(text, mode, opts) ?? Promise.resolve(),
+    [],
+  );
+  const voiceCall = useVoiceCall({
+    sendMessage: sendMessageViaRef,
+    mode: 'auto',
+    showError: (m) => showToast(m, 'error'),
+  });
 
   const {
     messages,
@@ -366,7 +378,7 @@ function ChatPanelWindow() {
     setGatewayEnabled,
   } = useHermesGateway({
     // 通话激活时临时关闭聊天 TTS，避免同一回复被聊天 onDone 与通话 playTts 各播一次
-    ttsEnabled: ttsEnabled && !callActive,
+    ttsEnabled: ttsEnabled && !voiceCall.active,
     onMessageComplete: async (
       userText,
       assistantText,
@@ -386,17 +398,10 @@ function ChatPanelWindow() {
     },
   });
 
-  // 语音通话（QQ 式）：用到时由网关按需拉起本地 STT/TTS 服务
-  const voiceCall = useVoiceCall({
-    sendMessage,
-    mode: 'auto',
-    showError: (m) => showToast(m, 'error'),
-  });
-
-  // 通话激活期间，把聊天管线的 TTS 临时置 false，朗读完全交给通话自身的 playTts（消除双播）
+  // useHermesGateway 返回的 sendMessage 每次渲染重建（options 引用变化），同步给 useVoiceCall 的 ref 中转
   useEffect(() => {
-    setCallActive(voiceCall.active);
-  }, [voiceCall.active]);
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
 
   // 详情面板状态
   const [showDetails, setShowDetails] = useState(false);

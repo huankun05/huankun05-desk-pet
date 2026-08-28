@@ -107,8 +107,15 @@ export default function ControlsOrb() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   // 控制小圆阴影：停靠半隐藏时隐藏（避免阴影露在窗口外形成方框）
   const [hideShadow, setHideShadow] = useState(false);
-  // 聊天未读计数
-  const [unreadCount, setUnreadCount] = useState(0);
+  // 聊天未读计数（懒初始化：挂载即读 localStorage，避免 effect 内 setState 反模式）
+  const [unreadCount, setUnreadCount] = useState<number>(() => {
+    try {
+      const initVal = parseInt(localStorage.getItem('deskpet_chat_unread') || '0', 10);
+      return Number.isFinite(initVal) ? Math.max(0, initVal) : 0;
+    } catch {
+      return 0;
+    }
+  });
 
   // 来自主窗的状态快照（初始用安全默认值，挂载后由 controls:state 填充）
   const [state, setState] = useState<ControlsStatePayload>({
@@ -374,13 +381,7 @@ export default function ControlsOrb() {
       }
     };
     window.addEventListener('storage', onStorage);
-    // 初始化：如果主窗口已在之前写入了未读数
-    try {
-      const initVal = parseInt(localStorage.getItem('deskpet_chat_unread') || '0', 10);
-      setUnreadCount(Number.isFinite(initVal) ? Math.max(0, initVal) : 0);
-    } catch {
-      /* ignore */
-    }
+    // 初始化已并入 useState 懒初始化（localStorage 读取），此处不再重复 setState
 
     return () => {
       unlistenMoved?.then((u) => u?.());
