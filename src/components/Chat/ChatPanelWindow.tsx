@@ -22,6 +22,7 @@ import {
   type ChatSession,
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
+import { resolveLaunchSpec } from '../../services/provider/serviceLauncher';
 import { transcribeViaBrain } from '../../services/provider/sttBackend';
 import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
@@ -277,17 +278,37 @@ function ChatPanelWindow() {
     let cancelled = false;
     const checkServices = async () => {
       try {
-        const [tts, stt] = await Promise.all([
-          invoke<boolean>('check_tcp_health', { port: 8001 }),
-          invoke<boolean>('check_tcp_health', { port: 8002 }),
-        ]);
+        await providerManager.ready;
+        if (cancelled) return;
+
+        // 端口必须按「当前活跃引擎」动态解析，不能写死 8001/8002：
+        // edge_tts=8001、cosyvoice=8003、gpt_sovits=9880、funasr/sensevoice=8002。
+        // 写死端口会在用户使用非 Edge TTS 时误报「服务未启动」。
+        const ttsCfg = providerManager.getActiveTTSConfig();
+        const sttCfg = providerManager.getActiveSTTConfig();
+        const ttsPort = ttsCfg
+          ? (resolveLaunchSpec(ttsCfg.typeName, ttsCfg.launch)?.port ?? 0)
+          : 0;
+        const sttPort = sttCfg
+          ? (resolveLaunchSpec(sttCfg.typeName, sttCfg.launch)?.port ?? 0)
+          : 0;
+
+        // 端口为 0 表示云端 API 型 provider（无本地进程）或未配置，
+        // 这类情况不属于「本地服务未启动」，置为 null 不显示提示条。
+        const tts = ttsPort
+          ? await invoke<boolean>('check_tcp_health', { port: ttsPort })
+          : null;
+        const stt = sttPort
+          ? await invoke<boolean>('check_tcp_health', { port: sttPort })
+          : null;
+
         if (cancelled) return;
         setTtsReady(tts);
         setSttReady(stt);
       } catch {
         if (cancelled) return;
-        setTtsReady(false);
-        setSttReady(false);
+        setTtsReady(null);
+        setSttReady(null);
       }
     };
     void checkServices();
