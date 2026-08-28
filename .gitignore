@@ -24,6 +24,9 @@ dist-ssr
 # 项目内临时目录（临时脚本/提交信息/hooks-empty 等，绝不入库）
 .tmp/
 
+# WorkBuddy 会话数据（记忆/任务，绝不入库）
+.workbuddy/
+
 # Playwright
 playwright-report/
 test-results/
