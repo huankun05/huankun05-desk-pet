@@ -9,6 +9,7 @@ import i18n from './i18n';
 import { Live2DViewer } from './components/Pet/Live2DViewer';
 import { ChatBubble } from './components/Bubble/ChatBubble';
 import { SubtitleNotch } from './components/Pet/SubtitleNotch';
+import { StatusIndicators } from './components/Pet/StatusIndicators';
 import {
   type ControlsStatePayload,
   type ControlsActionPayload,
@@ -16,7 +17,12 @@ import {
 
 import { useInteraction } from './hooks/useInteraction';
 import { useStorageEvent, useStorageEvents } from './hooks/useStorageEvent';
-import { useEmotion, DEFAULT_PERSONALITY, type EmotionState, type EmotionType } from './hooks/useEmotion';
+import {
+  useEmotion,
+  DEFAULT_PERSONALITY,
+  type EmotionState,
+  type EmotionType,
+} from './hooks/useEmotion';
 import { stripControlTags } from './services/live2d/visualMapping';
 import { useWindowManager } from './hooks/useWindowManager';
 import { useMode } from './hooks/useMode';
@@ -279,12 +285,24 @@ function MainPetApp() {
   const { isStreaming, sendMessage, interruptResponse, injectAssistantMessage } =
     useHermesGateway(hermesOptions);
 
+  // 语音自动聆听（VAD）开关：隐私优先，默认关闭；设置页「聊天 → 语音」可开启。
+  // 关闭时 FrontendVADService 绝不打开麦克风，语音仅在你按 Ctrl+Space / 唤醒词时启用。
+  const [voiceAutoListen, setVoiceAutoListen] = useState(
+    () => localStorage.getItem('deskpet_voice_autolisten') === 'true',
+  );
+  useStorageEvent(
+    'deskpet_voice_autolisten',
+    (v) => setVoiceAutoListen(v === 'true'),
+    [],
+  );
+
   useVoiceInteraction({
     isStreaming,
     onInterrupt: interruptResponse,
     onSendMessage: sendMessage,
     onUpdateFromVoice: updateFromVoice,
     onSetTalkingEmotion: setTalkingEmotion,
+    autoListen: voiceAutoListen,
   });
 
   const { toggleChatPanel, openSettingsPanel, openControlsOrb } = usePanelWindows();
@@ -337,7 +355,7 @@ function MainPetApp() {
   }, [setEmotionFromResponse]);
 
   // 语音唤醒词"汐月"：检测到后自动触发语音助手
-  useWakeWord({
+  const { state: wakeState } = useWakeWord({
     showBubble,
     onWake: () => wake(),
     onWakeVisual: wakeVisual,
@@ -1152,6 +1170,9 @@ function MainPetApp() {
 
       {/* 顶部中央「刘海位」字幕 + 声波层（唤醒/聊天回复/语音通话全场景共用） */}
       <SubtitleNotch />
+
+      {/* 常驻状态角标：语音聆听(右上) / 一起看截屏(左上) */}
+      <StatusIndicators wakeState={wakeState} voiceState={voiceState} isWatching={isWatching} />
 
       {/* 权限确认卡（工具执行前的授权弹窗） */}
       <ConsentGate />

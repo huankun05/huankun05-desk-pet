@@ -27,6 +27,12 @@ export interface UseVADInteractionOptions {
   speechThreshold?: number;
   /** 静音超时 */
   silenceTimeout?: number;
+  /**
+   * 是否启用 VAD 自动交互（含自动 STT 与语音中断）。
+   * 关闭时绝不打开麦克风——语音仅在用户显式按 Ctrl+Space / 唤醒词时启用。
+   * 默认 false（隐私优先：麦克风不常驻）。
+   */
+  enabled?: boolean;
 }
 
 export interface UseVADInteractionReturn {
@@ -48,6 +54,7 @@ export function useVADInteraction(options: UseVADInteractionOptions): UseVADInte
     onAutoSTT,
     speechThreshold = 0.015,
     silenceTimeout = 600,
+    enabled = false,
   } = options;
 
   const serviceRef = useRef<FrontendVADService | null>(null);
@@ -156,6 +163,18 @@ export function useVADInteraction(options: UseVADInteractionOptions): UseVADInte
     const service = serviceRef.current;
     if (!service || !isAvailable) return;
 
+    // 未启用：绝不打开麦克风（隐私优先），并清理残留监听状态
+    if (!enabled) {
+      service.stop();
+      autoSTTPhase.current = 'idle';
+      setIsSpeaking(false);
+      if (speechEndTimer.current) {
+        clearTimeout(speechEndTimer.current);
+        speechEndTimer.current = null;
+      }
+      return;
+    }
+
     void service.start().then((ok) => {
       if (!ok) setIsAvailable(false);
     });
@@ -168,7 +187,7 @@ export function useVADInteraction(options: UseVADInteractionOptions): UseVADInte
         speechEndTimer.current = null;
       }
     };
-  }, [isPlaying, isStreaming, isAvailable]);
+  }, [isPlaying, isStreaming, isAvailable, enabled]);
 
   const start = useCallback(async (): Promise<boolean> => {
     const service = serviceRef.current;

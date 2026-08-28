@@ -349,3 +349,110 @@ button:active:not(:disabled) {
     transform: rotate(360deg);
   }
 }
+
+/* ===== 状态指示器（语音聆听 / 屏幕捕获） ===== */
+.status-indicator {
+  position: absolute;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 30, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  z-index: 30;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+.status-indicator--voice {
+  right: 8px;
+}
+.status-indicator--screen {
+  left: 8px;
+}
+
+.status-indicator__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+.status-indicator__icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* 脉冲圈：聆听/捕获时持续扩散，提示"正在活动" */
+.status-indicator__pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  animation: statusPulse 1.4s ease-out infinite;
+  opacity: 0;
+}
+.status-indicator__pulse--live {
+  border-color: rgba(74, 222, 128, 0.9);
+}
+
+@keyframes statusPulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.status-indicator__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-indicator__live {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  letter-spacing: 0.5px;
+}
+
+/* 状态配色：图标随状态变色的脉冲/文字 */
+.status--listening-wake .status-indicator__icon,
+.status--listening .status-indicator__icon {
+  color: #34d399;
+}
+.status--recognizing .status-indicator__icon,
+.status--processing .status-indicator__icon {
+  color: #60a5fa;
+}
+.status--loading .status-indicator__icon {
+  color: #fbbf24;
+}
+.status--error .status-indicator__icon {
+  color: #f87171;
+}
+.status-indicator--screen .status-indicator__icon {
+  color: #4ade80;
+}

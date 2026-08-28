@@ -319,6 +319,8 @@
       "stat_sessions": "Sessions",
       "stt": "Speech to text",
       "stt_desc": "Allow voice input directly in the panel",
+      "autolisten": "Voice auto-listen",
+      "autolisten_desc": "When on, the mic is monitored continuously and any speech auto-starts a conversation; when off, the mic is only used after you press Ctrl+Space or a wake word",
       "switch_to_chat": "Switched to chat mode",
       "switch_to_work": "Switched to work mode",
       "theme": "Window theme",
@@ -1579,7 +1581,20 @@
     "uptime": "Uptime",
     "seconds": "s",
     "minutes": "min",
-    "hours": "h"
+    "hours": "h",
+    "voice": {
+      "title": "Voice",
+      "listening_wake": "Listening for wake word",
+      "listening": "Listening…",
+      "recognizing": "Recognizing…",
+      "processing": "Thinking…",
+      "loading_model": "Loading voice model…",
+      "error": "Wake word error"
+    },
+    "screen": {
+      "watching": "Viewing screen",
+      "live": "Live"
+    }
   },
   "bubble": {
     "loading": "Loading...",

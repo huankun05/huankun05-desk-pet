@@ -1664,10 +1664,12 @@ pub fn run() {
                         api.prevent_close();
                         let _ = window.hide();
                     } else {
-                        // 退出程序：停止所有服务并退出
+                        // 退出程序：直接退出。所有后端子进程已加入 Windows Job Object
+                        // （KILL_ON_JOB_CLOSE），父进程退出时由 OS 强制清理整个进程树，
+                        // 不会残留占端口。无需在退出前同步 stop_all（那才是卡顿根因），
+                        // 做到「一点就退」。
                         let app = window.app_handle();
-                        let state = app.state::<service::ServiceManager>();
-                        let _ = service::service_stop_all(state);
+                        app.exit(0);
                     }
                 } else if window.label() == "settings" {
                     // 拦截 settings 窗口关闭：改为隐藏，避免重新创建导致闪白

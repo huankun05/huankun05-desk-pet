@@ -1211,46 +1211,43 @@ fn kill_process(child: &mut Child, log_tx: &LogSender, service_id: &str) {
 
     #[cfg(target_os = "windows")]
     {
-        // Step 1: 尝试优雅关闭（不带 /F）
+        // Step 1: 尝试优雅关闭（taskkill 不带 /F 仅发 WM_CLOSE；Python 控制台通常忽略，
+        // 故只给极短宽限，避免长时间空等拖慢退出）。
         let _ = std::process::Command::new("taskkill")
-            .args(["/PID", &pid.to_string()])
+            .args(["/PID", &pid_str])
             .output();
 
-        // Step 2: 等待 3 秒
-        let start = std::time::Instant::now();
+        // Step 2: 极短宽限（400ms），超时即走强杀
+        let grace_start = std::time::Instant::now();
         loop {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    log_event(
-                        log_tx,
-                        service_id,
-                        LogEvent::LifecycleStopped,
-                        &format!("Graceful shutdown (exit={:?})", status.code()),
-                        Some(pid),
-                        status.code(),
-                    );
-                    return;
-                }
-                _ => {
-                    if start.elapsed().as_millis() >= 3000 {
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                }
+            if let Ok(Some(status)) = child.try_wait() {
+                log_event(
+                    log_tx,
+                    service_id,
+                    LogEvent::LifecycleStopped,
+                    &format!("Graceful shutdown (exit={:?})", status.code()),
+                    Some(pid),
+                    status.code(),
+                );
+                return;
             }
+            if grace_start.elapsed().as_millis() >= 400 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(80));
         }
 
-        // Step 3: 强制终止进程树
+        // Step 3: 强制终止整棵进程树（uvicorn 可能派生 worker 子进程）
         log_event(
             log_tx,
             service_id,
             LogEvent::LifecycleStopRequested,
-            "Force killing with /F /T",
+            "Force killing process tree with /F /T",
             Some(pid),
             None,
         );
         let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .args(["/F", "/T", "/PID", &pid_str])
             .output();
     }
     #[cfg(not(target_os = "windows"))]
@@ -1258,8 +1255,8 @@ fn kill_process(child: &mut Child, log_tx: &LogSender, service_id: &str) {
         let _ = child.kill();
     }
 
-    // 等待进程终止
-    let final_status = child.wait().ok().and_then(|s| s.code());
+    // 有界等待进程终止（最多 2 秒；超时即返回，避免极端情况下永久挂起）
+    let final_status = attempt_wait(child, 2000).and_then(|s| s.code());
     log_event(
         log_tx,
         service_id,

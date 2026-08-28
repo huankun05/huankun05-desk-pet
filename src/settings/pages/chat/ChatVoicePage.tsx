@@ -51,6 +51,15 @@ export function ChatVoicePage() {
     }
   });
 
+  // ---- 语音自动聆听（VAD）开关：默认关闭，避免常驻开麦 ----
+  const [voiceAutoListen, setVoiceAutoListen] = useState(() => {
+    try {
+      return localStorage.getItem('deskpet_voice_autolisten') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   // ---- 通话总结开关 ----
   const [callSummaryEnabled, setCallSummaryEnabled] = useState(() => {
     try {
@@ -129,6 +138,15 @@ export function ChatVoicePage() {
     setSttAvailable(value);
     try {
       localStorage.setItem('deskpet_sttAvailable', value ? 'true' : 'false');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const updateAutoListen = useCallback((value: boolean) => {
+    setVoiceAutoListen(value);
+    try {
+      localStorage.setItem('deskpet_voice_autolisten', value ? 'true' : 'false');
     } catch {
       /* ignore */
     }
@@ -306,6 +324,29 @@ export function ChatVoicePage() {
               <span
                 className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                   sttAvailable ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </SettingRow>
+
+          {/* 语音自动聆听（VAD）：说话即自动对话；默认关闭，避免后台常驻开麦 */}
+          <SettingRow
+            title={t('settings.chat.autolisten', { defaultValue: '语音自动聆听' })}
+            description={t('settings.chat.autolisten_desc', {
+              defaultValue:
+                '开启后持续监听麦克风，检测到你说话即自动对话；关闭则麦克风仅在你按 Ctrl+Space 或唤醒词时启用',
+            })}
+          >
+            <button
+              type="button"
+              onClick={() => updateAutoListen(!voiceAutoListen)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                voiceAutoListen ? 'bg-[var(--primary-500)]' : 'bg-neutral-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  voiceAutoListen ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

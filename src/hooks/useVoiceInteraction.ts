@@ -16,6 +16,8 @@ export interface UseVoiceInteractionOptions {
   onUpdateFromVoice: (text: string, voiceEmotion?: string) => void;
   onSetTalkingEmotion: () => void;
   sessionId?: string;
+  /** 是否启用 VAD 自动聆听（说话即自动对话）。默认 false，关闭则不开麦。 */
+  autoListen?: boolean;
 }
 
 export interface VoiceInteractionState {
@@ -32,6 +34,7 @@ export function useVoiceInteraction({
   onSendMessage,
   onUpdateFromVoice,
   onSetTalkingEmotion: _onSetTalkingEmotion,
+  autoListen = false,
 }: UseVoiceInteractionOptions): VoiceInteractionState {
   const [isRecording, setIsRecording] = useState(false);
   const [sttAvailable, setSttAvailable] = useState(
@@ -185,6 +188,7 @@ export function useVoiceInteraction({
     onAutoSTT: handleVADAutoSTT,
     speechThreshold: 0.015,
     silenceTimeout: 600,
+    enabled: autoListen,
   });
 
   return {

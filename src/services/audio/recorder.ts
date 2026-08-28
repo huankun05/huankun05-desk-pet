@@ -4,7 +4,7 @@
  * 功能：
  * - MediaRecorder API 录音
  * - WAV 16kHz mono 输出
- * - VAD 简单端点检测（静音 1.5s 自动停止）
+ * - VAD 简单端点检测（静音 0.8s 自动停止，降低「说完话→出反应」延迟）
  * - 录音状态事件
  */
 
@@ -38,7 +38,7 @@ export class AudioRecorder {
   private state: RecordState = 'idle';
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private sampleRate = 16000;
-  private silenceTimeout = 1500;
+  private silenceTimeout = 800;
   private silenceThreshold = 0.01;
   private onStateChange?: (state: RecordState) => void;
   private onAudioChunk?: (chunk: Float32Array) => void;
@@ -119,13 +119,24 @@ export class AudioRecorder {
     this.setState('processing');
     this.stopSilenceDetection();
 
-    // 停止 MediaRecorder
+    // 停止 MediaRecorder，并在 onstop（保证在最后一段 dataavailable 之后触发）即收尾，
+    // 避免盲目等待固定时长带来的额外延迟。
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
+      await new Promise<void>((resolve) => {
+        const mr = this.mediaRecorder!;
+        let settled = false;
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+        mr.onstop = finish;
+        // 兜底：极端情况下 onstop 未触发时也不卡死
+        setTimeout(finish, 400);
+        mr.stop();
+      });
     }
-
-    // 等待最后的 dataavailable 事件
-    await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
     // 合并 Blob
     if (this.chunks.length === 0) {

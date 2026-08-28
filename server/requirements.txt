@@ -56,6 +56,8 @@ addict
 # ── STT: FunASR + SenseVoice ──
 funasr>=1.0.0
 modelscope>=1.9.0
+# 提供静态 ffmpeg 二进制：FunASR 解码 WebM/Opus 等格式需要（系统未装 ffmpeg 时兜底）
+imageio-ffmpeg>=0.5.0
 
 # ── 工具 ──
 PyYAML>=6.0

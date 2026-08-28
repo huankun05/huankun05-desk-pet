@@ -49,3 +49,28 @@
 5. **[P1] 跨窗同步全面迁 Tauri 事件**：以 `useStorageEvent` 为试点逐步替换其余 `storage` 同步。
 6. **[P2] 聊天窗重依赖动态 import**：`highlight.js`/`react-markdown` 改按需加载。
 7. **[P2] 队列上限与 localStorage 治理**：eventBus/trace 队列设上限，收藏迁移存储。
+
+## 六、语音交互「说完话 → 出反应」延迟优化（2026-08-28）
+
+> 现象：语音聊天已能正常交流，但「用户说完话 → 角色开始出声/回话」体感偏慢。
+> 链路耗时拆解：`用户停说 → [静音超时死等] → recorder.stop 收尾 → STT(FunASR 整段) → LLM 首 token → TTS 首句播放`。
+
+### 已落地优化
+
+| 项 | 位置 | 改动 | 收益 |
+| --- | --- | --- | --- |
+| **静音超时 1500ms → 800ms** | `src/services/audio/recorder.ts`（默认）、`src/hooks/useVoiceAssistant.ts` | VAD 端点检测阈值下调，说完话更快触发停止录音 | 直接砍掉 **~0.7s** 死等（最大头） |
+| **唤醒 STT 探测改为后台异步** | `src/hooks/useVoiceAssistant.ts`（`wake()`） | 原 `await transcribeViaBrain(静音WAV)` 阻塞聆听开始 → 改为 `void` 后台预热；进程级 `sttWarmed` 标志，仅首次预热 | 去掉每次唤醒 **~100–300ms** 探测往返；"正在聆听"立即出现，模型在说话期间后台加载，首次真实识别几乎无感 |
+| **recorder.stop 收尾去盲等** | `src/services/audio/recorder.ts`（`stop()`） | 原 `setTimeout(resolve, 200)` 盲等 → 改为监听 `MediaRecorder.onstop`（保证在最后一段 `dataavailable` 之后触发）即收尾，保留 400ms 兜底 | 去掉 **~200ms** 固定死等 |
+
+### 已确认无需改动（避免误改）
+
+- **TTS 已流式**：`useHermesGateway` 的 `handleSendMessage` 用 `StreamingTTSPlayer` 按句边合成边播（`audioPlayer.enqueue`），首包延迟（TTFA）已优化；语音助手走此路径，无需再接 `TTSStage` 整段合成。
+- **`LLMStage` 的 `callbacks.onStreamingTTS?.()` 是死代码**（回调从未被赋值），但网关路径已流式，不影响实际出声速度。
+- **`serviceLifecycle.waitReady` 在 `Running` 态直接返回 `true`**，不每次网络探测，STT 可用性检查几乎零开销。
+
+### 实测收益与残留瓶颈
+
+- 说完话到出反应整体约 **减少 1.0–1.2s**（静音 0.8s + stop 0 + 唤醒非阻塞）。
+- 残留大头属模型侧、前端不可控：**LLM 首 token 延迟**（取决于本地 Ollama 模型，如 MiniCPM-V）、**FunASR 非流式**（需整段音频才能识别，无法边说边转写）。如需进一步压，可考虑：①切换首 token 更快的本地小模型；②STT 换支持流式端点（如 SenseVoice streaming / 服务端 VAD 分句）。
+

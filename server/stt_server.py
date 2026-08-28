@@ -46,6 +46,85 @@ logging.basicConfig(
 )
 log = logging.getLogger("stt-server")
 
+
+def _ensure_ffmpeg() -> bool:
+    """启动时把静态 ffmpeg 注入 PATH。
+
+    FunASR 的音频加载器对 WebM/Opus 等非 WAV 格式依赖 ffmpeg 兜底解码；
+    开发机/打包环境往往没有系统 ffmpeg，这里用 imageio-ffmpeg 提供的静态
+    二进制（已在 requirements.txt 中声明），避免 'Format not recognised' /
+    'FileNotFoundError' 导致识别返回空文本。
+    """
+    try:
+        import os
+        import shutil
+        import imageio_ffmpeg
+
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        ffmpeg_dir = os.path.dirname(exe)
+        if ffmpeg_dir not in os.environ.get("PATH", "").split(os.pathsep):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+
+        # FunASR 的 _load_audio_ffmpeg 通过 subprocess 查找 'ffmpeg'，
+        # 确保该目录存在名为 ffmpeg[.exe] 的可执行文件。
+        import sys
+        suffix = ".exe" if sys.platform == "win32" else ""
+        canonical = os.path.join(ffmpeg_dir, "ffmpeg" + suffix)
+        if not os.path.exists(canonical) and exe != canonical:
+            shutil.copy(exe, canonical)
+
+        log.info("ffmpeg ready: %s", canonical)
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "ffmpeg 不可用: %s —— WebM/Opus 等格式将无法解码，识别可能返回空",
+            e,
+        )
+        return False
+
+
+def _decode_audio_to_wav(audio_bytes: bytes) -> str:
+    """将上传的音频字节统一解码为 16k mono 的干净 WAV 临时文件。
+
+    返回临时文件路径（调用方负责清理）。优先用 ffmpeg 解码任意格式
+    （WebM/Opus/MP4/m4a 等），失败则回退为原样写盘交给 FunASR 自行尝试
+    （合法 WAV 无需 ffmpeg 也能被 soundfile 读取）。
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    if _has_ffmpeg:
+        src = tempfile.NamedTemporaryFile(delete=False, suffix=".bin")
+        try:
+            src.write(audio_bytes)
+            src.close()
+            dst = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+            cmd = [
+                "ffmpeg", "-y", "-i", src.name,
+                "-ar", "16000", "-ac", "1", "-f", "wav", dst,
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            os.unlink(src.name)
+            if proc.returncode == 0 and os.path.exists(dst) and os.path.getsize(dst) > 0:
+                return dst
+            # 解码失败：清理并尝试原样
+            if os.path.exists(dst):
+                os.unlink(dst)
+        except Exception:  # noqa: BLE001
+            if os.path.exists(src.name):
+                os.unlink(src.name)
+
+    # 回退：原样写盘（合法 WAV 由 soundfile 读取；其余格式交给 FunASR 尝试）
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    tmp.write(audio_bytes)
+    tmp.close()
+    return tmp.name
+
+
+# 模块加载时即确保 ffmpeg 可用（供 _decode_audio_to_wav 使用）
+_has_ffmpeg = _ensure_ffmpeg()
+
 app = FastAPI(title="STT Server", version="1.0.0")
 
 # CORS: 允许 Tauri webview 跨域访问
@@ -153,6 +232,13 @@ async def transcribe(
     audio_bytes = await audio.read()
     log.info("Transcribe request: engine=%s audio_size=%d", engine, len(audio_bytes))
 
+    # 空音频保护：前端可用性探测（静音超时 / 空录音）会发 0 字节，
+    # 直接喂空文件给解码器会抛 "Format not recognised" / ffmpeg 错误导致 500。
+    # 这里直接返回空文本，避免崩溃，也避免无谓加载模型。
+    if not audio_bytes:
+        log.info("Empty audio (probe/silence) -> return empty result")
+        return JSONResponse({"text": "", "confidence": 0.0, "empty": True})
+
     if engine == "sensevoice":
         return await _transcribe_sensevoice(audio_bytes)
     else:
@@ -161,21 +247,17 @@ async def transcribe(
 
 async def _transcribe_funasr(audio_bytes: bytes) -> JSONResponse:
     """FunASR Paraformer 识别"""
-    import tempfile
     import os
 
-    # 保存上传的音频到临时文件（generate() 支持文件路径输入）
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    # 统一解码为干净 16k mono WAV（处理 WebM/Opus 等格式 + 兜底）
+    tmp = _decode_audio_to_wav(audio_bytes)
     try:
-        tmp.write(audio_bytes)
-        tmp.close()
-
         model = get_funasr_model()
 
         # generate() 是阻塞调用，放入线程池避免阻塞事件循环
         res = await asyncio.to_thread(
             model.generate,
-            input=tmp.name,
+            input=tmp,
         )
 
         result_text = ""
@@ -186,29 +268,25 @@ async def _transcribe_funasr(audio_bytes: bytes) -> JSONResponse:
         return JSONResponse({"text": result_text, "confidence": 1.0})
     finally:
         try:
-            os.unlink(tmp.name)
+            os.unlink(tmp)
         except OSError:
             pass
 
 
 async def _transcribe_sensevoice(audio_bytes: bytes) -> JSONResponse:
     """SenseVoice 识别 + 情绪检测"""
-    import tempfile
     import os
     import re
 
-    # 保存上传的音频到临时文件
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    # 统一解码为干净 16k mono WAV（处理 WebM/Opus 等格式 + 兜底）
+    tmp = _decode_audio_to_wav(audio_bytes)
     try:
-        tmp.write(audio_bytes)
-        tmp.close()
-
         model = get_sensevoice_model()
 
         # generate() 是阻塞调用，放入线程池
         res = await asyncio.to_thread(
             model.generate,
-            input=tmp.name,
+            input=tmp,
             language="auto",
             use_itn=True,
         )
@@ -243,7 +321,7 @@ async def _transcribe_sensevoice(audio_bytes: bytes) -> JSONResponse:
         })
     finally:
         try:
-            os.unlink(tmp.name)
+            os.unlink(tmp)
         except OSError:
             pass
 

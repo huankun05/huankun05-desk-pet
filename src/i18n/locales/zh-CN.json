@@ -323,6 +323,8 @@
       "stat_sessions": "会话",
       "stt": "语音识别",
       "stt_desc": "允许面板内直接语音输入",
+      "autolisten": "语音自动聆听",
+      "autolisten_desc": "开启后持续监听麦克风，检测到你说话即自动对话；关闭则麦克风仅在你按 Ctrl+Space 或唤醒词时启用",
       "switch_to_chat": "已切换到聊天模式",
       "switch_to_work": "已切换到工作模式",
       "theme": "窗口配色",
@@ -1583,7 +1585,20 @@
     "uptime": "运行时间",
     "seconds": "秒",
     "minutes": "分钟",
-    "hours": "小时"
+    "hours": "小时",
+    "voice": {
+      "title": "语音",
+      "listening_wake": "聆听唤醒词",
+      "listening": "聆听中…",
+      "recognizing": "识别中…",
+      "processing": "思考中…",
+      "loading_model": "加载语音模型…",
+      "error": "唤醒词异常"
+    },
+    "screen": {
+      "watching": "正在查看屏幕",
+      "live": "实时"
+    }
   },
   "bubble": {
     "loading": "加载中...",

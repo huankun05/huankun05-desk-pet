@@ -107,8 +107,10 @@ pub fn init_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "quit" => {
-                let state = app.state::<crate::service::ServiceManager>();
-                let _ = crate::service::service_stop_all(state);
+                // 立即退出：所有后端子进程在启动时已加入 Windows Job Object
+                // （KILL_ON_JOB_CLOSE），父进程退出时由操作系统强制终止整个进程树，
+                // 不会残留占端口。因此无需在退出前同步等待 taskkill——那正是
+                // 「点击退出后界面卡几秒」的根因。直接 exit(0) 即可做到「一点就退」。
                 app.exit(0);
             }
             "reset-orb" => {
