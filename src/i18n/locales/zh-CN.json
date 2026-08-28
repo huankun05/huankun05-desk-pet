@@ -1623,7 +1623,9 @@
       "recognizing": "识别中…",
       "processing": "思考中…",
       "loading_model": "加载语音模型…",
-      "error": "唤醒词异常"
+      "error": "唤醒词异常",
+      "vad_listening": "自动聆听中",
+      "vad_speaking": "检测到语音"
     },
     "screen": {
       "watching": "正在查看屏幕",

@@ -23,15 +23,29 @@ export interface StatusIndicatorsProps {
   isWatching: boolean;
   /** 是否处于手动按键模式（聆听中需再次按键才结束） */
   voiceManual?: boolean;
+  /** VAD 自动聆听是否开启（隐私透明：常驻开麦时显示角标） */
+  vadEnabled?: boolean;
+  /** VAD 是否检测到语音 */
+  vadSpeaking?: boolean;
 }
 
 type VoiceKind =
-  'idle' | 'listening-wake' | 'listening' | 'recognizing' | 'processing' | 'loading' | 'error';
+  | 'idle'
+  | 'listening-wake'
+  | 'listening'
+  | 'recognizing'
+  | 'processing'
+  | 'loading'
+  | 'error'
+  | 'vad-listening'
+  | 'vad-speaking';
 
 function resolveVoice(
   wakeState: WakeWordState,
   voiceState: VoiceAssistantState,
   voiceManual: boolean,
+  vadEnabled: boolean,
+  vadSpeaking: boolean,
   t: (k: string, opts?: { defaultValue?: string }) => string,
 ): { kind: VoiceKind; label: string } {
   // 单轮语音助手优先（用户正在说话/被处理）
@@ -49,6 +63,13 @@ function resolveVoice(
       case 'processing':
         return { kind: 'processing', label: t('status.voice.processing') };
     }
+  }
+  // VAD 自动聆听次之（常驻开麦隐私透明）
+  if (vadEnabled) {
+    if (vadSpeaking) {
+      return { kind: 'vad-speaking', label: t('status.voice.vad_speaking') };
+    }
+    return { kind: 'vad-listening', label: t('status.voice.vad_listening') };
   }
   // 否则看唤醒词常驻监听状态
   switch (wakeState) {
@@ -68,10 +89,20 @@ export function StatusIndicators({
   voiceState,
   isWatching,
   voiceManual,
+  vadEnabled,
+  vadSpeaking,
 }: StatusIndicatorsProps) {
   const { t } = useTranslation();
-  const voice = resolveVoice(wakeState, voiceState, voiceManual ?? false, t);
+  const voice = resolveVoice(
+    wakeState,
+    voiceState,
+    voiceManual ?? false,
+    vadEnabled ?? false,
+    vadSpeaking ?? false,
+    t,
+  );
   const voiceActive = voice.kind !== 'idle';
+  const isVad = voice.kind.startsWith('vad-');
 
   return (
     <>
@@ -82,8 +113,10 @@ export function StatusIndicators({
           aria-live="polite"
         >
           <span className="status-indicator__icon">
-            <Icon icon="solar:microphone-bold" />
-            <span className="status-indicator__pulse" />
+            <Icon icon={isVad ? 'solar:microphone-2-bold' : 'solar:microphone-bold'} />
+            <span
+              className={`status-indicator__pulse ${vadSpeaking ? 'status-indicator__pulse--fast' : ''}`}
+            />
           </span>
           <span className="status-indicator__label">{voice.label}</span>
         </div>

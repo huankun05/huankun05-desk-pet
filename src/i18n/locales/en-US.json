@@ -1619,7 +1619,9 @@
       "recognizing": "Recognizing…",
       "processing": "Thinking…",
       "loading_model": "Loading voice model…",
-      "error": "Wake word error"
+      "error": "Wake word error",
+      "vad_listening": "Auto listening",
+      "vad_speaking": "Speech detected"
     },
     "screen": {
       "watching": "Viewing screen",

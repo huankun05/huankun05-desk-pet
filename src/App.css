@@ -456,3 +456,15 @@ button:active:not(:disabled) {
 .status-indicator--screen .status-indicator__icon {
   color: #4ade80;
 }
+
+/* VAD 自动聆听状态 */
+.status--vad-listening .status-indicator__icon {
+  color: #22d3ee;
+}
+.status--vad-speaking .status-indicator__icon {
+  color: #67e8f9;
+}
+.status-indicator__pulse--fast {
+  animation-duration: 0.7s;
+  border-color: rgba(34, 211, 238, 0.8);
+}

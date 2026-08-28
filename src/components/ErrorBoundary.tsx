@@ -101,28 +101,40 @@ export class ErrorBoundary extends Component<Props, State> {
         );
       }
 
-      // 组件级降级：隐形占位
+      // 组件级降级：友好错误卡片
       return (
         <div
           style={{
-            padding: '1rem',
-            border: '1px dashed rgba(255,100,100,0.3)',
-            borderRadius: '8px',
-            background: 'rgba(255,0,0,0.05)',
+            padding: '0.75rem 1rem',
+            borderRadius: '10px',
+            border: '1px solid rgba(239,68,68,0.15)',
+            background: 'rgba(254,242,242,0.7)',
+            backdropFilter: 'blur(4px)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', color: '#888' }}>此组件加载失败</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>⚠️</span>
+            <span style={{ fontSize: '0.85rem', color: '#555', flex: 1 }}>
+              此组件加载失败
+            </span>
             <button
               onClick={this.handleRetry}
               style={{
-                padding: '0.2rem 0.6rem',
-                background: 'transparent',
-                color: '#6366f1',
-                border: '1px solid #6366f1',
-                borderRadius: '4px',
+                padding: '0.3rem 0.75rem',
+                background: '#6366f1',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
                 cursor: 'pointer',
-                fontSize: '0.7rem',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.opacity = '0.85';
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.opacity = '1';
               }}
             >
               重试

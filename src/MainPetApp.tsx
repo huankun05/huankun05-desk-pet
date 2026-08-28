@@ -65,6 +65,7 @@ import { useBrainBridge } from './hooks/useBrainBridge';
 import { isPointOverCharacter } from './lib/live2d';
 import { triggerAnimation } from './lib/live2d/lappdelegate';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
+import { getMemoryStats } from './services/coreApi';
 import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
@@ -306,7 +307,7 @@ function MainPetApp() {
     [],
   );
 
-  useVoiceInteraction({
+  const { vadIsSpeaking } = useVoiceInteraction({
     isStreaming,
     onInterrupt: interruptResponse,
     onSendMessage: sendMessage,
@@ -619,7 +620,7 @@ function MainPetApp() {
       /* ignore */
     }
 
-    proactiveScheduler.onTrigger((trigger: ProactiveTrigger) => {
+    proactiveScheduler.onTrigger(async (trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {
         showBubble('现在处于离线模式，暂时不能陪你聊天了。', 4000);
         return;
@@ -629,8 +630,21 @@ function MainPetApp() {
       if (!emotionCtx) return;
 
       const hints = trigger.hints?.length ? `\n上下文：${trigger.hints.join('；')}` : '';
-      const systemPrompt = `${PROACTIVE_WAKE_PROMPT}\n${trigger.scene.promptSuffix}${hints}
+      let systemPrompt = `${PROACTIVE_WAKE_PROMPT}\n${trigger.scene.promptSuffix}${hints}
 当前情绪：${emotionCtx.emotion}，心情：${emotionCtx.mood}。`;
+
+      // 每日状态简报：注入真实本地数据（后端不可用时降级为空壳，不影响发送）
+      if (trigger.scene.id === 'daily_brief') {
+        try {
+          const stats = await getMemoryStats();
+          const daily = proactiveScheduler.getDailyStats();
+          const trend =
+            daily.emotionTrend === 'positive' ? '较好' : daily.emotionTrend === 'negative' ? '偏低落' : '平稳';
+          systemPrompt += `\n今日数据（仅作参考，不要生硬罗列数字）：今天和主人聊了约 ${daily.turns} 轮；我新记住了 ${stats.today} 件关于你的事，记忆库现在一共 ${stats.total} 条；你近期的情绪${trend}。`;
+        } catch {
+          /* 后端不可用：保持空壳简报 */
+        }
+      }
 
       const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
@@ -1188,6 +1202,8 @@ function MainPetApp() {
         voiceState={voiceState}
         isWatching={isWatching}
         voiceManual={voiceManualStop}
+        vadEnabled={voiceAutoListen}
+        vadSpeaking={vadIsSpeaking}
       />
 
       {/* 权限确认卡（工具执行前的授权弹窗） */}
