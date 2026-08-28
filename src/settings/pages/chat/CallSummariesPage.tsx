@@ -35,17 +35,25 @@ export function CallSummariesPage() {
   const [editingTitle, setEditingTitle] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async (q?: string) => {
-    setLoading(true);
-    try {
-      const data = await listCallSummaries(q && q.trim() ? q.trim() : undefined);
-      setItems(data);
-    } catch (e) {
-      showToast(t('settings.chat.call_load_fail', { defaultValue: '加载通话记录失败，请确认后端 Core 服务已启动' }), 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const load = useCallback(
+    async (q?: string) => {
+      setLoading(true);
+      try {
+        const data = await listCallSummaries(q && q.trim() ? q.trim() : undefined);
+        setItems(data);
+      } catch (e) {
+        showToast(
+          t('settings.chat.call_load_fail', {
+            defaultValue: '加载通话记录失败，请确认后端 Core 服务已启动',
+          }),
+          'error',
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     void load();
@@ -87,7 +95,12 @@ export function CallSummariesPage() {
   };
 
   const doDelete = async (id: number) => {
-    if (!window.confirm(t('settings.chat.call_delete_confirm', { defaultValue: '确定删除这条通话记录？' }))) return;
+    if (
+      !window.confirm(
+        t('settings.chat.call_delete_confirm', { defaultValue: '确定删除这条通话记录？' }),
+      )
+    )
+      return;
     try {
       await deleteCallSummary(id);
       showToast(t('settings.chat.call_deleted', { defaultValue: '已删除' }), 'success');
@@ -149,7 +162,9 @@ export function CallSummariesPage() {
         </div>
       ) : items.length === 0 ? (
         <div className="py-10 text-center text-sm text-neutral-400">
-          {t('settings.chat.call_empty', { defaultValue: '暂无通话记录。开启「通话总结」后，语音通话挂断会自动生成复盘。' })}
+          {t('settings.chat.call_empty', {
+            defaultValue: '暂无通话记录。开启「通话总结」后，语音通话挂断会自动生成复盘。',
+          })}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -165,7 +180,8 @@ export function CallSummariesPage() {
               >
                 <span className="truncate text-sm font-medium text-neutral-800">{it.title}</span>
                 <span className="mt-0.5 text-xs text-neutral-400">
-                  {it.call_date} · {formatDuration(it.duration_seconds)} · {formatDate(it.created_at)}
+                  {it.call_date} · {formatDuration(it.duration_seconds)} ·{' '}
+                  {formatDate(it.created_at)}
                 </span>
               </button>
               <button
@@ -205,14 +221,16 @@ export function CallSummariesPage() {
             </div>
 
             <div className="mb-3 text-xs text-neutral-400">
-              {detail.call_date} · {formatDuration(detail.duration_seconds)} · {formatDate(detail.created_at)}
+              {detail.call_date} · {formatDuration(detail.duration_seconds)} ·{' '}
+              {formatDate(detail.created_at)}
             </div>
 
             <h3 className="mb-1 text-sm font-semibold text-neutral-700">
               {t('settings.chat.call_summary_label', { defaultValue: '总结' })}
             </h3>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
-              {detail.summary_text || t('settings.chat.call_no_summary', { defaultValue: '（无总结内容）' })}
+              {detail.summary_text ||
+                t('settings.chat.call_no_summary', { defaultValue: '（无总结内容）' })}
             </p>
 
             <h3 className="mb-1 mt-4 text-sm font-semibold text-neutral-700">
@@ -235,7 +253,11 @@ export function CallSummariesPage() {
                 }
                 return turns.map((turn, i) => (
                   <div key={i} className="text-sm">
-                    <span className={turn.role === 'user' ? 'text-neutral-500' : 'text-[var(--primary-600)]'}>
+                    <span
+                      className={
+                        turn.role === 'user' ? 'text-neutral-500' : 'text-[var(--primary-600)]'
+                      }
+                    >
                       {turn.role === 'user' ? '我' : '助手'}：
                     </span>
                     <span className="text-neutral-700">{turn.text}</span>

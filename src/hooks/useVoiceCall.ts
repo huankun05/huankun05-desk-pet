@@ -37,7 +37,11 @@ function buildInquiry(level: number): string {
   const pools: Record<number, string[]> = {
     1: ['还在吗？我等你哦~', '诶？人呢？我在这儿呢', '怎么不说话啦，在听吗？'],
     2: ['人去哪儿啦……又不理我了？', '喂喂，你是不是走神了呀', '你怎么又不说话了，我会难过的诶'],
-    3: ['不理我，那我先挂啦啊，想聊随时找我~', '哼，你都不理我，那我先撤了哦', '再不理我我可真生气了……算了，先挂啦'],
+    3: [
+      '不理我，那我先挂啦啊，想聊随时找我~',
+      '哼，你都不理我，那我先撤了哦',
+      '再不理我我可真生气了……算了，先挂啦',
+    ],
     4: ['那我先挂啦，想聊了随时喊我~', '好啦不逗你了，我先撤，拜拜~'],
   };
   const arr = pools[level] ?? pools[3];
@@ -171,7 +175,7 @@ export function useVoiceCall({
 
   /** 挂断后生成口语化通话总结并落库（开关关闭或无内容时跳过） */
   const generateSummary = useCallback(async () => {
-      let enabled: boolean;
+    let enabled: boolean;
     try {
       enabled = localStorage.getItem('deskpet_call_summary_enabled') !== 'false';
     } catch {
