@@ -201,7 +201,6 @@ export function InteractionPage() {
   const [config, setConfig] = useState<InteractionConfig>(() => loadInteractionConfig());
   // 后端台词数据（内存快照，不再 localStorage）
   const [backendMessages, setBackendMessages] = useState<InteractionMessage[]>([]);
-  const [messagesReady, setMessagesReady] = useState(false);
   // 当前编辑标签
   const [activeTab, setActiveTab] = useState<EditTab>('interact');
   // 编辑中的分组
@@ -354,9 +353,8 @@ export function InteractionPage() {
         const refreshed = await listInteractionMessages();
         if (cancelled) return;
         setBackendMessages(refreshed);
-        setMessagesReady(true);
       } catch {
-        if (!cancelled) setMessagesReady(true);
+        // 初始化失败时静默降级（UI 显示空态，可手动刷新）
       }
     }
     void init();

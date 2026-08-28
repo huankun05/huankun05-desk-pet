@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Section, SettingRow } from '../../components';
-import { useToast } from '../../components';
 import { useMode, type AppMode } from '../../../hooks/useMode';
 import { toolRegistry } from '../../../services/tools/registry';
 import { registerBuiltinTools } from '../../../services/tools';
@@ -55,7 +54,6 @@ interface ToolView {
 
 export function ChatModesPage() {
   const { t } = useTranslation();
-  const { showToast } = useToast();
   const { mode, isWorkMode } = useMode();
 
   const [modeTools, setModeTools] = useState<ModeToolsInfo | null>(null);
@@ -127,8 +125,7 @@ export function ChatModesPage() {
           </div>
           <div className="rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-500">
             {t('settings.chat.auto_mode_fallback', {
-              defaultValue:
-                '仍可在代码中显式指定 chat / work 作为固定模式兜底；默认即为智能模式。',
+              defaultValue: '仍可在代码中显式指定 chat / work 作为固定模式兜底；默认即为智能模式。',
             })}
           </div>
         </div>

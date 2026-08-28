@@ -13,7 +13,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { providerManager } from '../services/provider/manager';
 import { transcribeViaBrain } from '../services/provider/sttBackend';
-import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
 import { getHermesGatewayClient } from '../services/hermesGateway';
 import { type SendMessageFn } from '../hooks/useHermesGateway';
@@ -133,7 +132,7 @@ export function useVoiceCall({
         resolve();
         return;
       }
-      const player = new StreamingTTSPlayer((audio, sr) => {
+      const player = new StreamingTTSPlayer((audio, _sr) => {
         return new Promise<void>((res) => {
           const blob = new Blob([audio], { type: 'audio/wav' });
           const url = URL.createObjectURL(blob);

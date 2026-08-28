@@ -41,7 +41,7 @@ export function CallSummariesPage() {
       try {
         const data = await listCallSummaries(q && q.trim() ? q.trim() : undefined);
         setItems(data);
-      } catch (e) {
+      } catch {
         showToast(
           t('settings.chat.call_load_fail', {
             defaultValue: '加载通话记录失败，请确认后端 Core 服务已启动',
@@ -55,7 +55,9 @@ export function CallSummariesPage() {
     [t],
   );
 
+  // 挂载时加载通话记录（数据获取 effect，setState 发生在异步 load 内，非渲染期同步镜像）
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -70,7 +69,6 @@ import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
 import { computeOrbDefaultPos, getMainRect } from './utils/orbPosition';
-import { showToast } from './utils/toast';
 import { setLogLevel as setGlobalLogLevel } from './utils/logger';
 import { startWatchdog, registerService } from './services/provider/watchdog';
 import { isOfflineModeEnabled } from './services/provider/watchdog';
@@ -217,7 +215,6 @@ function MainPetApp() {
     modelInfo,
   });
 
-  const { t } = useTranslation();
   const { mode } = useMode();
 
   const showBubble = useCallback((text: string, duration?: number) => {
@@ -291,21 +288,13 @@ function MainPetApp() {
   const [voiceAutoListen, setVoiceAutoListen] = useState(
     () => localStorage.getItem('deskpet_voice_autolisten') === 'true',
   );
-  useStorageEvent(
-    'deskpet_voice_autolisten',
-    (v) => setVoiceAutoListen(v === 'true'),
-    [],
-  );
+  useStorageEvent('deskpet_voice_autolisten', (v) => setVoiceAutoListen(v === 'true'), []);
 
   // 语音输入模式：手动按键结束（默认开启，避免停顿被静音端点误截断）
   const [voiceManualStop, setVoiceManualStop] = useState(
     () => localStorage.getItem('deskpet_voice_manual_stop') !== 'false',
   );
-  useStorageEvent(
-    'deskpet_voice_manual_stop',
-    (v) => setVoiceManualStop(v === 'true'),
-    [],
-  );
+  useStorageEvent('deskpet_voice_manual_stop', (v) => setVoiceManualStop(v === 'true'), []);
 
   const { vadIsSpeaking } = useVoiceInteraction({
     isStreaming,
@@ -639,7 +628,11 @@ function MainPetApp() {
           const stats = await getMemoryStats();
           const daily = proactiveScheduler.getDailyStats();
           const trend =
-            daily.emotionTrend === 'positive' ? '较好' : daily.emotionTrend === 'negative' ? '偏低落' : '平稳';
+            daily.emotionTrend === 'positive'
+              ? '较好'
+              : daily.emotionTrend === 'negative'
+                ? '偏低落'
+                : '平稳';
           systemPrompt += `\n今日数据（仅作参考，不要生硬罗列数字）：今天和主人聊了约 ${daily.turns} 轮；我新记住了 ${stats.today} 件关于你的事，记忆库现在一共 ${stats.total} 条；你近期的情绪${trend}。`;
         } catch {
           /* 后端不可用：保持空壳简报 */

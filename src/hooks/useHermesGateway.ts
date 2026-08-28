@@ -19,7 +19,6 @@ import { createLogger } from '../utils/logger';
 import { showToast } from '../utils/toast';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { isOfflineModeEnabled } from '../services/provider/watchdog';
-import { synthesizeViaBrain } from '../services/provider/ttsBackend';
 import { detectEmotionFromText, type EmotionType } from '../hooks/useEmotion';
 import { parseExplicitEmotion, stripControlTags } from '../services/live2d/visualMapping';
 import { audioPlayer } from '../services/audio/player';
@@ -341,7 +340,8 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
                 if (boundary >= 0) {
                   firstSentenceFired = true;
                   const firstSentence = speechText.slice(0, boundary + 1).trim();
-                  const e = parseExplicitEmotion(firstSentence) ?? detectEmotionFromText(firstSentence);
+                  const e =
+                    parseExplicitEmotion(firstSentence) ?? detectEmotionFromText(firstSentence);
                   ttsStream.setEmotion(e);
                   options?.onSpeechEmotion?.(e);
                 }

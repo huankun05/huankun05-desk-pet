@@ -163,10 +163,13 @@ export function useVADInteraction(options: UseVADInteractionOptions): UseVADInte
     const service = serviceRef.current;
     if (!service || !isAvailable) return;
 
-    // 未启用：绝不打开麦克风（隐私优先），并清理残留监听状态
+    // 未启用：绝不打开麦克风（隐私优先），并清理残留监听状态。
+    // 此处 setIsSpeaking(false) 是「外部开关关闭时强制复位检测状态」的
+    // 响应式副作用（非渲染期同步镜像），每次 enabled 翻转只触发一次。
     if (!enabled) {
       service.stop();
       autoSTTPhase.current = 'idle';
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSpeaking(false);
       if (speechEndTimer.current) {
         clearTimeout(speechEndTimer.current);
