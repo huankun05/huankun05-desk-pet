@@ -36,6 +36,8 @@ export interface MemoryStats {
   ephemeral: number;
   avg_importance: number;
   recent_7d: number;
+  /** 今日（过去 24h）新增记忆条数 */
+  today: number;
   accessed_ratio: number;
 }
 

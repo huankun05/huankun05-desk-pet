@@ -6,6 +6,16 @@
  * 在工具注册后即可直接管控。
  */
 
+/**
+ * 安全管控四层（对齐《活体仿生智能体》架构文档）：
+ * - L1 内生偏好层：低危 / `defaultMode: 'always'`，助手自由执行（只读、无害）。
+ * - L2 协商交互层：中危 / `defaultMode: 'ask'`，有副作用但可逆，执行前征求用户同意。
+ * - L3 强制服从层：高危 / `defaultMode: 'ask'`（红色警示），需用户显式确认；管理员高优先级指令可跳过协商。
+ * - L4 终极熔断层：`DANGEROUS_COMMAND_PATTERNS` 命中即硬拦截，**不依赖会话信任、任何人都不可绕过**（见下方常量）。
+ * 主动行为（ProactiveScheduler）当前只触发本地时间/空闲提醒，不进入 L2–L4；若未来新增联网/文件/设备动作，
+ * 必须经 `permissionManager.authorize` 走对应层级。
+ */
+
 import type { CapabilityDef, RiskLevel, AuthMode } from './types';
 
 /**
@@ -111,6 +121,15 @@ export const ACTION_CAPABILITIES: CapabilityDef[] = [
     defaultMode: 'always',
     label: '系统通知',
     description: '弹出系统级通知（Toast）。',
+    group: 'action',
+  },
+  {
+    id: 'proactive_chat',
+    toolName: 'proactive_chat',
+    risk: 'low',
+    defaultMode: 'always',
+    label: '主动聊天',
+    description: '在你不互动时，宠物主动发起问候与提醒（纯本地，无外部写操作）。',
     group: 'action',
   },
 
@@ -286,7 +305,12 @@ export function adHocCapability(toolName: string): CapabilityDef {
   };
 }
 
-/** 危险命令黑名单（命中即视为高危，强制二次确认；用户可在设置页加白名单） */
+/**
+ * L4 终极熔断层：危险命令黑名单。
+ * 命中即视为高危并强制二次确认；该层是硬拦截——不依赖会话信任、任何人都不可绕过，
+ * 即使 L1/L2/L3 已授权也不放行（`run_command` 执行前由权限网关对命令做黑名单预检）。
+ * 用户可在设置页为特定命令加白名单（见 `isCommandWhitelisted`）。
+ */
 export const DANGEROUS_COMMAND_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\brm\s+-rf\b/i, label: 'rm -rf（递归强制删除）' },
   { pattern: /\bdel\s+\/s\b/i, label: 'del /s（递归删除）' },

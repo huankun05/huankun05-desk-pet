@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from './PageHeader';
 import { SettingsSearch } from './SettingsSearch';
+import ConsentGate from '../../components/ConsentGate';
 
 export function SettingsLayout() {
   const { t } = useTranslation();
@@ -54,6 +55,8 @@ export function SettingsLayout() {
           </div>
         </div>
       </div>
+      {/* 权限确认卡：设置窗独立 JS 上下文，需在此挂载以便主动聊天等开关走确认闸 */}
+      <ConsentGate />
     </div>
   );
 }

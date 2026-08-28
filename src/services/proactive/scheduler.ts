@@ -59,6 +59,10 @@ export class ProactiveScheduler {
   private unsubscribers: Array<() => void>;
   /** 标记当天首次互动是否已触发早安问候 */
   private morningGreeted: boolean;
+  /** 标记当天是否已触发每日状态简报（21:00 一次） */
+  private dailyBriefed: boolean;
+  /** 当天与用户的对话轮次（每次收到用户消息 +1，供每日简报注入真实数据） */
+  private todayTurns: number;
   /** 最近用户消息历史（用于上下文感知） */
   private recentUserMessages: string[] = [];
   /** 最近情感趋势（positive/negative/neutral） */
@@ -78,6 +82,8 @@ export class ProactiveScheduler {
     this.callbacks = new Set();
     this.unsubscribers = [];
     this.morningGreeted = false;
+    this.dailyBriefed = false;
+    this.todayTurns = 0;
     this.lastEmotionTrigger = 0;
     this.emotionTriggerCooldown = 30 * 60 * 1000;
   }
@@ -103,6 +109,7 @@ export class ProactiveScheduler {
       eventBus.on('message:sent', (payload) => {
         this.lastInteractionTime = Date.now();
         this.lastProactiveTime = 0;
+        this.todayTurns += 1;
         const p = payload as { text?: string };
         if (p.text) {
           this.recordUserMessage(p.text);
@@ -188,6 +195,11 @@ export class ProactiveScheduler {
     return hints;
   }
 
+  /** 每日状态简报所需的真实数据（本地统计，供注入 prompt） */
+  getDailyStats(): { turns: number; emotionTrend: 'positive' | 'negative' | 'neutral' } {
+    return { turns: this.todayTurns, emotionTrend: this.emotionTrend };
+  }
+
   /** 定时检查逻辑 */
   private tick(): void {
     const today = this.todayKey();
@@ -195,6 +207,8 @@ export class ProactiveScheduler {
       this.dailyResetDate = today;
       this.dailyCount = 0;
       this.morningGreeted = false;
+      this.dailyBriefed = false;
+      this.todayTurns = 0;
     }
 
     if (this.dailyCount >= this.config.dailyLimit) return;
@@ -256,6 +270,13 @@ export class ProactiveScheduler {
     // 深夜提醒
     if (hour >= 23 || hour < 2) {
       this.tryTrigger('late_night', '深夜提醒');
+      return;
+    }
+
+    // 每日状态简报（21:00 当天一次，本地生成，无外部写）
+    if (!this.dailyBriefed && hour === 21) {
+      this.dailyBriefed = true;
+      this.tryTrigger('daily_brief', '每日状态简报');
       return;
     }
   }

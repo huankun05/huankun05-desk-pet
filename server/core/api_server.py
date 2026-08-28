@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import sqlite3
@@ -968,6 +969,10 @@ class MemoryService:
                 "SELECT COUNT(*) FROM memory_fragments WHERE character_id = ? AND created_at >= datetime('now', '-7 days')",
                 (character_id,),
             ).fetchone()[0]
+            today = db.execute(
+                "SELECT COUNT(*) FROM memory_fragments WHERE character_id = ? AND created_at >= datetime('now', '-1 day')",
+                (character_id,),
+            ).fetchone()[0]
             accessed = db.execute(
                 "SELECT COUNT(*) FROM memory_fragments WHERE character_id = ? AND access_count > 0",
                 (character_id,),
@@ -978,6 +983,7 @@ class MemoryService:
             "ephemeral": total - permanent,
             "avg_importance": avg_imp,
             "recent_7d": recent,
+            "today": today,
             "accessed_ratio": round(accessed / total, 3) if total > 0 else 0,
         }
 
@@ -1175,6 +1181,32 @@ class TimeService:
 # ============================================================
 
 
+async def _memory_decay_loop(interval_seconds: int = 21600, first_delay: int = 300) -> None:
+    """周期性触发记忆遗忘/剪枝（泌尿系统），复用既有 MemoryService.apply_decay_all。
+
+    遵循 bionic-life-enhancement-design.md §9：
+    - 不重复实现剪枝逻辑，仅调度既有 apply_decay_all；
+    - SQLite I/O 走 asyncio.to_thread，避免阻塞事件循环；
+    - 启动延迟首跑（first_delay），与 init_db 错峰；
+    - 任务自身异常被吞掉，周期任务不得影响主服务。
+    """
+    log.info("memory decay loop started (interval=%ss, first_delay=%ss)", interval_seconds, first_delay)
+    await asyncio.sleep(first_delay)
+    while True:
+        try:
+            result = await asyncio.to_thread(MemoryService.apply_decay_all)
+            if result.get("deleted") or result.get("changed"):
+                log.info(
+                    "memory decay run: processed=%s changed=%s deleted=%s",
+                    result.get("processed"), result.get("changed"), result.get("deleted"),
+                )
+            else:
+                log.debug("memory decay run: no change (processed=%s)", result.get("processed"))
+        except Exception as exc:  # 防御性：周期任务自身失败不应连累主服务
+            log.warning("memory decay loop error: %s", exc)
+        await asyncio.sleep(interval_seconds)
+
+
 def create_app() -> FastAPI:
     from contextlib import asynccontextmanager
     from fastapi import FastAPI as _FastAPI
@@ -1182,8 +1214,16 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: _FastAPI):
         init_db()
+        decay_task = asyncio.create_task(_memory_decay_loop())
         log.info("Core API server started")
-        yield
+        try:
+            yield
+        finally:
+            decay_task.cancel()
+            try:
+                await decay_task
+            except asyncio.CancelledError:
+                pass
 
     app = FastAPI(title="Desk Pet Core API", version="1.0.0", lifespan=lifespan)
 

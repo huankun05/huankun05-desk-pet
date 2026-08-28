@@ -28,7 +28,7 @@ export interface BehaviorConfig {
 
 export const DEFAULT_BEHAVIOR: BehaviorConfig = {
   enableThinkTags: true,
-  enableSmartChat: false,
+  enableSmartChat: true,
   smartChatInterval: 60,
   smartChatDailyLimit: 20,
   proactiveTts: false,

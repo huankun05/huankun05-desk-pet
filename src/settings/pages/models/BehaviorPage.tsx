@@ -11,6 +11,7 @@ import {
   loadBehaviorConfig,
   saveBehaviorConfig,
 } from '../../../services/behavior/behaviorConfig';
+import { permissionManager } from '../../../services/permission/PermissionManager';
 
 /**
  * 角色行为设置页
@@ -149,7 +150,25 @@ export function BehaviorPage() {
           >
             <Switch
               checked={config.enableSmartChat}
-              onClick={() => update({ enableSmartChat: !config.enableSmartChat })}
+              onClick={async () => {
+                const next = !config.enableSmartChat;
+                // 开启主动聊天时走权限闸：首次弹确认卡，之后按授权策略（低风险默认放行）
+                if (next) {
+                  try {
+                    const res = await permissionManager.authorize('proactive_chat', {}, { source: 'behavior' });
+                    if (!res.allowed) {
+                      showToast(
+                        t('settings.models.smart_chat_blocked', { defaultValue: '已取消开启主动聊天' }),
+                        'info',
+                      );
+                      return;
+                    }
+                  } catch {
+                    // 权限 UI 不可用等异常：安全降级为允许，不阻断功能
+                  }
+                }
+                update({ enableSmartChat: next });
+              }}
             />
           </SettingRow>
 

@@ -322,6 +322,65 @@ class HermesEngine:
 # FastAPI App
 # ============================================================
 
+def _sample_cpu_percent(sample_ms: int = 500) -> float:
+    """Windows 零依赖系统 CPU 占用（%）；失败返回 -1.0（跨平台安全降级）。
+
+    使用 kernel32.GetSystemTimes 对两次采样求差，不引入 psutil 等额外依赖。
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.windll.kernel32
+        idle, kernel, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+
+        def _read() -> tuple[int, int]:
+            if not k32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+                raise OSError("GetSystemTimes failed")
+            hi = idle.dwHighDateTime << 32 | idle.dwLowDateTime
+            ki = kernel.dwHighDateTime << 32 | kernel.dwLowDateTime
+            ui = user.dwHighDateTime << 32 | user.dwLowDateTime
+            return (ki + ui), hi
+
+        sys1, idle1 = _read()
+        time.sleep(sample_ms / 1000.0)
+        sys2, idle2 = _read()
+        sys_total = sys2 - sys1
+        idle_total = idle2 - idle1
+        if sys_total <= 0:
+            return -1.0
+        return 100.0 * (1.0 - idle_total / sys_total)
+    except Exception:
+        return -1.0
+
+
+_STRESS_CPU_THRESHOLD = 80.0  # 系统 CPU 超过该值进入应激模式（暂停后台学习抽取）
+
+
+async def _stress_monitor_loop(scheduler: "LearningScheduler", poll_seconds: int = 15) -> None:
+    """周期采样系统 CPU，高负载时切换 LearningScheduler 应激模式（交感应激）。
+
+    遵循 bionic-life-enhancement-design.md §9：
+    - 零额外依赖（ctypes 探针），探针失败安全降级为不触发；
+    - 仅调用既有 set_stress 接口，不重写学习逻辑；
+    - 任务自身异常被吞，不影响主服务。
+    """
+    await asyncio.sleep(poll_seconds)
+    stressed = False
+    while True:
+        try:
+            cpu = await asyncio.to_thread(_sample_cpu_percent, 500)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("应激监测 CPU 采样异常（忽略）: %s", exc)
+            cpu = -1.0
+        if cpu >= 0:
+            new_stressed = cpu >= _STRESS_CPU_THRESHOLD
+            if new_stressed != stressed:
+                stressed = new_stressed
+                scheduler.set_stress(stressed)
+                log.info("应激模式 %s（系统 CPU=%.1f%%）", "开启" if stressed else "关闭", cpu)
+        await asyncio.sleep(poll_seconds)
+
+
 def create_app() -> FastAPI:
     from contextlib import asynccontextmanager
 
@@ -340,6 +399,8 @@ def create_app() -> FastAPI:
 
         # 启动空闲自学习后台协程
         scheduler_task = learning_scheduler.start() if learning_scheduler else None
+        # 交感应激监测：高负载时暂停后台学习抽取（脉动、可取消）
+        stress_task = asyncio.create_task(_stress_monitor_loop(learning_scheduler)) if learning_scheduler else None
         try:
             yield
         finally:
@@ -349,6 +410,12 @@ def create_app() -> FastAPI:
                 scheduler_task.cancel()
                 try:
                     await scheduler_task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+            if stress_task is not None:
+                stress_task.cancel()
+                try:
+                    await stress_task
                 except (asyncio.CancelledError, Exception):  # noqa: BLE001
                     pass
             log.info("Hermes Gateway stopped")

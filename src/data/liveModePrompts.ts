@@ -80,4 +80,10 @@ export const PROACTIVE_SCENES: ProactiveScene[] = [
     condition: '检测到用户情绪变差（负面情感）',
     promptSuffix: '感觉主人的心情似乎不太好，试着安慰或转移注意力，让主人开心起来。',
   },
+  {
+    id: 'daily_brief',
+    label: '每日状态简报',
+    condition: '当前时间为 21:00 前后（当天一次，本地生成）',
+    promptSuffix: '一天快要结束了，用温柔的语气和主人简单回顾一下今天：问问今天过得怎么样、有没有照顾好自己（喝水/休息），并道一声晚安。不要罗列数据，像朋友一样自然闲聊。',
+  },
 ];

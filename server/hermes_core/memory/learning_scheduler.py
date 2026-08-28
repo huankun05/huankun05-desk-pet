@@ -41,6 +41,7 @@ class LearningScheduler:
         self._active = 0
         self._wake = asyncio.Event()
         self._stop = False
+        self._stress = False
         self._task: asyncio.Task | None = None
         self._queue_path = get_db_path().parent / "learning_queue.jsonl"
         self._load_pending()
@@ -92,6 +93,18 @@ class LearningScheduler:
         self._stop = True
         self._wake.set()
 
+    def set_stress(self, enabled: bool) -> None:
+        """交感应激模式：开启时暂停后台抽取（队列仍缓冲并持久化，不丢数据）。
+
+        用于系统高负载时让出 CPU/LLM 给实时对话；关闭时立即唤醒恢复抽取。
+        """
+        self._stress = bool(enabled)
+        if self._stress:
+            logger.info("LearningScheduler 进入应激模式（暂停后台抽取）")
+        else:
+            logger.info("LearningScheduler 退出应激模式（恢复后台抽取）")
+            self._wake.set()
+
     # ------------------------------------------------------------------
     # 主循环
     # ------------------------------------------------------------------
@@ -108,10 +121,14 @@ class LearningScheduler:
                 idle = self._active == 0
                 has = bool(self._queue)
             if idle and has:
-                try:
-                    await self._drain()
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("空闲自学习 drain 异常: %s", exc)
+                if self._stress:
+                    # 交感应激：暂停后台抽取。队列仍缓冲并持久化，恢复后不丢数据。
+                    logger.debug("应激模式：跳过本轮后台抽取（队列保留 %d 条）", len(self._queue))
+                else:
+                    try:
+                        await self._drain()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("空闲自学习 drain 异常: %s", exc)
 
     async def _drain(self) -> None:
         """取出全部缓冲轮次，按 (character_id, user_id) 分组后批量抽取。"""
