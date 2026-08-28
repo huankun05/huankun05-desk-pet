@@ -57,7 +57,7 @@ const DEFAULT_INTERACT_MESSAGES = {
   longNoInteract: ['你终于回来了！', '呜...等你好久了...', '我以为你不要我了呢...', '欢迎回来~'],
 } as const;
 
-const DEFAULT_IDLE_MESSAGES = [
+const DEFAULT_IDLE_MESSAGES: IdleMessage[] = [
   {
     messages: [
       '在想什么呢？',
@@ -164,7 +164,7 @@ const DEFAULT_IDLE_MESSAGES = [
       '是不是不需要我了...呜呜...',
     ],
   },
-] as const;
+];
 
 /** 将前端默认台词写入后端（首次初始化用） */
 async function seedDefaults() {
@@ -174,10 +174,10 @@ async function seedDefaults() {
   for (const group of DEFAULT_IDLE_MESSAGES) {
     await upsertInteractionMessage({
       category: 'idle',
-      subcategory: (group as any).time || (group as any).emotion || 'general',
+      subcategory: group.time || group.emotion || 'general',
       messages: [...group.messages],
-      time_of_day: (group as any).time || null,
-      emotion: (group as any).emotion || null,
+      time_of_day: group.time || null,
+      emotion: group.emotion || null,
     });
   }
 }
@@ -505,10 +505,10 @@ export function InteractionPage() {
         const first = updated[groupIndex];
         await upsertInteractionMessage({
           category: 'idle',
-          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          subcategory: first.time || first.emotion || String(groupIndex),
           messages: updated[groupIndex].messages,
-          time_of_day: (first as any).time || null,
-          emotion: (first as any).emotion || null,
+          time_of_day: first.time || null,
+          emotion: first.emotion || null,
         });
       }
       await refreshBackendMessages();
@@ -526,8 +526,8 @@ export function InteractionPage() {
       );
       const target = backendMessages.find(
         (m) =>
-          (m.category === 'idle' && m.subcategory === (updated[groupIndex] as any).time) ||
-          (updated[groupIndex] as any).emotion,
+          (m.category === 'idle' && m.subcategory === updated[groupIndex].time) ||
+          updated[groupIndex].emotion,
       );
       if (target?.id) {
         await updateInteractionMessage(target.id, { messages: updated[groupIndex].messages });
@@ -535,10 +535,10 @@ export function InteractionPage() {
         const first = updated[groupIndex];
         await upsertInteractionMessage({
           category: 'idle',
-          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          subcategory: first.time || first.emotion || String(groupIndex),
           messages: updated[groupIndex].messages,
-          time_of_day: (first as any).time || null,
-          emotion: (first as any).emotion || null,
+          time_of_day: first.time || null,
+          emotion: first.emotion || null,
         });
       }
       await refreshBackendMessages();
@@ -561,8 +561,8 @@ export function InteractionPage() {
       );
       const target = backendMessages.find(
         (m) =>
-          (m.category === 'idle' && m.subcategory === (updated[groupIndex] as any).time) ||
-          (updated[groupIndex] as any).emotion,
+          (m.category === 'idle' && m.subcategory === updated[groupIndex].time) ||
+          updated[groupIndex].emotion,
       );
       if (target?.id) {
         await updateInteractionMessage(target.id, { messages: updated[groupIndex].messages });
@@ -570,10 +570,10 @@ export function InteractionPage() {
         const first = updated[groupIndex];
         await upsertInteractionMessage({
           category: 'idle',
-          subcategory: (first as any).time || (first as any).emotion || String(groupIndex),
+          subcategory: first.time || first.emotion || String(groupIndex),
           messages: updated[groupIndex].messages,
-          time_of_day: (first as any).time || null,
-          emotion: (first as any).emotion || null,
+          time_of_day: first.time || null,
+          emotion: first.emotion || null,
         });
       }
       await refreshBackendMessages();
