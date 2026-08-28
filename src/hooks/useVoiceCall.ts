@@ -92,9 +92,13 @@ export function useVoiceCall({
   const callStartRef = useRef<number>(0);
   /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→自动挂断） */
   const silenceCountRef = useRef(0);
+  /** startTurn 递归续听经由此 ref 调用，避免 useCallback 自引用 TDZ */
+  const startTurnRef = useRef<() => void>(() => {});
 
   // 同步当前模式（通话轮次透传，使工具行为与打字聊天一致）
-  modeRef.current = mode;
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   const setCallState = useCallback(
     (s: VoiceCallState) => {
@@ -167,7 +171,7 @@ export function useVoiceCall({
 
   /** 挂断后生成口语化通话总结并落库（开关关闭或无内容时跳过） */
   const generateSummary = useCallback(async () => {
-    let enabled = true;
+      let enabled: boolean;
     try {
       enabled = localStorage.getItem('deskpet_call_summary_enabled') !== 'false';
     } catch {
@@ -273,13 +277,13 @@ export function useVoiceCall({
             stopCallInternal();
             return;
           }
-          startTurn(); // 继续聆听
+          startTurnRef.current(); // 继续聆听
         } else if (activeRef.current) {
-          startTurn(); // 尚未到询问间隔，继续聆听
+          startTurnRef.current(); // 尚未到询问间隔，继续聆听
         }
       } catch (e) {
         log.error('stt transcribe failed', e);
-        if (activeRef.current) startTurn();
+        if (activeRef.current) startTurnRef.current();
       }
       // 下一轮聆听由 TTS 播放结束（或异常）后触发，避免抢话
     };
@@ -296,6 +300,11 @@ export function useVoiceCall({
       stopCallInternal();
     }
   }, [sendMessage, setCallState, showError, stopCallInternal, playTts]);
+
+  // startTurn 递归续听走 ref（见 startTurnRef 声明处注释）
+  useEffect(() => {
+    startTurnRef.current = startTurn;
+  }, [startTurn]);
 
   const startCall = useCallback(async () => {
     if (activeRef.current) return;

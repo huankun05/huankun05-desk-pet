@@ -99,7 +99,7 @@ export function CallSummariesPage() {
   };
 
   const doExport = (d: CallSummaryDetail) => {
-    let turns: Turn[] = [];
+    let turns: Turn[];
     try {
       turns = JSON.parse(d.transcript_json || '[]');
     } catch {
@@ -107,7 +107,7 @@ export function CallSummariesPage() {
     }
     const lines: string[] = [];
     lines.push(`# ${d.title}`);
-    lines.push(`日期：${d.call_date}　时长：${formatDuration(d.duration_seconds)}`);
+    lines.push(`日期：${d.call_date} · 时长：${formatDuration(d.duration_seconds)}`);
     lines.push('');
     lines.push('## 总结');
     lines.push(d.summary_text || '');
@@ -220,7 +220,7 @@ export function CallSummariesPage() {
             </h3>
             <div className="flex flex-col gap-1.5">
               {(() => {
-                let turns: Turn[] = [];
+                let turns: Turn[];
                 try {
                   turns = JSON.parse(detail.transcript_json || '[]');
                 } catch {
