@@ -59,6 +59,13 @@ The frontend is TypeScript-strict + ESLint. 92 warnings were found; after cleanu
 | 4   | `exhaustive-deps`                      | 4     | Added missing deps                                                                     |
 | 5/6 | `no-unused-vars`                       | 14    | Removed dead imports / variables                                                       |
 
+> **2026-08-28 复检清零**：8-28 体检发现回归 32 个 warning（6 error 已另修），当日下午全部清零
+> （提交 `be91ba0` / `b54cc24` / `3b96cae`）：InteractionPage 20 处 `as any` 用 `IdleMessage[]`
+> 标注消除；2 处 setState-in-effect 修复（ChatPanelWindow callActive 镜像、ControlsOrb 懒初始化）；
+> 2 处经评估为合理副作用加显式 disable 注释（useVADInteraction:170 开关复位、CallSummariesPage
+> 挂载加载）；清理未使用变量/导入（`showToast`、`synthesizeViaBrain`、`sr`、`t`、`messagesReady`）。
+> 当前 `npm run lint` = **0 errors / 0 warnings** 全绿。
+
 ## 3. Follow-up roadmap — permission system
 
 - **P3**: TTS consent speech / voice response / emergency-stop / first-run wizard.
@@ -115,3 +122,7 @@ machine already has exclusions, so local builds finish in seconds.
 - **验证记录（2026-08-26）**：本地 `pnpm tauri dev` 全量编译 29.63s 通过，
   Admin / STT(8002) / Core(9877) / Gateway(8765) / CosyVoice TTS(8003) 全部启动，
   纳西妲 CosyVoice V3 模型正常加载。
+- **2026-08-28 更新**：`src-tauri/target` 21G → **4.8G**。大头是 `target/debug/_up_/server`
+  （**16G**，`tauri build` 打包资源副本，纯冗余可安全删）；真正编译产物仅 4.8G，保留
+  （`cargo clean` 重编译成本高）。Defender 排除脚本 `add_defender_exclusions.ps1` 已补
+  `server/`（构建 script 对 server/ 逐文件 rerun-if-changed + Defender 实时扫描 = 20min 卡顿根因）。
