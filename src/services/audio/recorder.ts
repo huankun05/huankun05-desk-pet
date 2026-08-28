@@ -148,28 +148,19 @@ export class AudioRecorder {
       });
     }
 
-    // 合并 Blob
-    if (this.chunks.length === 0) {
-      log.warn('Stop called but no audio chunks recorded');
-      this.cleanup();
-      this.setState('idle');
-      return null;
-    }
-
-    const blob = new Blob(this.chunks, { type: this.mediaRecorder?.mimeType ?? 'audio/webm' });
-    const arrayBuffer = await blob.arrayBuffer();
-
-    // 转换为 WAV 16kHz mono
-    const wavBuffer = await this.convertToWav(arrayBuffer);
-    log.info('Recording stopped', {
-      chunks: this.chunks.length,
-      rawSize: arrayBuffer.byteLength,
-      wavSize: wavBuffer.byteLength,
-    });
-
+    const wav = await this.encodeCurrentChunks();
     this.cleanup();
     this.setState('idle');
-    return wavBuffer;
+    return wav;
+  }
+
+  /**
+   * 不停止录音，把「到目前为止已录到的内容」编码为 WAV（部分识别 / 实时出字用）。
+   * 录音继续进行，随后仍可继续 getPartialWav() 或 stop() 取全量结果。
+   */
+  async getPartialWav(): Promise<ArrayBuffer | null> {
+    if (this.state !== 'recording') return null;
+    return this.encodeCurrentChunks();
   }
 
   /**
@@ -201,6 +192,23 @@ export class AudioRecorder {
   }
 
   // ===== 内部 =====
+
+  /** 合并当前已录 chunks 并编码为 WAV 16kHz mono（stop / getPartialWav 共用） */
+  private async encodeCurrentChunks(): Promise<ArrayBuffer | null> {
+    if (this.chunks.length === 0) {
+      log.warn('No audio chunks recorded yet');
+      return null;
+    }
+    const blob = new Blob(this.chunks, { type: this.mediaRecorder?.mimeType ?? 'audio/webm' });
+    const arrayBuffer = await blob.arrayBuffer();
+    const wavBuffer = await this.convertToWav(arrayBuffer);
+    log.debug('Encoded audio', {
+      chunks: this.chunks.length,
+      rawSize: arrayBuffer.byteLength,
+      wavSize: wavBuffer.byteLength,
+    });
+    return wavBuffer;
+  }
 
   private getBestMimeType(): string {
     const candidates = [

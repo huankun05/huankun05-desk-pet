@@ -233,6 +233,9 @@ function ChatPanelWindow() {
       recorderRef.current = new AudioRecorder({
         sampleRate: 16000,
         silenceTimeout: 1500,
+        // 手动点击模式：必须关闭「静音自动停」。否则用户说完话停顿 1.5s 后
+        // 录音被自动停止且音频丢弃，松手时 stop() 返回 null，表现为「录不进声音」。
+        autoStopOnSilence: false,
         onStateChange: (state) => {
           if (state === 'recording') setIsRecording(true);
           if (state === 'idle') setIsRecording(false);
@@ -388,12 +391,41 @@ function ChatPanelWindow() {
 
   // 指向聊天窗口的命令式句柄，用于把 STT 结果回填到输入框
   const chatWindowRef = useRef<ChatWindowHandle>(null);
+  /** 录制中部分识别（实时出字）：定时器 + 代际计数（停止后丢弃在途结果） */
+  const interimTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const interimGenRef = useRef(0);
+  const interimTextRef = useRef('');
 
   const handleRecordStart = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder) return;
     try {
       await recorder.start();
+
+      // 实时出字：录制中每 2s 对「已录内容」做一次部分识别，回填输入框。
+      // 用户随时可点击停止，以 stop() 的最终识别为准。
+      interimGenRef.current += 1;
+      const gen = interimGenRef.current;
+      let busy = false;
+      interimTimerRef.current = setInterval(async () => {
+        if (busy) return; // 上一轮部分识别未完成，跳过本次
+        busy = true;
+        try {
+          const partial = await recorder.getPartialWav();
+          if (!partial) return;
+          const r = await transcribeViaBrain(partial, 'wav');
+          if (interimGenRef.current !== gen) return; // 已停止，丢弃在途结果
+          const text = r?.text?.trim() || '';
+          if (text && (!interimTextRef.current || text.length > interimTextRef.current.length)) {
+            interimTextRef.current = text;
+            chatWindowRef.current?.setDraft(text);
+          }
+        } catch {
+          /* 部分识别失败不影响录音 */
+        } finally {
+          busy = false;
+        }
+      }, 2000);
     } catch (err) {
       console.error('[Record] Failed to start:', err);
     }
@@ -402,6 +434,13 @@ function ChatPanelWindow() {
   const handleRecordStop = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder) return;
+    // 停止部分识别并作废在途结果
+    if (interimTimerRef.current) {
+      clearInterval(interimTimerRef.current);
+      interimTimerRef.current = null;
+    }
+    interimGenRef.current += 1;
+    interimTextRef.current = '';
     try {
       const audio = await recorder.stop();
       if (!audio) return;

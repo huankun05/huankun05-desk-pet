@@ -1477,21 +1477,11 @@ export const ChatWindow = memo(
               {sttAvailable && (
                 <ToolButton
                   icon={isRecording ? 'solar:microphone-bold' : 'solar:microphone-linear'}
-                  title={isRecording ? t('chat.release_to_stop') : t('chat.hold_to_speak')}
+                  title={isRecording ? t('chat.click_to_stop') : t('chat.click_to_speak')}
                   danger={isRecording}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    if (!isRecording) onRecordStart?.();
-                  }}
-                  onMouseUp={() => {
+                  onClick={() => {
                     if (isRecording) onRecordStop?.();
-                  }}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    if (!isRecording) onRecordStart?.();
-                  }}
-                  onTouchEnd={() => {
-                    if (isRecording) onRecordStop?.();
+                    else onRecordStart?.();
                   }}
                 />
               )}

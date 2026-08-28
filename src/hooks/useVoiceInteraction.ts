@@ -50,6 +50,8 @@ export function useVoiceInteraction({
         sampleRate: 16000,
         silenceTimeout: 1500,
         silenceThreshold: 0.01,
+        // 手动按住模式：关闭静音自动停，避免说完话停顿 1.5s 后音频被自动停止并丢弃
+        autoStopOnSilence: false,
         onStateChange: (state) => {
           if (state === 'recording') setIsRecording(true);
           if (state === 'idle') {

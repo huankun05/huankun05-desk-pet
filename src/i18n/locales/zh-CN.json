@@ -69,6 +69,8 @@
     "placeholder": "输入消息...",
     "hold_to_speak": "按住说话",
     "release_to_stop": "松开结束录音",
+    "click_to_speak": "点击说话",
+    "click_to_stop": "点击结束录音",
     "voice_call": "语音通话",
     "voice_connecting": "连接中…",
     "voice_incall": "通话中",

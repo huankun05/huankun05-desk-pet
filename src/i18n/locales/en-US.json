@@ -69,6 +69,8 @@
     "placeholder": "Type a message...",
     "hold_to_speak": "Hold to speak",
     "release_to_stop": "Release to stop",
+    "click_to_speak": "Click to speak",
+    "click_to_stop": "Click to stop",
     "voice_call": "Voice Call",
     "voice_connecting": "Connecting…",
     "voice_incall": "In Call",

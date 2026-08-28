@@ -268,17 +268,16 @@ export function useVoiceCall({
           await sendMessage(text, modeRef.current, { silent: true });
           return;
         }
-        // 静音超时（未检测到语音）：由静音看门狗驱动询问 → 自动挂断
+        // 静音超时（未检测到语音）：按节奏温柔询问；超过上限后不再重复询问，
+        // 静默继续聆听。通话只会因用户主动点「挂断」而结束，不会自动挂断。
         silenceCountRef.current += 1;
         if (silenceCountRef.current % EMPTY_PER_INQUIRY === 0) {
           const level = silenceCountRef.current / EMPTY_PER_INQUIRY; // 1,2,3...
-          const line = buildInquiry(Math.min(level, MAX_INQUIRIES + 1));
-          setCallState('speaking');
-          await playTts(line);
-          if (!activeRef.current) return;
-          if (level > MAX_INQUIRIES) {
-            stopCallInternal();
-            return;
+          if (level <= MAX_INQUIRIES) {
+            const line = buildInquiry(level);
+            setCallState('speaking');
+            await playTts(line);
+            if (!activeRef.current) return;
           }
           startTurnRef.current(); // 继续聆听
         } else if (activeRef.current) {
