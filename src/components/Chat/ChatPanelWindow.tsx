@@ -33,6 +33,7 @@ import { getHermesGatewayClient } from '../../services/hermesGateway';
 import { stripControlTags, parseExplicitEmotion } from '../../services/live2d/visualMapping';
 import { detectEmotionFromText, type EmotionType } from '../../hooks/useEmotion';
 import { isTauriEnv } from '../../utils/tauriEnv';
+import { openSettingsAt } from '../../utils/openSettings';
 import { CHAT_EMOTION_EVENT, CHAT_ACTIVE_EVENT } from '../../services/eventBus';
 
 /** 上下文重置时间戳（模块级，避免 hooks 声明顺序约束） */
@@ -90,6 +91,10 @@ function ChatPanelWindow() {
   const [isRecording, setIsRecording] = useState(false);
   const [sttAvailable, setSttAvailable] = useState(false);
   const recorderRef = useRef<AudioRecorder | null>(null);
+
+  // 本地语音服务端口就绪状态（用于在服务未启动时给出提示并跳转配置）
+  const [ttsReady, setTtsReady] = useState<boolean | null>(null);
+  const [sttReady, setSttReady] = useState<boolean | null>(null);
 
   // 上下文栏状态
   const [currentModel, setCurrentModel] = useState<string>('gpt-3.5-turbo');
@@ -261,6 +266,32 @@ function ChatPanelWindow() {
     // 立即探测一次，避免首屏 3 秒内录音按钮缺失
     void checkStt();
     const timer = setInterval(() => void checkStt(), 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // 探测本地 TTS/STT 服务是否真正在监听端口，未启动时给出一键跳转配置的提示
+  useEffect(() => {
+    let cancelled = false;
+    const checkServices = async () => {
+      try {
+        const [tts, stt] = await Promise.all([
+          invoke<boolean>('check_tcp_health', { port: 8001 }),
+          invoke<boolean>('check_tcp_health', { port: 8002 }),
+        ]);
+        if (cancelled) return;
+        setTtsReady(tts);
+        setSttReady(stt);
+      } catch {
+        if (cancelled) return;
+        setTtsReady(false);
+        setSttReady(false);
+      }
+    };
+    void checkServices();
+    const timer = setInterval(() => void checkServices(), 10000);
     return () => {
       cancelled = true;
       clearInterval(timer);
@@ -1005,6 +1036,60 @@ function ChatPanelWindow() {
             />
           </div>
         </div>
+
+        {/* 本地语音服务未启动提示 */}
+        {(ttsReady === false || sttReady === false) && (
+          <div
+            style={{
+              padding: '8px 12px',
+              background: 'var(--color-danger-bg, rgba(239,68,68,0.1))',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '12px',
+              color: 'var(--color-danger, #dc2626)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Icon icon="solar:info-circle-linear" width={14} height={14} />
+            <span>检测到本地语音服务未启动，语音功能不可用。</span>
+            {ttsReady === false && (
+              <button
+                type="button"
+                onClick={() => openSettingsAt('/settings/services/tts')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  fontSize: '12px',
+                  color: 'inherit',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                配置 TTS
+              </button>
+            )}
+            {sttReady === false && (
+              <button
+                type="button"
+                onClick={() => openSettingsAt('/settings/services/stt')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  fontSize: '12px',
+                  color: 'inherit',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                配置 STT
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Chat + 详情面板 并排 */}
         <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: 0 }}>

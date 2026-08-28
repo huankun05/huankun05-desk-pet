@@ -1082,6 +1082,11 @@ async def _handle_chat(ws: WebSocket, engine: HermesEngine, data: dict) -> None:
     ]
     _trace("[CHAT] messages_len=%d", len(messages))
 
+    # 关键：把当前用户消息持久化到后端历史数据库。
+    # 原实现只 append assistant 消息，导致历史里全是 AI 回复、没有用户发言，
+    # LLM 看到的上下文是 [assistant, assistant, ..., current_user]，完全丢失用户前一句。
+    engine.append_message("user", text)
+
     # 解析「允许的工具」：白名单剔除被禁用的；work(None) 仍要剔除禁用项
     if whitelist is None:
         allowed_frontend = [t for t in frontend_tools if t.get("name") not in disabled]
