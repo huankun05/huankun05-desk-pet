@@ -21,6 +21,8 @@ export interface StatusIndicatorsProps {
   voiceState: VoiceAssistantState;
   /** 是否处于「一起看」截屏模式 */
   isWatching: boolean;
+  /** 是否处于手动按键模式（聆听中需再次按键才结束） */
+  voiceManual?: boolean;
 }
 
 type VoiceKind =
@@ -29,13 +31,19 @@ type VoiceKind =
 function resolveVoice(
   wakeState: WakeWordState,
   voiceState: VoiceAssistantState,
-  t: (k: string) => string,
+  voiceManual: boolean,
+  t: (k: string, opts?: { defaultValue?: string }) => string,
 ): { kind: VoiceKind; label: string } {
   // 单轮语音助手优先（用户正在说话/被处理）
   if (voiceState !== 'idle') {
     switch (voiceState) {
       case 'listening':
-        return { kind: 'listening', label: t('status.voice.listening') };
+        return {
+          kind: 'listening',
+          label: voiceManual
+            ? t('status.voice.listening_manual', { defaultValue: '聆听中…（按键结束）' })
+            : t('status.voice.listening'),
+        };
       case 'recognizing':
         return { kind: 'recognizing', label: t('status.voice.recognizing') };
       case 'processing':
@@ -55,9 +63,14 @@ function resolveVoice(
   }
 }
 
-export function StatusIndicators({ wakeState, voiceState, isWatching }: StatusIndicatorsProps) {
+export function StatusIndicators({
+  wakeState,
+  voiceState,
+  isWatching,
+  voiceManual,
+}: StatusIndicatorsProps) {
   const { t } = useTranslation();
-  const voice = resolveVoice(wakeState, voiceState, t);
+  const voice = resolveVoice(wakeState, voiceState, voiceManual ?? false, t);
   const voiceActive = voice.kind !== 'idle';
 
   return (

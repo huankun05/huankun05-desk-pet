@@ -60,6 +60,15 @@ export function ChatVoicePage() {
     }
   });
 
+  // ---- 手动按键结束开关：默认开启，避免停顿被静音端点误截断 ----
+  const [voiceManualStop, setVoiceManualStop] = useState(() => {
+    try {
+      return localStorage.getItem('deskpet_voice_manual_stop') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
   // ---- 通话总结开关 ----
   const [callSummaryEnabled, setCallSummaryEnabled] = useState(() => {
     try {
@@ -147,6 +156,15 @@ export function ChatVoicePage() {
     setVoiceAutoListen(value);
     try {
       localStorage.setItem('deskpet_voice_autolisten', value ? 'true' : 'false');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const updateManualStop = useCallback((value: boolean) => {
+    setVoiceManualStop(value);
+    try {
+      localStorage.setItem('deskpet_voice_manual_stop', value ? 'true' : 'false');
     } catch {
       /* ignore */
     }
@@ -347,6 +365,29 @@ export function ChatVoicePage() {
               <span
                 className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                   voiceAutoListen ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </SettingRow>
+
+          {/* 手动按键结束：按 Ctrl+Space 开始，再次按下结束并识别；关闭则静音停顿自动结束 */}
+          <SettingRow
+            title={t('settings.chat.manual_stop', { defaultValue: '手动按键结束' })}
+            description={t('settings.chat.manual_stop_desc', {
+              defaultValue:
+                '开启后按 Ctrl+Space 开始说话，再次按下才结束并识别（不怕停顿打断）；关闭则说完停顿约 0.8 秒自动结束',
+            })}
+          >
+            <button
+              type="button"
+              onClick={() => updateManualStop(!voiceManualStop)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                voiceManualStop ? 'bg-[var(--primary-500)]' : 'bg-neutral-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  voiceManualStop ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

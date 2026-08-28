@@ -21,6 +21,8 @@ export interface RecorderOptions {
   silenceTimeout?: number;
   /** 静音阈值 0-1，默认 0.01 */
   silenceThreshold?: number;
+  /** 静音自动停止（VAD 端点）。默认 true；手动按键模式应设为 false，由调用方主动 stop() */
+  autoStopOnSilence?: boolean;
   /** 录音状态变化回调 */
   onStateChange?: (state: RecordState) => void;
   /** 实时音频回调（用于流式 STT，预留） */
@@ -40,6 +42,8 @@ export class AudioRecorder {
   private sampleRate = 16000;
   private silenceTimeout = 800;
   private silenceThreshold = 0.01;
+  /** 静音自动停止开关：false 时由调用方主动 stop()（手动按键模式，避免停顿被误截断） */
+  autoStopOnSilence = true;
   private onStateChange?: (state: RecordState) => void;
   private onAudioChunk?: (chunk: Float32Array) => void;
   /** 静音自动停止后的音频回调；语音通话循环通过它拿到一段语音去识别 */
@@ -50,6 +54,9 @@ export class AudioRecorder {
     if (options?.sampleRate) this.sampleRate = options.sampleRate;
     if (options?.silenceTimeout) this.silenceTimeout = options.silenceTimeout;
     if (options?.silenceThreshold) this.silenceThreshold = options.silenceThreshold;
+    if (typeof options?.autoStopOnSilence === 'boolean') {
+      this.autoStopOnSilence = options.autoStopOnSilence;
+    }
     this.onStateChange = options?.onStateChange;
     this.onAudioChunk = options?.onAudioChunk;
     this.onAutoStop = options?.onAutoStop;
@@ -101,8 +108,11 @@ export class AudioRecorder {
         sampleRate: this.sampleRate,
       });
 
-      // 启动静音检测
-      this.startSilenceDetection();
+      // 静音自动停止：手动按键模式（autoStopOnSilence=false）下不启动静音检测，
+      // 由调用方在用户再次按键时主动 stop()，避免说话停顿被误截断。
+      if (this.autoStopOnSilence) {
+        this.startSilenceDetection();
+      }
     } catch (err) {
       log.error('Failed to start recording', err);
       this.cleanup();

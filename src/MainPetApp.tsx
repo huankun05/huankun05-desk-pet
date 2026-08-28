@@ -296,6 +296,16 @@ function MainPetApp() {
     [],
   );
 
+  // 语音输入模式：手动按键结束（默认开启，避免停顿被静音端点误截断）
+  const [voiceManualStop, setVoiceManualStop] = useState(
+    () => localStorage.getItem('deskpet_voice_manual_stop') !== 'false',
+  );
+  useStorageEvent(
+    'deskpet_voice_manual_stop',
+    (v) => setVoiceManualStop(v === 'true'),
+    [],
+  );
+
   useVoiceInteraction({
     isStreaming,
     onInterrupt: interruptResponse,
@@ -339,6 +349,7 @@ function MainPetApp() {
     sendMessage,
     setListeningEmotion: setTalkingEmotion,
     setIdleEmotion: () => setEmotionFromResponse('neutral'),
+    manualStop: voiceManualStop,
   });
 
   // voiceState 的 ref，供 useWakeWord 的稳定回调读取最新值
@@ -1172,7 +1183,12 @@ function MainPetApp() {
       <SubtitleNotch />
 
       {/* 常驻状态角标：语音聆听(右上) / 一起看截屏(左上) */}
-      <StatusIndicators wakeState={wakeState} voiceState={voiceState} isWatching={isWatching} />
+      <StatusIndicators
+        wakeState={wakeState}
+        voiceState={voiceState}
+        isWatching={isWatching}
+        voiceManual={voiceManualStop}
+      />
 
       {/* 权限确认卡（工具执行前的授权弹窗） */}
       <ConsentGate />

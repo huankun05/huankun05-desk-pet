@@ -68,6 +68,8 @@ export interface UseVoiceAssistantOptions {
   setListeningEmotion?: () => void;
   /** 恢复空闲表情 */
   setIdleEmotion?: () => void;
+  /** 手动按键模式：开启后关闭静音自动停止，需再次按 Ctrl+Space 才结束并识别 */
+  manualStop?: boolean;
 }
 
 export interface UseVoiceAssistantReturn {
@@ -88,6 +90,7 @@ export function useVoiceAssistant({
   sendMessage,
   setListeningEmotion,
   setIdleEmotion,
+  manualStop,
 }: UseVoiceAssistantOptions): UseVoiceAssistantReturn {
   const [state, setState] = useState<VoiceAssistantState>('idle');
 
@@ -208,11 +211,22 @@ export function useVoiceAssistant({
       return;
     }
 
+    // 运行时应用手动/自动模式（支持设置页实时切换，无需重建录音器）
+    recorder.autoStopOnSilence = !manualStop;
+
     updateState('listening');
     setListeningEmotion?.();
-    showBubble('正在聆听...', 2000);
-    // 顶部刘海字幕：进入聆听态
-    eventBus.emit('subtitle:update', { phase: 'listening', text: '正在聆听…' });
+    if (manualStop) {
+      // 手动模式：明确提示"再按一次结束"，停顿不会误触发识别
+      showBubble('正在聆听…（再按 Ctrl+Space 结束）', 2500);
+      eventBus.emit('subtitle:update', {
+        phase: 'listening',
+        text: '聆听中…（再按 Ctrl+Space 结束）',
+      });
+    } else {
+      showBubble('正在聆听...', 2000);
+      eventBus.emit('subtitle:update', { phase: 'listening', text: '正在聆听…' });
+    }
 
     try {
       await recorder.start();
@@ -248,7 +262,7 @@ export function useVoiceAssistant({
           /* 首次预热失败不阻塞，留待真实识别时报错 */
         });
     }
-  }, [ensureRecorder, showBubble, updateState, setListeningEmotion, setIdleEmotion]);
+  }, [ensureRecorder, showBubble, updateState, setListeningEmotion, setIdleEmotion, manualStop]);
 
   /** 停止录音并触发识别（手动停止：如再次按下 Ctrl+Space） */
   const stopAndRecognize = useCallback(async () => {
