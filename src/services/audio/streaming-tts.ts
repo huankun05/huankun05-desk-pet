@@ -2,7 +2,8 @@
  * StreamingTTSPlayer — 流式 TTS 渐进式播放器
  *
  * 设计目标：边生成边播，降低「首音延迟 (TTFA)」，让多句回复更快出声。
- * - push(text)：喂入流式增量文本；按句末标点切句，长句额外按从句边界提前切出，逐句送合成。
+ * - push(text)：喂入流式增量文本；按句末标点切整句，逐句送合成（不做从句级切分，
+ *   CosyVoice 每次合成首块 2~5s，切碎会增加句间间隙，反而更卡）。
  * - 合成与播放重叠：句子 N 正在播放时，句子 N+1 已在后台合成。
  * - finish()：标记流式结束，把残留片段作为最后一句合成播放。
  * - whenDone()：Promise，全部合成并播放完毕时 resolve（供「播完才下一轮」场景）。
@@ -22,15 +23,15 @@ const log = createLogger('StreamingTTS');
 
 export type TtsPlayFn = (audio: ArrayBuffer, sampleRate: number) => void | Promise<void>;
 
-/** 整句边界：到此处才必须切句（保证标点完整、语气自然） */
-const SENTENCE_END = /[。！？!?；;\n]/;
-/** 从句边界：长句可在此提前切出，让首块音频更早到达（降低 TTFA） */
-const CLAUSE_END = /[，,、：:]/;
-/**
- * 从句最小字数：低于此长度的从句片段不提前切（如"嗯，""我想，"），
- * 等整句结束再合成，避免碎句与过多短 TTS 调用损害听感。
+/** 整句边界：到此处才切句（保证标点完整、语气自然）。
+ *
+ * ⚠️ 不再从句级提前切分（曾按「，、：」切 ≥5 字的从句）——实测对 CosyVoice 是反优化：
+ * CosyVoice 每次独立合成都有 2~5s 的首块延迟，从句切得越碎 → 独立合成次数越多 →
+ * 句间全是「上一句播完等下一句首块」的静音间隙，听感「卡顿 / 没说完就被切掉」。
+ * 只按句末标点切整句：整段回复通常 1~3 句，首块延迟只承担少数几次，
+ * 且「句 N 播放时句 N+1 已在后台合成」的重叠窗口足够，听感连贯。
  */
-const MIN_CLAUSE = 5;
+const SENTENCE_END = /[。！？!?；;\n]/;
 
 export class StreamingTTSPlayer {
   private buffer = '';
@@ -70,10 +71,8 @@ export class StreamingTTSPlayer {
 
   /**
    * 从缓冲中切出可合成的句子：
-   * - 优先整句边界（SENTENCE_END），保证标点完整；
-   * - 若无整句边界，但存在「足够长的从句边界」（CLAUSE_END 且累计长度 ≥ MIN_CLAUSE），
-   *   则提前切出该从句，让首块音频更早开始合成（长句首音延迟显著降低）；
-   * - 否则等待更多 token。
+   * - 只在整句边界（SENTENCE_END：。！？!?；;\n）切句，保证标点完整、语气自然；
+   * - 未到整句边界则等待更多 token（不做从句级提前切分，见 SENTENCE_END 注释）。
    * 句子之间严格按顺序入队，保证播放顺序不串台。
    */
   private extractSentences(): void {
@@ -89,11 +88,7 @@ export class StreamingTTSPlayer {
 
   /** 返回下一个应切句的边界下标；无则 -1 */
   private nextBoundary(): number {
-    const s = this.buffer.search(SENTENCE_END);
-    const c = this.buffer.search(CLAUSE_END);
-    if (s >= 0 && (c < 0 || s <= c)) return s; // 整句优先
-    if (c >= 0 && c + 1 >= MIN_CLAUSE) return c; // 足够长的从句提前切
-    return -1;
+    return this.buffer.search(SENTENCE_END);
   }
 
   private drain(): void {
