@@ -92,6 +92,11 @@ class HermesEngine:
 
         self._llm: Any = None
         self.core_api_base = "http://127.0.0.1:9877"
+        # LLM 降级链：index 0 为活跃 provider，其余为备用（按 providers.json 顺序）
+        self._llm_chain: list[Any] = []
+        # provider id -> 最近一次失败时间戳，用于失败冷却（冷却期内跳过该 provider）
+        self._llm_failed_at: dict[str, float] = {}
+        self._llm_chain_built = False
 
         if self._db.get_session(self.SESSION_ID) is None:
             self._db.create_session(self.SESSION_ID, source="desk-pet")
@@ -99,8 +104,9 @@ class HermesEngine:
     # ---- LLM ----
 
     def _get_llm(self) -> Any:
-        if self._llm is not None:
-            return self._llm
+        """返回当前应使用的 LLM：活跃 provider 优先，不可用时自动降级到备用。"""
+        if self._llm_chain_built:
+            return self._pick_llm()
         try:
             from modules.llm import LLMChat
             config: dict[str, Any] = {}
@@ -141,34 +147,107 @@ class HermesEngine:
                         data = json.loads(data)
                     configs = data.get("configs", [])
                     active_id = data.get("activeChatId", "")
-                    for c in configs:
-                        if c.get("id") == active_id or (not active_id and c.get("enable")):
-                            config = {
-                                "mode": "api",
-                                "api_provider": "openai",
-                                "api_base_url": c.get("apiBase") or c.get("api_base_url") or "",
-                                "api_key": c.get("apiKey") or c.get("api_key") or "",
-                                "model": c.get("model") or "",
-                                "temperature": c.get("temperature", 0.7),
-                                "max_tokens": c.get("maxTokens") or c.get("max_tokens", 2048),
-                                "top_p": c.get("topP") or c.get("top_p", 1.0),
-                            }
-                            break
-                    if config:
-                        log.info("LLM config loaded from %s", providers_path)
+
+                    # 收集全部 chat provider：活跃项排首位，其余作为降级备用。
+                    # 只有单个 provider 时，一旦它不可用（配置缺失 / 远程故障）
+                    # 整轮对话就会返回空，这里用 provider 链做自动降级。
+                    chat_cfgs = [c for c in configs if c.get("type") == "chat"]
+                    ordered: list[dict[str, Any]] = []
+                    for c in chat_cfgs:
+                        if c.get("id") == active_id:
+                            ordered.insert(0, c)
+                        elif active_id or c.get("enable"):
+                            ordered.append(c)
+
+                    def to_config(c: dict[str, Any]) -> dict[str, Any]:
+                        return {
+                            "mode": "local" if c.get("typeName") == "ollama" else "api",
+                            "api_provider": c.get("typeName") or "openai",
+                            "api_base_url": c.get("apiBase") or c.get("api_base_url") or "",
+                            "api_key": c.get("apiKey") or c.get("api_key") or "",
+                            "model": c.get("model") or "",
+                            "temperature": c.get("temperature", 0.7),
+                            "max_tokens": c.get("maxTokens") or c.get("max_tokens", 2048),
+                            "top_p": c.get("topP") or c.get("top_p", 1.0),
+                        }
+
+                    chain: list[Any] = []
+                    for c in ordered:
+                        cfg = to_config(c)
+                        if cfg["mode"] == "api" and not (cfg["api_key"] or cfg["api_base_url"]):
+                            continue
+                        try:
+                            inst = LLMChat(cfg)
+                        except Exception:
+                            log.warning("LLM provider init failed: %s", c.get("name") or c.get("id"), exc_info=True)
+                            continue
+                        # 记录 provider 标识，供失败冷却使用
+                        inst._provider_key = str(c.get("id") or c.get("model") or "?")
+                        inst._provider_name = str(c.get("name") or c.get("model") or "?")
+                        chain.append(inst)
+
+                    if chain:
+                        self._llm_chain = chain
+                        self._llm = chain[0]
+                        self._llm_chain_built = True
+                        log.info(
+                            "LLM chain loaded from %s: %s",
+                            providers_path,
+                            [getattr(x, "_provider_name", "?") for x in chain],
+                        )
                         break
                 except Exception:
                     log.warning("Failed to parse %s", providers_path, exc_info=True)
 
-            self._llm = LLMChat(config) if config else None
-            if self._llm:
-                log.info("LLM initialized successfully")
+            if not self._llm_chain_built:
+                self._llm_chain_built = True  # 不再反复解析
+            if self._llm_chain:
+                log.info("LLM chain ready: %d provider(s)", len(self._llm_chain))
             else:
                 log.warning("No LLM config found — gateway will echo empty")
         except Exception as exc:
             log.warning("LLM init failed: %s — gateway will echo empty", exc)
-            self._llm = None
-        return self._llm
+        return self._pick_llm()
+
+    # LLM 失败冷却时长（秒）：冷却期内跳过该 provider，到期后仍会重试
+    LLM_FAILED_COOLDOWN_SEC = 60.0
+
+    def _pick_llm(self) -> Any:
+        """从降级链中挑第一个「本地可用且不在失败冷却期」的 LLM。
+
+        两级判断：
+        1) is_available() 覆盖配置缺失 / 客户端构造失败（本地可判定）；
+        2) 失败冷却覆盖远程故障（API 超时、鉴权失败等只能事后感知的情况）。
+        """
+        now = time.time()
+        fallback: Any = None
+        for llm in self._llm_chain:
+            try:
+                if not llm.is_available():
+                    continue
+            except Exception:
+                continue
+            if fallback is None:
+                fallback = llm
+            key = str(getattr(llm, "_provider_key", "") or "")
+            if now - self._llm_failed_at.get(key, 0.0) < self.LLM_FAILED_COOLDOWN_SEC:
+                continue
+            return llm
+        # 全部处于冷却：退回第一个可用的，避免彻底无输出
+        return fallback
+
+    def mark_llm_failed(self, llm: Any) -> None:
+        """标记该 provider 本次失败，后续轮次自动降级（冷却到期后重试）。"""
+        key = str(getattr(llm, "_provider_key", "") or "")
+        if not key:
+            return
+        name = str(getattr(llm, "_provider_name", "?"))
+        self._llm_failed_at[key] = time.time()
+        log.warning(
+            "[LLM] provider failed, degrade for %.0fs: %s",
+            self.LLM_FAILED_COOLDOWN_SEC,
+            name,
+        )
 
     @staticmethod
     def _decrypt_dpapi(encrypted_bytes: bytes) -> str:
@@ -282,6 +361,8 @@ class HermesEngine:
                     asyncio.run_coroutine_threadsafe(chunk_q.put(("chunk", chunk)), loop)
             except Exception as exc:  # noqa: BLE001
                 log.warning("[LLM] chat_stream error: %s", exc)
+                # 标记该 provider 失败，后续轮次自动降级到备用 provider
+                self.mark_llm_failed(llm)
                 asyncio.run_coroutine_threadsafe(chunk_q.put(("error", str(exc))), loop)
             finally:
                 asyncio.run_coroutine_threadsafe(chunk_q.put(("stop", None)), loop)
