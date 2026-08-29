@@ -524,6 +524,7 @@ export default function ControlsOrb() {
     };
     const action = map[label];
     if (!action) return;
+    console.log('[ControlsOrb] emit controls:action ->', action);
     emit('controls:action', { type: action } satisfies ControlsActionPayload).catch(() => {});
   };
 

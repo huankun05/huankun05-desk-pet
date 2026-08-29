@@ -1096,6 +1096,7 @@ function MainPetApp() {
     let unlisten: (() => void) | undefined;
     listen<ControlsActionPayload>('controls:action', (e) => {
       const a = e.payload;
+      console.log('[MainPetApp] received controls:action ->', a.type, a);
       switch (a.type) {
         case 'settings':
           openSettingsPanel();

@@ -15,6 +15,7 @@ import { providerManager } from '../services/provider/manager';
 import {
   transcribeViaBrain,
   startStreamingSTT,
+  isValidSpeechText,
   type StreamingSTTHandle,
 } from '../services/provider/sttBackend';
 import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
@@ -398,9 +399,13 @@ export function useVoiceCall({
     } catch {
       /* ignore */
     }
-    // 静音超时 0.7s（原 1s）：缩短「说完话→开始识别」的固定等待；
-    // 0.7s 是日常语速句间停顿（通常 <0.7s）与误截断的平衡点，偏低可让回合更快切换。
-    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 700 });
+    // 静音超时 1.5s：这是「等待用户开口 + 说完停顿」的统一阈值。
+    // ⚠️ 不能调得太低（曾试 0.7s）：聆听起始阶段用户还没开口时也在计时，
+    //    0.7s 无声音就自动停止，只录到 0.66s 环境噪音 → 误识别成 "Yeah." 之类的
+    //    短文本 → 被当作用户消息发给 LLM → AI 回「我在呢」→ 循环「AI 一直说」。
+    //    流式 STT 已让「说完→识别」几乎零延迟，静音阈值只决定「何时停止录音」，
+    //    放宽到 1.5s 让用户有充足反应时间，代价仅是说完后多等 0.8s 才切走。
+    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1500 });
     recorderRef.current = rec;
     rec.onAutoStop = async (audio: ArrayBuffer) => {
       if (!activeRef.current) return;
@@ -414,6 +419,12 @@ export function useVoiceCall({
         } else {
           const fb = await transcribeViaBrain(audio, 'wav');
           text = fb?.text?.trim() || '';
+        }
+        // 过滤噪音/回声误识别（"Yeah."、"." 等短文本）：无效则视为空音频，继续聆听，
+        // 避免被当作用户消息发给 LLM 引发「AI 回『我在呢』→ 再聆听 → 再误识别」循环。
+        if (text && !isValidSpeechText(text)) {
+          log.info('stt 结果疑似噪音，忽略', { text });
+          text = '';
         }
       } catch (e) {
         log.error('stt streaming final failed, 回退整段识别', e);

@@ -26,6 +26,7 @@ import { resolveLaunchSpec } from '../../services/provider/serviceLauncher';
 import {
   transcribeViaBrain,
   startStreamingSTT,
+  isValidSpeechText,
   type StreamingSTTHandle,
 } from '../../services/provider/sttBackend';
 import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
@@ -401,7 +402,8 @@ function ChatPanelWindow() {
       try {
         const handle = await startStreamingSTT(recorder, {
           onPartial: (t) => {
-            if (t) chatWindowRef.current?.setDraft(t);
+            // 追加式回填：不覆盖输入框已有文字，识别文本插入到光标处
+            if (t) chatWindowRef.current?.appendDraft(t);
           },
         });
         sttStreamHandleRef.current = handle;
@@ -445,11 +447,17 @@ function ChatPanelWindow() {
         // STT Provider 不可用，走 fallback
       }
     }
-    if (text) {
-      // 把识别结果回填到输入框，用户可检查/修改后再发送
-      chatWindowRef.current?.setDraft(text);
-      return;
+    // 过滤噪音/回声误识别（"Yeah."、"." 等），避免污染输入框
+    if (text && !isValidSpeechText(text)) {
+      console.warn('[STT] 结果疑似噪音，忽略', text);
+      text = '';
     }
+    if (text) {
+      // 追加式回填最终结果（替换语音起点后的内容），并结束本次语音输入会话
+      chatWindowRef.current?.appendDraft(text);
+    }
+    chatWindowRef.current?.endVoiceInput();
+    if (text) return;
 
     // Fallback：浏览器 Web Speech API
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -496,8 +504,9 @@ function ChatPanelWindow() {
           }, 5000);
         });
         if (fallbackText) {
-          // 把识别结果回填到输入框，用户可检查/修改后再发送
-          chatWindowRef.current?.setDraft(fallbackText);
+          // 追加式回填（不覆盖已有文字），并结束语音输入会话
+          chatWindowRef.current?.appendDraft(fallbackText);
+          chatWindowRef.current?.endVoiceInput();
           return;
         }
       } catch {

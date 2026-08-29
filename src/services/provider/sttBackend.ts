@@ -140,6 +140,26 @@ export async function switchActiveSTTBackend(
 }
 
 /**
+ * 判断识别文本是否为「可用的语音输入」，用于过滤环境噪音/回声被误识别的短文本。
+ *
+ * 实测场景：聆听起始阶段若录音很快静音停止（如阈值过低），只录到 0.66s 噪音，
+ * SenseVoice 会误识别出 "Yeah."、"." 等——若当作用户消息发给 LLM，会引发
+ * 「AI 回『我在呢』→ 再聆听 → 再误识别」的循环。
+ *
+ * 规则：
+ *  - 去掉标点/空白后为空 → 无效
+ *  - 含中文字符：至少 2 个字符（过滤单字「嗯」「啊」类误识别）
+ *  - 纯英文/数字：至少 6 个字符（过滤 "Yeah" 等短英文误识别；中文场景可接受）
+ */
+export function isValidSpeechText(text: string): boolean {
+  const t = (text || '').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+  if (!t) return false;
+  const hasCjk = /[\u4e00-\u9fa5]/.test(t);
+  if (hasCjk) return t.length >= 2;
+  return t.length >= 6;
+}
+
+/**
  * 启动流式 STT 会话：建立 WebSocket 连接并把录音器的 PCM 帧推给服务端，
  * 边说边识别（partial 经 onPartial 回调透传），停止时由调用方调用 finish() 取最终结果。
  *

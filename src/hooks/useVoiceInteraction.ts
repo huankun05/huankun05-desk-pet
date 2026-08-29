@@ -5,6 +5,7 @@ import { providerManager } from '../services/provider/manager';
 import {
   transcribeViaBrain,
   startStreamingSTT,
+  isValidSpeechText,
   type StreamingSTTHandle,
 } from '../services/provider/sttBackend';
 import { setMouthOpenY } from '../lib/live2d';
@@ -155,6 +156,11 @@ export function useVoiceInteraction({
           text = result.text.trim();
           emotion = result.emotion;
         }
+      }
+      // 过滤噪音/回声误识别（"Yeah."、"." 等），避免误当作用户消息发给 LLM
+      if (text && !isValidSpeechText(text)) {
+        log.info('STT 结果疑似噪音，忽略', { text });
+        text = '';
       }
       if (text) {
         log.info('STT result', { text: text.slice(0, 50), emotion });

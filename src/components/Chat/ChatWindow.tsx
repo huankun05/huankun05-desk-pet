@@ -54,6 +54,14 @@ export interface Message {
 /** 命令式句柄：供父组件（如面板窗 STT）向输入框回填草稿文本 */
 export interface ChatWindowHandle {
   setDraft: (text: string) => void;
+  /**
+   * 追加式语音输入：把识别文本插入到光标处（首次调用记录起点，之后替换起点后的内容）。
+   * 用于流式 STT 的 partial 实时回填——不覆盖用户已输入的文字。
+   * 停止语音后必须调用 endVoiceInput() 重置起点。
+   */
+  appendDraft: (text: string) => void;
+  /** 结束一次语音输入会话，重置追加起点（下次 appendDraft 重新记录位置） */
+  endVoiceInput: () => void;
   /** 跳转到指定消息并高亮（详情面板的查找/收藏结果调用） */
   jumpToMessage: (messageId: string) => void;
 }
@@ -379,6 +387,8 @@ export const ChatWindow = memo(
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    /** 语音追加输入的起点（-1 = 无进行中的语音输入）；见 appendDraft */
+    const voiceAppendStartRef = useRef(-1);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // 追踪附件创建的 blob URL，组件卸载时统一释放
     const blobUrlsRef = useRef<string[]>([]);
@@ -498,6 +508,28 @@ export const ChatWindow = memo(
           setInput(text);
           requestAnimationFrame(() => textareaRef.current?.focus());
         },
+        // 追加式语音输入：首次调用记录「光标位置」作为起点，之后把起点后的内容
+        // 替换为最新识别文本（流式 partial 会持续变长，替换而非追加可避免重复累积）。
+        // 停止后调用 endVoiceInput() 复位起点，下次语音从新的光标位置开始。
+        appendDraft: (text: string) => {
+          if (voiceAppendStartRef.current < 0) {
+            const ta = textareaRef.current;
+            voiceAppendStartRef.current = ta
+              ? Math.min(ta.selectionStart ?? ta.value.length, ta.value.length)
+              : input.length;
+          }
+          const start = voiceAppendStartRef.current;
+          setInput((prev) => prev.slice(0, start) + text);
+          requestAnimationFrame(() => {
+            const ta = textareaRef.current;
+            const pos = start + text.length;
+            ta?.setSelectionRange(pos, pos);
+            ta?.focus();
+          });
+        },
+        endVoiceInput: () => {
+          voiceAppendStartRef.current = -1;
+        },
         jumpToMessage: (messageId: string) => {
           const idx = messages.findIndex((m) => m.id === messageId);
           if (idx < 0) return;
@@ -506,7 +538,7 @@ export const ChatWindow = memo(
           setHighlightedId(messageId);
         },
       }),
-      [setInput, messages],
+      [setInput, messages, input],
     );
 
     // isStreaming 翻转时重置 / 清除顶部状态条
