@@ -2,7 +2,7 @@
  * StreamingTTSPlayer — 流式 TTS 渐进式播放器
  *
  * 设计目标：边生成边播，降低「首音延迟 (TTFA)」，让多句回复更快出声。
- * - push(text)：喂入流式增量文本；自动按句末标点切句，逐句送合成。
+ * - push(text)：喂入流式增量文本；按句末标点切句，长句额外按从句边界提前切出，逐句送合成。
  * - 合成与播放重叠：句子 N 正在播放时，句子 N+1 已在后台合成。
  * - finish()：标记流式结束，把残留片段作为最后一句合成播放。
  * - whenDone()：Promise，全部合成并播放完毕时 resolve（供「播完才下一轮」场景）。
@@ -22,7 +22,15 @@ const log = createLogger('StreamingTTS');
 
 export type TtsPlayFn = (audio: ArrayBuffer, sampleRate: number) => void | Promise<void>;
 
+/** 整句边界：到此处才必须切句（保证标点完整、语气自然） */
 const SENTENCE_END = /[。！？!?；;\n]/;
+/** 从句边界：长句可在此提前切出，让首块音频更早到达（降低 TTFA） */
+const CLAUSE_END = /[，,、：:]/;
+/**
+ * 从句最小字数：低于此长度的从句片段不提前切（如"嗯，""我想，"），
+ * 等整句结束再合成，避免碎句与过多短 TTS 调用损害听感。
+ */
+const MIN_CLAUSE = 5;
 
 export class StreamingTTSPlayer {
   private buffer = '';
@@ -60,15 +68,32 @@ export class StreamingTTSPlayer {
     this.extractSentences();
   }
 
+  /**
+   * 从缓冲中切出可合成的句子：
+   * - 优先整句边界（SENTENCE_END），保证标点完整；
+   * - 若无整句边界，但存在「足够长的从句边界」（CLAUSE_END 且累计长度 ≥ MIN_CLAUSE），
+   *   则提前切出该从句，让首块音频更早开始合成（长句首音延迟显著降低）；
+   * - 否则等待更多 token。
+   * 句子之间严格按顺序入队，保证播放顺序不串台。
+   */
   private extractSentences(): void {
-    let idx = this.buffer.search(SENTENCE_END);
+    let idx = this.nextBoundary();
     while (idx >= 0) {
       const sentence = this.buffer.slice(0, idx + 1).trim();
       this.buffer = this.buffer.slice(idx + 1);
       if (sentence) this.sentenceQueue.push(sentence);
-      idx = this.buffer.search(SENTENCE_END);
+      idx = this.nextBoundary();
     }
     this.drain();
+  }
+
+  /** 返回下一个应切句的边界下标；无则 -1 */
+  private nextBoundary(): number {
+    const s = this.buffer.search(SENTENCE_END);
+    const c = this.buffer.search(CLAUSE_END);
+    if (s >= 0 && (c < 0 || s <= c)) return s; // 整句优先
+    if (c >= 0 && c + 1 >= MIN_CLAUSE) return c; // 足够长的从句提前切
+    return -1;
   }
 
   private drain(): void {

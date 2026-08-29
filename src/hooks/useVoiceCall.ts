@@ -23,14 +23,21 @@ import { createLogger } from '../utils/logger';
 const log = createLogger('VoiceCall');
 
 /**
- * 静音询问节奏：每多少次「静音超时(空音频)」才触发一次温柔提醒。
- * 默认 30：AudioRecorder 静音阈值 1s → 约 30s 才提醒一次。
- * 设计意图：通话中用户沉默时，AI 应「安静等待用户开口」，不抢话、不连环追问；
- * 仅在长时间（约半分钟）完全无语音时做一次「还在吗」提醒，之后继续安静等待。
+ * 沉默提醒（wall-clock）：进入聆听态后，若用户持续沉默达到此毫秒数，
+ * 做一次温柔提醒（"还在吗"），之后继续安静等待，不连环追问。
+ * 采用真实墙钟计时（而非「空音频次数 × 单次静音耗时」），保证间隔可预期。
  */
-const EMPTY_PER_INQUIRY = 30;
-/** 最多提醒次数：1 次后便不再主动搭话，彻底把发言权交还用户，直到用户主动挂断 */
-const MAX_INQUIRIES = 1;
+const INQUIRY_DELAY_MS = 30000;
+
+/**
+ * 打断（barge-in）阈值：AI 播报途中，若检测到用户持续说话，则立即打断 AI 并开始聆听。
+ * - BARGE_GRACE_MS：播报开始后的宽限期，避开开局回声/爆音。
+ * - BARGE_THRESHOLD：RMS 阈值，明显高于环境噪声与被回声消除后的残留，避免 AI 自己打断自己。
+ * - BARGE_FRAMES：需连续多少帧（~100ms/帧）超过阈值才判定为用户说话，过滤瞬态杂音。
+ */
+const BARGE_GRACE_MS = 600;
+const BARGE_THRESHOLD = 0.04;
+const BARGE_FRAMES = 6;
 
 /**
  * 按尝试次数生成情绪递进的「你在吗」询问文案：
@@ -98,8 +105,20 @@ export function useVoiceCall({
   const modeRef = useRef<'auto' | 'work' | 'chat' | undefined>(mode);
   const transcriptRef = useRef<CallTranscriptTurn[]>([]);
   const callStartRef = useRef<number>(0);
-  /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→继续聆听） */
-  const silenceCountRef = useRef(0);
+  /** 沉默提醒定时器（wall-clock）：用户持续沉默达到 INQUIRY_DELAY_MS 触发一次提醒 */
+  const inquiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 当前沉默段是否已提醒过（用户开口则重置，实现「每段沉默最多提醒一次」） */
+  const inquiryFiredRef = useRef(false);
+  /** 打断监听录音器（AI 播报时并行监听麦克风，检测用户插话） */
+  const monitorRecRef = useRef<AudioRecorder | null>(null);
+  /** 是否希望开启打断监听（进入播报态置 true，退出/挂断置 false） */
+  const bargeWantRef = useRef(false);
+  /** 连续超过打断阈值的帧数计数 */
+  const bargeRmsRef = useRef(0);
+  /** 打断触发锁，防止一次插话重复触发 */
+  const bargeGuardRef = useRef(false);
+  /** 标记一次打断已发生，随后到达的 hermes:done 不应再开启聆听（避免重复） */
+  const bargeSkipDoneRef = useRef(false);
   /** startTurn 递归续听经由此 ref 调用，避免 useCallback 自引用 TDZ */
   const startTurnRef = useRef<() => void>(() => {});
   /**
@@ -232,6 +251,98 @@ export function useVoiceCall({
     }
   }, []);
 
+  /** 清除沉默提醒定时器 */
+  const clearInquiryTimer = useCallback(() => {
+    if (inquiryTimerRef.current) {
+      clearTimeout(inquiryTimerRef.current);
+      inquiryTimerRef.current = null;
+    }
+  }, []);
+
+  /** 停止打断监听（取消并行麦克风、复位计数） */
+  const stopBargeMonitor = useCallback(() => {
+    bargeWantRef.current = false;
+    bargeRmsRef.current = 0;
+    if (monitorRecRef.current) {
+      try {
+        monitorRecRef.current.cancel();
+      } catch {
+        /* ignore */
+      }
+      monitorRecRef.current = null;
+    }
+  }, []);
+
+  /** 触发打断：立即停止 AI 播报，转入聆听，忽略随后到达的 LLM 完成事件 */
+  const triggerBargeIn = useCallback(() => {
+    if (!activeRef.current || bargeGuardRef.current) return;
+    bargeGuardRef.current = true;
+    stopBargeMonitor();
+    stopTts();
+    if (ttsStreamRef.current) {
+      ttsStreamRef.current.stop();
+      ttsStreamRef.current = null;
+    }
+    bargeSkipDoneRef.current = true; // 随后的 hermes:done 不再开启聆听
+    clearInquiryTimer();
+    if (activeRef.current) startTurnRef.current();
+    setTimeout(() => {
+      bargeGuardRef.current = false;
+    }, 1000);
+  }, [stopTts, stopBargeMonitor, clearInquiryTimer]);
+
+  /** 打断监听的实时音频回调：用 RMS 检测用户是否持续说话 */
+  const handleMonitorChunk = useCallback(
+    (chunk: Float32Array) => {
+      if (!activeRef.current || bargeGuardRef.current || !bargeWantRef.current) return;
+      let sum = 0;
+      for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
+      const rms = Math.sqrt(sum / chunk.length);
+      if (rms > BARGE_THRESHOLD) bargeRmsRef.current += 1;
+      else bargeRmsRef.current = 0;
+      if (bargeRmsRef.current >= BARGE_FRAMES) triggerBargeIn();
+    },
+    [triggerBargeIn],
+  );
+
+  /** 进入 AI 播报后，宽限期后开启打断监听 */
+  const startBargeMonitor = useCallback(() => {
+    if (!activeRef.current) return;
+    bargeWantRef.current = true;
+    setTimeout(() => {
+      if (!bargeWantRef.current || !activeRef.current || monitorRecRef.current) return;
+      const rec = new AudioRecorder({
+        sampleRate: 16000,
+        silenceTimeout: 1e9, // 不自动停（由本 hook 主动 cancel）
+        autoStopOnSilence: true, // 仍需开启静音检测以驱动 onAudioChunk
+        onAudioChunk: handleMonitorChunk,
+      });
+      monitorRecRef.current = rec;
+      rec.start().catch(() => {
+        monitorRecRef.current = null;
+      });
+    }, BARGE_GRACE_MS);
+  }, [handleMonitorChunk]);
+
+  /**
+   * 安排一次沉默提醒：进入聆听态后，若用户在 INQUIRY_DELAY_MS 内始终未开口，
+   * 温柔提醒一次；提醒后本段沉默不再重复（用户开口会重置）。
+   */
+  const scheduleInquiry = useCallback(() => {
+    clearInquiryTimer();
+    if (inquiryFiredRef.current) return;
+    inquiryTimerRef.current = setTimeout(() => {
+      inquiryTimerRef.current = null;
+      if (!activeRef.current || inquiryFiredRef.current) return;
+      inquiryFiredRef.current = true;
+      const line = buildInquiry(1);
+      setCallState('speaking');
+      void playTts(line).then(() => {
+        if (activeRef.current) startTurnRef.current();
+      });
+    }, INQUIRY_DELAY_MS);
+  }, [clearInquiryTimer, playTts, setCallState]);
+
   // 停止通话的内部实现（声明在 startTurn 之前，供其 catch 调用，避免 TDZ）
   const stopCallInternal = useCallback(() => {
     if (!activeRef.current && stateRef.current === 'idle') return;
@@ -246,6 +357,9 @@ export function useVoiceCall({
     ttsStreamRef.current?.stop();
     ttsStreamRef.current = null;
     stopTts();
+    // 清理沉默提醒定时器与打断监听
+    clearInquiryTimer();
+    stopBargeMonitor();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -257,12 +371,15 @@ export function useVoiceCall({
     void generateSummary();
     transcriptRef.current = [];
     callStartRef.current = 0;
-  }, [stopTts, setCallState, generateSummary]);
+  }, [stopTts, setCallState, generateSummary, clearInquiryTimer, stopBargeMonitor]);
 
   /** 开始一轮聆听 */
   const startTurn = useCallback(async () => {
     if (!activeRef.current) return;
     setCallState('listening');
+    // 进入聆听即停止上一轮可能的打断监听，并按段安排沉默提醒
+    stopBargeMonitor();
+    scheduleInquiry();
     // 顶部刘海字幕：通话聆听态
     eventBus.emit('subtitle:update', { phase: 'listening', text: '正在聆听…' });
 
@@ -272,9 +389,9 @@ export function useVoiceCall({
     } catch {
       /* ignore */
     }
-    // 静音超时 1s（原 1.5s）：缩短「说完话→开始识别」的固定等待；
-    // 日常语速句间停顿通常 <1s，1s 是延迟与误截断的平衡点。
-    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1000 });
+    // 静音超时 0.7s（原 1s）：缩短「说完话→开始识别」的固定等待；
+    // 0.7s 是日常语速句间停顿（通常 <0.7s）与误截断的平衡点，偏低可让回合更快切换。
+    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 700 });
     recorderRef.current = rec;
     rec.onAutoStop = async (audio: ArrayBuffer) => {
       if (!activeRef.current) return;
@@ -282,14 +399,18 @@ export function useVoiceCall({
         const result = await transcribeViaBrain(audio, 'wav');
         const text = result?.text?.trim();
         if (text) {
-          // 用户说话：重置静音计数，正常进入对话
-          silenceCountRef.current = 0;
+          // 用户开口：取消本段沉默提醒并重置；清除可能残留的打断跳过标志
+          clearInquiryTimer();
+          inquiryFiredRef.current = false;
+          bargeSkipDoneRef.current = false;
           transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
           // 顶部刘海字幕：显示用户说的（recognized 态）
           eventBus.emit('subtitle:update', { phase: 'recognized', text });
           setCallState('speaking');
           // 流式 TTS：播放器先建好，LLM token 一到即喂入合成，首句边生成边播
           ttsStreamRef.current = createStreamPlayer();
+          // 开启打断监听：AI 播报途中用户可随时插话
+          startBargeMonitor();
           // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
           await sendMessage(text, modeRef.current, {
             silent: true,
@@ -299,20 +420,8 @@ export function useVoiceCall({
           });
           return;
         }
-        // 静音超时（未检测到语音）：默认安静继续聆听，把发言权交还用户。
-        // 仅在长时间（EMPTY_PER_INQUIRY 个静音周期，约 30s）完全无语音时，
-        // 做一次温柔提醒（最多 MAX_INQUIRIES 次）；之后仍安静等待，绝不连环追问。
-        silenceCountRef.current += 1;
-        if (silenceCountRef.current % EMPTY_PER_INQUIRY === 0) {
-          const level = silenceCountRef.current / EMPTY_PER_INQUIRY; // 1,2,3...
-          if (level <= MAX_INQUIRIES) {
-            const line = buildInquiry(level);
-            setCallState('speaking');
-            await playTts(line);
-            if (!activeRef.current) return;
-          }
-        }
-        // 无论是否提醒，都继续聆听（用户何时开口由用户决定，AI 不主动续聊）
+        // 空音频（静音超时，未检测到语音）：安静继续聆听，把发言权交还用户。
+        // 温柔提醒由 wall-clock 定时器（INQUIRY_DELAY_MS）统一负责，这里不连环追问。
         if (activeRef.current) {
           startTurnRef.current();
         }
@@ -334,7 +443,17 @@ export function useVoiceCall({
       }
       stopCallInternal();
     }
-  }, [sendMessage, setCallState, showError, stopCallInternal, playTts, createStreamPlayer]);
+  }, [
+    sendMessage,
+    setCallState,
+    showError,
+    stopCallInternal,
+    createStreamPlayer,
+    scheduleInquiry,
+    stopBargeMonitor,
+    startBargeMonitor,
+    clearInquiryTimer,
+  ]);
 
   // startTurn 递归续听走 ref（见 startTurnRef 声明处注释）
   useEffect(() => {
@@ -345,7 +464,8 @@ export function useVoiceCall({
     if (activeRef.current) return;
     activeRef.current = true;
     setSeconds(0);
-    silenceCountRef.current = 0;
+    inquiryFiredRef.current = false;
+    bargeSkipDoneRef.current = false;
     callStartRef.current = Date.now();
     setCallState('connecting');
 
@@ -412,6 +532,11 @@ export function useVoiceCall({
 
     const offDone = eventBus.on('hermes:done', (data: Record<string, unknown>) => {
       if (!activeRef.current) return;
+      // 打断已发生：本次 LLM 完成事件忽略，避免重复开启聆听
+      if (bargeSkipDoneRef.current) {
+        bargeSkipDoneRef.current = false;
+        return;
+      }
       if (stateRef.current !== 'speaking') return;
       const full = (data.fullResponse as string) || '';
       if (full.trim()) {
@@ -458,9 +583,11 @@ export function useVoiceCall({
       ttsStreamRef.current?.stop();
       ttsStreamRef.current = null;
       stopTts();
+      clearInquiryTimer();
+      stopBargeMonitor();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [stopTts]);
+  }, [stopTts, clearInquiryTimer, stopBargeMonitor]);
 
   const active = state === 'incall' || state === 'listening' || state === 'speaking';
 
