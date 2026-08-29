@@ -75,6 +75,64 @@ export async function synthesizeViaBrain(
 }
 
 /**
+ * 流式合成（逐 chunk 返回）。
+ *
+ * 若活跃 provider 支持流式（supportStream() === true，如 CosyVoice / Edge），
+ * 走 synthesizeStream 拿到首块即可播放，显著降低「首音延迟」。
+ * 流式失败（如老版本服务端无 /tts/stream 端点）自动回退到整段合成，保证不静音。
+ * 整段合成也不行（后端真挂了）→ 不产出任何 chunk，由调用方触发熔断。
+ *
+ * 用于 StreamingTTSPlayer，使「整段合成较慢」的引擎也能边合成边播。
+ */
+export async function* synthesizeStreamViaBrain(
+  text: string,
+  opts?: { emotion?: string },
+): AsyncGenerator<{ audio: ArrayBuffer; sampleRate: number }, void, unknown> {
+  const port = getActiveTTSPort();
+  if (!port) {
+    log.warn('synthesizeStreamViaBrain: 无活跃 TTS provider，跳过');
+    return;
+  }
+  const ready = await lifecycle.waitReady(port, TTS_READY_TIMEOUT_MS);
+  if (!ready) {
+    log.warn('synthesizeStreamViaBrain: TTS 后端未就绪', { port });
+    return;
+  }
+  const ttsProvider = providerManager.getActiveTTSProvider();
+  if (!ttsProvider) {
+    log.warn('synthesizeStreamViaBrain: 无可用 TTS Provider');
+    return;
+  }
+
+  const sampleRate = ttsProvider.config.sampleRate ?? 24000;
+  const trimmed = text.trim();
+
+  try {
+    if (ttsProvider.supportStream()) {
+      let streamed = 0;
+      try {
+        for await (const chunk of ttsProvider.synthesizeStream(trimmed, {
+          emotion: opts?.emotion,
+        })) {
+          if (!chunk || chunk.byteLength === 0) continue;
+          streamed += 1;
+          yield { audio: chunk, sampleRate };
+        }
+      } catch (streamErr) {
+        log.warn('synthesizeStreamViaBrain: 流式失败，回退整段合成', { error: String(streamErr) });
+      }
+      // 流式至少产出过一块 → 视为成功，不再整段回退（避免重复音频）
+      if (streamed > 0) return;
+    }
+    // 不支持流式，或流式失败 → 整段合成兜底
+    const res = await ttsProvider.synthesize(trimmed, { emotion: opts?.emotion });
+    if (res) yield res;
+  } catch (err) {
+    log.error('synthesizeStreamViaBrain: 合成失败', { error: String(err) });
+  }
+}
+
+/**
  * 确保活跃 TTS 后端正在运行（委托给 ServiceLifecycle）。
  * 注意：启动决策由 lifecycle.bootstrapAll() 在应用启动时统一做出。
  * 本函数仅用于任务层检查/等待就绪，不再触发新的启动流程。

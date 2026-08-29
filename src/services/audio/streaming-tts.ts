@@ -7,12 +7,16 @@
  * - finish()：标记流式结束，把残留片段作为最后一句合成播放。
  * - whenDone()：Promise，全部合成并播放完毕时 resolve（供「播完才下一轮」场景）。
  *
- * 注意：本播放器仅降低「听到第一句的时间」，不改变总音频时长；
- * 仅对支持流式/逐句合成的引擎（Edge / CosyVoice）有感知收益，极短句收益很小。
+ * 关键改进（通话延迟专项）：
+ * 本播放器现在通过 synthesizeStreamViaBrain 消费「流式合成」——
+ * 支持流式合成的引擎（CosyVoice / Edge）会边合成边 yield 音频块，
+ * 首块到达即播放，把通话里「说一句 → 等整段合成完 → 才出声」的 4~7s 等待，
+ * 压缩到「首块到达即可出声」（CosyVoice 实测约 3s）。
+ * 句子之间严格按顺序串行合成，保证多句回复的播放顺序不串台。
  */
 
 import { createLogger } from '../../utils/logger';
-import { synthesizeViaBrain } from '../provider/ttsBackend';
+import { synthesizeStreamViaBrain } from '../provider/ttsBackend';
 
 const log = createLogger('StreamingTTS');
 
@@ -26,9 +30,8 @@ export class StreamingTTSPlayer {
   private playing = false;
   private finished = false;
   private active = true;
-  private inflight = 0;
   /**
-   * 熔断标志：任一句合成返回 null（后端不可用 / 无 provider）后，
+   * 熔断标志：任一句合成未产出任何音频（后端不可用 / 无 provider）后，
    * 后续句子直接跳过。否则每个句子都会各自触发一次后端就绪轮询，
    * 在服务不可用时形成 N × 超时 的等待与 IPC 风暴。
    */
@@ -36,6 +39,10 @@ export class StreamingTTSPlayer {
   private playFn: TtsPlayFn;
   /** 说话情绪（透传给 TTS 后端，使语气与表情同源）；首句判定前为 null */
   private emotion: string | null = null;
+  /** 待合成句子队列（按句切分后顺序合成，保证播放顺序） */
+  private sentenceQueue: string[] = [];
+  /** 正在处理句子队列（串行，避免多句 chunk 交叉导致顺序错乱） */
+  private draining = false;
 
   constructor(playFn: TtsPlayFn) {
     this.playFn = playFn;
@@ -58,36 +65,47 @@ export class StreamingTTSPlayer {
     while (idx >= 0) {
       const sentence = this.buffer.slice(0, idx + 1).trim();
       this.buffer = this.buffer.slice(idx + 1);
-      if (sentence) this.enqueueSentence(sentence);
+      if (sentence) this.sentenceQueue.push(sentence);
       idx = this.buffer.search(SENTENCE_END);
+    }
+    this.drain();
+  }
+
+  private drain(): void {
+    if (this.draining || !this.active) return;
+    this.draining = true;
+    void this.processQueue();
+  }
+
+  private async processQueue(): Promise<void> {
+    try {
+      while (this.sentenceQueue.length > 0 && this.active && !this.failed) {
+        const sentence = this.sentenceQueue.shift()!;
+        await this.synthesizeSentence(sentence);
+      }
+    } finally {
+      this.draining = false;
     }
   }
 
-  private enqueueSentence(sentence: string): void {
-    void this.synthesize(sentence);
-  }
-
-  private async synthesize(sentence: string): Promise<void> {
-    // 已熔断：后端不可用，后续句子不再尝试（避免重复等待超时）
-    if (this.failed) return;
-    this.inflight += 1;
+  /** 流式合成单句：边 yield 边推入播放队列（首块到达即出声），串行保证顺序 */
+  private async synthesizeSentence(sentence: string): Promise<void> {
+    const opts = this.emotion ? { emotion: this.emotion } : undefined;
+    let yielded = 0;
     try {
-      const res = await synthesizeViaBrain(
-        sentence,
-        this.emotion ? { emotion: this.emotion } : undefined,
-      );
-      if (!res) {
-        // 后端不可用或无 provider：熔断本轮，后续句子直接跳过
-        this.failed = true;
-        log.warn('TTS 后端不可用，熔断本轮剩余句子的合成');
-        return;
+      for await (const chunk of synthesizeStreamViaBrain(sentence, opts)) {
+        if (!this.active) break;
+        yielded += 1;
+        this.readyQueue.push(chunk);
+        this.pump();
       }
-      this.readyQueue.push({ audio: res.audio, sampleRate: res.sampleRate });
-      this.pump();
     } catch (e) {
       log.warn('sentence synthesis failed', e);
-    } finally {
-      this.inflight -= 1;
+    }
+    // 整句未产出任何音频 → 后端不可用，熔断本轮剩余句子，避免 N× 超时等待
+    if (this.active && yielded === 0) {
+      this.failed = true;
+      log.warn('TTS 后端不可用，熔断本轮剩余句子的合成');
     }
   }
 
@@ -107,14 +125,15 @@ export class StreamingTTSPlayer {
     this.finished = true;
     const rem = this.buffer.trim();
     this.buffer = '';
-    if (rem) this.enqueueSentence(rem);
+    if (rem) this.sentenceQueue.push(rem);
+    this.drain();
   }
 
   /** 全部合成并播放完毕时 resolve。 */
   whenDone(): Promise<void> {
     return new Promise((resolve) => {
       const check = () => {
-        if (this.finished && !this.playing && this.readyQueue.length === 0 && this.inflight === 0) {
+        if (this.finished && !this.draining && !this.playing && this.readyQueue.length === 0) {
           resolve();
         } else {
           setTimeout(check, 80);
@@ -129,5 +148,6 @@ export class StreamingTTSPlayer {
     this.active = false;
     this.readyQueue = [];
     this.buffer = '';
+    this.sentenceQueue = [];
   }
 }

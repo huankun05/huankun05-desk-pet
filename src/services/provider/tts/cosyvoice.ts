@@ -49,8 +49,9 @@ export class CosyVoiceProvider implements TTSProvider {
   }
 
   supportStream(): boolean {
-    // 服务端当前仅提供整段合成端点，前端降级为整段合成后一次性返回
-    return false;
+    // 服务端 /tts/stream 为真流式（边合成边返回）；若服务端较旧无此端点，
+    // 调用方会捕获失败并回退到整段合成。
+    return true;
   }
 
   async validate(): Promise<boolean> {
@@ -159,14 +160,87 @@ export class CosyVoiceProvider implements TTSProvider {
   }
 
   /**
-   * 流式合成：服务端无真流式端点，降级为整段合成后一次性 yield。
+   * 流式合成：调用服务端 /tts/stream，边合成边 yield WAV 分块。
+   *
+   * 传输格式为长度前缀：[4 字节 big-endian 长度][WAV 字节]，
+   * 长度为 0 时其后为 JSON 错误串 —— 此时抛错，由调用方回退到整段合成。
+   * 注意：底层 chunk 边界不保证与消息边界一致，必须自己按长度前缀缓冲重组。
    */
   async *synthesizeStream(
     text: string,
     options?: TTSOptions,
   ): AsyncGenerator<ArrayBuffer, void, unknown> {
-    const result = await this.synthesize(text, options);
-    yield result.audio;
+    const timeoutMs = this.config.timeoutMs ?? 120000;
+    const controller = new AbortController();
+    this.abortController = controller;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const body: Record<string, unknown> = {
+      text,
+      prompt_text: this.config.promptText,
+      speed: options?.speed ?? this.config.speed ?? 1.0,
+    };
+
+    try {
+      const resp = await fetch(`${this.config.apiBase}/tts/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!resp.ok || !resp.body) {
+        const errText = await resp.text().catch(() => 'Unknown error');
+        throw new Error(`CosyVoice TTS stream error (${resp.status}): ${errText}`);
+      }
+
+      const reader = resp.body.getReader();
+      let pending = new Uint8Array(0);
+
+      /** 从缓冲区尝试取出一个完整消息（长度前缀 + 负载） */
+      const takeMessage = (): { payload: Uint8Array } | 'need-more' | null => {
+        if (pending.length < 4) return 'need-more';
+        const len = new DataView(pending.buffer, pending.byteOffset, 4).getUint32(0, false);
+        if (pending.length < 4 + len) return 'need-more';
+        return { payload: pending.subarray(4, 4 + len) };
+      };
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || value.length === 0) continue;
+
+        // 追加到待处理缓冲
+        const merged = new Uint8Array(pending.length + value.length);
+        merged.set(pending, 0);
+        merged.set(value, pending.length);
+        pending = merged;
+
+        // 尽可能多地取出完整消息
+        for (;;) {
+          const msg = takeMessage();
+          if (msg === 'need-more') break;
+          if (msg === null) break;
+          const { payload } = msg;
+          const consumed = 4 + payload.length;
+          pending = pending.subarray(consumed);
+
+          if (payload.length === 0) continue; // 长度为 0 在本协议中不携带数据
+          // 复制一份独立内存，避免复用底层 buffer 时数据被后续 chunk 覆盖
+          const out = new Uint8Array(payload.length);
+          out.set(payload);
+          yield out.buffer;
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        err.message = `CosyVoice TTS stream timeout (${timeoutMs}ms) or aborted`;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      this.abortController = null;
+    }
   }
 
   abort(): void {

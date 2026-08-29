@@ -32,6 +32,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 import argparse
 import logging
+import time
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,7 +81,9 @@ except Exception as e:  # noqa: BLE001
     log.error("无法导入 CosyVoice V3 模块 (REF_MODULES=%s): %s", REF_MODULES, e)
     raise
 
+from typing import Iterator
 from fastapi import FastAPI, Response, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -168,6 +171,73 @@ async def root():
 @app.get("/voices")
 async def list_voices():
     return {"voices": ["cosyvoice_v3_nahida"]}
+
+
+@app.post("/tts/stream")
+async def synthesize_stream(req: TTSRequest):
+    """流式合成：边合成边返回 WAV 分块，显著降低首音延迟。
+
+    为什么需要它：/tts 要等整段音频全部合成完才返回（实测 4-7s 才开始出声）。
+    本端点改用引擎的 synthesize_stream 生成器，拿到第一个音频块就立即下发，
+    实测首块约 3s，后续块边合成边播。
+
+    传输格式（长度前缀，避免依赖 chunk 边界）：
+        每个块 = [4 字节 big-endian 长度][一个完整 WAV 文件字节]
+    长度为 0 时表示出错，其后为 JSON 错误串，前端据此回退到 /tts 整段合成。
+    """
+    if not req.text or not req.text.strip():
+        return Response(
+            content='{"error":"text is empty"}',
+            status_code=400,
+            media_type="application/json",
+        )
+    if not _load_event.wait(timeout=180):
+        return Response(
+            content='{"error":"model still loading, please retry later"}',
+            status_code=503,
+            media_type="application/json",
+        )
+    if _engine is None:
+        return Response(
+            content='{"error":"model not loaded"}',
+            status_code=503,
+            media_type="application/json",
+        )
+
+    text = req.text.strip()
+    sample_rate = _engine.sample_rate
+    log.info("TTS stream request: text_len=%d speed=%.2f preview=%.30s", len(text), req.speed, text)
+
+    def gen() -> Iterator[bytes]:
+        import soundfile as sf
+
+        t0 = time.time()
+        try:
+            for i, chunk in enumerate(
+                _engine.synthesize_stream(text, prompt_text=req.prompt_text, speed=req.speed)
+            ):
+                if chunk is None or len(chunk) == 0:
+                    continue
+                buf = io.BytesIO()
+                sf.write(buf, chunk, sample_rate, format="WAV", subtype="PCM_16")
+                wav = buf.getvalue()
+                log.info(
+                    "TTS stream chunk %d: %d bytes (first chunk +%.2fs)",
+                    i,
+                    len(wav),
+                    time.time() - t0,
+                )
+                yield len(wav).to_bytes(4, "big") + wav
+        except Exception as e:  # noqa: BLE001
+            log.exception("CosyVoice V3 流式合成失败")
+            err = ('{"error":"' + str(e).replace('"', "'") + '"}').encode("utf-8")
+            yield (0).to_bytes(4, "big") + err
+
+    return StreamingResponse(
+        gen(),
+        media_type="application/octet-stream",
+        headers={"X-Sample-Rate": str(sample_rate)},
+    )
 
 
 @app.post("/tts")

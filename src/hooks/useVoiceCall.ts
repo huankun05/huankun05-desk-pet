@@ -22,10 +22,15 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceCall');
 
-/** 静音询问节奏：每多少次「静音超时(空音频)」触发一次询问（AudioRecorder 静音阈值 1.5s → 约 7.5s 一次） */
-const EMPTY_PER_INQUIRY = 5;
-/** 最多询问次数，超过则优雅告别并挂断 */
-const MAX_INQUIRIES = 3;
+/**
+ * 静音询问节奏：每多少次「静音超时(空音频)」才触发一次温柔提醒。
+ * 默认 30：AudioRecorder 静音阈值 1s → 约 30s 才提醒一次。
+ * 设计意图：通话中用户沉默时，AI 应「安静等待用户开口」，不抢话、不连环追问；
+ * 仅在长时间（约半分钟）完全无语音时做一次「还在吗」提醒，之后继续安静等待。
+ */
+const EMPTY_PER_INQUIRY = 30;
+/** 最多提醒次数：1 次后便不再主动搭话，彻底把发言权交还用户，直到用户主动挂断 */
+const MAX_INQUIRIES = 1;
 
 /**
  * 按尝试次数生成情绪递进的「你在吗」询问文案：
@@ -294,8 +299,9 @@ export function useVoiceCall({
           });
           return;
         }
-        // 静音超时（未检测到语音）：按节奏温柔询问；超过上限后不再重复询问，
-        // 静默继续聆听。通话只会因用户主动点「挂断」而结束，不会自动挂断。
+        // 静音超时（未检测到语音）：默认安静继续聆听，把发言权交还用户。
+        // 仅在长时间（EMPTY_PER_INQUIRY 个静音周期，约 30s）完全无语音时，
+        // 做一次温柔提醒（最多 MAX_INQUIRIES 次）；之后仍安静等待，绝不连环追问。
         silenceCountRef.current += 1;
         if (silenceCountRef.current % EMPTY_PER_INQUIRY === 0) {
           const level = silenceCountRef.current / EMPTY_PER_INQUIRY; // 1,2,3...
@@ -305,9 +311,10 @@ export function useVoiceCall({
             await playTts(line);
             if (!activeRef.current) return;
           }
-          startTurnRef.current(); // 继续聆听
-        } else if (activeRef.current) {
-          startTurnRef.current(); // 尚未到询问间隔，继续聆听
+        }
+        // 无论是否提醒，都继续聆听（用户何时开口由用户决定，AI 不主动续聊）
+        if (activeRef.current) {
+          startTurnRef.current();
         }
       } catch (e) {
         log.error('stt transcribe failed', e);
