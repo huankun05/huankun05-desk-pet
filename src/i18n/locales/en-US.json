@@ -880,6 +880,8 @@
       "behavior_refresh": "Refresh list"
     },
     "services_section": {
+      "status": "Service Status",
+      "status_desc": "Local service status with manual start, stop and restart",
       "llm": "Language Model",
       "llm_desc": "Dialog generation service",
       "tts": "Text to Speech",

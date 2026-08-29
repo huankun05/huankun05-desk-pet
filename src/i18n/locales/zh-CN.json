@@ -884,6 +884,8 @@
       "behavior_refresh": "刷新列表"
     },
     "services_section": {
+      "status": "运行状态",
+      "status_desc": "本地服务运行状态与手动启动、停止、重启",
       "llm": "语言模型",
       "llm_desc": "对话生成服务",
       "tts": "语音合成",

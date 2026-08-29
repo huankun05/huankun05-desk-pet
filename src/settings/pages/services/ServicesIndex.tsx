@@ -9,6 +9,12 @@ export function ServicesIndex() {
 
   const entries = [
     {
+      icon: 'solar:health-bold-duotone',
+      title: t('settings.services_section.status'),
+      description: t('settings.services_section.status_desc'),
+      to: '/settings/services/status',
+    },
+    {
       icon: 'solar:document-text-bold-duotone',
       title: t('settings.services_section.llm'),
       description: t('settings.services_section.llm_desc'),

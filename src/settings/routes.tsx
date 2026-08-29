@@ -60,6 +60,7 @@ const pageComponentLoaders: Record<string, () => Promise<{ default: ComponentTyp
   '/settings/models/expressions': () => import('./pages/models/ExpressionsPage'),
   '/settings/models/interaction': () => import('./pages/models/InteractionPage'),
   '/settings/services': () => import('./pages/services/ServicesIndex'),
+  '/settings/services/status': () => import('./pages/services/StatusPage'),
   '/settings/services/llm': () => import('./pages/services/LLMPage'),
   '/settings/services/tts': () => import('./pages/services/TTSPage'),
   '/settings/services/stt': () => import('./pages/services/STTPage'),
@@ -361,12 +362,21 @@ export const settingsTree: SettingsEntry[] = [
     path: '/settings/services',
     children: [
       {
+        title: '运行状态',
+        subtitle: 'Status',
+        description: '本地服务运行状态与手动启动/停止/重启',
+        icon: 'solar:health-bold-duotone',
+        settingsEntry: true,
+        order: 0,
+        path: '/settings/services/status',
+      },
+      {
         title: '语言模型',
         subtitle: 'LLM',
         description: 'API 配置、模型选择',
         icon: 'solar:document-text-bold-duotone',
         settingsEntry: true,
-        order: 0,
+        order: 1,
         path: '/settings/services/llm',
       },
       {
@@ -375,7 +385,7 @@ export const settingsTree: SettingsEntry[] = [
         description: 'TTS 引擎配置',
         icon: 'solar:speaker-bold-duotone',
         settingsEntry: true,
-        order: 1,
+        order: 2,
         path: '/settings/services/tts',
       },
       {
@@ -384,7 +394,7 @@ export const settingsTree: SettingsEntry[] = [
         description: 'STT 引擎配置',
         icon: 'solar:microphone-bold-duotone',
         settingsEntry: true,
-        order: 2,
+        order: 3,
         path: '/settings/services/stt',
       },
       {
@@ -393,7 +403,7 @@ export const settingsTree: SettingsEntry[] = [
         description: '向量模型配置',
         icon: 'solar:database-bold-duotone',
         settingsEntry: true,
-        order: 3,
+        order: 4,
         path: '/settings/services/embedding',
       },
       {
@@ -402,7 +412,7 @@ export const settingsTree: SettingsEntry[] = [
         description: 'Vision 模型、截图分析配置',
         icon: 'solar:camera-bold-duotone',
         settingsEntry: true,
-        order: 4,
+        order: 5,
         path: '/settings/services/multimodal',
       },
     ],
