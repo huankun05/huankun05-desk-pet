@@ -1028,10 +1028,11 @@ function MainPetApp() {
   }, []);
 
   const handleToggleLive2D = useCallback(() => {
-    const next = !appearance.petVisible;
+    // 用 ref 快照计算，避免闭包过期（跨窗回调经 ref 调用，依赖数组 [] 保证引用稳定）
+    const next = !petVisibleRef.current;
     setAppearance((a) => ({ ...a, petVisible: next }));
     writeAppearanceConfig({ petVisible: next });
-  }, [appearance.petVisible]);
+  }, []);
 
   // 启动悬浮球独立窗口（常驻，可拖到屏幕任意位置）
   useEffect(() => {
@@ -1091,18 +1092,45 @@ function MainPetApp() {
   }, []);
 
   // 跨窗通信：接收悬浮球窗口的动作并派发到本地 handler
+  // ⚠️ 用 ref 持有「最新」handler，effect 只注册一次 listen：
+  //   listen() 是异步的，若 effect 依赖变化重跑，cleanup 时 unlisten 可能尚未赋值
+  //   （Promise 未 resolve）→ 旧 listener 泄漏、多个 listener 叠加；且回调捕获的
+  //   是创建时的旧闭包（如 handleToggleLive2D 依赖 petVisible 会过期）。
+  const controlsHandlersRef = useRef({
+    openSettingsPanel,
+    toggleChatPanel,
+    handleToggleLive2D,
+    toggleTransform,
+    toggleFadeOnHover,
+    toggleLock,
+    handleClose,
+    switchModel,
+  });
+  useEffect(() => {
+    controlsHandlersRef.current = {
+      openSettingsPanel,
+      toggleChatPanel,
+      handleToggleLive2D,
+      toggleTransform,
+      toggleFadeOnHover,
+      toggleLock,
+      handleClose,
+      switchModel,
+    };
+  });
   useEffect(() => {
     if (!isTauriEnv()) return;
     let unlisten: (() => void) | undefined;
     listen<ControlsActionPayload>('controls:action', (e) => {
       const a = e.payload;
+      const h = controlsHandlersRef.current;
       console.log('[MainPetApp] received controls:action ->', a.type, a);
       switch (a.type) {
         case 'settings':
-          openSettingsPanel();
+          h.openSettingsPanel();
           break;
         case 'chat':
-          toggleChatPanel();
+          h.toggleChatPanel();
           try {
             localStorage.setItem('deskpet_chat_unread', '0');
           } catch {
@@ -1110,22 +1138,22 @@ function MainPetApp() {
           }
           break;
         case 'hidepet':
-          handleToggleLive2D();
+          h.handleToggleLive2D();
           break;
         case 'transform':
-          toggleTransform();
+          h.toggleTransform();
           break;
         case 'fade':
-          toggleFadeOnHover();
+          h.toggleFadeOnHover();
           break;
         case 'lock':
-          toggleLock();
+          h.toggleLock();
           break;
         case 'exit':
-          handleClose();
+          h.handleClose();
           break;
         case 'switchModel':
-          if (a.payload) switchModel(a.payload);
+          if (a.payload) h.switchModel(a.payload);
           break;
       }
     })
@@ -1136,16 +1164,7 @@ function MainPetApp() {
     return () => {
       unlisten?.();
     };
-  }, [
-    openSettingsPanel,
-    toggleChatPanel,
-    handleToggleLive2D,
-    toggleTransform,
-    toggleFadeOnHover,
-    toggleLock,
-    handleClose,
-    switchModel,
-  ]);
+  }, []);
 
   // 跨窗通信：状态变更时把最新快照广播给悬浮球窗口
   useEffect(() => {
