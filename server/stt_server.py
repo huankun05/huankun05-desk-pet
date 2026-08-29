@@ -15,9 +15,11 @@ SenseVoice: 识别文本 + 情绪标签 (happy/sad/angry/neutral)
 import os
 import sys
 import json
+import time
 import logging
 import argparse
 import asyncio
+import threading
 from typing import Optional
 
 # ===== 强制模型下载到项目目录，不污染 C 盘 =====
@@ -142,6 +144,11 @@ _funasr_model = None
 _sensevoice_model = None
 _loading_funasr = False
 _loading_sensevoice = False
+# 模型加载锁（跨线程互斥：asyncio.to_thread 的 HTTP 路径与 WS 线程并发安全）
+_funasr_lock = threading.Lock()
+_sensevoice_lock = threading.Lock()
+# 等待另一请求加载完成的最长时限（模型冷加载可能需数十秒）
+_LOAD_WAIT_SECONDS = 120
 
 
 def _resolve_model_path(model_id: str, local_dirname: str) -> str:
@@ -176,71 +183,133 @@ def _get_torch_device():
     return "cpu"
 
 
-def get_funasr_model():
+def _wait_model_loaded(kind: str, wait: bool):
+    """等待另一请求正在进行的模型加载完成（最长 _LOAD_WAIT_SECONDS）。
+
+    竞态背景：懒加载模型时若并发请求同时到达——A 开始加载（_loading=True），
+    B 看到 _loading=True 直接返回 None → 调用方 model.generate 崩溃
+    （AttributeError: 'NoneType' object has no attribute 'generate'，HTTP 路径实测复现）。
+    wait=True 则忙等加载完成（在 to_thread 线程内执行，不阻塞事件循环）；
+    wait=False 立即返回 None（调用方需自行兜底）。
+    """
+    if not wait:
+        return None
+    deadline = time.monotonic() + _LOAD_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        if kind == "funasr":
+            if _funasr_model is not None:
+                return _funasr_model
+            if not _loading_funasr:
+                break
+        else:
+            if _sensevoice_model is not None:
+                return _sensevoice_model
+            if not _loading_sensevoice:
+                break
+        time.sleep(0.2)
+    return _funasr_model if kind == "funasr" else _sensevoice_model
+
+
+def get_funasr_model(wait: bool = True):
+    """获取 FunASR 模型（并发安全）。
+
+    - 已加载 → 直接返回
+    - 正在加载（其他请求）→ wait=True 忙等其完成；wait=False 返回 None
+    - 未加载 → 加锁加载（threading.Lock 保证仅一个执行者）
+    加载失败返回 None，调用方需兜底（返回空结果而非崩溃）。
+    """
     global _funasr_model, _loading_funasr
-    if _funasr_model is None and not _loading_funasr:
+    if _funasr_model is not None:
+        return _funasr_model
+    if _loading_funasr:
+        return _wait_model_loaded("funasr", wait)
+    with _funasr_lock:
+        if _funasr_model is not None:
+            return _funasr_model
+        if _loading_funasr:
+            return _wait_model_loaded("funasr", wait)
         _loading_funasr = True
         try:
-            log.info("Loading FunASR Paraformer model (first request, may take a while)...")
-            from funasr import AutoModel
-            import torch
-
-            device = _get_torch_device()
-            log.info("FunASR using device: %s", device)
-
-            _funasr_model = AutoModel(
-                model=_resolve_model_path(
-                    "paraformer-zh-streaming",
-                    "speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
-                ),
-                vad_model=_resolve_model_path(
-                    "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
-                ),
-                punc_model=_resolve_model_path(
-                    "ct-punc", "punc_ct-transformer_cn-en-common-vocab471067-large"
-                ),
-                disable_update=True,
-                device=device,
-                # ncpu=4 限制 CPU 线程数，减少资源争抢
-                ncpu=4,
-            )
-            # 加载完成后清理 CUDA 缓存碎片
-            if device == "cuda" and torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                allocated = torch.cuda.memory_allocated() / 1024**3
-                log.info("CUDA memory after FunASR load: allocated=%.1fG", allocated)
-            log.info("FunASR model loaded successfully")
+            _funasr_model = _load_funasr_blocking()
         finally:
             _loading_funasr = False
     return _funasr_model
 
 
-def get_sensevoice_model():
+def _load_funasr_blocking():
+    """同步加载 FunASR Paraformer 模型（在 to_thread 线程中执行）。"""
+    from funasr import AutoModel
+    import torch
+
+    device = _get_torch_device()
+    log.info("FunASR using device: %s", device)
+
+    model = AutoModel(
+        model=_resolve_model_path(
+            "paraformer-zh-streaming",
+            "speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+        ),
+        vad_model=_resolve_model_path(
+            "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+        ),
+        punc_model=_resolve_model_path(
+            "ct-punc", "punc_ct-transformer_cn-en-common-vocab471067-large"
+        ),
+        disable_update=True,
+        device=device,
+        # ncpu=4 限制 CPU 线程数，减少资源争抢
+        ncpu=4,
+    )
+    # 加载完成后清理 CUDA 缓存碎片
+    if device == "cuda" and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        log.info("CUDA memory after FunASR load: allocated=%.1fG", allocated)
+    log.info("FunASR model loaded successfully")
+    return model
+
+
+def get_sensevoice_model(wait: bool = True):
+    """获取 SenseVoice 模型（并发安全，语义同 get_funasr_model）。"""
     global _sensevoice_model, _loading_sensevoice
-    if _sensevoice_model is None and not _loading_sensevoice:
+    if _sensevoice_model is not None:
+        return _sensevoice_model
+    if _loading_sensevoice:
+        return _wait_model_loaded("sensevoice", wait)
+    with _sensevoice_lock:
+        if _sensevoice_model is not None:
+            return _sensevoice_model
+        if _loading_sensevoice:
+            return _wait_model_loaded("sensevoice", wait)
         _loading_sensevoice = True
         try:
-            log.info("Loading SenseVoice model (first request, may take a while)...")
-            from funasr import AutoModel
-            import torch
-
-            device = _get_torch_device()
-            log.info("SenseVoice using device: %s", device)
-
-            _sensevoice_model = AutoModel(
-                model=_resolve_model_path("iic/SenseVoiceSmall", "SenseVoiceSmall"),
-                disable_update=True,
-                device=device,
-                ncpu=4,
-            )
-            if device == "cuda" and torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                allocated = torch.cuda.memory_allocated() / 1024**3
-                log.info("CUDA memory after SenseVoice load: allocated=%.1fG", allocated)
-            log.info("SenseVoice model loaded successfully")
+            _sensevoice_model = _load_sensevoice_blocking()
         finally:
             _loading_sensevoice = False
     return _sensevoice_model
+
+
+def _load_sensevoice_blocking():
+    """同步加载 SenseVoice 模型（在 to_thread 线程中执行）。"""
+    log.info("Loading SenseVoice model (first request, may take a while)...")
+    from funasr import AutoModel
+    import torch
+
+    device = _get_torch_device()
+    log.info("SenseVoice using device: %s", device)
+
+    model = AutoModel(
+        model=_resolve_model_path("iic/SenseVoiceSmall", "SenseVoiceSmall"),
+        disable_update=True,
+        device=device,
+        ncpu=4,
+    )
+    if device == "cuda" and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        log.info("CUDA memory after SenseVoice load: allocated=%.1fG", allocated)
+    log.info("SenseVoice model loaded successfully")
+    return model
 
 
 @app.post("/transcribe")
@@ -285,7 +354,11 @@ async def _transcribe_funasr(audio_bytes: bytes) -> JSONResponse:
     # 统一解码为干净 16k mono WAV（处理 WebM/Opus 等格式 + 兜底）
     tmp = _decode_audio_to_wav(audio_bytes)
     try:
-        model = get_funasr_model()
+        # 等待模型就绪（加载在 to_thread 线程内进行，不阻塞事件循环）
+        model = await asyncio.to_thread(get_funasr_model, True)
+        if model is None:
+            log.warning("FunASR 模型加载失败，返回空结果")
+            return JSONResponse({"text": "", "confidence": 0.0, "empty": True})
 
         # generate() 是阻塞调用，放入线程池避免阻塞事件循环
         res = await asyncio.to_thread(
@@ -314,7 +387,11 @@ async def _transcribe_sensevoice(audio_bytes: bytes) -> JSONResponse:
     # 统一解码为干净 16k mono WAV（处理 WebM/Opus 等格式 + 兜底）
     tmp = _decode_audio_to_wav(audio_bytes)
     try:
-        model = get_sensevoice_model()
+        # 等待模型就绪（加载在 to_thread 线程内进行，不阻塞事件循环）
+        model = await asyncio.to_thread(get_sensevoice_model, True)
+        if model is None:
+            log.warning("SenseVoice 模型加载失败，返回空结果")
+            return JSONResponse({"text": "", "confidence": 0.0, "empty": True})
 
         # generate() 是阻塞调用，放入线程池
         res = await asyncio.to_thread(
@@ -453,7 +530,7 @@ class StreamingASR:
                 pass
 
     def _run_funasr(self, wav_path: str) -> str:
-        model = get_funasr_model()
+        model = get_funasr_model(True)
         if model is None:
             return self.last_text
         res = model.generate(input=wav_path)
@@ -467,7 +544,7 @@ class StreamingASR:
     def _run_sensevoice(self, wav_path: str):
         import re
 
-        model = get_sensevoice_model()
+        model = get_sensevoice_model(True)
         if model is None:
             return self.last_text, self.last_emotion
         res = model.generate(input=wav_path, language="auto", use_itn=True)
