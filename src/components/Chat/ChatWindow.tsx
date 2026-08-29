@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@iconify/react';
-import { MessageItem } from './MessageItem';
+import { MessageItem, type MessageAppearance } from './MessageItem';
 import { aiService } from '../../services/ai';
 import { eventBus } from '../../services/eventBus';
 import { openSettingsAt } from '../../utils/openSettings';
@@ -223,6 +223,118 @@ function ToolButton({
     </button>
   );
 }
+
+/** 消息列表主体的渲染参数（见 MessagesRenderer 注释） */
+interface MessagesRendererProps {
+  displayedMessages: Message[];
+  isStreaming: boolean;
+  /** 最后一条消息 id（流式输出时给该条加光标） */
+  lastMessageId?: string;
+  onSendMessage: (content: string) => void;
+  onQuote: (message: Message) => void;
+  sessionId?: string;
+  appearance: MessageAppearance;
+  highlightedId: string | null;
+}
+
+/**
+ * 消息列表主体：独立的 memo 边界（局部刷新）。
+ *
+ * ChatWindow 是一个大组件，输入框每敲一个字符都会触发整体重渲染。
+ * 即便 MessageItem 已经 memo 过，父层仍要遍历全部消息创建 element —— 历史会话
+ * 可达数百上千条，这部分开销在每次按键时都要付一遍。
+ * 抽成独立组件后：只要 messages 没变（打字、加附件、开关工具条等），
+ * 整棵消息子树直接跳过渲染，输入区与消息区互不牵连。
+ */
+const MessagesRenderer = memo(function MessagesRenderer({
+  displayedMessages,
+  isStreaming,
+  lastMessageId,
+  onSendMessage,
+  onQuote,
+  sessionId,
+  appearance,
+  highlightedId,
+}: MessagesRendererProps) {
+  return (
+    <>
+      {displayedMessages.map((message, idx) => {
+        const prev = idx > 0 ? displayedMessages[idx - 1] : null;
+        // 日期分隔（跨天）
+        const showDateSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
+        // 时间分隔（QQ 风格：间隔 >= 5 分钟或角色切换时）
+        const showTimeSep = !showDateSep && needsTimeSeparator(prev, message);
+        return (
+          <Fragment key={message.id}>
+            {/* 日期分隔标签 */}
+            {showDateSep && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  margin: '8px 0 4px',
+                  pointerEvents: 'none',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-glass, rgba(0,0,0,0.04))',
+                    padding: '2px 10px',
+                    borderRadius: '10px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {formatDateLabel(message.timestamp)}
+                </span>
+              </div>
+            )}
+            {/* 时间分隔标签（QQ 风格） */}
+            {showTimeSep && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  margin: '6px 0 4px',
+                  pointerEvents: 'none',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '10px',
+                    color: 'var(--text-muted)',
+                    background: 'transparent',
+                    padding: '1px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {formatTimeLabel(
+                    message.timestamp instanceof Date
+                      ? message.timestamp
+                      : new Date(message.timestamp),
+                  )}
+                </span>
+              </div>
+            )}
+            <MessageItem
+              message={{
+                ...message,
+                role: message.role as 'user' | 'assistant' | 'system',
+                isStreaming: isStreaming && message.id === lastMessageId,
+              }}
+              onRetry={() => onSendMessage(message.content)}
+              onQuote={onQuote}
+              sessionId={sessionId}
+              appearance={appearance}
+              highlighted={message.id === highlightedId}
+            />
+          </Fragment>
+        );
+      })}
+    </>
+  );
+});
 
 export const ChatWindow = memo(
   forwardRef<ChatWindowHandle, ChatWindowProps>(function ChatWindow(
@@ -462,7 +574,11 @@ export const ChatWindow = memo(
       setVisibleCount((c) => Math.min(messages.length, c + STEP_VISIBLE));
     };
 
-    const displayedMessages = messages.slice(-visibleCount);
+    // memo 化：否则每次渲染都 slice 出新数组引用，会让消息列表的 memo 边界失效
+    const displayedMessages = useMemo(
+      () => messages.slice(-visibleCount),
+      [messages, visibleCount],
+    );
     const hiddenCount = messages.length - displayedMessages.length;
 
     const {
@@ -736,7 +852,8 @@ export const ChatWindow = memo(
       setTextareaHeight((prev) => (prev === next ? prev : next));
     }, []);
 
-    const handleQuote = (message: Message) => {
+    // useCallback：稳定引用，否则每次渲染的新函数会让消息列表 memo 失效
+    const handleQuote = useCallback((message: Message) => {
       setQuotedMessage(message);
       setQuotedReply({
         messageId: message.id,
@@ -744,7 +861,7 @@ export const ChatWindow = memo(
         role: message.role as 'user' | 'assistant',
       });
       textareaRef.current?.focus();
-    };
+    }, []);
 
     const cancelQuote = () => {
       setQuotedMessage(null);
@@ -753,13 +870,23 @@ export const ChatWindow = memo(
 
     const canSend = !isLoading && (slashInput || input).trim().length > 0;
 
-    const messageAppearance = {
-      bubbleRadius: appearance.bubbleRadius,
-      bubbleTail: appearance.bubbleTail,
-      showAvatar: appearance.showAvatar,
-      userAvatar: appearance.userAvatar,
-      aiAvatar: appearance.aiAvatar,
-    };
+    // useMemo：稳定对象引用，否则每次渲染的新对象会让消息列表 memo 失效
+    const messageAppearance = useMemo(
+      () => ({
+        bubbleRadius: appearance.bubbleRadius,
+        bubbleTail: appearance.bubbleTail,
+        showAvatar: appearance.showAvatar,
+        userAvatar: appearance.userAvatar,
+        aiAvatar: appearance.aiAvatar,
+      }),
+      [
+        appearance.bubbleRadius,
+        appearance.bubbleTail,
+        appearance.showAvatar,
+        appearance.userAvatar,
+        appearance.aiAvatar,
+      ],
+    );
 
     return (
       <div
@@ -1109,80 +1236,16 @@ export const ChatWindow = memo(
               </div>
             )}
 
-            {displayedMessages.map((message, idx) => {
-              const prev = idx > 0 ? displayedMessages[idx - 1] : null;
-              // 日期分隔（跨天）
-              const showDateSep = !prev || !isSameDay(prev.timestamp, message.timestamp);
-              // 时间分隔（QQ 风格：间隔 >= 5 分钟或角色切换时）
-              const showTimeSep = !showDateSep && needsTimeSeparator(prev, message);
-              return (
-                <Fragment key={message.id}>
-                  {/* 日期分隔标签 */}
-                  {showDateSep && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        margin: '8px 0 4px',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: 'var(--text-muted)',
-                          background: 'var(--bg-glass, rgba(0,0,0,0.04))',
-                          padding: '2px 10px',
-                          borderRadius: '10px',
-                          letterSpacing: '0.5px',
-                        }}
-                      >
-                        {formatDateLabel(message.timestamp)}
-                      </span>
-                    </div>
-                  )}
-                  {/* 时间分隔标签（QQ 风格） */}
-                  {showTimeSep && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        margin: '6px 0 4px',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          color: 'var(--text-muted)',
-                          background: 'transparent',
-                          padding: '1px 8px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        {formatTimeLabel(
-                          message.timestamp instanceof Date
-                            ? message.timestamp
-                            : new Date(message.timestamp),
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  <MessageItem
-                    message={{
-                      ...message,
-                      role: message.role as 'user' | 'assistant' | 'system',
-                      isStreaming: isStreaming && message === messages[messages.length - 1],
-                    }}
-                    onRetry={() => onSendMessage(message.content)}
-                    onQuote={handleQuote}
-                    sessionId={sessionId}
-                    appearance={messageAppearance}
-                    highlighted={message.id === highlightedId}
-                  />
-                </Fragment>
-              );
-            })}
+            <MessagesRenderer
+              displayedMessages={displayedMessages}
+              isStreaming={isStreaming}
+              lastMessageId={messages[messages.length - 1]?.id}
+              onSendMessage={onSendMessage}
+              onQuote={handleQuote}
+              sessionId={sessionId}
+              appearance={messageAppearance}
+              highlightedId={highlightedId}
+            />
 
             <div ref={messagesEndRef} />
           </div>
