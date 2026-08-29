@@ -207,7 +207,7 @@ class LLMChat:
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
                 temperature=kwargs.get("temperature", self.temperature),
                 top_p=kwargs.get("top_p", self.top_p),
-                extra_body=self._extra_body(),
+                extra_body=self._extra_body(messages),
             )
             logger.info("[LLM] _chat_api request sent in %.2fs", time.time() - t0)
             if stream:
@@ -239,7 +239,7 @@ class LLMChat:
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
                 "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p),
-                "extra_body": self._extra_body(),
+                "extra_body": self._extra_body(messages),
             }
             if tools:
                 create_kwargs["tools"] = tools
@@ -286,15 +286,53 @@ class LLMChat:
             logger.error(f"API 流式调用失败: {e}")
             yield f"[LLM 调用失败: {e}]"
 
-    def _extra_body(self) -> dict[str, Any] | None:
+    # 触发「深度思考」的内容线索（命中即提升 reasoning_effort）
+    _EFFORT_HIGH_HINTS: tuple[str, ...] = (
+        # 中文
+        "代码", "编程", "写一段", "写个", "实现", "调试", "报错", "异常", "优化",
+        "重构", "算法", "分析", "对比", "比较", "为什么", "原理", "推导", "证明",
+        "计算", "求解", "总结", "方案", "设计", "架构", "规划", "翻译", "润色",
+        # 英文 / 技术词
+        "python", "javascript", "typescript", "sql", "regex", "api", "bug",
+        "debug", "explain", "analyze", "compare", "implement", "refactor",
+        "optimize", "function", "class", "error",
+    )
+
+    @staticmethod
+    def _last_user_text(messages: list[dict] | None) -> str:
+        """取最后一条用户消息文本（用于复杂度判断）"""
+        for m in reversed(messages or []):
+            if (m.get("role") or "") == "user":
+                return (m.get("content") or "").strip()
+        return ""
+
+    def _estimate_effort(self, messages: list[dict] | None) -> str:
+        """按内容复杂度推断思考强度，避免简单闲聊也走深度推理。
+
+        只在「明显复杂」时提升：长输入（>120 字）或命中技术/推理类关键词。
+        其余（闲聊、问候、简短指令）一律 low —— 既更快，也避免回答过度展开。
+        仅返回 low/high 两档，降低 provider 不支持中间档位时的风险。
+        """
+        text = self._last_user_text(messages)
+        if not text:
+            return "low"
+        if len(text) > 120:
+            return "high"
+        lowered = text.lower()
+        if any(h in lowered for h in self._EFFORT_HIGH_HINTS):
+            return "high"
+        return "low"
+
+    def _extra_body(self, messages: list[dict] | None = None) -> dict[str, Any] | None:
         """Provider-specific extra parameters.
 
-        StepFun: reduce reasoning effort so responses are faster, matching Hermes behavior.
+        StepFun: 按内容复杂度动态设置 reasoning_effort
+        （闲聊 low / 复杂任务 high），兼顾响应速度与推理质量。
         """
         provider = (getattr(self, "api_provider", "") or "").strip().lower()
         model = (getattr(self, "model", "") or "").strip().lower()
         if provider == "stepfun" or model.startswith("step-"):
-            return {"reasoning_effort": "low"}
+            return {"reasoning_effort": self._estimate_effort(messages)}
         return None
 
     # ==================== 本地模式 ====================
