@@ -1016,7 +1016,7 @@ export function InteractionPage() {
 function LLMChatDiagnostic() {
   const computeDiagnostic = useCallback((): {
     smartChatEnabled: boolean;
-    hasApiKey: boolean;
+    hasProvider: boolean;
     providerName: string;
     dailyUsed: number;
     dailyLimit: number;
@@ -1024,17 +1024,20 @@ function LLMChatDiagnostic() {
     try {
       const behaviorRaw = localStorage.getItem('deskpet_behaviorConfig');
       const behavior = behaviorRaw ? JSON.parse(behaviorRaw) : {};
-      const aiConfigRaw = localStorage.getItem('deskpet_ai_config');
-      const aiConfig = aiConfigRaw ? JSON.parse(aiConfigRaw) : {};
       const countRaw = localStorage.getItem('deskpet_smartChatCount');
       const dateRaw = localStorage.getItem('deskpet_smartChatDate');
       const today = new Date().toDateString();
       const used = dateRaw === today ? parseInt(countRaw || '0', 10) : 0;
 
+      // ⚠️ LLM 配置以 providerManager（providers.json / %APPDATA%）为权威来源。
+      // 旧实现读 localStorage 'deskpet_ai_config'——该 key 全项目从未写入，
+      // 导致 hasApiKey 恒为 false、诊断永远误报「未配置」。
+      const chatProvider = providerManager.getActiveChatProvider();
+
       return {
         smartChatEnabled: behavior.enableSmartChat === true,
-        hasApiKey: !!aiConfig.apiKey,
-        providerName: aiConfig.provider || '未配置',
+        hasProvider: chatProvider !== null,
+        providerName: chatProvider?.config.name || chatProvider?.config.typeName || '未配置',
         dailyUsed: used,
         dailyLimit: behavior.smartChatDailyLimit ?? 20,
       };
@@ -1057,7 +1060,7 @@ function LLMChatDiagnostic() {
 
   if (!diagnostic) return <div className="text-xs text-neutral-400">检测中...</div>;
 
-  const allGood = diagnostic.smartChatEnabled && diagnostic.hasApiKey;
+  const allGood = diagnostic.smartChatEnabled && diagnostic.hasProvider;
 
   return (
     <div className="space-y-2">
@@ -1067,9 +1070,9 @@ function LLMChatDiagnostic() {
         text={diagnostic.smartChatEnabled ? '已开启' : '❌ 未开启（在「角色行为」页打开）'}
       />
       <DiagnosticItem
-        label="LLM API Key"
-        status={diagnostic.hasApiKey ? 'ok' : 'error'}
-        text={diagnostic.hasApiKey ? '已配置' : '❌ 未配置（在「语言模型」页设置）'}
+        label="语言模型"
+        status={diagnostic.hasProvider ? 'ok' : 'error'}
+        text={diagnostic.hasProvider ? '已配置' : '❌ 未配置（在「语言模型」页设置）'}
       />
       <DiagnosticItem label="当前 Provider" status="info" text={diagnostic.providerName} />
       <DiagnosticItem
