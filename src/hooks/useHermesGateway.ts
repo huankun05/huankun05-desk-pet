@@ -44,6 +44,8 @@ export interface SendMessageOptions {
   silent?: boolean;
   /** 不落历史：不写聊天历史、不渲染气泡，但回复 TTS 照常播放（用于唤醒词/VAD 语音交流） */
   noHistory?: boolean;
+  /** 每个流式 token 的回调（用于语音通话流式 TTS 等自定义消费，与 hook 级 onToken 叠加触发） */
+  onToken?: (token: string) => void;
 }
 
 export type SendMessageFn = (
@@ -196,18 +198,7 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
 
   // 发送消息
   const handleSendMessage = useCallback(
-    async (
-      content: string,
-      mode?: 'auto' | 'work' | 'chat',
-      opts?: {
-        attachments?: Message['attachments'];
-        quoted?: { messageId: string; content: string; role: 'user' | 'assistant' };
-        /** 静默模式：LLM 照常跑、回复照常回传，但不落聊天历史、不渲染气泡、不播 TTS（用于语音通话等） */
-        silent?: boolean;
-        /** 不落历史：不写聊天历史、不渲染气泡，但回复 TTS 照常播放（用于唤醒词/VAD 语音交流） */
-        noHistory?: boolean;
-      },
-    ) => {
+    async (content: string, mode?: 'auto' | 'work' | 'chat', opts?: SendMessageOptions) => {
       const session = sessionRef.current;
       if (!session) return;
       // noHistory 与 silent 都不落历史/不渲染；仅显式 silent 额外关闭回复 TTS
@@ -290,6 +281,8 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
       let ttsStream: StreamingTTSPlayer | null = null;
       let speechText = '';
       let firstSentenceFired = false;
+      /** 上次 token 渲染时间（节流用，见 onToken 内注释） */
+      let lastTokenRenderAt = 0;
       log.info(
         '[WS->SEND] sendChat id=%s text=%s mode=%s tools=%d',
         assistantId,
@@ -322,15 +315,24 @@ export function useHermesGateway(options?: UseHermesGatewayOptions): HermesGatew
                 currentResponseRef.current = displayToken;
               } else {
                 currentResponseRef.current += displayToken;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
-                  ),
-                );
+                // 渲染节流：LLM 高频 token 若每个都 setMessages，会以每秒数十次的频率
+                // 触发整个消息列表 reconcile + 滚动 layout，表现为「回复期间面板卡住
+                // 不能滚动」。数据始终实时累积在 ref，UI 每 80ms 合并刷新一次；
+                // onDone 仍会写入最终全文，不丢字。
+                const now = performance.now();
+                if (now - lastTokenRenderAt >= 80) {
+                  lastTokenRenderAt = now;
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantId ? { ...m, content: currentResponseRef.current } : m,
+                    ),
+                  );
+                }
               }
             }
             log.info('[WS->TOKEN] id=%s token_len=%d', assistantId, token.length);
             options?.onToken?.(token);
+            opts?.onToken?.(token);
             // 流式 TTS：把 token 增量喂给渐进式播放器（仅聊天回复、且未显式静默时；noHistory 保留语音）
             if (options?.ttsEnabled && !(opts?.silent ?? false)) {
               if (!ttsStream) {

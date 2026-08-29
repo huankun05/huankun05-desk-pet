@@ -777,17 +777,37 @@ struct WebSearchResult {
     snippet: String,
 }
 
-/// 网络搜索（使用 DuckDuckGo HTML 端点，无需 API key）
+/// 网络搜索（主源 Bing——中国大陆可直连；回退 DuckDuckGo，均无需 API key）
 #[tauri::command]
 fn web_search(query: String, max_results: Option<u8>) -> CmdResult<Vec<WebSearchResult>> {
     let max = max_results.unwrap_or(5).min(10) as usize;
+    const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    let resp = ureq::get("https://html.duckduckgo.com/html/")
-        .set(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        )
+    // 主源：Bing。DuckDuckGo 在中国大陆无法直连，作为主源会导致所有联网查询失败。
+    // 10s 超时：搜索是工具调用链路，不能无限等待拖死整轮回复。
+    let bing_html = ureq::get("https://www.bing.com/search")
+        .set("User-Agent", UA)
+        .set("Accept-Language", "zh-CN,zh;q=0.9")
         .query("q", &query)
+        .query("setlang", "zh-CN")
+        .query("count", "20")
+        .timeout(std::time::Duration::from_secs(10))
+        .call()
+        .ok()
+        .and_then(|r| r.into_string().ok());
+
+    if let Some(html) = bing_html {
+        let results = parse_bing_results(&html, max);
+        if !results.is_empty() {
+            return Ok(results);
+        }
+    }
+
+    // 回退：DuckDuckGo HTML 端点（海外/代理环境可用）
+    let resp = ureq::get("https://html.duckduckgo.com/html/")
+        .set("User-Agent", UA)
+        .query("q", &query)
+        .timeout(std::time::Duration::from_secs(10))
         .call()
         .map_err(|e| AppError::Generic(format!("搜索请求失败: {}", e)))?;
 
@@ -796,6 +816,54 @@ fn web_search(query: String, max_results: Option<u8>) -> CmdResult<Vec<WebSearch
         .map_err(|e| AppError::Generic(format!("读取响应失败: {}", e)))?;
 
     Ok(parse_ddg_results(&html, max))
+}
+
+/// 解析 Bing 结果页（<li class="b_algo"> 内 <h2><a href>标题</a></h2> + <p>摘要</p>）
+fn parse_bing_results(html: &str, max: usize) -> Vec<WebSearchResult> {
+    let mut results = Vec::new();
+    let parts: Vec<&str> = html.split("<li class=\"b_algo\"").collect();
+
+    for segment in parts.iter().skip(1) {
+        if results.len() >= max {
+            break;
+        }
+        // 结果标题链接位于 <h2> 内；b_algo 内可能先出现其他 href，从 <h2> 起找
+        let Some(h2_idx) = segment.find("<h2") else {
+            continue;
+        };
+        let h2_part = &segment[h2_idx..];
+        let Some(href) = find_attr_value(h2_part, "href") else {
+            continue;
+        };
+        if !(href.starts_with("http://") || href.starts_with("https://")) {
+            continue;
+        }
+        let Some(title) = find_link_text(h2_part) else {
+            continue;
+        };
+        let snippet = find_p_text(segment).unwrap_or_default();
+
+        let title = decode_html_entities(&strip_tags(&title));
+        let snippet = decode_html_entities(&strip_tags(&snippet));
+        if !title.trim().is_empty() {
+            results.push(WebSearchResult {
+                title: title.trim().to_string(),
+                url: decode_html_entities(&href),
+                snippet: snippet.trim().to_string(),
+            });
+        }
+    }
+    results
+}
+
+/// 提取第一个 <p ...>...</p> 的内部文本（Bing 摘要）
+fn find_p_text(s: &str) -> Option<String> {
+    let start = s.find("<p")?;
+    let rest = &s[start..];
+    let tag_end = rest.find('>')?;
+    let text_start = &rest[tag_end + 1..];
+    let text_end = text_start.find("</p>")?;
+    Some(text_start[..text_end].to_string())
 }
 
 /// 解析 DuckDuckGo HTML 端点结果页

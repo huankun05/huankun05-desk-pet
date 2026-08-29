@@ -93,10 +93,16 @@ export function useVoiceCall({
   const modeRef = useRef<'auto' | 'work' | 'chat' | undefined>(mode);
   const transcriptRef = useRef<CallTranscriptTurn[]>([]);
   const callStartRef = useRef<number>(0);
-  /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→自动挂断） */
+  /** 连续「静音超时(空音频)」计数，用于静音看门狗（询问→继续聆听） */
   const silenceCountRef = useRef(0);
   /** startTurn 递归续听经由此 ref 调用，避免 useCallback 自引用 TDZ */
   const startTurnRef = useRef<() => void>(() => {});
+  /**
+   * 当前轮次的流式 TTS 播放器：LLM token 一到就喂入合成，首句边生成边播。
+   * 原实现等 hermes:done（LLM 全部完成）才开始合成第一句，
+   * 用户感知为「说一句话要等很久才有语音回复」。
+   */
+  const ttsStreamRef = useRef<StreamingTTSPlayer | null>(null);
 
   // 同步当前模式（通话轮次透传，使工具行为与打字聊天一致）
   useEffect(() => {
@@ -125,34 +131,42 @@ export function useVoiceCall({
     }
   }, []);
 
-  /** 合成并播放宠物语音，返回播放结束的 Promise（流式：逐句合成+顺序播，降低首音延迟） */
-  const playTts = useCallback((text: string): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!text?.trim()) {
-        resolve();
-        return;
-      }
-      const player = new StreamingTTSPlayer((audio, _sr) => {
-        return new Promise<void>((res) => {
-          const blob = new Blob([audio], { type: 'audio/wav' });
-          const url = URL.createObjectURL(blob);
-          const audioEl = new Audio(url);
-          ttsAudioRef.current = audioEl;
-          const done = () => {
-            URL.revokeObjectURL(url);
-            if (ttsAudioRef.current === audioEl) ttsAudioRef.current = null;
-            res();
-          };
-          audioEl.onended = done;
-          audioEl.onerror = done;
-          audioEl.play().catch(() => res());
-        });
+  /** 创建流式 TTS 播放器：逐句合成、顺序播放（播放结束才 resolve 当前句） */
+  const createStreamPlayer = useCallback(() => {
+    return new StreamingTTSPlayer((audio, _sr) => {
+      return new Promise<void>((res) => {
+        const blob = new Blob([audio], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const audioEl = new Audio(url);
+        ttsAudioRef.current = audioEl;
+        const done = () => {
+          URL.revokeObjectURL(url);
+          if (ttsAudioRef.current === audioEl) ttsAudioRef.current = null;
+          res();
+        };
+        audioEl.onended = done;
+        audioEl.onerror = done;
+        audioEl.play().catch(() => res());
       });
-      player.push(text);
-      player.finish();
-      player.whenDone().then(() => resolve());
     });
   }, []);
+
+  /** 合成并播放宠物语音（整段文本），返回播放结束的 Promise（流式：逐句合成+顺序播） */
+  const playTts = useCallback(
+    (text: string): Promise<void> => {
+      return new Promise((resolve) => {
+        if (!text?.trim()) {
+          resolve();
+          return;
+        }
+        const player = createStreamPlayer();
+        player.push(text);
+        player.finish();
+        player.whenDone().then(() => resolve());
+      });
+    },
+    [createStreamPlayer],
+  );
 
   /** 用当前 LLM 跑一次纯文本补全（不通工具、不渲染），返回文本 */
   const askLlmOnce = (prompt: string): Promise<string> =>
@@ -223,6 +237,9 @@ export function useVoiceCall({
       /* ignore */
     }
     recorderRef.current = null;
+    // 丢弃在途的流式合成，避免挂断后还继续出声
+    ttsStreamRef.current?.stop();
+    ttsStreamRef.current = null;
     stopTts();
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -250,7 +267,9 @@ export function useVoiceCall({
     } catch {
       /* ignore */
     }
-    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1500 });
+    // 静音超时 1s（原 1.5s）：缩短「说完话→开始识别」的固定等待；
+    // 日常语速句间停顿通常 <1s，1s 是延迟与误截断的平衡点。
+    const rec = new AudioRecorder({ sampleRate: 16000, silenceTimeout: 1000 });
     recorderRef.current = rec;
     rec.onAutoStop = async (audio: ArrayBuffer) => {
       if (!activeRef.current) return;
@@ -264,8 +283,15 @@ export function useVoiceCall({
           // 顶部刘海字幕：显示用户说的（recognized 态）
           eventBus.emit('subtitle:update', { phase: 'recognized', text });
           setCallState('speaking');
+          // 流式 TTS：播放器先建好，LLM token 一到即喂入合成，首句边生成边播
+          ttsStreamRef.current = createStreamPlayer();
           // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
-          await sendMessage(text, modeRef.current, { silent: true });
+          await sendMessage(text, modeRef.current, {
+            silent: true,
+            onToken: (token) => {
+              ttsStreamRef.current?.push(token);
+            },
+          });
           return;
         }
         // 静音超时（未检测到语音）：按节奏温柔询问；超过上限后不再重复询问，
@@ -301,7 +327,7 @@ export function useVoiceCall({
       }
       stopCallInternal();
     }
-  }, [sendMessage, setCallState, showError, stopCallInternal, playTts]);
+  }, [sendMessage, setCallState, showError, stopCallInternal, playTts, createStreamPlayer]);
 
   // startTurn 递归续听走 ref（见 startTurnRef 声明处注释）
   useEffect(() => {
@@ -381,22 +407,29 @@ export function useVoiceCall({
       if (!activeRef.current) return;
       if (stateRef.current !== 'speaking') return;
       const full = (data.fullResponse as string) || '';
-      if (!full.trim()) {
-        // 无有效回复，直接进入下一轮聆听
-        if (activeRef.current) startTurn();
-        return;
+      if (full.trim()) {
+        transcriptRef.current = [...transcriptRef.current, { role: 'assistant', text: full }];
       }
-      transcriptRef.current = [...transcriptRef.current, { role: 'assistant', text: full }];
-      void playTts(full).then(() => {
-        if (activeRef.current) startTurn();
-      });
+      // 流式合成收尾：把残留文本作为最后一句合成播放，播完再进入下一轮聆听。
+      // （token 期间已边到边播，这里不再整段重复合成）
+      const stream = ttsStreamRef.current;
+      ttsStreamRef.current = null;
+      if (stream) {
+        stream.finish();
+        void stream.whenDone().then(() => {
+          if (activeRef.current) startTurn();
+        });
+      } else if (activeRef.current) {
+        // 没有任何 token（空回复/异常）→ 直接进入下一轮聆听
+        startTurn();
+      }
     });
 
     return () => {
       offVoice();
       offDone();
     };
-  }, [playTts, startTurn]);
+  }, [startTurn]);
 
   // 卸载时清理
   useEffect(() => {
@@ -415,6 +448,8 @@ export function useVoiceCall({
       } catch {
         /* ignore */
       }
+      ttsStreamRef.current?.stop();
+      ttsStreamRef.current = null;
       stopTts();
       if (timerRef.current) clearInterval(timerRef.current);
     };
