@@ -12,7 +12,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { providerManager } from '../services/provider/manager';
-import { transcribeViaBrain } from '../services/provider/sttBackend';
+import {
+  transcribeViaBrain,
+  startStreamingSTT,
+  type StreamingSTTHandle,
+} from '../services/provider/sttBackend';
 import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
 import { getHermesGatewayClient } from '../services/hermesGateway';
 import { type SendMessageFn } from '../hooks/useHermesGateway';
@@ -127,6 +131,8 @@ export function useVoiceCall({
    * 用户感知为「说一句话要等很久才有语音回复」。
    */
   const ttsStreamRef = useRef<StreamingTTSPlayer | null>(null);
+  /** 当前轮次的流式 STT 会话句柄（边说边识别），停止时取最终结果 */
+  const sttStreamRef = useRef<StreamingSTTHandle | null>(null);
 
   // 同步当前模式（通话轮次透传，使工具行为与打字聊天一致）
   useEffect(() => {
@@ -356,6 +362,9 @@ export function useVoiceCall({
     // 丢弃在途的流式合成，避免挂断后还继续出声
     ttsStreamRef.current?.stop();
     ttsStreamRef.current = null;
+    // 关闭可能的流式 STT 会话（避免挂断后还占用 WS）
+    sttStreamRef.current?.dispose();
+    sttStreamRef.current = null;
     stopTts();
     // 清理沉默提醒定时器与打断监听
     clearInquiryTimer();
@@ -395,44 +404,76 @@ export function useVoiceCall({
     recorderRef.current = rec;
     rec.onAutoStop = async (audio: ArrayBuffer) => {
       if (!activeRef.current) return;
+      // 优先取流式识别最终结果：说话途中已边识别，停止即出，延迟最低。
+      // 流式失败/未连接时回退整段识别（transcribeViaBrain）。
+      let text: string;
       try {
-        const result = await transcribeViaBrain(audio, 'wav');
-        const text = result?.text?.trim();
-        if (text) {
-          // 用户开口：取消本段沉默提醒并重置；清除可能残留的打断跳过标志
-          clearInquiryTimer();
-          inquiryFiredRef.current = false;
-          bargeSkipDoneRef.current = false;
-          transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
-          // 顶部刘海字幕：显示用户说的（recognized 态）
-          eventBus.emit('subtitle:update', { phase: 'recognized', text });
-          setCallState('speaking');
-          // 流式 TTS：播放器先建好，LLM token 一到即喂入合成，首句边生成边播
-          ttsStreamRef.current = createStreamPlayer();
-          // 开启打断监听：AI 播报途中用户可随时插话
-          startBargeMonitor();
-          // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
-          await sendMessage(text, modeRef.current, {
-            silent: true,
-            onToken: (token) => {
-              ttsStreamRef.current?.push(token);
-            },
-          });
-          return;
-        }
-        // 空音频（静音超时，未检测到语音）：安静继续聆听，把发言权交还用户。
-        // 温柔提醒由 wall-clock 定时器（INQUIRY_DELAY_MS）统一负责，这里不连环追问。
-        if (activeRef.current) {
-          startTurnRef.current();
+        const streamRes = sttStreamRef.current ? await sttStreamRef.current.finish() : null;
+        if (streamRes && streamRes.text.trim()) {
+          text = streamRes.text.trim();
+        } else {
+          const fb = await transcribeViaBrain(audio, 'wav');
+          text = fb?.text?.trim() || '';
         }
       } catch (e) {
-        log.error('stt transcribe failed', e);
-        if (activeRef.current) startTurnRef.current();
+        log.error('stt streaming final failed, 回退整段识别', e);
+        try {
+          const fb = await transcribeViaBrain(audio, 'wav');
+          text = fb?.text?.trim() || '';
+        } catch {
+          text = '';
+        }
+      } finally {
+        // 不论成功失败都关闭流式会话，避免 WS 泄漏
+        sttStreamRef.current?.dispose();
+        sttStreamRef.current = null;
+      }
+      if (!activeRef.current) return;
+      if (text) {
+        // 用户开口：取消本段沉默提醒并重置；清除可能残留的打断跳过标志
+        clearInquiryTimer();
+        inquiryFiredRef.current = false;
+        bargeSkipDoneRef.current = false;
+        transcriptRef.current = [...transcriptRef.current, { role: 'user', text }];
+        // 顶部刘海字幕：显示用户说的（recognized 态）
+        eventBus.emit('subtitle:update', { phase: 'recognized', text });
+        setCallState('speaking');
+        // 流式 TTS：播放器先建好，LLM token 一到即喂入合成，首句边生成边播
+        ttsStreamRef.current = createStreamPlayer();
+        // 开启打断监听：AI 播报途中用户可随时插话
+        startBargeMonitor();
+        // 发到聊天管线（silent：LLM 照常跑、回复照常回传，但不落聊天历史/不渲染气泡）
+        await sendMessage(text, modeRef.current, {
+          silent: true,
+          onToken: (token) => {
+            ttsStreamRef.current?.push(token);
+          },
+        });
+        return;
+      }
+      // 空音频（静音超时，未检测到语音）：安静继续聆听，把发言权交还用户。
+      // 温柔提醒由 wall-clock 定时器（INQUIRY_DELAY_MS）统一负责，这里不连环追问。
+      if (activeRef.current) {
+        startTurnRef.current();
       }
       // 下一轮聆听由 TTS 播放结束（或异常）后触发，避免抢话
     };
     try {
       await rec.start();
+      // 启动流式 STT：边说边识别（partial 实时上字幕），停止即出最终文本。
+      // WS 不可用时返回 null，onAutoStop 会自动回退整段识别。
+      try {
+        const handle = await startStreamingSTT(rec, {
+          onPartial: (t) => {
+            if (t && activeRef.current) {
+              eventBus.emit('subtitle:update', { phase: 'recognized', text: t });
+            }
+          },
+        });
+        sttStreamRef.current = handle;
+      } catch {
+        sttStreamRef.current = null;
+      }
     } catch (e) {
       log.error('recorder start failed', e);
       const errMsg = e instanceof Error ? e.message : String(e);

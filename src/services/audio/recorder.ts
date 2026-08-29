@@ -36,6 +36,8 @@ export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  /** 连续 PCM 采集节点（ScriptProcessor），用于流式 STT 的 onAudioChunk 输出 */
+  private scriptNode: ScriptProcessorNode | null = null;
   private chunks: Blob[] = [];
   private state: RecordState = 'idle';
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -45,7 +47,8 @@ export class AudioRecorder {
   /** 静音自动停止开关：false 时由调用方主动 stop()（手动按键模式，避免停顿被误截断） */
   autoStopOnSilence = true;
   private onStateChange?: (state: RecordState) => void;
-  private onAudioChunk?: (chunk: Float32Array) => void;
+  /** 实时 PCM 回调（流式 STT 用），由 startStreamingSTT 等外部接管 */
+  onAudioChunk?: (chunk: Float32Array) => void;
   /** 静音自动停止后的音频回调；语音通话循环通过它拿到一段语音去识别 */
   onAutoStop?: (audio: ArrayBuffer) => void;
   private silenceCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -84,6 +87,10 @@ export class AudioRecorder {
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
       source.connect(this.analyser);
+
+      // 连续 PCM 采集：用 ScriptProcessorNode 取出 16k mono Float32 PCM，
+      // 经 onAudioChunk 对外流式输出（供流式 STT），与静音检测/自动停止完全解耦。
+      this.setupChunkStream(source);
 
       // 开始 MediaRecorder
       this.chunks = [];
@@ -223,6 +230,33 @@ export class AudioRecorder {
     return '';
   }
 
+  /**
+   * 连续 PCM 采集（流式 STT 用）：用 ScriptProcessorNode 从麦克风源取出 16k mono
+   * Float32 PCM，每 ~256ms 回调一次，经 onAudioChunk 对外输出。与静音检测/自动停止
+   * 完全解耦——无论 autoStopOnSilence 开关，只要录音中就会持续产出音频帧，供流式识别。
+   *
+   * 必须连到 destination（零增益）才会触发 onaudioprocess；增益设为 0 避免麦克风回放产生回声。
+   * 回调中的输入缓冲在多次调用间复用，故需拷贝为新的 Float32Array 再抛出。
+   */
+  private setupChunkStream(source: MediaStreamAudioSourceNode): void {
+    const ctx = this.audioContext;
+    if (!ctx || typeof ctx.createScriptProcessor !== 'function') return;
+    const bufferSize = 4096;
+    const node = ctx.createScriptProcessor(bufferSize, 1, 1);
+    node.onaudioprocess = (e: AudioProcessingEvent) => {
+      if (!this.onAudioChunk) return;
+      const input = e.inputBuffer.getChannelData(0);
+      // 输入缓冲会被复用，必须拷贝
+      this.onAudioChunk(new Float32Array(input));
+    };
+    source.connect(node);
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    node.connect(sink);
+    sink.connect(ctx.destination);
+    this.scriptNode = node;
+  }
+
   private startSilenceDetection(): void {
     this.resetSilenceTimer();
     this.silenceCheckTimer = setInterval(() => {
@@ -240,15 +274,6 @@ export class AudioRecorder {
 
       if (rms > this.silenceThreshold) {
         this.resetSilenceTimer();
-      }
-
-      // 实时回调
-      if (this.onAudioChunk) {
-        const float32 = new Float32Array(dataArray.length);
-        for (let i = 0; i < dataArray.length; i++) {
-          float32[i] = (dataArray[i] - 128) / 128;
-        }
-        this.onAudioChunk(float32);
       }
     }, 100);
   }
@@ -336,6 +361,14 @@ export class AudioRecorder {
   }
 
   private cleanup(): void {
+    if (this.scriptNode) {
+      try {
+        this.scriptNode.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.scriptNode = null;
+    }
     if (this.stream) {
       this.stream.getTracks().forEach((t) => t.stop());
       this.stream = null;

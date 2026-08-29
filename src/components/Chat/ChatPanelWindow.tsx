@@ -23,7 +23,11 @@ import {
 } from '../../services/chatStorage';
 import { providerManager } from '../../services/provider/manager';
 import { resolveLaunchSpec } from '../../services/provider/serviceLauncher';
-import { transcribeViaBrain } from '../../services/provider/sttBackend';
+import {
+  transcribeViaBrain,
+  startStreamingSTT,
+  type StreamingSTTHandle,
+} from '../../services/provider/sttBackend';
 import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
@@ -174,8 +178,7 @@ function ChatPanelWindow() {
       // 跨窗回传情绪：让主窗宠物的表情跟着聊天内容变化（面板自身不渲染 Live2D）
       try {
         const head = assistantText.slice(0, 80);
-        const e: EmotionType | null =
-          parseExplicitEmotion(head) ?? detectEmotionFromText(head);
+        const e: EmotionType | null = parseExplicitEmotion(head) ?? detectEmotionFromText(head);
         if (e && isTauriEnv()) {
           emit(CHAT_EMOTION_EVENT, {
             emotion: e,
@@ -289,21 +292,13 @@ function ChatPanelWindow() {
         // 写死端口会在用户使用非 Edge TTS 时误报「服务未启动」。
         const ttsCfg = providerManager.getActiveTTSConfig();
         const sttCfg = providerManager.getActiveSTTConfig();
-        const ttsPort = ttsCfg
-          ? (resolveLaunchSpec(ttsCfg.typeName, ttsCfg.launch)?.port ?? 0)
-          : 0;
-        const sttPort = sttCfg
-          ? (resolveLaunchSpec(sttCfg.typeName, sttCfg.launch)?.port ?? 0)
-          : 0;
+        const ttsPort = ttsCfg ? (resolveLaunchSpec(ttsCfg.typeName, ttsCfg.launch)?.port ?? 0) : 0;
+        const sttPort = sttCfg ? (resolveLaunchSpec(sttCfg.typeName, sttCfg.launch)?.port ?? 0) : 0;
 
         // 端口为 0 表示云端 API 型 provider（无本地进程）或未配置，
         // 这类情况不属于「本地服务未启动」，置为 null 不显示提示条。
-        const tts = ttsPort
-          ? await invoke<boolean>('check_tcp_health', { port: ttsPort })
-          : null;
-        const stt = sttPort
-          ? await invoke<boolean>('check_tcp_health', { port: sttPort })
-          : null;
+        const tts = ttsPort ? await invoke<boolean>('check_tcp_health', { port: ttsPort }) : null;
+        const stt = sttPort ? await invoke<boolean>('check_tcp_health', { port: sttPort }) : null;
 
         if (cancelled) return;
         setTtsReady(tts);
@@ -391,10 +386,8 @@ function ChatPanelWindow() {
 
   // 指向聊天窗口的命令式句柄，用于把 STT 结果回填到输入框
   const chatWindowRef = useRef<ChatWindowHandle>(null);
-  /** 录制中部分识别（实时出字）：定时器 + 代际计数（停止后丢弃在途结果） */
-  const interimTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const interimGenRef = useRef(0);
-  const interimTextRef = useRef('');
+  /** 流式 STT 会话句柄（按住说话实时出字用） */
+  const sttStreamHandleRef = useRef<StreamingSTTHandle | null>(null);
 
   const handleRecordStart = useCallback(async () => {
     const recorder = recorderRef.current;
@@ -402,30 +395,19 @@ function ChatPanelWindow() {
     try {
       await recorder.start();
 
-      // 实时出字：录制中每 2s 对「已录内容」做一次部分识别，回填输入框。
-      // 用户随时可点击停止，以 stop() 的最终识别为准。
-      interimGenRef.current += 1;
-      const gen = interimGenRef.current;
-      let busy = false;
-      interimTimerRef.current = setInterval(async () => {
-        if (busy) return; // 上一轮部分识别未完成，跳过本次
-        busy = true;
-        try {
-          const partial = await recorder.getPartialWav();
-          if (!partial) return;
-          const r = await transcribeViaBrain(partial, 'wav');
-          if (interimGenRef.current !== gen) return; // 已停止，丢弃在途结果
-          const text = r?.text?.trim() || '';
-          if (text && (!interimTextRef.current || text.length > interimTextRef.current.length)) {
-            interimTextRef.current = text;
-            chatWindowRef.current?.setDraft(text);
-          }
-        } catch {
-          /* 部分识别失败不影响录音 */
-        } finally {
-          busy = false;
-        }
-      }, 2000);
+      // 实时出字（流式 STT）：边说边识别，partial 实时回填输入框；
+      // 停止时取最终结果（说话途中已识别，停止即出，延迟最低）。
+      // WS 不可用 → handle 为 null，停止时回退整段识别。
+      try {
+        const handle = await startStreamingSTT(recorder, {
+          onPartial: (t) => {
+            if (t) chatWindowRef.current?.setDraft(t);
+          },
+        });
+        sttStreamHandleRef.current = handle;
+      } catch {
+        sttStreamHandleRef.current = null;
+      }
     } catch (err) {
       console.error('[Record] Failed to start:', err);
     }
@@ -434,91 +416,97 @@ function ChatPanelWindow() {
   const handleRecordStop = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder) return;
-    // 停止部分识别并作废在途结果
-    if (interimTimerRef.current) {
-      clearInterval(interimTimerRef.current);
-      interimTimerRef.current = null;
-    }
-    interimGenRef.current += 1;
-    interimTextRef.current = '';
+    // 取流式最终结果；无论是否拿到文本，都停止录音释放麦克风
+    const handle = sttStreamHandleRef.current;
+    sttStreamHandleRef.current = null;
+    let text = '';
     try {
-      const audio = await recorder.stop();
-      if (!audio) return;
-
-      // 优先走面板内直连 STT Provider
+      if (handle) {
+        const res = await handle.finish();
+        if (res && res.text.trim()) text = res.text.trim();
+      }
+    } catch {
+      /* 流式结束失败，下面回退 */
+    } finally {
+      handle?.dispose();
+    }
+    let audio: ArrayBuffer | null = null;
+    try {
+      audio = await recorder.stop();
+    } catch {
+      /* ignore */
+    }
+    // 流式未拿到文本 → 回退面板内直连 STT Provider（整段识别）
+    if (!text && audio) {
       try {
         const result = await transcribeViaBrain(audio, 'wav');
-        if (result) {
-          const text = result.text?.trim() || '';
-          if (text) {
-            // 把识别结果回填到输入框，用户可检查/修改后再发送
-            chatWindowRef.current?.setDraft(text);
-            return;
-          }
-        }
+        if (result) text = result.text?.trim() || '';
       } catch {
         // STT Provider 不可用，走 fallback
       }
-
-      // Fallback：浏览器 Web Speech API
-      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        try {
-          interface SpeechRecognitionEventLike {
-            results: ArrayLike<ArrayLike<{ transcript: string }>>;
-          }
-          interface SpeechRecognitionErrorEventLike {
-            error: string;
-          }
-          interface SpeechRecognitionInstance {
-            lang: string;
-            interimResults: boolean;
-            maxAlternatives: number;
-            onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-            onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-            onend: (() => void) | null;
-            start: () => void;
-            stop: () => void;
-          }
-          const win = window as unknown as {
-            webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
-            SpeechRecognition?: new () => SpeechRecognitionInstance;
-          };
-          const SpeechRecognition = win.webkitSpeechRecognition || win.SpeechRecognition;
-          if (!SpeechRecognition) throw new Error('SpeechRecognition not available');
-          const recognition = new SpeechRecognition();
-          recognition.lang = 'zh-CN';
-          recognition.interimResults = false;
-          recognition.maxAlternatives = 1;
-          const text = await new Promise<string>((resolve, reject) => {
-            recognition.onresult = (event) => {
-              const transcript = event.results[0][0].transcript;
-              resolve(transcript);
-            };
-            recognition.onerror = (event) => {
-              reject(new Error(event.error));
-            };
-            recognition.onend = () => {};
-            recognition.start();
-            setTimeout(() => {
-              recognition.stop();
-              resolve('');
-            }, 5000);
-          });
-          if (text) {
-            // 把识别结果回填到输入框，用户可检查/修改后再发送
-            chatWindowRef.current?.setDraft(text);
-            return;
-          }
-        } catch {
-          // ignore speech recognition errors
-        }
-      }
-
-      // 最终 fallback：提示用户
-      console.warn('[STT] All recognition methods failed');
-    } catch (err) {
-      console.error('[Record] Failed to stop:', err);
     }
+    if (text) {
+      // 把识别结果回填到输入框，用户可检查/修改后再发送
+      chatWindowRef.current?.setDraft(text);
+      return;
+    }
+
+    // Fallback：浏览器 Web Speech API
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      try {
+        interface SpeechRecognitionEventLike {
+          results: ArrayLike<ArrayLike<{ transcript: string }>>;
+        }
+        interface SpeechRecognitionErrorEventLike {
+          error: string;
+        }
+        interface SpeechRecognitionInstance {
+          lang: string;
+          interimResults: boolean;
+          maxAlternatives: number;
+          onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+          onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+          onend: (() => void) | null;
+          start: () => void;
+          stop: () => void;
+        }
+        const win = window as unknown as {
+          webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+          SpeechRecognition?: new () => SpeechRecognitionInstance;
+        };
+        const SpeechRecognition = win.webkitSpeechRecognition || win.SpeechRecognition;
+        if (!SpeechRecognition) throw new Error('SpeechRecognition not available');
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'zh-CN';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        const fallbackText = await new Promise<string>((resolve, reject) => {
+          recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            resolve(transcript);
+          };
+          recognition.onerror = (event) => {
+            reject(new Error(event.error));
+          };
+          recognition.onend = () => {};
+          recognition.start();
+          setTimeout(() => {
+            recognition.stop();
+            resolve('');
+          }, 5000);
+        });
+        if (fallbackText) {
+          // 把识别结果回填到输入框，用户可检查/修改后再发送
+          chatWindowRef.current?.setDraft(fallbackText);
+          return;
+        }
+      } catch {
+        // ignore speech recognition errors
+      }
+    }
+
+    // 最终 fallback：提示用户
+    console.warn('[STT] All recognition methods failed');
   }, []);
 
   // 窗口尺寸+位置持久化

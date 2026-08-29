@@ -18,6 +18,8 @@ import { providerManager } from './manager';
 import { resolveLaunchSpec } from './serviceLauncher';
 import { createLogger } from '../../utils/logger';
 import { lifecycle } from './serviceLifecycle';
+import { AudioRecorder } from '../audio/recorder';
+import { StreamingSTTClient } from '../audio/streaming-stt';
 
 const log = createLogger('STTBackend');
 
@@ -135,4 +137,61 @@ export async function switchActiveSTTBackend(
     return lifecycle.waitReady(newPort, opts?.timeoutMs ?? 30000);
   }
   return true;
+}
+
+/**
+ * 启动流式 STT 会话：建立 WebSocket 连接并把录音器的 PCM 帧推给服务端，
+ * 边说边识别（partial 经 onPartial 回调透传），停止时由调用方调用 finish() 取最终结果。
+ *
+ * 返回 null 表示 WebSocket 不可用/连接失败，调用方应回退到 transcribeViaBrain（整段识别）。
+ * 调用方负责在合适时机调用 finish() 与 dispose()。
+ */
+export interface StreamingSTTHandle {
+  /** 结束流式、返回最终结果；null 表示流式中断，调用方应回退整段识别 */
+  finish: (timeoutMs?: number) => Promise<{ text: string; emotion?: string } | null>;
+  dispose: () => void;
+}
+
+export async function startStreamingSTT(
+  recorder: AudioRecorder,
+  opts: { onPartial?: (text: string) => void; engine?: string } = {},
+): Promise<StreamingSTTHandle | null> {
+  const cfg = providerManager.getActiveSTTConfig();
+  if (!cfg) {
+    log.warn('startStreamingSTT: 无活跃 STT provider');
+    return null;
+  }
+  const provider = providerManager.getActiveSTTProvider();
+  const apiBase = provider?.config.apiBase;
+  if (!apiBase) {
+    log.warn('startStreamingSTT: provider 无 apiBase，回退整段识别');
+    return null;
+  }
+  const engine = opts.engine ?? (cfg.typeName === 'sensevoice' ? 'sensevoice' : 'funasr');
+
+  const client = new StreamingSTTClient(apiBase, engine);
+  if (opts.onPartial) client.onPartial(opts.onPartial);
+
+  try {
+    await client.connect();
+  } catch (err) {
+    log.warn('startStreamingSTT: WS 连接失败，回退整段识别', { error: String(err) });
+    client.dispose();
+    return null;
+  }
+
+  // 接管录音器的 onAudioChunk，把 PCM 帧推流（保存旧回调以便恢复）
+  const prevOnChunk = recorder.onAudioChunk;
+  recorder.onAudioChunk = (f32: Float32Array) => client.pushFloat32(f32);
+
+  return {
+    finish: async (timeoutMs = 8000) => {
+      const final = await client.end(timeoutMs);
+      return final ? { text: final.text, emotion: final.emotion } : null;
+    },
+    dispose: () => {
+      recorder.onAudioChunk = prevOnChunk;
+      client.dispose();
+    },
+  };
 }

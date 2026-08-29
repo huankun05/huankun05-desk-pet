@@ -14,6 +14,7 @@ SenseVoice: 识别文本 + 情绪标签 (happy/sad/angry/neutral)
 
 import os
 import sys
+import json
 import logging
 import argparse
 import asyncio
@@ -35,7 +36,7 @@ _TORCH_HOME = os.path.join(_SERVER_ROOT, "models", "torch_hub")
 os.makedirs(_TORCH_HOME, exist_ok=True)
 os.environ["TORCH_HOME"] = _TORCH_HOME
 
-from fastapi import FastAPI, Form, Query, UploadFile, File
+from fastapi import FastAPI, Form, Query, UploadFile, File, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -388,6 +389,181 @@ async def preload_models():
 @app.get("/engines")
 async def list_engines():
     return {"engines": ["funasr", "sensevoice"]}
+
+
+# ===== WebSocket 流式 STT =====
+
+
+def _pcm_bytes_to_wav_file(pcm: bytes) -> str:
+    """把 16k mono int16 原始 PCM 字节写成临时 WAV 文件，返回路径（调用方负责清理）。"""
+    import wave
+    import tempfile
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    tmp.close()
+    with wave.open(tmp.name, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)  # 16-bit
+        wf.setframerate(16000)
+        wf.writeframes(pcm)
+    return tmp.name
+
+
+class StreamingASR:
+    """流式 ASR 会话：边收 PCM 边定期识别，返回 partial；结束返回 final。
+
+    采用「滚动重解码」策略：每次识别都对累计的整段 PCM 做一次离线识别，
+    文本随说话不断增长（实时出字）；结束时再识别一次作为最终结果。
+    复用 /transcribe 已验证的 model.generate 调用，与 FunASR 版本无关，不会回归。
+    """
+
+    # 最小有效音频长度（0.3s = 4800 样本 = 9600 字节），过短不做识别（噪音/空音频）
+    MIN_PCM_BYTES = 4800 * 2
+
+    def __init__(self, engine: str = "funasr"):
+        self.engine = engine if engine in ("funasr", "sensevoice") else "funasr"
+        self.pcm = bytearray()
+        self.last_text = ""
+        self.last_emotion = None
+        self._new = False
+        self._decoding = False
+
+    def add_chunk(self, chunk: bytes) -> None:
+        self.pcm += chunk
+        self._new = True
+
+    def has_new_audio(self) -> bool:
+        return self._new and len(self.pcm) >= self.MIN_PCM_BYTES
+
+    def _recognize_once(self):
+        if len(self.pcm) < self.MIN_PCM_BYTES:
+            return self.last_text, self.last_emotion
+        wav_path = _pcm_bytes_to_wav_file(bytes(self.pcm))
+        try:
+            if self.engine == "sensevoice":
+                return self._run_sensevoice(wav_path)
+            return self._run_funasr(wav_path), None
+        except Exception as e:  # noqa: BLE001
+            log.warning("StreamingASR recognize failed: %s", e)
+            return self.last_text, self.last_emotion
+        finally:
+            try:
+                os.unlink(wav_path)
+            except OSError:
+                pass
+
+    def _run_funasr(self, wav_path: str) -> str:
+        model = get_funasr_model()
+        if model is None:
+            return self.last_text
+        res = model.generate(input=wav_path)
+        if res and len(res) > 0:
+            text = res[0].get("text", "")
+            if text:
+                self.last_text = text
+            return self.last_text
+        return self.last_text
+
+    def _run_sensevoice(self, wav_path: str):
+        import re
+
+        model = get_sensevoice_model()
+        if model is None:
+            return self.last_text, self.last_emotion
+        res = model.generate(input=wav_path, language="auto", use_itn=True)
+        if res and len(res) > 0:
+            raw_text = res[0].get("text", "")
+            emotion = "neutral"
+            m = re.search(r"<\|(\w+)\|>", raw_text)
+            if m:
+                emotion = {"happy": "happy", "sad": "sad", "angry": "angry"}.get(
+                    m.group(1).lower(), "neutral"
+                )
+                text = re.sub(r"<\|\w+\|>", "", raw_text).strip()
+            else:
+                text = raw_text.strip()
+            if text:
+                self.last_text = text
+                self.last_emotion = emotion
+            return self.last_text, self.last_emotion
+        return self.last_text, self.last_emotion
+
+    def recognize_partial(self):
+        if self._decoding:
+            return self.last_text, self.last_emotion
+        self._decoding = True
+        try:
+            return self._recognize_once()
+        finally:
+            self._decoding = False
+            self._new = False
+
+    def recognize_final(self):
+        self._new = True
+        return self.recognize_partial()
+
+
+@app.websocket("/ws/transcribe")
+async def ws_transcribe(websocket: WebSocket):
+    """流式语音识别 WebSocket。
+
+    协议：
+      - 客户端先发一条 JSON 初始化：{"engine": "funasr" | "sensevoice"}（默认 funasr）
+      - 之后持续发送二进制帧（16k mono int16 PCM）
+      - 服务端每 ~0.3s 对累计音频做一次识别，回传 {"type":"partial","text":...}
+      - 客户端发 {"action":"end"} 或断开，服务端回传 {"type":"final","text":...,"emotion":...} 后关闭
+
+    若 WS 不可用，前端会回退到 /transcribe 整段识别（本端点失败不影响既有能力）。
+    """
+    await websocket.accept()
+    asr = StreamingASR("funasr")
+    running = True
+    log.info("WS transcribe: client connected")
+
+    async def recognize_loop():
+        while running:
+            await asyncio.sleep(0.3)
+            if not asr.has_new_audio():
+                continue
+            try:
+                text, _emotion = await asyncio.to_thread(asr.recognize_partial)
+                if text:
+                    await websocket.send_json({"type": "partial", "text": text})
+            except Exception as e:  # noqa: BLE001
+                log.warning("WS streaming partial failed: %s", e)
+
+    loop_task = asyncio.create_task(recognize_loop())
+    try:
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message.get("bytes") is not None:
+                asr.add_chunk(message["bytes"])
+            elif message.get("text") is not None:
+                try:
+                    payload = json.loads(message["text"])
+                except Exception:
+                    continue
+                if payload.get("engine") and asr.pcm == bytearray():
+                    # 仅当尚未收到音频时允许切换引擎（避免丢帧）
+                    asr = StreamingASR(payload["engine"])
+                if payload.get("action") == "end":
+                    text, emotion = await asyncio.to_thread(asr.recognize_final)
+                    await websocket.send_json(
+                        {"type": "final", "text": text, "emotion": emotion}
+                    )
+                    break
+    except Exception as e:  # noqa: BLE001
+        log.warning("WS transcribe closed with error: %s", e)
+    finally:
+        running = False
+        loop_task.cancel()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+        log.info("WS transcribe: client disconnected")
 
 
 # ===== 模型状态与下载 =====

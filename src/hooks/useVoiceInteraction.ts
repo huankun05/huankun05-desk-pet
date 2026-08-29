@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioRecorder } from '../services/audio/recorder';
 import { audioPlayer } from '../services/audio/player';
 import { providerManager } from '../services/provider/manager';
-import { transcribeViaBrain } from '../services/provider/sttBackend';
+import {
+  transcribeViaBrain,
+  startStreamingSTT,
+  type StreamingSTTHandle,
+} from '../services/provider/sttBackend';
 import { setMouthOpenY } from '../lib/live2d';
 import { useVADInteraction } from './useVADInteraction';
 import { createLogger } from '../utils/logger';
@@ -41,6 +45,7 @@ export function useVoiceInteraction({
     () => providerManager.getActiveSTTProvider() !== null,
   );
   const recorderRef = useRef<AudioRecorder | null>(null);
+  const sttStreamHandleRef = useRef<StreamingSTTHandle | null>(null);
   const vadInterruptRef = useRef<(() => void) | null>(null);
   const recordingModeRef = useRef<'idle' | 'manual' | 'auto'>('idle');
 
@@ -99,6 +104,13 @@ export function useVoiceInteraction({
     try {
       recordingModeRef.current = 'manual';
       await recorder.start();
+      // 启动流式 STT：边说边识别，停止即出最终文本；WS 不可用时 handle 为 null，停止时回退整段识别。
+      try {
+        const handle = await startStreamingSTT(recorder);
+        sttStreamHandleRef.current = handle;
+      } catch {
+        sttStreamHandleRef.current = null;
+      }
     } catch (err) {
       recordingModeRef.current = 'idle';
       log.error('Record start failed', err);
@@ -110,21 +122,48 @@ export function useVoiceInteraction({
     if (!recorder) return;
     if (recordingModeRef.current !== 'manual') return;
     try {
-      const audio = await recorder.stop();
       recordingModeRef.current = 'idle';
-      if (!audio) return;
-
-      const result = await transcribeViaBrain(audio, 'wav');
-      if (!result) {
-        log.warn('No active STT provider');
-        return;
-      }
-      if (result.text.trim()) {
-        log.info('STT result', { text: result.text.slice(0, 50), emotion: result.emotion });
-        if (result.emotion) {
-          onUpdateFromVoice(result.text, result.emotion);
+      let text = '';
+      let emotion: string | undefined;
+      // 优先取流式最终结果（说话途中已边识别，停止即出，延迟最低）
+      const handle = sttStreamHandleRef.current;
+      sttStreamHandleRef.current = null;
+      if (handle) {
+        try {
+          const res = await handle.finish();
+          if (res && res.text.trim()) {
+            text = res.text.trim();
+            emotion = res.emotion;
+          }
+        } catch {
+          /* 流式结束失败，下面回退 */
+        } finally {
+          handle.dispose();
         }
-        onSendMessage(result.text.trim());
+      }
+      // 停止录音释放麦克风
+      let audio: ArrayBuffer | null = null;
+      try {
+        audio = await recorder.stop();
+      } catch {
+        /* ignore */
+      }
+      // 流式未拿到文本 → 回退整段识别
+      if (!text && audio) {
+        const result = await transcribeViaBrain(audio, 'wav');
+        if (result?.text?.trim()) {
+          text = result.text.trim();
+          emotion = result.emotion;
+        }
+      }
+      if (text) {
+        log.info('STT result', { text: text.slice(0, 50), emotion });
+        if (emotion) {
+          onUpdateFromVoice(text, emotion);
+        }
+        onSendMessage(text);
+      } else {
+        log.warn('No active STT provider / empty result');
       }
     } catch (err) {
       recordingModeRef.current = 'idle';
