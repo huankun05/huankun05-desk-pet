@@ -4,6 +4,7 @@ import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import { emit, listen } from '@tauri-apps/api/event';
+import { listenStrictSafe } from './utils/tauriListen';
 import i18n from './i18n';
 import { Live2DViewer } from './components/Pet/Live2DViewer';
 import { ChatBubble } from './components/Bubble/ChatBubble';
@@ -142,15 +143,18 @@ function MainPetApp() {
   // 设置窗口修改「服务监控 / 离线模式」时，实时同步到主窗口实例（两窗 webview 内存独立）
   useEffect(() => {
     if (!isTauriEnv()) return;
-    const unlisteners: (() => void)[] = [];
-    listen<boolean>('watchdog-toggle', (e) => {
+    // listenStrictSafe：StrictMode 双挂载下仍保证 listener 只存活一个
+    const unlistenWatchdog = listenStrictSafe<boolean>('watchdog-toggle', (e) => {
       settingsStorage.set({ watchdogEnabled: e.payload });
       setWatchdogOn(e.payload);
-    }).then((u) => unlisteners.push(u));
-    listen<boolean>('offline-toggle', (e) => {
+    });
+    const unlistenOffline = listenStrictSafe<boolean>('offline-toggle', (e) => {
       settingsStorage.set({ offlineMode: e.payload });
-    }).then((u) => unlisteners.push(u));
-    return () => unlisteners.forEach((u) => u());
+    });
+    return () => {
+      unlistenWatchdog();
+      unlistenOffline();
+    };
   }, []);
 
   const emotionCtxRef = useRef<EmotionState | null>(null);
@@ -491,19 +495,9 @@ function MainPetApp() {
   // 监听托盘菜单发出的 open-settings 事件
   useEffect(() => {
     if (!isTauriEnv()) return;
-    let unlisten: (() => void) | undefined;
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('open-settings', () => {
-        openSettingsPanel();
-      })
-        .then((u) => {
-          unlisten = u;
-        })
-        .catch(() => {});
+    return listenStrictSafe('open-settings', () => {
+      openSettingsPanel();
     });
-    return () => {
-      unlisten?.();
-    };
   }, [openSettingsPanel]);
 
   // 启动时初始化持久化存储，恢复并应用系统设置（语言/窗口置顶/关闭行为/托盘左键）
@@ -1059,8 +1053,7 @@ function MainPetApp() {
   // 让球始终可见（无碰撞，球可以自由停在角色旁边或之上）。
   useEffect(() => {
     if (!isTauriEnv()) return;
-    let unlisten: (() => void) | undefined;
-    listen('tray:reset-orb', async () => {
+    return listenStrictSafe('tray:reset-orb', async () => {
       try {
         const controls = await WebviewWindow.getByLabel('controls').catch(() => null);
         if (!controls) return;
@@ -1081,14 +1074,7 @@ function MainPetApp() {
       } catch {
         /* ignore */
       }
-    })
-      .then((u) => {
-        unlisten = u;
-      })
-      .catch(() => {});
-    return () => {
-      unlisten?.();
-    };
+    });
   }, []);
 
   // 跨窗通信：接收悬浮球窗口的动作并派发到本地 handler
@@ -1120,8 +1106,9 @@ function MainPetApp() {
   });
   useEffect(() => {
     if (!isTauriEnv()) return;
-    let unlisten: (() => void) | undefined;
-    listen<ControlsActionPayload>('controls:action', (e) => {
+    // listenStrictSafe：StrictMode 双挂载下保证 listener 只存活一个——
+    // 否则同一事件被处理两次，toggle 类按钮「点了没反应」（处理两次=回到原位）
+    return listenStrictSafe<ControlsActionPayload>('controls:action', (e) => {
       const a = e.payload;
       const h = controlsHandlersRef.current;
       console.log('[MainPetApp] received controls:action ->', a.type, a);
@@ -1156,14 +1143,7 @@ function MainPetApp() {
           if (a.payload) h.switchModel(a.payload);
           break;
       }
-    })
-      .then((u) => {
-        unlisten = u;
-      })
-      .catch(() => {});
-    return () => {
-      unlisten?.();
-    };
+    });
   }, []);
 
   // 跨窗通信：状态变更时把最新快照广播给悬浮球窗口
@@ -1190,8 +1170,7 @@ function MainPetApp() {
   // 跨窗通信：悬浮球窗口挂载后请求一次当前状态，立即回发
   useEffect(() => {
     if (!isTauriEnv()) return;
-    let unlisten: (() => void) | undefined;
-    listen<null>('controls:request-state', () => {
+    return listenStrictSafe<null>('controls:request-state', () => {
       const payload: ControlsStatePayload = {
         petVisible: appearance.petVisible,
         isLocked,
@@ -1201,14 +1180,7 @@ function MainPetApp() {
         availableModels,
       };
       emit('controls:state', payload).catch(() => {});
-    })
-      .then((u) => {
-        unlisten = u;
-      })
-      .catch(() => {});
-    return () => {
-      unlisten?.();
-    };
+    });
   }, [
     appearance.petVisible,
     isLocked,

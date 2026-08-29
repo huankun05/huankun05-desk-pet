@@ -25,13 +25,22 @@ export type TtsPlayFn = (audio: ArrayBuffer, sampleRate: number) => void | Promi
 
 /** 整句边界：到此处才切句（保证标点完整、语气自然）。
  *
- * ⚠️ 不再从句级提前切分（曾按「，、：」切 ≥5 字的从句）——实测对 CosyVoice 是反优化：
- * CosyVoice 每次独立合成都有 2~5s 的首块延迟，从句切得越碎 → 独立合成次数越多 →
- * 句间全是「上一句播完等下一句首块」的静音间隙，听感「卡顿 / 没说完就被切掉」。
- * 只按句末标点切整句：整段回复通常 1~3 句，首块延迟只承担少数几次，
- * 且「句 N 播放时句 N+1 已在后台合成」的重叠窗口足够，听感连贯。
+ * ⚠️ 不从句级提前切分、也不遇标点就切：CosyVoice 每次独立合成（无论句子长短）
+ * 都有 ~2.5~3.5s 的首块固定成本。切得越碎 → 合成次数越多 → 句间全是「上句播完等
+ * 下句首块」的静音间隙，听感「卡顿 / 没说完就被切掉」。
+ * 采用长度分级：
+ *  - 超短句（≤SHORT_IMMEDIATE 字，含标点）立即切：如「好的」「嗯」，多为完整回应，
+ *    LLM 输出快，等下去无收益；
+ *  - 短句（SHORT_IMMEDIATE+1 ~ MIN_SENTENCE_LEN-1）暂不切，继续缓冲与后续内容
+ *    合并成一次合成（如「嗯...被摸头了。今天有点累...」合并为 26 字一次合成）；
+ *  - 长句（≥MIN_SENTENCE_LEN）遇句末标点切，保证每次合成内容足够、播放时间
+ *    长于下一句的首块延迟，句间无缝。
  */
 const SENTENCE_END = /[。！？!?；;\n]/;
+/** 超短句阈值：≤此长度（含标点）立即切句 */
+const SHORT_IMMEDIATE = 6;
+/** 最小合成长度：缓冲累计到该长度且遇句末标点才切（低于此长度的短句继续缓冲合并） */
+const MIN_SENTENCE_LEN = 12;
 
 export class StreamingTTSPlayer {
   private buffer = '';
@@ -70,9 +79,12 @@ export class StreamingTTSPlayer {
   }
 
   /**
-   * 从缓冲中切出可合成的句子：
-   * - 只在整句边界（SENTENCE_END：。！？!?；;\n）切句，保证标点完整、语气自然；
-   * - 未到整句边界则等待更多 token（不做从句级提前切分，见 SENTENCE_END 注释）。
+   * 从缓冲中切出可合成的句子（长度分级，见 SENTENCE_END 注释）：
+   * - 超短句（≤SHORT_IMMEDIATE）遇句末标点立即切（完整回应，等下去无收益）；
+   * - 中等长度短句（<MIN_SENTENCE_LEN）继续缓冲，与后续内容合并成一次合成，
+   *   避免短句独立合成的固定首块成本；
+   * - 长句（≥MIN_SENTENCE_LEN）遇句末标点切，合成内容足够长、播放时间覆盖
+   *   下一句的首块延迟。
    * 句子之间严格按顺序入队，保证播放顺序不串台。
    */
   private extractSentences(): void {
@@ -88,7 +100,14 @@ export class StreamingTTSPlayer {
 
   /** 返回下一个应切句的边界下标；无则 -1 */
   private nextBoundary(): number {
-    return this.buffer.search(SENTENCE_END);
+    const idx = this.buffer.search(SENTENCE_END);
+    if (idx < 0) return -1;
+    const len = idx + 1; // 含标点的缓冲长度
+    // 超短句（≤6 字）立即切：完整回应，LLM 输出快，等下去无收益
+    if (len <= SHORT_IMMEDIATE) return idx;
+    // 短句（7~11 字）继续缓冲，与后续内容合并成一次合成
+    if (len < MIN_SENTENCE_LEN) return -1;
+    return idx;
   }
 
   private drain(): void {
