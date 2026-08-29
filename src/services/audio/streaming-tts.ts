@@ -1,19 +1,19 @@
 /**
- * StreamingTTSPlayer — 流式 TTS 渐进式播放器
+ * StreamingTTSPlayer — 流式 TTS 播放器（逐句收齐再播）
  *
- * 设计目标：边生成边播，降低「首音延迟 (TTFA)」，让多句回复更快出声。
+ * 设计目标：播放过程连续不卡顿，多句回复有序出声。
  * - push(text)：喂入流式增量文本；按句末标点切整句，逐句送合成（不做从句级切分，
  *   CosyVoice 每次合成首块 2~5s，切碎会增加句间间隙，反而更卡）。
- * - 合成与播放重叠：句子 N 正在播放时，句子 N+1 已在后台合成。
+ * - **逐句收齐再播**：每句通过 synthesizeStreamViaBrain 收集该句的全部 chunk 后，
+ *   才一次性推入播放队列。整句音频完整 → 播放过程 100% 连续（无 chunk 间隙）。
+ *   ⚠️ 这是关键决策：本地模型（CosyVoice V3，RTF≈1.7~2.5）合成慢于播放，
+ *   「边合成边播」会让任意句子播到一半音频耗尽 → 卡顿（实测 22 字 RTF≈2.5）。
+ *   整句收齐再播，首音延迟 = 该句合成时间（3~6s），换取播放全程流畅——与
+ *   「整段合成完再播」的旧版体验一致（用户实测旧版流畅、新版卡顿）。
+ * - 合成与播放流水线：句子 N 合成收齐推入后开始播放，同时句子 N+1 在后台合成
+ *   （processQueue 不等待播放完成），多句回复句间尽量无缝。
  * - finish()：标记流式结束，把残留片段作为最后一句合成播放。
  * - whenDone()：Promise，全部合成并播放完毕时 resolve（供「播完才下一轮」场景）。
- *
- * 关键改进（通话延迟专项）：
- * 本播放器现在通过 synthesizeStreamViaBrain 消费「流式合成」——
- * 支持流式合成的引擎（CosyVoice / Edge）会边合成边 yield 音频块，
- * 首块到达即播放，把通话里「说一句 → 等整段合成完 → 才出声」的 4~7s 等待，
- * 压缩到「首块到达即可出声」（CosyVoice 实测约 3s）。
- * 句子之间严格按顺序串行合成，保证多句回复的播放顺序不串台。
  */
 
 import { createLogger } from '../../utils/logger';
@@ -41,14 +41,6 @@ const SENTENCE_END = /[。！？!?；;\n]/;
 const SHORT_IMMEDIATE = 6;
 /** 最小合成长度：缓冲累计到该长度且遇句末标点才切（低于此长度的短句继续缓冲合并） */
 const MIN_SENTENCE_LEN = 12;
-/**
- * jitter buffer 目标音频字节数（24kHz / 16bit / mono = 48000 B/s）≈ 1.2s。
- *
- * CosyVoice 本地推理实际 RTF≈2（生成 1s 音频约需 2s，chunk 间隔 > chunk 时长），
- * 若 chunk 即到即播会频繁「播完等下一块」→ 卡顿。攒够 buffer 再开播可平滑停顿，
- * 代价是首字延迟增加约 1.2s；合成全部完成（finalFlush）时强制开播，短句不受影响。
- */
-const JITTER_BUFFER_BYTES = 48000 * 1.2;
 
 export class StreamingTTSPlayer {
   private buffer = '';
@@ -56,10 +48,6 @@ export class StreamingTTSPlayer {
   private playing = false;
   private finished = false;
   private active = true;
-  /** jitter buffer 是否已开播；合成全部完成（finalFlush）时跳过等待强制开播 */
-  private started = false;
-  /** 所有句子已合成完成：即使 buffer 不足也开播（避免短句永远等不到） */
-  private finalFlush = false;
   /**
    * 熔断标志：任一句合成未产出任何音频（后端不可用 / 无 provider）后，
    * 后续句子直接跳过。否则每个句子都会各自触发一次后端就绪轮询，
@@ -140,50 +128,43 @@ export class StreamingTTSPlayer {
       // return 以免触发 no-unsafe-finally）
       if (this.active && !this.failed && this.sentenceQueue.length > 0) {
         void this.processQueue();
-      } else if (this.finished && this.sentenceQueue.length === 0) {
-        // 所有句子合成完成：允许 pump 跳过 jitter buffer 强制开播（短句不用等攒够）
-        this.finalFlush = true;
-        this.pump();
       }
     }
   }
 
-  /** 流式合成单句：边 yield 边推入播放队列（首块到达即出声），串行保证顺序 */
+  /**
+   * 合成单句：收集该句的**全部** chunk 后一次性推入播放队列（整句音频完整 →
+   * 播放过程连续无 chunk 间隙，即使合成 RTF>1 也不卡顿）。
+   * 句子之间串行合成（保证顺序），但 processQueue 不等待播放完成——
+   * 句 N 开始播放时句 N+1 已在后台合成（流水线，句间尽量无缝）。
+   */
   private async synthesizeSentence(sentence: string): Promise<void> {
     const opts = this.emotion ? { emotion: this.emotion } : undefined;
-    let yielded = 0;
+    const parts: { audio: ArrayBuffer; sampleRate: number }[] = [];
     try {
       for await (const chunk of synthesizeStreamViaBrain(sentence, opts)) {
         if (!this.active) break;
-        yielded += 1;
-        this.readyQueue.push(chunk);
-        this.pump();
+        parts.push(chunk);
       }
     } catch (e) {
       log.warn('sentence synthesis failed', e);
     }
+    if (!this.active) return;
     // 整句未产出任何音频 → 后端不可用，熔断本轮剩余句子，避免 N× 超时等待
-    if (this.active && yielded === 0) {
+    if (parts.length === 0) {
       this.failed = true;
       log.warn('TTS 后端不可用，熔断本轮剩余句子的合成');
+      return;
     }
+    // 整句收齐：chunk 依次推入（同句音频连续，pump 会无缝播完），随后开播
+    this.readyQueue.push(...parts);
+    this.pump();
   }
 
   private pump(): void {
     if (!this.active || this.playing) return;
-    // jitter buffer：合成未完成时攒够 ~1.2s 音频再开播，平滑服务端 chunk 间隙；
-    // finalFlush（全部合成完）或 buffer 耗尽重攒后仍需满足条件
-    if (!this.started && !this.finalFlush) {
-      const buffered = this.readyQueue.reduce((s, c) => s + c.audio.byteLength, 0);
-      if (buffered < JITTER_BUFFER_BYTES) return;
-      this.started = true;
-    }
     const next = this.readyQueue.shift();
-    if (!next) {
-      // buffer 耗尽：若合成未完成则重新攒 buffer，避免后续继续卡顿
-      if (!this.finalFlush) this.started = false;
-      return;
-    }
+    if (!next) return;
     this.playing = true;
     Promise.resolve(this.playFn(next.audio, next.sampleRate)).finally(() => {
       this.playing = false;
@@ -220,7 +201,5 @@ export class StreamingTTSPlayer {
     this.readyQueue = [];
     this.buffer = '';
     this.sentenceQueue = [];
-    this.started = false;
-    this.finalFlush = false;
   }
 }
