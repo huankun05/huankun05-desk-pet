@@ -160,6 +160,51 @@ export function isValidSpeechText(text: string): boolean {
 }
 
 /**
+ * 语音识别结果智能润色：用活跃 Chat LLM 纠正同音错字、去掉重复表达，并结合上下文
+ * 理解意图（如 AI 工具语境下的 "cloud" 应纠正为 "claude"）。
+ *
+ * 参考主流语音输入产品（讯飞输入法智能纠错 / Azure Speech 后处理 / Whisper 客户端）
+ * 的一致做法：识别文本 → 轻量 LLM/规则后处理 → 语义修正。本函数失败/超时返回原文，
+ * 不阻塞主链路；仅在调用方确认开关开启后调用。
+ *
+ * @param text 待润色的识别文本
+ * @param context 最近对话上下文（用户消息，供理解专有名词/话题）
+ */
+export async function polishSTTText(text: string, context?: string[]): Promise<string> {
+  const t = (text || '').trim();
+  if (!t) return text;
+  const chatProvider = providerManager.getActiveChatProvider();
+  if (!chatProvider) {
+    log.debug('polishSTTText: 无活跃 Chat Provider，返回原文');
+    return text;
+  }
+  const ctxBlock =
+    context && context.length > 0
+      ? `\n最近对话上下文（仅用于理解话题与专有名词）：\n${context.slice(-6).join('\n')}`
+      : '';
+  const prompt = `你是语音识别后处理助手。语音识别出的文本可能有同音错字、断句错误、重复词。请纠正为最可能的正确表达：
+1. 保持原意、语气与口语感，不扩写、不缩写、不改写内容
+2. 专有名词结合上下文纠正（例如 AI 工具语境下的 "cloud" 应为 "claude"）
+3. 去掉明显的重复表达（如"嗯嗯""好的好的"保留单次即可）
+4. 只输出纠正后的文本本身，不要任何解释、引号或前后缀
+${ctxBlock}
+
+待纠正文本：
+${t}`;
+  try {
+    const result = await chatProvider.chat(
+      [{ role: 'system', content: prompt }],
+      { temperature: 0.3, maxTokens: 300 },
+    );
+    const cleaned = (result || '').trim();
+    return cleaned && cleaned.length >= 1 ? cleaned : text;
+  } catch (err) {
+    log.warn('polishSTTText 失败，返回原文', { error: String(err) });
+    return text;
+  }
+}
+
+/**
  * 启动流式 STT 会话：建立 WebSocket 连接并把录音器的 PCM 帧推给服务端，
  * 边说边识别（partial 经 onPartial 回调透传），停止时由调用方调用 finish() 取最终结果。
  *

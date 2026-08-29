@@ -6,10 +6,12 @@ import {
   transcribeViaBrain,
   startStreamingSTT,
   isValidSpeechText,
+  polishSTTText,
   type StreamingSTTHandle,
 } from '../services/provider/sttBackend';
 import { setMouthOpenY } from '../lib/live2d';
 import { useVADInteraction } from './useVADInteraction';
+import { loadInteractionConfig } from '../settings/pages/models/interactionConfig';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceInteraction');
@@ -161,6 +163,17 @@ export function useVoiceInteraction({
       if (text && !isValidSpeechText(text)) {
         log.info('STT 结果疑似噪音，忽略', { text });
         text = '';
+      }
+      // 智能润色（开关开启时）：LLM 纠正同音错字、结合上下文理解
+      if (text) {
+        try {
+          if (loadInteractionConfig().enableSTTPolish === 1) {
+            const polished = await polishSTTText(text);
+            if (polished && polished.trim()) text = polished.trim();
+          }
+        } catch {
+          /* 润色失败用原文 */
+        }
       }
       if (text) {
         log.info('STT result', { text: text.slice(0, 50), emotion });

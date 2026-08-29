@@ -16,6 +16,7 @@ import {
   transcribeViaBrain,
   startStreamingSTT,
   isValidSpeechText,
+  polishSTTText,
   type StreamingSTTHandle,
 } from '../services/provider/sttBackend';
 import { StreamingTTSPlayer } from '../services/audio/streaming-tts';
@@ -23,6 +24,7 @@ import { getHermesGatewayClient } from '../services/hermesGateway';
 import { type SendMessageFn } from '../hooks/useHermesGateway';
 import { eventBus } from '../services/eventBus';
 import { createCallSummary } from '../services/callSummaries';
+import { loadInteractionConfig } from '../settings/pages/models/interactionConfig';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('VoiceCall');
@@ -440,6 +442,24 @@ export function useVoiceCall({
         sttStreamRef.current = null;
       }
       if (!activeRef.current) return;
+      // 智能润色（开关开启时）：LLM 纠正同音错字、去掉重复表达、结合上下文理解
+      if (text) {
+        try {
+          if (loadInteractionConfig().enableSTTPolish === 1) {
+            const ctx = transcriptRef.current
+              .filter((turn) => turn.role === 'user')
+              .slice(-6)
+              .map((turn) => turn.text);
+            const polished = await polishSTTText(text, ctx);
+            if (polished && polished.trim()) {
+              log.info('STT 润色', { from: text.slice(0, 40), to: polished.slice(0, 40) });
+              text = polished.trim();
+            }
+          }
+        } catch {
+          /* 润色失败用原文 */
+        }
+      }
       if (text) {
         // 用户开口：取消本段沉默提醒并重置；清除可能残留的打断跳过标志
         clearInquiryTimer();

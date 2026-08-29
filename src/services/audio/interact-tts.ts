@@ -161,8 +161,12 @@ export class InteractTTS {
     const active = enabled ? providerManager.getActiveTTSProvider() : null;
     const activeId = active?.config.id ?? null;
 
-    // 热插拔检测：之前已绑定某模型，现在活跃模型变了 → 重置
-    if (this.lastProviderId !== null && activeId !== this.lastProviderId) {
+    // 热插拔检测：仅当「上一个已绑定模型」与「当前活跃模型」都非空且不同时才重置。
+    // ⚠️ 服务重启 / 暂时不可用时 getActiveTTSProvider() 会返回 null（health 探测失败），
+    //    若把 null 误判为「模型切换」会 clearCache() 清空全部预制语音缓存 →
+    //    每次 TTS 服务重启后都反复重新编制。故 activeId 为 null 时既不重置也不覆盖
+    //    lastProviderId，等服务恢复后再按真实切换判断。
+    if (this.lastProviderId !== null && activeId !== null && activeId !== this.lastProviderId) {
       log.info('检测到活跃 TTS 模型变化，重置 InteractTTS', {
         from: this.lastProviderId,
         to: activeId,
@@ -171,7 +175,7 @@ export class InteractTTS {
       this.clearCache(); // 清掉旧模型音频，避免切换后还播放旧声音
       this.initialized = false;
     }
-    this.lastProviderId = activeId;
+    if (activeId !== null) this.lastProviderId = activeId;
 
     // 状态未变且已初始化：跳过（除非已启用但 provider 还没拿到，需重试）
     if (this.initialized && this.lastEnabled === enabled) {

@@ -27,10 +27,12 @@ import {
   transcribeViaBrain,
   startStreamingSTT,
   isValidSpeechText,
+  polishSTTText,
   type StreamingSTTHandle,
 } from '../../services/provider/sttBackend';
 import { useHermesGateway, type SendMessageFn } from '../../hooks/useHermesGateway';
 import { useVoiceCall } from '../../hooks/useVoiceCall';
+import { loadInteractionConfig } from '../../settings/pages/models/interactionConfig';
 import { useRagPersistence } from '../../hooks/useRagPersistence';
 import { BUILTIN_COMMANDS } from '../../hooks/useSlashCommands';
 import { registerGatewayToolExecutor } from '../../services/tools/executor';
@@ -451,6 +453,17 @@ function ChatPanelWindow() {
     if (text && !isValidSpeechText(text)) {
       console.warn('[STT] 结果疑似噪音，忽略', text);
       text = '';
+    }
+    // 智能润色（开关开启时）：LLM 纠正同音错字、结合上下文理解
+    if (text) {
+      try {
+        if (loadInteractionConfig().enableSTTPolish === 1) {
+          const polished = await polishSTTText(text);
+          if (polished && polished.trim()) text = polished.trim();
+        }
+      } catch {
+        /* 润色失败用原文 */
+      }
     }
     if (text) {
       // 追加式回填最终结果（替换语音起点后的内容），并结束本次语音输入会话

@@ -6,11 +6,14 @@ export interface InteractionConfig {
   clickCooldownMs: number;
   /** 是否启用预制台词 TTS */
   enableInteractTTS: number;
+  /** 是否启用语音识别智能润色（LLM 纠正同音错字 + 结合上下文理解） */
+  enableSTTPolish: number;
 }
 
 export const DEFAULT_INTERACTION_CONFIG: InteractionConfig = {
   clickCooldownMs: 3000,
   enableInteractTTS: 0,
+  enableSTTPolish: 0,
 };
 
 /** 读取交互配置 */
