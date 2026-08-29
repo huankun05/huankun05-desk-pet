@@ -35,7 +35,7 @@ _TORCH_HOME = os.path.join(_SERVER_ROOT, "models", "torch_hub")
 os.makedirs(_TORCH_HOME, exist_ok=True)
 os.environ["TORCH_HOME"] = _TORCH_HOME
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, Form, Query, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -143,6 +143,21 @@ _loading_funasr = False
 _loading_sensevoice = False
 
 
+def _resolve_model_path(model_id: str, local_dirname: str) -> str:
+    """优先使用本地已下载的模型目录，仅在缺失时回退到 modelscope id。
+
+    背景：modelscope 在 MODELSCOPE_OFFLINE=1 下按 model id 加载时，会对快照元数据
+    做额外校验，已手工下载到 models/asr/iic/<local_dirname> 的模型会被判定为缺失，
+    报 `Download: <id> failed!: 'NoneType' object is not iterable`（SenseVoice 复现）。
+    直接传本地绝对路径可完全绕过该校验，既免联网也能显著加快加载。
+    """
+    local = os.path.join(_MODELS_DIR, "iic", local_dirname)
+    if os.path.isdir(local):
+        log.info("Using local model dir: %s", local)
+        return local
+    return model_id
+
+
 def _get_torch_device():
     """检测最佳设备，优先 CUDA 但限制显存占用"""
     import torch
@@ -173,9 +188,16 @@ def get_funasr_model():
             log.info("FunASR using device: %s", device)
 
             _funasr_model = AutoModel(
-                model="paraformer-zh-streaming",
-                vad_model="fsmn-vad",
-                punc_model="ct-punc",
+                model=_resolve_model_path(
+                    "paraformer-zh-streaming",
+                    "speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+                ),
+                vad_model=_resolve_model_path(
+                    "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                ),
+                punc_model=_resolve_model_path(
+                    "ct-punc", "punc_ct-transformer_cn-en-common-vocab471067-large"
+                ),
                 disable_update=True,
                 device=device,
                 # ncpu=4 限制 CPU 线程数，减少资源争抢
@@ -205,7 +227,7 @@ def get_sensevoice_model():
             log.info("SenseVoice using device: %s", device)
 
             _sensevoice_model = AutoModel(
-                model="iic/SenseVoiceSmall",
+                model=_resolve_model_path("iic/SenseVoiceSmall", "SenseVoiceSmall"),
                 disable_update=True,
                 device=device,
                 ncpu=4,
@@ -223,12 +245,22 @@ def get_sensevoice_model():
 @app.post("/transcribe")
 async def transcribe(
     audio: UploadFile = File(...),
-    engine: str = "funasr",
+    engine: str = Form("funasr"),
+    engine_query: str | None = Query(None, alias="engine"),
 ):
     """
     语音识别：上传 WAV 音频，返回识别文本。
     engine: 'funasr' 或 'sensevoice'
+
+    注意：engine 必须作为 **表单字段** 接收。前端（funasr.ts / sensevoice.ts）
+    通过 multipart form-data 的 `formData.append('engine', ...)` 传参；
+    若声明为普通 str 参数，FastAPI 会把它当作 query 参数，导致 form 中的
+    engine 被忽略、永远走默认的 funasr —— 用户切换 SenseVoice 会失效。
+    这里同时兼容 query (?engine=...) 便于手工调试。
     """
+    # query 优先（调试用），否则用表单字段
+    if engine_query:
+        engine = engine_query
     audio_bytes = await audio.read()
     log.info("Transcribe request: engine=%s audio_size=%d", engine, len(audio_bytes))
 
