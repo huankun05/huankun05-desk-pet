@@ -142,6 +142,10 @@ export class LAppDelegate {
 
     // Cubism SDK の解放
     CubismFramework.dispose();
+
+    // 模块级帧缓冲引用重置：旧 context 的 framebuffer 绑定不能带进下一次 init，
+    // 否则重新显示角色时 initialize() 里的 `if (!frameBuffer)` 判定会误用旧值。
+    frameBuffer = null;
   }
 
   /**

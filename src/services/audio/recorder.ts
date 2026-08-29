@@ -72,6 +72,19 @@ export class AudioRecorder {
     if (this.state !== 'idle') return;
 
     try {
+      // 先创建 AudioContext 并立即 resume（此刻仍在用户手势栈内，resume 大概率成功）。
+      // Chromium 自动播放策略：new AudioContext() 初始为 suspended；若在 await
+      // getUserMedia 之后再创建，已脱离手势上下文 → ScriptProcessorNode 的
+      // onaudioprocess 永不触发 → 流式 STT 收不到音频帧、barge-in 的 RMS 检测失效。
+      this.audioContext = new AudioContext({ sampleRate: this.sampleRate });
+      try {
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
+      } catch (e) {
+        log.warn('AudioContext resume failed, 流式采集可能不工作', e);
+      }
+
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: this.sampleRate,
@@ -81,8 +94,6 @@ export class AudioRecorder {
         },
       });
 
-      // 创建 AudioContext 用于静音检测
-      this.audioContext = new AudioContext({ sampleRate: this.sampleRate });
       const source = this.audioContext.createMediaStreamSource(this.stream);
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
