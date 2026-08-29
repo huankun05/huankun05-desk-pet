@@ -41,6 +41,14 @@ const SENTENCE_END = /[。！？!?；;\n]/;
 const SHORT_IMMEDIATE = 6;
 /** 最小合成长度：缓冲累计到该长度且遇句末标点才切（低于此长度的短句继续缓冲合并） */
 const MIN_SENTENCE_LEN = 12;
+/**
+ * jitter buffer 目标音频字节数（24kHz / 16bit / mono = 48000 B/s）≈ 1.2s。
+ *
+ * CosyVoice 本地推理实际 RTF≈2（生成 1s 音频约需 2s，chunk 间隔 > chunk 时长），
+ * 若 chunk 即到即播会频繁「播完等下一块」→ 卡顿。攒够 buffer 再开播可平滑停顿，
+ * 代价是首字延迟增加约 1.2s；合成全部完成（finalFlush）时强制开播，短句不受影响。
+ */
+const JITTER_BUFFER_BYTES = 48000 * 1.2;
 
 export class StreamingTTSPlayer {
   private buffer = '';
@@ -48,6 +56,10 @@ export class StreamingTTSPlayer {
   private playing = false;
   private finished = false;
   private active = true;
+  /** jitter buffer 是否已开播；合成全部完成（finalFlush）时跳过等待强制开播 */
+  private started = false;
+  /** 所有句子已合成完成：即使 buffer 不足也开播（避免短句永远等不到） */
+  private finalFlush = false;
   /**
    * 熔断标志：任一句合成未产出任何音频（后端不可用 / 无 provider）后，
    * 后续句子直接跳过。否则每个句子都会各自触发一次后端就绪轮询，
@@ -124,6 +136,15 @@ export class StreamingTTSPlayer {
       }
     } finally {
       this.draining = false;
+      // finish() 可能在本轮合成期间又追加了残留：队列非空则继续处理（自恢复，不用
+      // return 以免触发 no-unsafe-finally）
+      if (this.active && !this.failed && this.sentenceQueue.length > 0) {
+        void this.processQueue();
+      } else if (this.finished && this.sentenceQueue.length === 0) {
+        // 所有句子合成完成：允许 pump 跳过 jitter buffer 强制开播（短句不用等攒够）
+        this.finalFlush = true;
+        this.pump();
+      }
     }
   }
 
@@ -150,8 +171,19 @@ export class StreamingTTSPlayer {
 
   private pump(): void {
     if (!this.active || this.playing) return;
+    // jitter buffer：合成未完成时攒够 ~1.2s 音频再开播，平滑服务端 chunk 间隙；
+    // finalFlush（全部合成完）或 buffer 耗尽重攒后仍需满足条件
+    if (!this.started && !this.finalFlush) {
+      const buffered = this.readyQueue.reduce((s, c) => s + c.audio.byteLength, 0);
+      if (buffered < JITTER_BUFFER_BYTES) return;
+      this.started = true;
+    }
     const next = this.readyQueue.shift();
-    if (!next) return;
+    if (!next) {
+      // buffer 耗尽：若合成未完成则重新攒 buffer，避免后续继续卡顿
+      if (!this.finalFlush) this.started = false;
+      return;
+    }
     this.playing = true;
     Promise.resolve(this.playFn(next.audio, next.sampleRate)).finally(() => {
       this.playing = false;
@@ -188,5 +220,7 @@ export class StreamingTTSPlayer {
     this.readyQueue = [];
     this.buffer = '';
     this.sentenceQueue = [];
+    this.started = false;
+    this.finalFlush = false;
   }
 }
