@@ -47,6 +47,7 @@ function buildUserPrompt(ctx: ProactiveJudgeContext): string {
     `近期情绪：${TREND_LABEL[ctx.emotionTrend]}`,
     `今日已主动搭话：${ctx.todayCount} 次`,
     `今日对话轮次：${ctx.todayTurns} 轮`,
+    `昼夜主动系数：${ctx.initiativeMultiplier.toFixed(2)}${ctx.initiativeMultiplier < 0.6 ? '（偏低，应更克制）' : ''}`,
   ];
   if (ctx.hints.length > 0) {
     lines.push(`上下文：${ctx.hints.join('；')}`);

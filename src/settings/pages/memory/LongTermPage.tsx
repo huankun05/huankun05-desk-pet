@@ -11,6 +11,7 @@ import {
 } from '../../../services/provider/embedding';
 import { providerManager } from '../../../services/provider/manager';
 import { isOfflineModeEnabled } from '../../../services/provider/watchdog';
+import { runArchivist, type ArchivistResult } from '../../../services/coreApi';
 import type { LLMCall } from '../../../services/memory/llm-enhancer';
 
 /**
@@ -105,6 +106,8 @@ export function LongTermPage() {
   const [ragDocCount, setRagDocCount] = useState<number>(0);
   const [hybrid, setHybrid] = useState<HybridRAGConfig>(() => loadHybridRAG());
   const [memExtract, setMemExtract] = useState<MemoryExtractConfig>(() => loadMemoryExtract());
+  const [archiving, setArchiving] = useState<boolean>(false);
+  const [archivistResult, setArchivistResult] = useState<ArchivistResult | null>(null);
 
   // 读取已记忆条目数（延迟到 engine 初始化后）
   const refreshDocCount = useCallback(() => {
@@ -207,6 +210,20 @@ export function LongTermPage() {
     showToast(t('settings.memory.rag_wiped'), 'success');
   }, [confirm, showToast, t]);
 
+  const handleRunArchivist = useCallback(async () => {
+    setArchiving(true);
+    setArchivistResult(null);
+    try {
+      const res = await runArchivist('default');
+      setArchivistResult(res);
+      showToast(t('settings.memory.archivist_done'), 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), 'error');
+    } finally {
+      setArchiving(false);
+    }
+  }, [showToast, t]);
+
   return (
     <div className="p-4 animate-[fade-in-up_0.3s_ease-out]">
       {/* 本地长期记忆 */}
@@ -267,6 +284,39 @@ export function LongTermPage() {
           </SettingRow>
           {memExtract.llmEnhancementEnabled && (
             <p className="text-xs text-neutral-400 pt-1">{t('settings.memory.llm_extract_hint')}</p>
+          )}
+        </div>
+      </Section>
+
+      {/* 记忆整理（Archivist：合并相似碎片 / 清理冗余 / 遗忘衰减） */}
+      <Section
+        title={t('settings.memory.archivist_title')}
+        description={t('settings.memory.archivist_desc')}
+      >
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-neutral-400">{t('settings.memory.archivist_hint')}</p>
+            <button
+              type="button"
+              onClick={handleRunArchivist}
+              disabled={archiving}
+              className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {archiving
+                ? t('settings.memory.archivist_running')
+                : t('settings.memory.archivist_run')}
+            </button>
+          </div>
+          {archivistResult && (
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+              {t('settings.memory.archivist_result', {
+                processed: archivistResult.processed,
+                decayed: archivistResult.decayed,
+                deleted: archivistResult.deleted,
+                merged: archivistResult.merged,
+                errors: archivistResult.errors,
+              })}
+            </div>
           )}
         </div>
       </Section>

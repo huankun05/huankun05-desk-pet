@@ -65,7 +65,7 @@ import { isPointOverCharacter } from './lib/live2d';
 import { triggerAnimation } from './lib/live2d/lappdelegate';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
 import { llmProactiveJudge } from './services/proactive/judge';
-import { getMemoryStats, checkReunion } from './services/coreApi';
+import { getMemoryStats, checkReunion, getCircadianState } from './services/coreApi';
 import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
@@ -729,6 +729,19 @@ function MainPetApp() {
     // 是否真正启用由 config.judgeEnabled（设置页「智能裁决」）控制，此处只做能力注册。
     proactiveScheduler.setJudge(llmProactiveJudge);
 
+    // 昼夜节律 -> 主动系数：随机主动概率随时段缩放（morning 0.8 / day 1.0 / evening 0.9 / night 0.3）。
+    // 启动拉取一次 + 每 30 分钟刷新；后端不可用时保留上次系数（默认 1.0，不改变行为）。
+    const refreshCircadian = async () => {
+      try {
+        const c = await getCircadianState();
+        proactiveScheduler.setCircadianMultiplier(c.initiative_multiplier);
+      } catch {
+        /* 后端未就绪时保留上次系数 */
+      }
+    };
+    void refreshCircadian();
+    circadianTimerRef.current = window.setInterval(refreshCircadian, 30 * 60 * 1000);
+
     proactiveScheduler.onTrigger(async (trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {
         showBubble('现在处于离线模式，暂时不能陪你聊天了。', 4000);
@@ -963,11 +976,16 @@ function MainPetApp() {
   // 注意：behaviorCleanupRef 在上面的 async IIFE 中赋值，
   // 为防止卸载时 IIFE 尚未执行到赋值行，用 disposedRef 标记是否已卸载
   const behaviorCleanupRef = useRef<() => void>(() => {});
+  const circadianTimerRef = useRef<number | null>(null);
   const behaviorDisposedRef = useRef(false);
   useEffect(
     () => () => {
       behaviorDisposedRef.current = true;
       behaviorCleanupRef.current();
+      if (circadianTimerRef.current !== null) {
+        window.clearInterval(circadianTimerRef.current);
+        circadianTimerRef.current = null;
+      }
     },
     [],
   );

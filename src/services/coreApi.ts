@@ -238,6 +238,45 @@ export async function checkReunion(
   });
 }
 
+/** Archivist 记忆整理结果（合并相似碎片/清理冗余/遗忘衰减） */
+export interface ArchivistResult {
+  processed: number;
+  decayed: number;
+  deleted: number;
+  merged: number;
+  errors: number;
+}
+
+/** 手动触发一次 Archivist 记忆整理（后端默认每 6 小时自动执行，此接口用于即时触发） */
+export async function runArchivist(character_id = 'default'): Promise<ArchivistResult> {
+  return request<ArchivistResult>('/api/core/memory/archivist/run', {
+    method: 'POST',
+    body: JSON.stringify({ character_id }),
+  });
+}
+
+// ============================================================
+// 昼夜节律 API
+// ============================================================
+
+/** 昼夜节律状态（对应后端 TimeService.get_circadian） */
+export interface CircadianState {
+  /** morning / day / evening / night */
+  time_of_day: string;
+  /** 中文时段名 */
+  time_of_day_cn: string;
+  greeting: string;
+  pad_influence: { pleasure: number; arousal: number; dominance: number };
+  /** 主动行为系数 0.0-1.0（morning 0.8 / day 1.0 / evening 0.9 / night 0.3） */
+  initiative_multiplier: number;
+  style_modifier: Record<string, unknown>;
+}
+
+/** 获取当前昼夜节律状态（供主动调度器缩放随机主动频率） */
+export async function getCircadianState(): Promise<CircadianState> {
+  return request<CircadianState>('/api/core/time/circadian');
+}
+
 // ============================================================
 // 人格 API
 // ============================================================

@@ -75,6 +75,8 @@ export interface ProactiveJudgeContext {
   todayCount: number;
   /** 今日与用户的对话轮次 */
   todayTurns: number;
+  /** 昼夜节律主动系数（0-1，越小越应克制；供裁决器参考） */
+  initiativeMultiplier: number;
 }
 
 /**
@@ -130,6 +132,13 @@ export class ProactiveScheduler {
   private judging = false;
   /** 今日裁决调用次数（含被否决的），用于封顶裁决成本 */
   private judgeCallsToday = 0;
+  /**
+   * 昼夜节律主动系数（0-1，来自后端 circadian.initiative_multiplier）。
+   *
+   * 只缩放"随机主动"这条非必需通道的概率：深夜（0.3）时桌宠明显更克制，
+   * 白天（1.0）正常。免打扰时段硬闸不受影响，仍优先于一切。
+   */
+  private circadianMultiplier = 1;
 
   constructor(config: Partial<ProactiveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -165,6 +174,17 @@ export class ProactiveScheduler {
    */
   setJudge(judge: ProactiveJudge | null): void {
     this.judge = judge;
+  }
+
+  /**
+   * 注入昼夜节律主动系数（0-1，来自后端 GET /api/core/time/circadian）。
+   *
+   * 由外部（MainPetApp）在启动与周期刷新时调用；后端不可用时保留上次值，默认 1。
+   */
+  setCircadianMultiplier(multiplier: number): void {
+    this.circadianMultiplier = Number.isFinite(multiplier)
+      ? Math.min(1, Math.max(0, multiplier))
+      : this.circadianMultiplier;
   }
 
   /**
@@ -375,8 +395,9 @@ export class ProactiveScheduler {
       return;
     }
 
-    // 随机性：小概率主动发起非时间场景，避免机械节律
-    if (Math.random() < 0.15 && idleDuration > this.config.longIdleThreshold) {
+    // 随机性：小概率主动发起非时间场景，避免机械节律。
+    // 概率乘以昼夜节律主动系数：深夜（0.3）时桌宠明显更克制，白天（1.0）正常。
+    if (Math.random() < 0.15 * this.circadianMultiplier && idleDuration > this.config.longIdleThreshold) {
       this.tryTrigger('idle_long', `已闲置 ${Math.round(idleDuration / 60000)} 分钟`);
       return;
     }
@@ -488,6 +509,7 @@ export class ProactiveScheduler {
       emotionTrend: this.emotionTrend,
       todayCount: this.dailyCount,
       todayTurns: this.todayTurns,
+      initiativeMultiplier: this.circadianMultiplier,
     };
 
     void this.judge!(ctx)
