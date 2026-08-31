@@ -208,6 +208,37 @@ export async function postEmotionEvent(
 }
 
 // ============================================================
+// 时间 / 重逢 API
+// ============================================================
+
+/** 重逢检查结果（对应后端 ReunionResult + TimeService.check_reunion） */
+export interface ReunionResult {
+  /** just_now / short / medium / long / very_long / first_meeting */
+  level: string;
+  /** 离开时长（小时） */
+  hours_away: number;
+  /** 重逢问候语 */
+  greeting: string;
+  /** 情绪突跃（PAD） */
+  pad_surge: { pleasure: number; arousal: number; dominance: number };
+  /** 是否触发特殊事件（long / very_long） */
+  should_trigger_event: boolean;
+  /** 是否构成"重逢"（level 不在 just_now / short） */
+  is_reunion: boolean;
+}
+
+/** 检查重逢状态：后端按 last_seen 判定分离时长并返回问候语 + 情绪突跃，同时刷新 last_seen。 */
+export async function checkReunion(
+  character_id = 'default',
+  user_id = 'default',
+): Promise<ReunionResult> {
+  return request<ReunionResult>('/api/core/time/reunion/check', {
+    method: 'POST',
+    body: JSON.stringify({ character_id, user_id }),
+  });
+}
+
+// ============================================================
 // 人格 API
 // ============================================================
 

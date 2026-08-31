@@ -21,6 +21,8 @@ import type {
   STTProviderConfig,
   TTSProvider,
   TTSProviderConfig,
+  VisionProvider,
+  VisionProviderConfig,
 } from './types';
 
 // ===== 工厂类型 =====
@@ -28,6 +30,7 @@ import type {
 type ChatProviderFactory = (config: ChatProviderConfig) => ChatProvider;
 type TTSProviderFactory = (config: TTSProviderConfig) => TTSProvider;
 type STTProviderFactory = (config: STTProviderConfig) => STTProvider;
+type VisionProviderFactory = (config: VisionProviderConfig) => VisionProvider;
 
 // ===== 注册表 =====
 
@@ -40,6 +43,7 @@ class ProviderRegistry {
   private chatFactories = new Map<string, FactoryEntry<ChatProviderFactory>>();
   private ttsFactories = new Map<string, FactoryEntry<TTSProviderFactory>>();
   private sttFactories = new Map<string, FactoryEntry<STTProviderFactory>>();
+  private visionFactories = new Map<string, FactoryEntry<VisionProviderFactory>>();
 
   // ===== Chat =====
 
@@ -95,6 +99,24 @@ class ProviderRegistry {
     return [...this.sttFactories.keys()];
   }
 
+  // ===== Vision =====
+
+  registerVisionProvider(
+    typeName: string,
+    meta: Omit<ProviderMeta, 'providerType' | 'typeName'>,
+    factory: VisionProviderFactory,
+  ): void {
+    this.register(this.visionFactories, typeName, 'vision', meta, factory);
+  }
+
+  createVisionProvider(typeName: string, config: VisionProviderConfig): VisionProvider | null {
+    return this.create(this.visionFactories, 'VisionProvider', typeName, config);
+  }
+
+  getVisionTypeNames(): string[] {
+    return [...this.visionFactories.keys()];
+  }
+
   // ===== 通用查询 =====
 
   /**
@@ -108,7 +130,9 @@ class ProviderRegistry {
           ? this.ttsFactories
           : type === 'stt'
             ? this.sttFactories
-            : null;
+            : type === 'vision'
+              ? this.visionFactories
+              : null;
     if (!map) return [];
     return [...map.values()].map((e) => e.meta);
   }
@@ -120,7 +144,8 @@ class ProviderRegistry {
     return (
       this.chatFactories.has(typeName) ||
       this.ttsFactories.has(typeName) ||
-      this.sttFactories.has(typeName)
+      this.sttFactories.has(typeName) ||
+      this.visionFactories.has(typeName)
     );
   }
 

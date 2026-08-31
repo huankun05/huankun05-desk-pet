@@ -18,6 +18,7 @@
 import { createStorage } from '../storage';
 import { createLogger } from '../../utils/logger';
 import { OpenAIChatProvider } from './openai/chat';
+import { OpenAIVisionProvider } from './openai/vision';
 import { OllamaChatProvider } from './ollama/chat';
 import { providerRegistry } from './registry';
 import { ProviderSlot } from './slot';
@@ -46,6 +47,8 @@ import type {
   STTProviderConfig,
   TTSProvider,
   TTSProviderConfig,
+  VisionProvider,
+  VisionProviderConfig,
 } from './types';
 
 // ===== 注册默认适配器 =====
@@ -76,6 +79,16 @@ providerRegistry.registerChatProvider(
     description: '本地 LLM 推理，OpenAI 兼容 API，自动检测模型',
   },
   (config) => new OllamaChatProvider(config as ChatProviderConfig),
+);
+
+// Vision: OpenAI 兼容视觉接口（独立视觉模型，用于截图理解 / 一起看）
+providerRegistry.registerVisionProvider(
+  'openai_vision',
+  {
+    displayName: 'OpenAI 兼容视觉接口',
+    description: '支持 GPT-4o / Qwen2-VL 等所有 OpenAI 兼容的视觉接口',
+  },
+  (config) => new OpenAIVisionProvider(config as VisionProviderConfig),
 );
 
 // TTS: Edge TTS（默认免费方案）
@@ -152,6 +165,8 @@ interface ProviderManagerState {
   activeSTTId: string | null;
   /** 当前活跃 EmbeddingProvider 的 id */
   activeEmbeddingId: string | null;
+  /** 当前活跃 VisionProvider 的 id */
+  activeVisionId: string | null;
   /** 会话级 Provider 覆盖（Phase 1.6 完善） */
   sessionOverrides: Record<
     string,
@@ -165,6 +180,7 @@ const DEFAULT_STATE: ProviderManagerState = {
   activeTTSId: null,
   activeSTTId: null,
   activeEmbeddingId: null,
+  activeVisionId: null,
   sessionOverrides: {},
 };
 
@@ -203,6 +219,10 @@ export class ProviderManager {
   private embeddingSlot = new ProviderSlot<EmbeddingProvider>(
     'EmbeddingProvider',
     (config) => this.createProviderFromConfig(config) as EmbeddingProvider | null,
+  );
+  private visionSlot = new ProviderSlot<VisionProvider>(
+    'VisionProvider',
+    (config) => this.createProviderFromConfig(config) as VisionProvider | null,
   );
   private state: ProviderManagerState = { ...DEFAULT_STATE };
   private storage = createStorage<ProviderManagerState>('providers', DEFAULT_STATE);
@@ -352,6 +372,11 @@ export class ProviderManager {
           return new OllamaEmbeddingProvider({ ...embeddingConfig, apiBase, model });
         }
         return new OpenAIEmbeddingProvider({ ...embeddingConfig, apiBase, model });
+      } else if (config.type === 'vision') {
+        return providerRegistry.createVisionProvider(
+          (config as VisionProviderConfig).typeName,
+          config as VisionProviderConfig,
+        );
       }
     } catch (err) {
       log.error(`Failed to create provider '${config.id}'`, err);
@@ -387,6 +412,7 @@ export class ProviderManager {
     this.chatSlot.clear();
     this.ttsSlot.clear();
     this.sttSlot.clear();
+    this.visionSlot.clear();
   }
 
   // ===== CRUD =====
@@ -398,7 +424,12 @@ export class ProviderManager {
    * 实例在首次 getActiveXxxProvider() 时按需创建。
    */
   addProvider(
-    config: ChatProviderConfig | TTSProviderConfig | STTProviderConfig | EmbeddingProviderConfig,
+    config:
+      | ChatProviderConfig
+      | TTSProviderConfig
+      | STTProviderConfig
+      | EmbeddingProviderConfig
+      | VisionProviderConfig,
   ): boolean {
     if (this.state.configs.some((c) => (c as ProviderConfig).id === config.id)) {
       log.error(`Provider id '${config.id}' already exists`);
@@ -409,8 +440,8 @@ export class ProviderManager {
     const probe = this.createProviderFromConfig(config as ProviderConfig);
     if (!probe) {
       log.error(
-        config.type === 'embedding'
-          ? `Embedding provider '${config.id}' registration/create failed`
+        config.type === 'embedding' || config.type === 'vision'
+          ? `${config.type} provider '${config.id}' registration/create failed`
           : `Provider type '${(config as ChatProviderConfig | TTSProviderConfig | STTProviderConfig).typeName}' not registered or creation failed`,
       );
       return false;
@@ -433,6 +464,8 @@ export class ProviderManager {
     if (config.type === 'chat' && !this.state.activeChatId) this.state.activeChatId = config.id;
     if (config.type === 'tts' && !this.state.activeTTSId) this.state.activeTTSId = config.id;
     if (config.type === 'stt' && !this.state.activeSTTId) this.state.activeSTTId = config.id;
+    if (config.type === 'vision' && !this.state.activeVisionId)
+      this.state.activeVisionId = config.id;
 
     this.saveState();
     return true;
@@ -466,6 +499,11 @@ export class ProviderManager {
       if (this.state.activeSTTId === id) {
         this.state.activeSTTId = this.findNextEnabledId('stt') ?? null;
       }
+    } else if (type === 'vision') {
+      this.visionSlot.invalidate(id);
+      if (this.state.activeVisionId === id) {
+        this.state.activeVisionId = this.findNextEnabledId('vision') ?? null;
+      }
     }
 
     // 清理会话级覆盖
@@ -487,7 +525,11 @@ export class ProviderManager {
   updateProvider(
     id: string,
     updates: Partial<
-      ChatProviderConfig | TTSProviderConfig | STTProviderConfig | EmbeddingProviderConfig
+      | ChatProviderConfig
+      | TTSProviderConfig
+      | STTProviderConfig
+      | EmbeddingProviderConfig
+      | VisionProviderConfig
     >,
   ): void {
     const idx = this.state.configs.findIndex((c) => (c as ProviderConfig).id === id);
@@ -504,6 +546,8 @@ export class ProviderManager {
       this.ttsSlot.invalidate(id);
     } else if (oldConfig.type === 'stt') {
       this.sttSlot.invalidate(id);
+    } else if (oldConfig.type === 'vision') {
+      this.visionSlot.invalidate(id);
     }
 
     this.saveState();
@@ -627,7 +671,10 @@ export class ProviderManager {
    *
    * 切换时销毁旧活跃实例（释放连接/定时器），新实例在下次访问时按需创建。
    */
-  private setActive(type: 'chat' | 'tts' | 'stt' | 'embedding', id: string): void {
+  private setActive(
+    type: 'chat' | 'tts' | 'stt' | 'embedding' | 'vision',
+    id: string,
+  ): void {
     const displayName =
       type === 'chat'
         ? 'ChatProvider'
@@ -635,7 +682,9 @@ export class ProviderManager {
           ? 'TTSProvider'
           : type === 'stt'
             ? 'STTProvider'
-            : 'EmbeddingProvider';
+            : type === 'embedding'
+              ? 'EmbeddingProvider'
+              : 'VisionProvider';
     const config = this.findConfig(id, type);
     if (!config) {
       log.error(`${displayName} '${id}' not found in configs`);
@@ -651,7 +700,8 @@ export class ProviderManager {
       if (type === 'chat') this.chatSlot.invalidate(oldId);
       else if (type === 'tts') this.ttsSlot.invalidate(oldId);
       else if (type === 'stt') this.sttSlot.invalidate(oldId);
-      else this.embeddingSlot.invalidate(oldId);
+      else if (type === 'embedding') this.embeddingSlot.invalidate(oldId);
+      else this.visionSlot.invalidate(oldId);
       log.debug(`Old ${displayName} aborted`, { id: oldId });
     }
 
@@ -675,20 +725,29 @@ export class ProviderManager {
     this.setActive('embedding', id);
   }
 
+  setActiveVisionProvider(id: string): void {
+    this.setActive('vision', id);
+  }
+
   /** 读取某类型的当前活跃 id */
-  private getActiveId(type: 'chat' | 'tts' | 'stt' | 'embedding'): string | null {
+  private getActiveId(type: 'chat' | 'tts' | 'stt' | 'embedding' | 'vision'): string | null {
     if (type === 'chat') return this.state.activeChatId;
     if (type === 'tts') return this.state.activeTTSId;
     if (type === 'stt') return this.state.activeSTTId;
-    return this.state.activeEmbeddingId;
+    if (type === 'embedding') return this.state.activeEmbeddingId;
+    return this.state.activeVisionId;
   }
 
   /** 设置某类型的当前活跃 id */
-  private setActiveId(type: 'chat' | 'tts' | 'stt' | 'embedding', id: string | null): void {
+  private setActiveId(
+    type: 'chat' | 'tts' | 'stt' | 'embedding' | 'vision',
+    id: string | null,
+  ): void {
     if (type === 'chat') this.state.activeChatId = id;
     else if (type === 'tts') this.state.activeTTSId = id;
     else if (type === 'stt') this.state.activeSTTId = id;
-    else this.state.activeEmbeddingId = id;
+    else if (type === 'embedding') this.state.activeEmbeddingId = id;
+    else this.state.activeVisionId = id;
   }
 
   getActiveEmbeddingProvider(id?: string): EmbeddingProvider | null {
@@ -700,6 +759,33 @@ export class ProviderManager {
       return this.embeddingSlot.getOrCreate(id, config);
     }
     return this.resolveActive('embedding', this.embeddingSlot, this.state.activeEmbeddingId);
+  }
+
+  /** 获取 VisionProvider 实例（按需创建并缓存） */
+  getVisionProvider(id?: string): VisionProvider | null {
+    if (id) {
+      const cached = this.visionSlot.peek(id);
+      if (cached) return cached;
+      const config = this.findConfig(id, 'vision');
+      if (!config || !config.enable) return null;
+      return this.visionSlot.getOrCreate(id, config);
+    }
+    return this.resolveActive('vision', this.visionSlot, this.state.activeVisionId);
+  }
+
+  /** 获取当前活跃的 VisionProvider */
+  getActiveVisionProvider(): VisionProvider | null {
+    return this.getVisionProvider();
+  }
+
+  /** 获取当前活跃 Vision 的原始配置 */
+  getActiveVisionConfig(): VisionProviderConfig | null {
+    const id = this.state.activeVisionId;
+    if (!id) return null;
+    const cfg = this.state.configs.find((c) => (c as ProviderConfig).id === id) as
+      | VisionProviderConfig
+      | undefined;
+    return cfg ?? null;
   }
 
   // ===== 运行时健康标记（Phase 12.1） =====

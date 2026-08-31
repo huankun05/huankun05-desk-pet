@@ -108,6 +108,14 @@ export function MultimodalPage() {
    */
   const validateMultimodal = (): ProviderTestResult => {
     if (!config.enabled) return { status: 'idle' };
+    // 优先独立视觉模型：只需确认已配置视觉模型服务即可
+    if (config.visionSourcePriority === 'vision_model_first') {
+      const visionOk = providerManager.getActiveVisionProvider() != null;
+      if (!visionOk) {
+        return { status: 'error', message: t('settings.multimodal.validation_no_vision_provider') };
+      }
+      return { status: 'success', message: t('settings.multimodal.validation_ok') };
+    }
     const active = providerManager.getActiveChatProvider();
     const model = active?.config.model ?? '';
     const visionOk =

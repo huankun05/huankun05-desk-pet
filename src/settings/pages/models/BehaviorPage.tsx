@@ -31,6 +31,13 @@ function saveBehavior(config: BehaviorConfig) {
   saveBehaviorConfig(config);
 }
 
+/** 把免打扰起止小时格式化为 "23:00 → 07:00"，跨午夜时补标注 */
+function formatQuietRange(start: number, end: number): string {
+  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`;
+  const crossesMidnight = start > end;
+  return `${pad(start)} → ${pad(end)}${crossesMidnight ? ' (+1d)' : ''}`;
+}
+
 interface BehaviorEntry {
   id: string;
   name: string;
@@ -72,12 +79,20 @@ export function BehaviorPage() {
       dailyLimit: config.smartChatDailyLimit,
       // smartChatIdleThreshold 单位为分钟：多久没互动才触发主动消息
       longIdleThreshold: config.smartChatIdleThreshold * 60 * 1000,
+      quietHoursEnabled: config.quietHoursEnabled,
+      quietHoursStart: config.quietHoursStart,
+      quietHoursEnd: config.quietHoursEnd,
+      judgeEnabled: config.proactiveJudge,
     });
   }, [
     config.enableSmartChat,
     config.smartChatInterval,
     config.smartChatDailyLimit,
     config.smartChatIdleThreshold,
+    config.quietHoursEnabled,
+    config.quietHoursStart,
+    config.quietHoursEnd,
+    config.proactiveJudge,
   ]);
 
   const handleReset = useCallback(() => {
@@ -226,6 +241,68 @@ export function BehaviorPage() {
             desc={t('settings.models.smart_chat_daily_limit_desc')}
             onChange={(v) => update({ smartChatDailyLimit: v })}
           />
+        </Section>
+      )}
+
+      {config.enableSmartChat && (
+        <Section
+          title={t('settings.models.quiet_hours_title')}
+          description={t('settings.models.quiet_hours_desc')}
+        >
+          <div className="p-4 space-y-1">
+            <SettingRow
+              title={t('settings.models.quiet_hours_enable')}
+              description={
+                config.quietHoursEnabled
+                  ? t('settings.models.quiet_hours_active_range', {
+                      range: formatQuietRange(config.quietHoursStart, config.quietHoursEnd),
+                    })
+                  : t('settings.models.quiet_hours_enable_desc')
+              }
+            >
+              <Switch
+                checked={config.quietHoursEnabled}
+                onClick={() => update({ quietHoursEnabled: !config.quietHoursEnabled })}
+              />
+            </SettingRow>
+          </div>
+
+          {config.quietHoursEnabled && (
+            <>
+              <SliderRow
+                label={t('settings.models.quiet_hours_start')}
+                value={config.quietHoursStart}
+                min={0}
+                max={23}
+                step={1}
+                unit={t('settings.models.quiet_hours_unit')}
+                desc={t('settings.models.quiet_hours_start_desc')}
+                onChange={(v) => update({ quietHoursStart: v })}
+              />
+              <SliderRow
+                label={t('settings.models.quiet_hours_end')}
+                value={config.quietHoursEnd}
+                min={0}
+                max={23}
+                step={1}
+                unit={t('settings.models.quiet_hours_unit')}
+                desc={t('settings.models.quiet_hours_end_desc')}
+                onChange={(v) => update({ quietHoursEnd: v })}
+              />
+            </>
+          )}
+
+          <div className="p-4 pt-0 space-y-1">
+            <SettingRow
+              title={t('settings.models.proactive_judge')}
+              description={t('settings.models.proactive_judge_desc')}
+            >
+              <Switch
+                checked={config.proactiveJudge}
+                onClick={() => update({ proactiveJudge: !config.proactiveJudge })}
+              />
+            </SettingRow>
+          </div>
         </Section>
       )}
 

@@ -64,7 +64,8 @@ import { useBrainBridge } from './hooks/useBrainBridge';
 import { isPointOverCharacter } from './lib/live2d';
 import { triggerAnimation } from './lib/live2d/lappdelegate';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
-import { getMemoryStats } from './services/coreApi';
+import { llmProactiveJudge } from './services/proactive/judge';
+import { getMemoryStats, checkReunion } from './services/coreApi';
 import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
@@ -237,6 +238,35 @@ function MainPetApp() {
   );
 
   // 本地 RAG 记忆写入（新 Gateway 路径的“写端”）
+  // 重逢问候（借鉴 Miru 的 ReunionEngine）：模型就绪后调用后端 check_reunion，
+  // 按上次见面间隔展示问候语 + 施加情绪突跃。后端每次调用都会刷新 last_seen，
+  // 所以这里只在模型首次就绪时触发一次，避免隐藏/换模型时重复问候或反复刷时间戳。
+  const reunionFiredRef = useRef(false);
+  useEffect(() => {
+    if (!petModelReady || reunionFiredRef.current) return;
+    reunionFiredRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await checkReunion();
+        if (cancelled) return;
+        // 只在真正构成重逢时展示，排除刚见过 / 离开一会儿的情况
+        if (!res.is_reunion) return;
+        showBubble(res.greeting, 6000);
+        // 久别(long/very_long)用 excited，一般没见(medium)用 happy
+        const emotion: EmotionType =
+          res.level === 'long' || res.level === 'very_long' ? 'excited' : 'happy';
+        const intensity = Math.min(1, 0.5 + (res.pad_surge?.pleasure ?? 0.2));
+        setNewEmotion(emotion, intensity, '久别重逢');
+      } catch {
+        // 后端不可用（离线 / 未启动）时静默降级，不影响正常启动
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [petModelReady, showBubble, setNewEmotion]);
+
   const { addToRag } = useRagPersistence();
 
   // 使用 useMemo 稳定回调引用，避免每次渲染创建新对象导致下游 hook 连锁重渲染
@@ -677,12 +707,21 @@ function MainPetApp() {
             dailyLimit: bc.smartChatDailyLimit ?? 20,
             // 闲置触发阈值（分钟 → 毫秒）：多久没互动才发主动消息
             longIdleThreshold: (bc.smartChatIdleThreshold ?? 30) * 60 * 1000,
+            // 免打扰硬闸：夜间时段直接掐掉主动消息（含 late_night 场景）
+            quietHoursEnabled: bc.quietHoursEnabled ?? true,
+            quietHoursStart: bc.quietHoursStart ?? 23,
+            quietHoursEnd: bc.quietHoursEnd ?? 7,
+            judgeEnabled: bc.proactiveJudge ?? false,
           });
         }
       }
     } catch {
       /* ignore */
     }
+
+    // 注入裁决器：硬规则提案通过后，再由一次轻量模型调用决定此刻是否真的开口。
+    // 是否真正启用由 config.judgeEnabled（设置页「智能裁决」）控制，此处只做能力注册。
+    proactiveScheduler.setJudge(llmProactiveJudge);
 
     proactiveScheduler.onTrigger(async (trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {

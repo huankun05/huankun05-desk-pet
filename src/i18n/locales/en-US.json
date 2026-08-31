@@ -513,7 +513,9 @@
       "tts_section_title": "TTS Providers",
       "tts_section_desc": "Manage multiple TTS providers, click card to switch",
       "stt_section_title": "STT Providers",
-      "stt_section_desc": "Manage multiple STT providers, click card to switch"
+      "stt_section_desc": "Manage multiple STT providers, click card to switch",
+      "vision_section_title": "Vision Model Providers",
+      "vision_section_desc": "Manage multiple standalone vision model providers, click card to switch"
     },
     "data": {
       "backup_success": "Backup successful",
@@ -847,6 +849,18 @@
       "smart_chat_daily_limit_unit": "times",
       "proactive_tts": "Proactive Message TTS",
       "proactive_tts_desc": "Read proactive chats/greetings aloud (requires a configured TTS engine)",
+      "quiet_hours_title": "Quiet Hours & Judge",
+      "quiet_hours_desc": "Control when proactive messages may appear, and whether to double-check before sending",
+      "quiet_hours_enable": "Quiet Hours",
+      "quiet_hours_enable_desc": "When on, no proactive message is sent during the window",
+      "quiet_hours_active_range": "Silent: {{range}} — all proactive messages are vetoed in this window",
+      "quiet_hours_start": "Start",
+      "quiet_hours_start_desc": "Silence begins at this hour",
+      "quiet_hours_end": "End",
+      "quiet_hours_end_desc": "Silence ends at this hour; start later than end means it crosses midnight",
+      "quiet_hours_unit": ":00",
+      "proactive_judge": "Smart Judge",
+      "proactive_judge_desc": "Ask a lightweight model whether now is a good moment before sending (slightly more API calls)",
       "reset_behavior": "Reset to Default",
       "global_prompt_title": "Global Default Prompt",
       "global_prompt_desc": "Base prompt shared by all characters, character prompts override this",
@@ -900,7 +914,10 @@
       "wake_word": "Wake Word",
       "wake_word_desc": "Wake word detection and model management",
       "market": "Marketplace",
-      "market_desc": "Browse and install plugins & MCP presets"
+      "market_desc": "Browse and install plugins & MCP presets",
+      "vision": "Vision Model",
+      "vision_desc": "Standalone vision model service (screenshot understanding, watch-together)",
+      "related_vision_hint": "After configuring a standalone vision model, set the multimodal vision source priority to \"Prefer standalone vision model\"."
     },
     "marketplace": {
       "title": "Marketplace",
@@ -1317,6 +1334,7 @@
       "status_watching": "Watching",
       "validation_ok": "Configuration OK: current vision model is available",
       "validation_no_vision": "Cannot start vision with current config: enable \"Current model supports vision\" or switch to auto-detect with a vision model",
+      "validation_no_vision_provider": "No standalone vision model configured: add and activate a vision model in the Vision service first",
       "check_config": "Check Configuration",
       "check_desc": "Validate that multimodal configuration is complete and can start",
       "shortcut_hint": "Shortcut: Ctrl+Shift+S",

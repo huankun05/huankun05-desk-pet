@@ -26,6 +26,7 @@ import {
   type WatchTogetherResult,
 } from '../services/scenes/watchTogether';
 import { aiService } from '../services/ai';
+import { providerManager } from '../services/provider/manager';
 import { isTauriEnv } from '../utils/tauriEnv';
 import { createLogger } from '../utils/logger';
 
@@ -36,6 +37,7 @@ interface MultimodalConfig {
   enabled: boolean;
   visionDetection: 'auto' | 'manual';
   isVisionModel: boolean;
+  visionSourcePriority: 'auto' | 'llm_first' | 'embedding_first' | 'vision_model_first';
   screenshotQuality: number;
   screenshotScale: number;
   watchInterval: number;
@@ -46,6 +48,7 @@ const DEFAULT_CONFIG: MultimodalConfig = {
   enabled: true,
   visionDetection: 'auto',
   isVisionModel: false,
+  visionSourcePriority: 'auto',
   screenshotQuality: 70,
   screenshotScale: 0.75,
   watchInterval: 30,
@@ -124,20 +127,31 @@ export function useWatchTogether({
       return;
     }
 
-    // 检测 vision 能力
-    const provider = aiService.getChatProvider();
-    if (!provider) {
-      showBubble('请先配置 LLM 服务~', 3000);
+    // 视觉来源优先级：配置「优先独立视觉模型」时，vision provider 天生支持视觉
+    const useVisionModelFirst = config.visionSourcePriority === 'vision_model_first';
+    const visionProvider = useVisionModelFirst ? providerManager.getActiveVisionProvider() : null;
+
+    if (useVisionModelFirst && !visionProvider) {
+      showBubble('请先在「视觉模型」服务中配置视觉模型~', 3000);
       setIsWatching(false);
       return;
     }
 
-    const isVision = checkVisionCapability(provider.config.model, config);
-    if (!isVision) {
-      showBubble('当前模型不支持视觉，请选择 vision 模型~', 3000);
-      log.info('Current model is not a vision model', { model: provider.config.model });
-      setIsWatching(false);
-      return;
+    // 非独立视觉模型模式：依赖对话 LLM 的原生视觉能力
+    const chatProvider = aiService.getChatProvider();
+    if (!useVisionModelFirst) {
+      if (!chatProvider) {
+        showBubble('请先配置 LLM 服务~', 3000);
+        setIsWatching(false);
+        return;
+      }
+      const isVision = checkVisionCapability(chatProvider.config.model, config);
+      if (!isVision) {
+        showBubble('当前模型不支持视觉，请选择 vision 模型~', 3000);
+        log.info('Current model is not a vision model', { model: chatProvider.config.model });
+        setIsWatching(false);
+        return;
+      }
     }
 
     isAnalyzingRef.current = true;
@@ -146,7 +160,9 @@ export function useWatchTogether({
     try {
       const imageDataUrl = await captureScreenshot();
       const prompt = config.watchPrompt || '请分析这张截图并给出评论。';
-      const result: WatchTogetherResult = await analyzeScreenshot(imageDataUrl, prompt);
+      const result: WatchTogetherResult = await analyzeScreenshot(imageDataUrl, prompt, {
+        visionSourcePriority: config.visionSourcePriority,
+      });
 
       // 去重：如果和最近 3 次评论相同，换一句
       if (recentCommentsRef.current.includes(result.comment)) {

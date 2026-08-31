@@ -13,6 +13,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { aiService } from '../ai';
 import { isVisionModel } from '../provider/ollama/chat';
+import { providerManager } from '../provider/manager';
+import { recordUsage } from '../provider/usageLedger';
 import type { ChatMessage, MessageContentPart } from '../provider/types';
 import { createLogger } from '../../utils/logger';
 
@@ -61,17 +63,27 @@ export function checkVisionCapability(
 }
 
 /**
- * 分析截图：构建多模态消息 → 调用 LLM → 解析 JSON
+ * 分析截图：构建多模态消息 → 调用 LLM/Vision → 解析 JSON
  *
  * @param imageDataUrl 截图 data URL（JPEG base64）
  * @param systemPrompt 系统提示词
+ * @param options.visionSourcePriority 视觉来源优先级：
+ *   - 'vision_model_first' 且已配置独立视觉模型时，优先使用 VisionProvider（避免把截图塞给对话大脑）
+ *   - 其他情况（auto / llm_first / embedding_first）回退到对话 LLM
  * @returns 解析后的评论 + 表情 + 描述
  */
 export async function analyzeScreenshot(
   imageDataUrl: string,
   systemPrompt: string,
+  options?: { visionSourcePriority?: 'auto' | 'llm_first' | 'embedding_first' | 'vision_model_first' },
 ): Promise<WatchTogetherResult> {
-  const provider = aiService.getChatProvider();
+  const preferVisionModel =
+    options?.visionSourcePriority === 'vision_model_first' &&
+    providerManager.getActiveVisionProvider() != null;
+
+  const provider = preferVisionModel
+    ? providerManager.getActiveVisionProvider()!
+    : aiService.getChatProvider();
   if (!provider) {
     throw new Error('No chat provider configured. Please check your settings.');
   }
@@ -88,6 +100,7 @@ export async function analyzeScreenshot(
   ];
 
   log.info('Sending screenshot for analysis', {
+    provider: preferVisionModel ? 'vision' : 'chat',
     model: provider.config.model,
     imageSize: imageDataUrl.length,
   });
@@ -95,6 +108,14 @@ export async function analyzeScreenshot(
   const raw = await provider.chat(messages, {
     temperature: 0.8,
     maxTokens: 200,
+  });
+
+  recordUsage({
+    tier: preferVisionModel ? 'vision' : 'chat',
+    model: provider.config.model,
+    callLabel: 'vision_watch',
+    promptChars: systemPrompt.length + imageDataUrl.length,
+    completionChars: raw.length,
   });
 
   log.debug('LLM response', { length: raw.length, preview: raw.slice(0, 100) });

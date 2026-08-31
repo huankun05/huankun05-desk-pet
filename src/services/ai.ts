@@ -12,6 +12,7 @@ import { providerManager } from './provider/manager';
 import type { OpenAIChatProvider } from './provider/openai/chat';
 import type { ChatStreamChunk, OpenAIToolSchema } from './tools/types';
 import { isOfflineModeEnabled } from './provider/watchdog';
+import { recordUsage } from './provider/usageLedger';
 
 // ===== Re-export（保持向后兼容） =====
 
@@ -154,7 +155,15 @@ export class AIService {
       { role: 'user', content: userMessage },
     ];
 
-    return provider.chat(messages, { temperature: 0.7, maxTokens: 500 });
+    const result = await provider.chat(messages, { temperature: 0.7, maxTokens: 500 });
+    recordUsage({
+      tier: 'chat',
+      model: provider.config.model,
+      callLabel: 'chat',
+      promptChars: systemPrompt.length + userMessage.length,
+      completionChars: result.length,
+    });
+    return result;
   }
 
   /**
@@ -178,7 +187,29 @@ export class AIService {
     if (!provider) {
       throw new Error('No chat provider configured. Please check your settings.');
     }
-    yield* provider.chatStreamWithContext(session, memoryContext, emotionCtx, tools);
+    const model = provider.config.model;
+    let completionChars = 0;
+    try {
+      for await (const chunk of provider.chatStreamWithContext(
+        session,
+        memoryContext,
+        emotionCtx,
+        tools,
+      )) {
+        if (chunk.type === 'text') completionChars += chunk.content.length;
+        yield chunk;
+      }
+    } finally {
+      recordUsage({
+        tier: 'chat',
+        model,
+        callLabel: 'chat_stream',
+        promptChars:
+          (memoryContext?.length ?? 0) +
+          (session.messages?.reduce((s, m) => s + (m.content?.length ?? 0), 0) ?? 0),
+        completionChars,
+      });
+    }
   }
 
   /**
@@ -233,9 +264,7 @@ export class AIService {
     return `${basePrompt}\n\n${memoryContext}`;
   }
 
-  /**
-   * 智能闲聊：生成一条主动消息
-   /** 智能闲聊：生成一条主动消息 */
+  /** 智能闲聊：生成一条主动消息 */
   async generateProactiveMessage(emotion: string, mood: string): Promise<string> {
     if (isOfflineModeEnabled()) {
       return '';
@@ -252,7 +281,40 @@ export class AIService {
     if (!provider) {
       throw new Error('No chat provider configured.');
     }
-    return provider.chat(messages, { temperature: 0.9, maxTokens: 50 });
+    const result = await provider.chat(messages, { temperature: 0.9, maxTokens: 50 });
+    recordUsage({
+      tier: 'chat',
+      model: provider.config.model,
+      callLabel: 'proactive',
+      promptChars: messages.reduce((sum, m) => sum + m.content.length, 0),
+      completionChars: result.length,
+    });
+    return result;
+  }
+
+  /**
+   * 轻量判定：低温度 + 极短输出，用于"该不该说"这类二元裁决。
+   *
+   * 与 proactiveChat 的区别是温度为 0（要可复现的判断，不要创意）、
+   * maxTokens 极小（只需要一个词），因此单次成本远低于生成一条完整消息。
+   */
+  async quickDecide(messages: ChatMessage[]): Promise<string> {
+    if (isOfflineModeEnabled()) {
+      throw new Error('Offline mode enabled');
+    }
+    const provider = this.getProvider();
+    if (!provider) {
+      throw new Error('No chat provider configured.');
+    }
+    const result = await provider.chat(messages, { temperature: 0, maxTokens: 8 });
+    recordUsage({
+      tier: 'chat',
+      model: provider.config.model,
+      callLabel: 'proactive_judge',
+      promptChars: messages.reduce((sum, m) => sum + m.content.length, 0),
+      completionChars: result.length,
+    });
+    return result;
   }
 }
 

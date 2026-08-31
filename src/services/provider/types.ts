@@ -52,7 +52,7 @@ export interface EmotionContext {
 
 // ===== Provider 基础类型 =====
 
-export type ProviderType = 'chat' | 'tts' | 'stt' | 'embedding';
+export type ProviderType = 'chat' | 'tts' | 'stt' | 'embedding' | 'vision';
 
 /**
  * 本地服务启动规格（可选）。
@@ -254,6 +254,37 @@ export interface EmbeddingProvider extends Provider {
   getDim(): number;
   /** 取消当前请求（可选，用于与 ProviderSlot 缓存机制兼容） */
   abort?: () => void;
+}
+
+// ===== VisionProvider（借鉴 Miru 三层模型配置：Vision / Chat / Memory） =====
+
+/**
+ * 视觉模型配置。
+ *
+ * 视觉模型本质是"能接收图片的 Chat 模型"（OpenAI 兼容 chat/completions
+ * 支持 image_url 内容块），因此字段与 ChatProviderConfig 一致，单独成类型
+ * 是为了让「多模态 / 一起看」可以配置一个独立于对话 LLM 的视觉端点，
+ * 避免把截图塞给对话大脑（Miru 的 vision_model_first 思路）。
+ */
+export interface VisionProviderConfig extends ProviderConfig {
+  type: 'vision';
+  /** 适配器类型名，如 'openai_vision' */
+  typeName: string;
+  apiKey: string;
+  /** API 基础地址，如 'https://api.openai.com/v1' */
+  apiBase: string;
+  /** 视觉模型名称，如 'gpt-4o-mini' / 'qwen2-vl' */
+  model: string;
+}
+
+export interface VisionProvider extends Provider {
+  readonly config: VisionProviderConfig;
+  /** 非流式视觉理解：文本 + 图片 → 文本 */
+  chat(messages: ChatMessage[], options?: ChatOptions): Promise<string>;
+  /** 获取可用模型列表 */
+  getModels(): Promise<string[]>;
+  /** 取消当前请求 */
+  abort(): void;
 }
 
 // ===== Pipeline / Behavior hooks =====

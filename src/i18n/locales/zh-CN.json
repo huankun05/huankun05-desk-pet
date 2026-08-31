@@ -517,7 +517,9 @@
       "tts_section_title": "TTS 方案",
       "tts_section_desc": "管理多个语音合成方案，点击卡片切换激活方案",
       "stt_section_title": "STT 方案",
-      "stt_section_desc": "管理多个语音识别方案，点击卡片切换激活方案"
+      "stt_section_desc": "管理多个语音识别方案，点击卡片切换激活方案",
+      "vision_section_title": "视觉模型方案",
+      "vision_section_desc": "管理多个独立视觉模型方案，点击卡片切换激活方案"
     },
     "data": {
       "backup_success": "备份成功",
@@ -851,6 +853,18 @@
       "smart_chat_daily_limit_unit": "次",
       "proactive_tts": "主动消息朗读",
       "proactive_tts_desc": "主动聊天/问候用语音播报（需已配置 TTS 引擎）",
+      "quiet_hours_title": "免打扰与裁决",
+      "quiet_hours_desc": "限制主动消息什么时候可以出现，以及出现前是否再判断一次",
+      "quiet_hours_enable": "免打扰时段",
+      "quiet_hours_enable_desc": "开启后，时段内不会发出任何主动消息",
+      "quiet_hours_active_range": "当前静默：{{range}}，时段内否决一切主动消息",
+      "quiet_hours_start": "开始时间",
+      "quiet_hours_start_desc": "从这一小时起进入静默",
+      "quiet_hours_end": "结束时间",
+      "quiet_hours_end_desc": "到这一小时结束静默；开始晚于结束表示跨午夜",
+      "quiet_hours_unit": "点",
+      "proactive_judge": "智能裁决",
+      "proactive_judge_desc": "发出主动消息前，先用一次轻量模型判断此刻是否合适（会略微增加调用量）",
       "reset_behavior": "恢复默认",
       "global_prompt_title": "全局默认提示词",
       "global_prompt_desc": "所有角色共享的基础提示词，角色提示词会覆盖此设置",
@@ -904,7 +918,10 @@
       "wake_word": "语音唤醒",
       "wake_word_desc": "唤醒词检测与模型管理",
       "market": "插件市场",
-      "market_desc": "浏览、安装插件与 MCP 预设"
+      "market_desc": "浏览、安装插件与 MCP 预设",
+      "vision": "视觉模型",
+      "vision_desc": "独立视觉模型服务（截图理解、一起看）",
+      "related_vision_hint": "配置独立视觉模型后，可在「多模态」中将视觉来源优先级设为「优先独立视觉模型」。"
     },
     "marketplace": {
       "title": "市场",
@@ -1321,6 +1338,7 @@
       "status_watching": "正在观看",
       "validation_ok": "配置正常：当前视觉模型可用",
       "validation_no_vision": "当前配置无法启动视觉：请开启「当前模型支持视觉」或切换为自动检测并选用 vision 模型",
+      "validation_no_vision_provider": "未配置独立视觉模型：请先在「视觉模型」服务中添加并激活一个 vision 模型",
       "check_config": "检测配置",
       "check_desc": "校验多模态所需配置是否完整、能否启动",
       "shortcut_hint": "快捷键: Ctrl+Shift+S",

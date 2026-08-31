@@ -28,6 +28,14 @@ export interface ProactiveConfig {
   messageCooldown: number;
   /** 每日主动消息上限 */
   dailyLimit: number;
+  /** 免打扰时段开关：开启后在时段内否决一切主动触发（硬闸，优先级高于任何场景） */
+  quietHoursEnabled: boolean;
+  /** 免打扰起始小时（0-23，含） */
+  quietHoursStart: number;
+  /** 免打扰结束小时（0-23，不含）；start > end 表示跨午夜，如 23 → 7 */
+  quietHoursEnd: number;
+  /** 廉价模型裁决开关：硬规则提案后，再由裁决器判断"此刻该不该说" */
+  judgeEnabled: boolean;
 }
 
 const DEFAULT_CONFIG: ProactiveConfig = {
@@ -37,6 +45,10 @@ const DEFAULT_CONFIG: ProactiveConfig = {
   workReminderThreshold: 60 * 60 * 1000,
   messageCooldown: 2 * 60 * 60 * 1000,
   dailyLimit: 12,
+  quietHoursEnabled: true,
+  quietHoursStart: 23,
+  quietHoursEnd: 7,
+  judgeEnabled: false,
 };
 
 export interface ProactiveTrigger {
@@ -47,6 +59,38 @@ export interface ProactiveTrigger {
 }
 
 export type ProactiveCallback = (trigger: ProactiveTrigger) => void;
+
+/** 裁决器输入：供廉价模型判断"此刻该不该主动说话" */
+export interface ProactiveJudgeContext {
+  scene: ProactiveScene;
+  reason: string;
+  hints: string[];
+  /** 距上次互动的分钟数 */
+  idleMinutes: number;
+  /** 当前小时（0-23） */
+  hour: number;
+  /** 近期情感趋势 */
+  emotionTrend: 'positive' | 'negative' | 'neutral';
+  /** 今日已发出的主动消息条数 */
+  todayCount: number;
+  /** 今日与用户的对话轮次 */
+  todayTurns: number;
+}
+
+/**
+ * 裁决器：返回 true 放行、false 否决。
+ *
+ * 由外部注入（通常是一次廉价模型调用），调度器本身不依赖 aiService，
+ * 避免循环依赖并保持可测试性。
+ */
+export type ProactiveJudge = (ctx: ProactiveJudgeContext) => Promise<boolean>;
+
+/** 情感极性分类：仅使用 EmotionType 真实存在的取值 */
+const NEGATIVE_EMOTIONS = ['sad', 'angry'] as const;
+const POSITIVE_EMOTIONS = ['happy', 'excited', 'curious'] as const;
+
+/** 情感趋势采样窗口（毫秒）：只看最近 30 分钟 */
+const EMOTION_TREND_WINDOW = 30 * 60 * 1000;
 
 export class ProactiveScheduler {
   config: ProactiveConfig;
@@ -68,11 +112,24 @@ export class ProactiveScheduler {
   /** 最近情感趋势（positive/negative/neutral） */
   private emotionTrend: 'positive' | 'negative' | 'neutral' = 'neutral';
   private lastEmotionCheck = 0;
-  private emotionCheckInterval = 5 * 60 * 1000; // 每 5 分钟检查一次
   private lastEmotionTrigger = 0;
   private emotionTriggerCooldown = 30 * 60 * 1000;
+  /**
+   * 情感采样窗口：{ t: 时间戳, score: +1 正面 / -1 负面 }
+   *
+   * 由 `emotion:changed` 事件流自动填充，`emotionTrend` 据此实时推导，
+   * 不再依赖外部调用 `updateEmotionTrend()`（历史上从未有调用方，
+   * 导致趋势永远停留在 neutral、每日简报恒报"情绪平稳"）。
+   */
+  private emotionSamples: Array<{ t: number; score: number }> = [];
   /** 忙碌标志：语音通话/语音助手活跃/回复流式中为 true，忙碌时暂停一切主动触发 */
   private busy = false;
+  /** 裁决器（可选）：硬规则提案后的第二道闸 */
+  private judge: ProactiveJudge | null = null;
+  /** 裁决进行中标志：防止 tick 在等待裁决期间重复提案 */
+  private judging = false;
+  /** 今日裁决调用次数（含被否决的），用于封顶裁决成本 */
+  private judgeCallsToday = 0;
 
   constructor(config: Partial<ProactiveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -98,6 +155,29 @@ export class ProactiveScheduler {
   /** 当前是否忙碌（对话/通话进行中，不应被主动消息打扰） */
   isBusy(): boolean {
     return this.busy;
+  }
+
+  /**
+   * 注入/清除裁决器（廉价模型"该不该说"判断）。
+   *
+   * 仅在 `config.judgeEnabled` 为 true 时生效。裁决器抛错或超时按"放行"降级——
+   * 硬规则已经判定该说，裁决只是额外的一道否决闸，不应因为它挂掉而让桌宠彻底沉默。
+   */
+  setJudge(judge: ProactiveJudge | null): void {
+    this.judge = judge;
+  }
+
+  /**
+   * 是否处于免打扰时段（硬闸）。
+   *
+   * 支持跨午夜配置：start=23、end=7 表示 23:00–07:00 全程静默。
+   */
+  isQuietHours(at: Date = new Date()): boolean {
+    if (!this.config.quietHoursEnabled) return false;
+    const { quietHoursStart: start, quietHoursEnd: end } = this.config;
+    if (start === end) return false; // 起止相同视为不启用，避免全天静默
+    const hour = at.getHours();
+    return start < end ? hour >= start && hour < end : hour >= start || hour < end; // 跨午夜
   }
 
   private todayKey(): string {
@@ -130,14 +210,18 @@ export class ProactiveScheduler {
         this.lastInteractionTime = Date.now();
       }),
       eventBus.on('emotion:changed', (payload) => {
+        const intensity = (payload as unknown as { intensity?: number })?.intensity ?? 0;
+        const emotion = (payload as unknown as { emotion?: string })?.emotion;
+
+        // 采样先行：即使忙碌也要记录，趋势数据本身与"要不要打扰"无关
+        this.recordEmotionSample(emotion, intensity);
+
         // 如果情绪变差，触发安慰场景（忙碌时跳过，避免打断对话）
         if (this.busy) return;
-        const intensity = (payload as unknown as { intensity?: number })?.intensity;
-        const emotion = (payload as unknown as { emotion?: string })?.emotion;
         if (
           emotion &&
-          ['sad', 'angry', 'lonely', 'upset'].includes(emotion) &&
-          (intensity ?? 0) > 0.5 &&
+          (NEGATIVE_EMOTIONS as readonly string[]).includes(emotion) &&
+          intensity > 0.5 &&
           // 距上次互动超过短空闲阈值才触发：对话期间情绪波动不抢话
           Date.now() - this.lastInteractionTime > IDLE_THRESHOLDS.short
         ) {
@@ -187,14 +271,49 @@ export class ProactiveScheduler {
     }
   }
 
-  /** 更新情感趋势（由外部定期调用） */
+  /**
+   * 手动覆盖情感趋势（保留给外部数据源，如后端 PAD 状态）。
+   *
+   * 正常情况下趋势由 `emotion:changed` 事件流自动推导，无需调用本方法。
+   */
   updateEmotionTrend(trend: 'positive' | 'negative' | 'neutral'): void {
     this.emotionTrend = trend;
     this.lastEmotionCheck = Date.now();
   }
 
+  /** 记录一次情感采样并重算趋势（强度作为权重，弱情绪不足以扭转趋势） */
+  private recordEmotionSample(emotion: string | undefined, intensity: number): void {
+    if (!emotion) return;
+    let polarity: number;
+    if ((NEGATIVE_EMOTIONS as readonly string[]).includes(emotion)) polarity = -1;
+    else if ((POSITIVE_EMOTIONS as readonly string[]).includes(emotion)) polarity = 1;
+    else return; // 中性情绪（idle/thinking/talking/...）不入样，避免稀释趋势
+
+    const now = Date.now();
+    // 强度作为权重：0.3 的轻微难过不该和 1.0 的崩溃等价
+    this.emotionSamples.push({ t: now, score: polarity * Math.max(0.1, Math.min(1, intensity)) });
+    if (this.emotionSamples.length > 50) {
+      this.emotionSamples = this.emotionSamples.slice(-50);
+    }
+    this.recomputeEmotionTrend(now);
+  }
+
+  /** 依据窗口内加权均值推导趋势 */
+  private recomputeEmotionTrend(now: number = Date.now()): void {
+    this.emotionSamples = this.emotionSamples.filter((s) => now - s.t <= EMOTION_TREND_WINDOW);
+    this.lastEmotionCheck = now;
+    if (this.emotionSamples.length === 0) {
+      this.emotionTrend = 'neutral';
+      return;
+    }
+    const avg =
+      this.emotionSamples.reduce((sum, s) => sum + s.score, 0) / this.emotionSamples.length;
+    this.emotionTrend = avg > 0.25 ? 'positive' : avg < -0.25 ? 'negative' : 'neutral';
+  }
+
   /** 获取上下文感知的额外提示 */
   getContextHints(): string[] {
+    this.recomputeEmotionTrend();
     const hints: string[] = [];
     if (this.emotionTrend === 'negative') {
       hints.push('用户近期情绪偏低落，主动给予安慰');
@@ -211,6 +330,7 @@ export class ProactiveScheduler {
 
   /** 每日状态简报所需的真实数据（本地统计，供注入 prompt） */
   getDailyStats(): { turns: number; emotionTrend: 'positive' | 'negative' | 'neutral' } {
+    this.recomputeEmotionTrend();
     return { turns: this.todayTurns, emotionTrend: this.emotionTrend };
   }
 
@@ -219,6 +339,9 @@ export class ProactiveScheduler {
     // 忙碌（语音通话/语音助手/回复流式）时暂停一切主动触发，避免打断对话
     if (this.busy) return;
 
+    // 裁决进行中：不再提案，避免同一轮冷却窗口内并发裁决
+    if (this.judging) return;
+
     const today = this.todayKey();
     if (today !== this.dailyResetDate) {
       this.dailyResetDate = today;
@@ -226,7 +349,11 @@ export class ProactiveScheduler {
       this.morningGreeted = false;
       this.dailyBriefed = false;
       this.todayTurns = 0;
+      this.judgeCallsToday = 0;
     }
+
+    // 免打扰时段硬闸：优先于一切场景（含深夜提醒本身）
+    if (this.isQuietHours()) return;
 
     if (this.dailyCount >= this.config.dailyLimit) return;
 
@@ -302,22 +429,104 @@ export class ProactiveScheduler {
     }
   }
 
+  /**
+   * 是否应触发情绪安慰场景。
+   *
+   * 历史上本方法硬返回 false，导致 tick() 里的情绪驱动分支是死代码。
+   * 现在依据窗口内的负面采样证据判断：趋势为负 + 至少 2 次负面采样，
+   * 避免单次情绪抖动就触发"你怎么了"式误报。
+   */
   private shouldTriggerEmotionScene(): boolean {
-    return false;
+    this.recomputeEmotionTrend();
+    if (this.emotionTrend !== 'negative') return false;
+    const negatives = this.emotionSamples.filter((s) => s.score < 0).length;
+    return negatives >= 2;
   }
 
-  /** 场景化触发：给回调注入当前情绪/最近消息/场景提示 */
+  /**
+   * 场景化触发：给回调注入当前情绪/最近消息/场景提示。
+   *
+   * 闸门顺序（任一不过即静默）：
+   * 1. 场景存在 → 2. 每日上限 → 3. 免打扰时段（硬闸，事件驱动路径也必须过）
+   * → 4. 裁决并发保护 → 5. 廉价模型裁决（可选）→ 发出
+   */
   private tryTrigger(sceneId: string, reason: string): void {
     const scene = PROACTIVE_SCENES.find((s) => s.id === sceneId);
     if (!scene) return;
     if (this.dailyCount >= this.config.dailyLimit) return;
 
-    this.lastProactiveTime = Date.now();
-    this.dailyCount++;
+    // 免打扰二次防护：mood_change 走的是事件回调路径，不经过 tick() 的闸
+    if (this.isQuietHours()) {
+      log.info('Proactive suppressed by quiet hours', { scene: sceneId, reason });
+      return;
+    }
+
+    if (this.judging) return;
 
     const hints = this.getContextHints();
     const trigger: ProactiveTrigger = { scene, reason, hints };
-    log.info('Proactive trigger', { scene: sceneId, reason, dailyCount: this.dailyCount, hints });
+
+    const useJudge =
+      this.config.judgeEnabled &&
+      this.judge !== null &&
+      // 裁决成本封顶：最多 dailyLimit 的 3 倍次调用，防止反复否决烧钱
+      this.judgeCallsToday < this.config.dailyLimit * 3;
+
+    if (!useJudge) {
+      this.commitTrigger(trigger);
+      return;
+    }
+
+    // 先占用冷却窗口：无论裁决结果如何都降温，避免被否决后每个 tick 都重新裁决
+    this.lastProactiveTime = Date.now();
+    this.judging = true;
+    this.judgeCallsToday++;
+
+    const ctx: ProactiveJudgeContext = {
+      scene,
+      reason,
+      hints,
+      idleMinutes: Math.round((Date.now() - this.lastInteractionTime) / 60000),
+      hour: new Date().getHours(),
+      emotionTrend: this.emotionTrend,
+      todayCount: this.dailyCount,
+      todayTurns: this.todayTurns,
+    };
+
+    void this.judge!(ctx)
+      .then((approved) => {
+        if (!approved) {
+          log.info('Proactive vetoed by judge', { scene: sceneId, reason });
+          return;
+        }
+        this.commitTrigger(trigger, /* cooldownAlreadyApplied */ true);
+      })
+      .catch((err) => {
+        // 裁决器不可用：降级放行。硬规则已判定该说，不该因裁决挂掉而彻底沉默
+        log.warn('Proactive judge failed, falling through to allow', err);
+        this.commitTrigger(trigger, true);
+      })
+      .finally(() => {
+        this.judging = false;
+      });
+  }
+
+  /** 计入配额并派发给回调 */
+  private commitTrigger(trigger: ProactiveTrigger, cooldownAlreadyApplied = false): void {
+    // 二次校验：裁决是异步的，期间可能已跨日重置或触达上限
+    if (this.dailyCount >= this.config.dailyLimit) return;
+
+    if (!cooldownAlreadyApplied) {
+      this.lastProactiveTime = Date.now();
+    }
+    this.dailyCount++;
+
+    log.info('Proactive trigger', {
+      scene: trigger.scene.id,
+      reason: trigger.reason,
+      dailyCount: this.dailyCount,
+      hints: trigger.hints,
+    });
 
     for (const cb of this.callbacks) {
       try {

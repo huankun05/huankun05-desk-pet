@@ -304,6 +304,10 @@ class ReunionCheckRequest(BaseModel):
     user_id: str = "default"
 
 
+class MemoryArchivistRequest(BaseModel):
+    character_id: str = "default"
+
+
 # ---- Session / Hermes 大脑会话 ----
 
 
@@ -1207,6 +1211,34 @@ async def _memory_decay_loop(interval_seconds: int = 21600, first_delay: int = 3
         await asyncio.sleep(interval_seconds)
 
 
+async def _archivist_loop(interval_seconds: int = 21600, first_delay: int = 600) -> None:
+    """周期性触发 Archivist 记忆整理（合并相似碎片、清理冗余、应用遗忘衰减）。
+
+    复用既有 Archivist.run_full_cycle；SQLite I/O 走 asyncio.to_thread，避免阻塞
+    事件循环；启动延迟首跑（first_delay），与 decay loop 错峰；任务自身异常被吞掉，
+    周期任务不得影响主服务。这是把原先「零实例化」的 Archivist 接进运行时的关键一步。
+    """
+    log.info("archivist loop started (interval=%ss, first_delay=%ss)", interval_seconds, first_delay)
+    await asyncio.sleep(first_delay)
+    while True:
+        try:
+            from .brain.archivist import Archivist
+            from .brain.store import MemoryStore
+
+            archivist = Archivist(MemoryStore())
+            result = await asyncio.to_thread(archivist.run_full_cycle)
+            if result.merged or result.deleted or result.decayed:
+                log.info(
+                    "archivist run: processed=%s decayed=%s deleted=%s merged=%s errors=%s",
+                    result.processed, result.decayed, result.deleted, result.merged, result.errors,
+                )
+            else:
+                log.debug("archivist run: no change (processed=%s)", result.processed)
+        except Exception as exc:  # 防御性：周期任务自身失败不应连累主服务
+            log.warning("archivist loop error: %s", exc)
+        await asyncio.sleep(interval_seconds)
+
+
 def create_app() -> FastAPI:
     from contextlib import asynccontextmanager
     from fastapi import FastAPI as _FastAPI
@@ -1215,13 +1247,19 @@ def create_app() -> FastAPI:
     async def lifespan(app: _FastAPI):
         init_db()
         decay_task = asyncio.create_task(_memory_decay_loop())
+        archivist_task = asyncio.create_task(_archivist_loop())
         log.info("Core API server started")
         try:
             yield
         finally:
             decay_task.cancel()
+            archivist_task.cancel()
             try:
                 await decay_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await archivist_task
             except asyncio.CancelledError:
                 pass
 
@@ -1443,6 +1481,25 @@ def create_app() -> FastAPI:
     @app.post("/api/core/time/reunion/check")
     def check_reunion(req: ReunionCheckRequest) -> dict:
         return TimeService.check_reunion(req.character_id, req.user_id)
+
+    @app.post("/api/core/memory/archivist/run")
+    def run_archivist(req: MemoryArchivistRequest) -> dict:
+        """手动触发一次 Archivist 记忆整理（合并相似碎片 / 清理冗余 / 遗忘衰减）。
+
+        周期调度由 _archivist_loop 自动执行；此端点用于即时触发（如调试或用户手动整理）。
+        """
+        from .brain.archivist import Archivist
+        from .brain.store import MemoryStore
+
+        archivist = Archivist(MemoryStore(character_id=req.character_id))
+        result = archivist.run_full_cycle()
+        return {
+            "processed": result.processed,
+            "decayed": result.decayed,
+            "deleted": result.deleted,
+            "merged": result.merged,
+            "errors": result.errors,
+        }
 
     @app.get("/api/core/time/circadian")
     def get_circadian() -> dict:

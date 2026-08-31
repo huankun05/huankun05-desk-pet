@@ -24,6 +24,14 @@ export interface BehaviorConfig {
   smartChatIdleThreshold: number;
   /** 主动消息 TTS 朗读：主动聊天/问候是否用语音播报（默认关闭，避免突然出声） */
   proactiveTts: boolean;
+  /** 免打扰时段开关：时段内否决一切主动消息（硬闸，默认开启） */
+  quietHoursEnabled: boolean;
+  /** 免打扰起始小时（0-23，含） */
+  quietHoursStart: number;
+  /** 免打扰结束小时（0-23，不含）；start > end 表示跨午夜 */
+  quietHoursEnd: number;
+  /** 主动消息智能裁决：发出前先用一次廉价模型判断"此刻该不该说"（默认关闭） */
+  proactiveJudge: boolean;
   /** 行为总开关 */
   enable: boolean;
 }
@@ -35,6 +43,10 @@ export const DEFAULT_BEHAVIOR: BehaviorConfig = {
   smartChatDailyLimit: 20,
   smartChatIdleThreshold: 30,
   proactiveTts: false,
+  quietHoursEnabled: true,
+  quietHoursStart: 23,
+  quietHoursEnd: 7,
+  proactiveJudge: false,
   enable: true,
 };
 

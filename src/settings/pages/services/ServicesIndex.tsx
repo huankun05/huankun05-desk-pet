@@ -44,6 +44,12 @@ export function ServicesIndex() {
       description: t('settings.services_section.multimodal_desc'),
       to: '/settings/services/multimodal',
     },
+    {
+      icon: 'solar:eye-bold-duotone',
+      title: t('settings.services_section.vision'),
+      description: t('settings.services_section.vision_desc'),
+      to: '/settings/services/vision',
+    },
   ];
 
   return (
