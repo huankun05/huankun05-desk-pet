@@ -56,6 +56,11 @@ Keep responses concise and friendly. Use emojis occasionally to express emotions
 export class OpenAIChatProvider implements ChatProvider {
   readonly config: OpenAIChatConfig;
   private abortController: AbortController | null = null;
+  /**
+   * 最近一次调用的 token 用量（chat/completions 回传 usage 时非 null）。
+   * 供成本账本记录真实 token；未回传时为 null，账本回退字符代理。
+   */
+  lastUsage: { promptTokens: number; completionTokens: number } | null = null;
 
   constructor(config: OpenAIChatConfig) {
     this.config = config;
@@ -168,6 +173,7 @@ export class OpenAIChatProvider implements ChatProvider {
    */
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<string> {
     log.info('chat request', { model: this.config.model, messages: messages.length });
+    this.lastUsage = null;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -194,6 +200,13 @@ export class OpenAIChatProvider implements ChatProvider {
     }
 
     const data = await response.json();
+    // 捕获真实 token 用量（OpenAI 兼容接口在非流式响应中携带 usage）
+    if (data.usage) {
+      this.lastUsage = {
+        promptTokens: data.usage.prompt_tokens ?? 0,
+        completionTokens: data.usage.completion_tokens ?? 0,
+      };
+    }
     const assistantMessage = data.choices[0]?.message?.content;
     if (!assistantMessage) throw new Error('No response from AI');
     log.debug('chat response', { length: assistantMessage.length });
@@ -214,6 +227,7 @@ export class OpenAIChatProvider implements ChatProvider {
       messages: options.messages.length,
       tools: options.tools?.length ?? 0,
     });
+    this.lastUsage = null;
 
     const body: Record<string, unknown> = {
       model: this.config.model,
@@ -221,6 +235,8 @@ export class OpenAIChatProvider implements ChatProvider {
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 1000,
       stream: true,
+      // 请求流式 usage 末帧：多数 OpenAI 兼容接口据此回传 token 用量
+      stream_options: { include_usage: true },
     };
     if (options.tools && options.tools.length > 0) {
       body.tools = options.tools;
@@ -304,6 +320,15 @@ export class OpenAIChatProvider implements ChatProvider {
 
           try {
             const parsed = JSON.parse(data);
+
+            // 流式 usage 末帧（choices 为空数组）：仅携带 token 用量
+            if (parsed.usage) {
+              this.lastUsage = {
+                promptTokens: parsed.usage.prompt_tokens ?? 0,
+                completionTokens: parsed.usage.completion_tokens ?? 0,
+              };
+            }
+
             const choice = parsed.choices?.[0];
             if (!choice) continue;
 

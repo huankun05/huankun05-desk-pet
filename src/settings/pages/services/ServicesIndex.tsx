@@ -50,6 +50,12 @@ export function ServicesIndex() {
       description: t('settings.services_section.vision_desc'),
       to: '/settings/services/vision',
     },
+    {
+      icon: 'solar:chart-2-bold-duotone',
+      title: t('settings.services_section.usage'),
+      description: t('settings.services_section.usage_desc'),
+      to: '/settings/services/usage',
+    },
   ];
 
   return (

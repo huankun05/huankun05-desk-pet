@@ -126,6 +126,11 @@ export class OllamaChatProvider implements ChatProvider {
     this.inner.abort();
   }
 
+  /** 透传内层 provider 的最近一次 token 用量（Ollama 回传 usage 时非 null） */
+  get lastUsage(): { promptTokens: number; completionTokens: number } | null {
+    return this.inner.lastUsage;
+  }
+
   /**
    * 非流式聊天（委托给 OpenAIChatProvider）
    */

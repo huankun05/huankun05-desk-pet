@@ -519,7 +519,30 @@
       "stt_section_title": "STT 方案",
       "stt_section_desc": "管理多个语音识别方案，点击卡片切换激活方案",
       "vision_section_title": "视觉模型方案",
-      "vision_section_desc": "管理多个独立视觉模型方案，点击卡片切换激活方案"
+      "vision_section_desc": "管理多个独立视觉模型方案，点击卡片切换激活方案",
+      "usage": {
+        "title": "用量统计",
+        "desc": "LLM / 视觉调用成本账本（本地存储，最多保留 1000 条）",
+        "today_calls": "今日调用",
+        "today_chars": "今日估算量（字符）",
+        "today_tokens": "今日 token",
+        "token_coverage": "真实 token 覆盖率",
+        "refresh": "刷新",
+        "empty": "暂无用量记录，先和宠物聊几句再看看",
+        "by_day": "按天汇总",
+        "by_model": "按模型汇总",
+        "by_label": "按调用类型汇总",
+        "recent": "最近调用",
+        "recent_hint": "仅展示最近 20 条（共 {{count}} 条记录）",
+        "day": "日期",
+        "time": "时间",
+        "calls": "次数",
+        "chars": "字符",
+        "tokens": "tokens",
+        "model": "模型",
+        "label": "类型",
+        "tier": "层级"
+      }
     },
     "data": {
       "backup_success": "备份成功",
@@ -921,7 +944,9 @@
       "market_desc": "浏览、安装插件与 MCP 预设",
       "vision": "视觉模型",
       "vision_desc": "独立视觉模型服务（截图理解、一起看）",
-      "related_vision_hint": "配置独立视觉模型后，可在「多模态」中将视觉来源优先级设为「优先独立视觉模型」。"
+      "related_vision_hint": "配置独立视觉模型后，可在「多模态」中将视觉来源优先级设为「优先独立视觉模型」。",
+      "usage": "用量统计",
+      "usage_desc": "LLM / 视觉调用成本账本与报表"
     },
     "marketplace": {
       "title": "市场",

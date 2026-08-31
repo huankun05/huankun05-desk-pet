@@ -118,6 +118,8 @@ export async function analyzeScreenshot(
     callLabel: 'vision_watch',
     promptChars: systemPrompt.length + imageDataUrl.length,
     completionChars: raw.length,
+    promptTokens: provider.lastUsage?.promptTokens,
+    completionTokens: provider.lastUsage?.completionTokens,
   });
 
   log.debug('LLM response', { length: raw.length, preview: raw.slice(0, 100) });

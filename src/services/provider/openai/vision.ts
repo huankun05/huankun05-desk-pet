@@ -47,6 +47,11 @@ export class OpenAIVisionProvider implements VisionProvider {
     return this.inner.chat(messages, options);
   }
 
+  /** 透传内层 ChatProvider 的最近一次 token 用量 */
+  get lastUsage(): { promptTokens: number; completionTokens: number } | null {
+    return this.inner.lastUsage;
+  }
+
   async getModels(): Promise<string[]> {
     return this.inner.getModels();
   }

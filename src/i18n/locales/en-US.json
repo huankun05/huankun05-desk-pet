@@ -515,7 +515,30 @@
       "stt_section_title": "STT Providers",
       "stt_section_desc": "Manage multiple STT providers, click card to switch",
       "vision_section_title": "Vision Model Providers",
-      "vision_section_desc": "Manage multiple standalone vision model providers, click card to switch"
+      "vision_section_desc": "Manage multiple standalone vision model providers, click card to switch",
+      "usage": {
+        "title": "Usage Stats",
+        "desc": "LLM / vision call cost ledger (stored locally, keeps up to 1000 entries)",
+        "today_calls": "Calls today",
+        "today_chars": "Chars today (estimate)",
+        "today_tokens": "Tokens today",
+        "token_coverage": "Real token coverage",
+        "refresh": "Refresh",
+        "empty": "No usage recorded yet — chat with the pet a bit and check back",
+        "by_day": "By day",
+        "by_model": "By model",
+        "by_label": "By call label",
+        "recent": "Recent calls",
+        "recent_hint": "Showing the latest 20 of {{count}} entries",
+        "day": "Date",
+        "time": "Time",
+        "calls": "Calls",
+        "chars": "Chars",
+        "tokens": "Tokens",
+        "model": "Model",
+        "label": "Label",
+        "tier": "Tier"
+      }
     },
     "data": {
       "backup_success": "Backup successful",
@@ -917,7 +940,9 @@
       "market_desc": "Browse and install plugins & MCP presets",
       "vision": "Vision Model",
       "vision_desc": "Standalone vision model service (screenshot understanding, watch-together)",
-      "related_vision_hint": "After configuring a standalone vision model, set the multimodal vision source priority to \"Prefer standalone vision model\"."
+      "related_vision_hint": "After configuring a standalone vision model, set the multimodal vision source priority to \"Prefer standalone vision model\".",
+      "usage": "Usage Stats",
+      "usage_desc": "LLM / vision call cost ledger and report"
     },
     "marketplace": {
       "title": "Marketplace",

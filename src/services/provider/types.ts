@@ -148,6 +148,11 @@ export interface ChatProvider extends Provider {
   chatStream(options: ChatStreamOptions): AsyncGenerator<ChatStreamChunk, void, unknown>;
   /** 非流式聊天 */
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<string>;
+  /**
+   * 最近一次调用的 token 用量（provider 回传 usage 时非 null）。
+   * 成本账本据此记录真实 token；未回传时为 null，账本回退字符代理。
+   */
+  lastUsage: { promptTokens: number; completionTokens: number } | null;
   /** 获取可用模型列表 */
   getModels(): Promise<string[]>;
   /** 取消当前请求 */
@@ -281,6 +286,8 @@ export interface VisionProvider extends Provider {
   readonly config: VisionProviderConfig;
   /** 非流式视觉理解：文本 + 图片 → 文本 */
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<string>;
+  /** 最近一次调用的 token 用量（provider 回传 usage 时非 null），与 ChatProvider 一致 */
+  lastUsage: { promptTokens: number; completionTokens: number } | null;
   /** 获取可用模型列表 */
   getModels(): Promise<string[]>;
   /** 取消当前请求 */

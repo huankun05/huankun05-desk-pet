@@ -162,6 +162,8 @@ export class AIService {
       callLabel: 'chat',
       promptChars: systemPrompt.length + userMessage.length,
       completionChars: result.length,
+      promptTokens: provider.lastUsage?.promptTokens,
+      completionTokens: provider.lastUsage?.completionTokens,
     });
     return result;
   }
@@ -208,6 +210,8 @@ export class AIService {
           (memoryContext?.length ?? 0) +
           (session.messages?.reduce((s, m) => s + (m.content?.length ?? 0), 0) ?? 0),
         completionChars,
+        promptTokens: provider.lastUsage?.promptTokens,
+        completionTokens: provider.lastUsage?.completionTokens,
       });
     }
   }
@@ -288,6 +292,8 @@ export class AIService {
       callLabel: 'proactive',
       promptChars: messages.reduce((sum, m) => sum + m.content.length, 0),
       completionChars: result.length,
+      promptTokens: provider.lastUsage?.promptTokens,
+      completionTokens: provider.lastUsage?.completionTokens,
     });
     return result;
   }
@@ -313,6 +319,8 @@ export class AIService {
       callLabel: 'proactive_judge',
       promptChars: messages.reduce((sum, m) => sum + m.content.length, 0),
       completionChars: result.length,
+      promptTokens: provider.lastUsage?.promptTokens,
+      completionTokens: provider.lastUsage?.completionTokens,
     });
     return result;
   }
