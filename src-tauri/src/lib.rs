@@ -169,8 +169,10 @@ fn get_cursor_window_info(_app: tauri::AppHandle) -> CmdResult<CursorWindowInfo>
 /// 入参与出参均为物理像素（前端按 devicePixelRatio 换算）。宽容 clamp：
 /// 允许窗口部分超出屏幕（桌宠贴边半隐藏是常态），保证至少 40px 可见；
 /// 优先 clamp 到包含窗口中心的显示器，避免副屏位置被拉回主屏。
+///
+/// 参数 `_w`/`_h` 在非 Windows 平台不参与计算，用下划线前缀抑制 dead code 警告。
 #[tauri::command]
-fn clamp_window_position(x: f64, y: f64, w: f64, h: f64) -> CmdResult<(f64, f64)> {
+fn clamp_window_position(x: f64, y: f64, _w: f64, _h: f64) -> CmdResult<(f64, f64)> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
@@ -211,8 +213,8 @@ fn clamp_window_position(x: f64, y: f64, w: f64, h: f64) -> CmdResult<(f64, f64)
             return Ok((x, y));
         }
 
-        let center_x = x + w / 2.0;
-        let center_y = y + h / 2.0;
+        let center_x = x + _w / 2.0;
+        let center_y = y + _h / 2.0;
 
         // 优先选包含窗口中心的显示器；否则选中心最近的显示器
         let mut chosen: Option<RECT> = None;
@@ -245,8 +247,8 @@ fn clamp_window_position(x: f64, y: f64, w: f64, h: f64) -> CmdResult<(f64, f64)
         let min_visible = 40.0f64;
 
         Ok((
-            x.clamp(left - w + min_visible, right - min_visible),
-            y.clamp(top - h + min_visible, bottom - min_visible),
+            x.clamp(left - _w + min_visible, right - min_visible),
+            y.clamp(top - _h + min_visible, bottom - min_visible),
         ))
     }
     #[cfg(not(target_os = "windows"))]
@@ -1579,12 +1581,19 @@ pub fn run() {
             local_tools::open_file,
             local_tools::open_folder,
             local_tools::run_command,
+            #[cfg(target_os = "windows")]
             local_tools::media_control,
+            #[cfg(target_os = "windows")]
             local_tools::write_clipboard,
+            #[cfg(target_os = "windows")]
             local_tools::lock_screen,
+            #[cfg(target_os = "windows")]
             local_tools::get_battery,
+            #[cfg(target_os = "windows")]
             local_tools::get_volume,
+            #[cfg(target_os = "windows")]
             local_tools::set_volume,
+            #[cfg(target_os = "windows")]
             local_tools::notify,
             local_tools::get_time,
             service::get_service_logs,
