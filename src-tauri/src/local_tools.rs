@@ -359,6 +359,7 @@ pub fn lock_screen() -> CmdResult<()> {
 // ===========================================================================
 
 /// Battery info (percent is null when no battery on desktop)
+#[cfg(target_os = "windows")]
 #[derive(Serialize)]
 pub struct BatteryInfo {
     pub percent: Option<u32>,
@@ -516,6 +517,7 @@ fn register_aumid_if_needed() {
 }
 
 /// Escape XML special chars to prevent title/body from breaking Toast XML
+#[cfg(target_os = "windows")]
 fn escape_xml(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
