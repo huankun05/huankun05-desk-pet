@@ -397,7 +397,10 @@ export class ProactiveScheduler {
 
     // 随机性：小概率主动发起非时间场景，避免机械节律。
     // 概率乘以昼夜节律主动系数：深夜（0.3）时桌宠明显更克制，白天（1.0）正常。
-    if (Math.random() < 0.15 * this.circadianMultiplier && idleDuration > this.config.longIdleThreshold) {
+    if (
+      Math.random() < 0.15 * this.circadianMultiplier &&
+      idleDuration > this.config.longIdleThreshold
+    ) {
       this.tryTrigger('idle_long', `已闲置 ${Math.round(idleDuration / 60000)} 分钟`);
       return;
     }
