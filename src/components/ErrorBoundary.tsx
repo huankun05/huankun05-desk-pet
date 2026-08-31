@@ -114,9 +114,7 @@ export class ErrorBoundary extends Component<Props, State> {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span style={{ fontSize: '1rem', lineHeight: 1 }}>⚠️</span>
-            <span style={{ fontSize: '0.85rem', color: '#555', flex: 1 }}>
-              此组件加载失败
-            </span>
+            <span style={{ fontSize: '0.85rem', color: '#555', flex: 1 }}>此组件加载失败</span>
             <button
               onClick={this.handleRetry}
               style={{

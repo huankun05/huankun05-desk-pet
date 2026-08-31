@@ -194,10 +194,10 @@ ${t}`;
   try {
     // 指令与待纠正文本合并为一条 user 消息：对本地模型（Ollama 等）兼容性最好，
     // 避免部分后端对 system-only 消息处理不佳。
-    const result = await chatProvider.chat(
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3, maxTokens: 300 },
-    );
+    const result = await chatProvider.chat([{ role: 'user', content: prompt }], {
+      temperature: 0.3,
+      maxTokens: 300,
+    });
     const cleaned = (result || '').trim();
     if (cleaned && cleaned.length >= 1) {
       log.info('STT 智能润色完成', { from: t.slice(0, 30), to: cleaned.slice(0, 30) });

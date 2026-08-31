@@ -177,8 +177,7 @@ export function StatusPage() {
         <div className="text-sm text-neutral-500 leading-relaxed">
           语音服务（TTS / STT）在应用启动时会自动拉起；若异常退出可在此手动
           <span className="text-emerald-500"> 启动</span> /
-          <span className="text-rose-500"> 停止</span> /
-          <span className="text-sky-500"> 重启</span>
+          <span className="text-rose-500"> 停止</span> /<span className="text-sky-500"> 重启</span>
           。Hermes Gateway 与 Core API 为核心服务，仅展示状态。
         </div>
 
@@ -197,7 +196,8 @@ export function StatusPage() {
                   <div>
                     <div className="text-sm font-medium">{svc.name}</div>
                     <div className="text-xs text-neutral-400">
-                      端口 {svc.port} · {t(`settings.services_section.status_${svc.kind}`, svc.kind)}
+                      端口 {svc.port} ·{' '}
+                      {t(`settings.services_section.status_${svc.kind}`, svc.kind)}
                     </div>
                   </div>
                 </div>
@@ -234,7 +234,9 @@ export function StatusPage() {
                       )}
                     </div>
                   )}
-                  {isBusy && <Icon icon="svg-spinners:ring-resize" className="w-4 h-4 text-neutral-400" />}
+                  {isBusy && (
+                    <Icon icon="svg-spinners:ring-resize" className="w-4 h-4 text-neutral-400" />
+                  )}
                 </div>
               </div>
             );
@@ -243,7 +245,9 @@ export function StatusPage() {
       </Section>
 
       {!isTauriEnv() && (
-        <div className="text-xs text-neutral-400">当前非 Tauri 环境（浏览器预览），仅展示配置。</div>
+        <div className="text-xs text-neutral-400">
+          当前非 Tauri 环境（浏览器预览），仅展示配置。
+        </div>
       )}
     </div>
   );

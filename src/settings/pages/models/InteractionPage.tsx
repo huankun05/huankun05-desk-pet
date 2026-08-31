@@ -871,7 +871,10 @@ export function InteractionPage() {
             description="用 AI 纠正语音识别中的同音错字、去掉重复表达，并结合对话上下文理解你的意思（例如你说 claude 被识别成 cloud 时，能按 AI 工具语境纠正回来）。需要已配置可用的语言模型，润色会增加一点响应时间"
           >
             <div className="p-4">
-              <SettingRow title="启用智能润色" description="语音转文字（按住说话 / 语音通话）识别完成后经 LLM 润色再使用">
+              <SettingRow
+                title="启用智能润色"
+                description="语音转文字（按住说话 / 语音通话）识别完成后经 LLM 润色再使用"
+              >
                 <Switch
                   checked={config.enableSTTPolish === 1}
                   onClick={() =>

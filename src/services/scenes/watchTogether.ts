@@ -75,7 +75,9 @@ export function checkVisionCapability(
 export async function analyzeScreenshot(
   imageDataUrl: string,
   systemPrompt: string,
-  options?: { visionSourcePriority?: 'auto' | 'llm_first' | 'embedding_first' | 'vision_model_first' },
+  options?: {
+    visionSourcePriority?: 'auto' | 'llm_first' | 'embedding_first' | 'vision_model_first';
+  },
 ): Promise<WatchTogetherResult> {
   const preferVisionModel =
     options?.visionSourcePriority === 'vision_model_first' &&

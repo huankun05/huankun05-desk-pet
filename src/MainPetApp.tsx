@@ -406,7 +406,13 @@ function MainPetApp() {
   // ===== 主动闲聊"忙碌"闸 =====
   // 语音助手活跃 / 回复流式 / VAD 检测到语音 / 聊天窗语音通话中 / 聊天面板文字对话中 →
   // 暂停主动消息与静态闲聊，避免"正在对话时突然冒一句"。用 ref 聚合各路来源，统一写入 proactiveScheduler。
-  const busySourcesRef = useRef({ voice: false, streaming: false, vad: false, call: false, chat: false });
+  const busySourcesRef = useRef({
+    voice: false,
+    streaming: false,
+    vad: false,
+    call: false,
+    chat: false,
+  });
   const syncBusy = useCallback(() => {
     const s = busySourcesRef.current;
     proactiveScheduler.setBusy(s.voice || s.streaming || s.vad || s.call || s.chat);

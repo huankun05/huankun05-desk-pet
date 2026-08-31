@@ -24,7 +24,10 @@ export class OpenAIVisionProvider implements VisionProvider {
   constructor(config: VisionProviderConfig) {
     this.config = config;
     this.inner = new OpenAIChatProvider(
-      config as unknown as ChatProviderConfig & { systemPrompt?: string; enableSmartChat?: boolean },
+      config as unknown as ChatProviderConfig & {
+        systemPrompt?: string;
+        enableSmartChat?: boolean;
+      },
     );
   }
 

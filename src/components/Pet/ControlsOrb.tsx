@@ -547,11 +547,11 @@ export default function ControlsOrb() {
           ? state.fadeOnHover
             ? 'solar:eye-bold'
             : 'solar:eye-closed-linear'
-        : b.label === 'lock'
-          ? state.isLocked
-            ? 'solar:lock-keyhole-linear'
-            : 'solar:lock-keyhole-unlocked-linear'
-          : b.icon,
+          : b.label === 'lock'
+            ? state.isLocked
+              ? 'solar:lock-keyhole-linear'
+              : 'solar:lock-keyhole-unlocked-linear'
+            : b.icon,
   }));
 
   const modelPicker = showModelPicker &&

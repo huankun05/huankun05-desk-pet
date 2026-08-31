@@ -60,12 +60,7 @@ export function SubtitleNotch() {
 
   const isListening = state.phase === 'listening';
   const showWave = state.phase === 'listening' || state.phase === 'speaking';
-  const label =
-    state.phase === 'listening'
-      ? '🎙️'
-      : state.phase === 'recognized'
-        ? '🗣️'
-        : '💬';
+  const label = state.phase === 'listening' ? '🎙️' : state.phase === 'recognized' ? '🗣️' : '💬';
 
   return (
     <div
@@ -98,10 +93,7 @@ export function SubtitleNotch() {
 
         <span className="text-sm leading-none">{label}</span>
 
-        <span
-          className="max-w-[60vw] truncate text-sm text-white/90"
-          style={{ fontWeight: 500 }}
-        >
+        <span className="max-w-[60vw] truncate text-sm text-white/90" style={{ fontWeight: 500 }}>
           {state.text || (isListening ? '正在聆听…' : '')}
         </span>
       </div>

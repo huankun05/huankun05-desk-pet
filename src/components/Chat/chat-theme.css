@@ -187,7 +187,10 @@ body,
 
 /* ---------- 输入框 ---------- */
 .chat-input {
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
 .chat-input:focus {

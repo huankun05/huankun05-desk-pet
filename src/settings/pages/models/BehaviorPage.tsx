@@ -177,10 +177,16 @@ export function BehaviorPage() {
                 // 开启主动聊天时走权限闸：首次弹确认卡，之后按授权策略（低风险默认放行）
                 if (next) {
                   try {
-                    const res = await permissionManager.authorize('proactive_chat', {}, { source: 'behavior' });
+                    const res = await permissionManager.authorize(
+                      'proactive_chat',
+                      {},
+                      { source: 'behavior' },
+                    );
                     if (!res.allowed) {
                       showToast(
-                        t('settings.models.smart_chat_blocked', { defaultValue: '已取消开启主动聊天' }),
+                        t('settings.models.smart_chat_blocked', {
+                          defaultValue: '已取消开启主动聊天',
+                        }),
                         'info',
                       );
                       return;

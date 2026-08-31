@@ -407,10 +407,7 @@ export class ProactiveScheduler {
     }
 
     // 晚餐提醒
-    if (
-      (hour === 18 || (hour === 19 && minute < 30)) &&
-      idleDuration > IDLE_THRESHOLDS.short
-    ) {
+    if ((hour === 18 || (hour === 19 && minute < 30)) && idleDuration > IDLE_THRESHOLDS.short) {
       this.tryTrigger('dinner_time', '晚餐时间');
       return;
     }

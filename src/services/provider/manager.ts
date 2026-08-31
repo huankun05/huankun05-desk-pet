@@ -671,10 +671,7 @@ export class ProviderManager {
    *
    * 切换时销毁旧活跃实例（释放连接/定时器），新实例在下次访问时按需创建。
    */
-  private setActive(
-    type: 'chat' | 'tts' | 'stt' | 'embedding' | 'vision',
-    id: string,
-  ): void {
+  private setActive(type: 'chat' | 'tts' | 'stt' | 'embedding' | 'vision', id: string): void {
     const displayName =
       type === 'chat'
         ? 'ChatProvider'
@@ -783,8 +780,7 @@ export class ProviderManager {
     const id = this.state.activeVisionId;
     if (!id) return null;
     const cfg = this.state.configs.find((c) => (c as ProviderConfig).id === id) as
-      | VisionProviderConfig
-      | undefined;
+      VisionProviderConfig | undefined;
     return cfg ?? null;
   }
 

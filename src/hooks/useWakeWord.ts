@@ -63,9 +63,10 @@ export function readWakeWordConfig(): WakeWordConfig {
       ...DEFAULT_CONFIG,
       ...saved,
       variants: Array.isArray(saved.variants) ? saved.variants : DEFAULT_CONFIG.variants,
-      responses: Array.isArray(saved.responses) && saved.responses.length > 0
-        ? saved.responses
-        : DEFAULT_CONFIG.responses,
+      responses:
+        Array.isArray(saved.responses) && saved.responses.length > 0
+          ? saved.responses
+          : DEFAULT_CONFIG.responses,
     };
   }
   return DEFAULT_CONFIG;
