@@ -385,7 +385,7 @@ pub fn get_battery() -> CmdResult<BatteryInfo> {
             3 => "已充满",
             4 => "电量低",
             5 => "电量极低",
-            6 | 7 | 8 | 9 => "充电中",
+            6..=9 => "充电中",
             _ => "未知",
         }
         .to_string()
@@ -596,5 +596,5 @@ fn days_to_ymd(mut days: u32) -> (u32, u32, u32) {
 }
 
 const fn is_leap(year: u32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    year.is_multiple_of(4) && !year.is_multiple_of(100) || year.is_multiple_of(400)
 }
