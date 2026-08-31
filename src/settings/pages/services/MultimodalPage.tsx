@@ -14,6 +14,14 @@ import { createStorage } from '../../../services/storage';
 import { useStorageEvent } from '../../../hooks/useStorageEvent';
 import { providerManager } from '../../../services/provider/manager';
 import { isVisionModel } from '../../../services/provider/ollama/chat';
+import {
+  getScreenPerceptionConfig,
+  saveScreenPerceptionConfig,
+  observeScreenOnce,
+  getScreenObservations,
+  type ScreenPerceptionConfig,
+  type ScreenObservation,
+} from '../../../services/perception/screenObservation';
 
 /** 多模态配置 */
 interface MultimodalConfig {
@@ -67,6 +75,14 @@ export function MultimodalPage() {
   const [loading, setLoading] = useState(true);
   const [isWatching, setIsWatching] = useState(false);
   const [mmStatus, setMmStatus] = useState<ProviderTestResult>({ status: 'idle' });
+  const [screenCfg, setScreenCfg] = useState<ScreenPerceptionConfig>(() =>
+    getScreenPerceptionConfig(),
+  );
+  const [screenObservations, setScreenObservations] = useState<ScreenObservation[]>(() =>
+    getScreenObservations(),
+  );
+  const [observing, setObserving] = useState(false);
+  const [observeError, setObserveError] = useState<string | null>(null);
 
   // 监听"一起看"模式状态（由主窗口写入 localStorage）
   useStorageEvent(
@@ -99,6 +115,28 @@ export function MultimodalPage() {
     const next = { ...config, ...patch };
     setConfig(next);
     multimodalStorage.set(next);
+  };
+
+  const updateScreenCfg = (patch: Partial<ScreenPerceptionConfig>) => {
+    const next = { ...screenCfg, ...patch };
+    setScreenCfg(next);
+    saveScreenPerceptionConfig(next);
+    setObserveError(null);
+  };
+
+  const handleObserveOnce = async () => {
+    setObserving(true);
+    setObserveError(null);
+    try {
+      const text = await observeScreenOnce();
+      if (text) {
+        setScreenObservations(getScreenObservations());
+      } else {
+        setObserveError(t('settings.multimodal.screen_observe_failed'));
+      }
+    } finally {
+      setObserving(false);
+    }
   };
 
   /**
@@ -330,6 +368,63 @@ export function MultimodalPage() {
               {t('settings.multimodal.prompt_tip')}
             </div>
           </div>
+        </div>
+      </Section>
+
+      {/* 屏幕感知（opt-in，默认关闭） */}
+      <Section
+        title={t('settings.multimodal.screen_title')}
+        description={t('settings.multimodal.screen_desc')}
+      >
+        <div className="p-4 space-y-3">
+          <SettingRow
+            title={t('settings.multimodal.screen_enable')}
+            description={t('settings.multimodal.screen_enable_desc')}
+          >
+            <Switch
+              checked={screenCfg.enabled}
+              onClick={() => updateScreenCfg({ enabled: !screenCfg.enabled })}
+            />
+          </SettingRow>
+
+          {screenCfg.enabled && (
+            <>
+              <SliderRow
+                label={t('settings.multimodal.screen_interval_label')}
+                desc={t('settings.multimodal.screen_interval_desc')}
+                min={5}
+                max={60}
+                step={5}
+                value={screenCfg.intervalMinutes}
+                onChange={(v) => updateScreenCfg({ intervalMinutes: v })}
+                unit={t('settings.multimodal.screen_interval_unit')}
+              />
+              <p className="text-xs text-neutral-400 pt-1">
+                {t('settings.multimodal.screen_hint')}
+              </p>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-neutral-500 truncate">
+                    {screenObservations.length > 0
+                      ? `${t('settings.multimodal.screen_last_obs')}：${screenObservations[screenObservations.length - 1].text}`
+                      : t('settings.multimodal.screen_none')}
+                  </p>
+                  {observeError && <p className="text-xs text-red-500 mt-0.5">{observeError}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleObserveOnce}
+                  disabled={observing}
+                  className="shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {observing
+                    ? t('settings.multimodal.screen_observing')
+                    : t('settings.multimodal.screen_observe_once')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Section>
 

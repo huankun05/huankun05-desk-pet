@@ -1380,7 +1380,20 @@
       "vision_source_llm_first": "优先 LLM 原生视觉",
       "vision_source_vision_model_first": "优先独立视觉模型",
       "vision_source_embedding_first": "优先 Embedding 描述",
-      "tip": "多模态功能需要本地 Ollama 已安装 vision 模型（如 llava、minicpm-v、qwen2-vl）。"
+      "tip": "多模态功能需要本地 Ollama 已安装 vision 模型（如 llava、minicpm-v、qwen2-vl）。",
+      "screen_title": "屏幕感知",
+      "screen_desc": "周期截屏并让视觉模型总结你在做什么，用于主动陪伴上下文（默认关闭）",
+      "screen_enable": "启用屏幕感知",
+      "screen_enable_desc": "开启后按设定间隔观察屏幕，仅保存一行文本，不保存截图",
+      "screen_interval_label": "观察间隔",
+      "screen_interval_desc": "每隔多少分钟观察一次屏幕",
+      "screen_interval_unit": "分钟",
+      "screen_hint": "隐私说明：截图仅用于当次视觉分析、用后即弃不落盘；只持久化一行文本观察（上限 10 条）。",
+      "screen_observe_once": "观察一次",
+      "screen_observing": "观察中…",
+      "screen_last_obs": "最近观察",
+      "screen_none": "暂无观察记录",
+      "screen_observe_failed": "观察失败：请确认已配置视觉模型或对话模型"
     },
     "mcp": {
       "section_title": "MCP 服务器",

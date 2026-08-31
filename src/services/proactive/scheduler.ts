@@ -139,6 +139,8 @@ export class ProactiveScheduler {
    * 白天（1.0）正常。免打扰时段硬闸不受影响，仍优先于一切。
    */
   private circadianMultiplier = 1;
+  /** 最近一次屏幕观察文本（来自 opt-in 屏幕感知；未开启或失败为 null） */
+  private screenObservation: string | null = null;
 
   constructor(config: Partial<ProactiveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -185,6 +187,14 @@ export class ProactiveScheduler {
     this.circadianMultiplier = Number.isFinite(multiplier)
       ? Math.min(1, Math.max(0, multiplier))
       : this.circadianMultiplier;
+  }
+
+  /**
+   * 注入最近一次屏幕观察文本（opt-in 屏幕感知；传 null 清除）。
+   * 观察文本会出现在上下文提示里，让主动消息/裁决器知道用户正在做什么。
+   */
+  setScreenObservation(text: string | null): void {
+    this.screenObservation = text;
   }
 
   /**
@@ -335,6 +345,9 @@ export class ProactiveScheduler {
   getContextHints(): string[] {
     this.recomputeEmotionTrend();
     const hints: string[] = [];
+    if (this.screenObservation) {
+      hints.push(`用户当前屏幕：${this.screenObservation}`);
+    }
     if (this.emotionTrend === 'negative') {
       hints.push('用户近期情绪偏低落，主动给予安慰');
     }

@@ -66,6 +66,10 @@ import { triggerAnimation } from './lib/live2d/lappdelegate';
 import { proactiveScheduler, type ProactiveTrigger } from './services/proactive/scheduler';
 import { llmProactiveJudge } from './services/proactive/judge';
 import { getMemoryStats, checkReunion, getCircadianState } from './services/coreApi';
+import {
+  observeScreenOnce,
+  getScreenPerceptionConfig,
+} from './services/perception/screenObservation';
 import { PROACTIVE_WAKE_PROMPT } from './data/liveModePrompts';
 import { cronJobManager } from './services/cron/manager';
 import { isTauriEnv } from './utils/tauriEnv';
@@ -667,6 +671,37 @@ function MainPetApp() {
     [isLocked, isTransforming, appearance.clickFeedback, handleCanvasClick],
   );
 
+  // ===== 屏幕感知（opt-in）：周期观察 -> 注入调度器上下文 =====
+  // 默认关闭；设置页开启后经 storage 事件热启动，关闭即停。截图用后即弃，只留文本。
+  const screenTimerRef = useRef<number | null>(null);
+  const stopScreenLoop = useCallback(() => {
+    if (screenTimerRef.current !== null) {
+      window.clearTimeout(screenTimerRef.current);
+      screenTimerRef.current = null;
+    }
+  }, []);
+  const startScreenLoop = useCallback(async () => {
+    stopScreenLoop();
+    const sp = getScreenPerceptionConfig();
+    if (!sp.enabled) return;
+    const runOnce = async () => {
+      const text = await observeScreenOnce();
+      if (text) proactiveScheduler.setScreenObservation(text);
+    };
+    void runOnce();
+    const loop = () => {
+      screenTimerRef.current = window.setTimeout(
+        async () => {
+          await runOnce();
+          loop();
+        },
+        Math.max(5, sp.intervalMinutes) * 60 * 1000,
+      );
+    };
+    loop();
+  }, [stopScreenLoop]);
+  useStorageEvent('deskpet_screenPerception', () => void startScreenLoop(), [startScreenLoop]);
+
   useEffect(() => {
     registerBuiltinTools();
 
@@ -741,6 +776,9 @@ function MainPetApp() {
     };
     void refreshCircadian();
     circadianTimerRef.current = window.setInterval(refreshCircadian, 30 * 60 * 1000);
+
+    // 屏幕感知（opt-in）：启动观察循环（配置关闭时为 no-op）
+    void startScreenLoop();
 
     proactiveScheduler.onTrigger(async (trigger: ProactiveTrigger) => {
       if (isOfflineModeEnabled()) {
@@ -970,7 +1008,7 @@ function MainPetApp() {
           .catch((err) => console.warn('[App] behavior terminateAll failed:', err));
       };
     });
-  }, [showBubble, queue]);
+  }, [showBubble, queue, startScreenLoop]);
 
   // 行为系统 cleanup（由卸载时调用）
   // 注意：behaviorCleanupRef 在上面的 async IIFE 中赋值，
@@ -982,11 +1020,13 @@ function MainPetApp() {
     () => () => {
       behaviorDisposedRef.current = true;
       behaviorCleanupRef.current();
+      stopScreenLoop();
       if (circadianTimerRef.current !== null) {
         window.clearInterval(circadianTimerRef.current);
         circadianTimerRef.current = null;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 卸载清理只跑一次，stopScreenLoop 为稳定引用
     [],
   );
 

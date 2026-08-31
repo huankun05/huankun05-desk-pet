@@ -1376,7 +1376,20 @@
       "vision_source_llm_first": "LLM native vision first",
       "vision_source_vision_model_first": "Standalone vision model first",
       "vision_source_embedding_first": "Embedding description first",
-      "tip": "Multimodal feature requires local Ollama vision model (e.g., llava, minicpm-v, qwen2-vl)."
+      "tip": "Multimodal feature requires local Ollama vision model (e.g., llava, minicpm-v, qwen2-vl).",
+      "screen_title": "Screen Perception",
+      "screen_desc": "Periodically capture the screen and summarize what you're doing with a vision model, used as proactive context (off by default)",
+      "screen_enable": "Enable screen perception",
+      "screen_enable_desc": "When on, observes the screen at the set interval; keeps only one line of text, never saves screenshots",
+      "screen_interval_label": "Observation interval",
+      "screen_interval_desc": "How often to observe the screen (minutes)",
+      "screen_interval_unit": "min",
+      "screen_hint": "Privacy: screenshots are used for a single vision call and discarded immediately; only one line of text is persisted (up to 10 entries).",
+      "screen_observe_once": "Observe once",
+      "screen_observing": "Observing…",
+      "screen_last_obs": "Last observation",
+      "screen_none": "No observations yet",
+      "screen_observe_failed": "Observation failed: please configure a vision or chat model"
     },
     "mcp": {
       "section_title": "MCP Servers",
