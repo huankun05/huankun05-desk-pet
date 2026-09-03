@@ -212,6 +212,45 @@ src/main/self-evolving/
 skill_curator action=config consolidate=true
 ```
 
+## 已知问题与注意事项
+
+### 1. 技能目录共享（与 Cyrene 原有技能系统共用存储目录）
+
+**现状**：自进化技能系统和 Cyrene 原有技能系统共用同一个存储目录（`userData/skills/`）。该目录下目前有 40+ 个 Cyrene 原有的内置技能（如 `as-api-and-interface-design`、`ecc-code-tour`、`sp-brainstorming` 等）。
+
+**影响**：
+- Agent 用 `skill_list` 会看到**所有技能**（包括原有的和自进化创建的）
+- Agent 用 `skill_view` 可以读取原有技能的内容（这是可以的）
+- **风险**：Agent 理论上可以用 `skill_manage delete` 删除系统内置技能
+
+**当前缓解措施**：
+- 系统提示引导 Agent 创建新技能，而非修改现有技能
+- 即使误删，Curator 有备份机制，且内置技能可以通过快照重新安装
+
+**后续优化**：在 `skill_manage` 中添加保护，检测到是系统内置技能（有 `.snapshot-installed` 标记或在 bundled manifest 中）时拒绝删除/修改，只允许操作 Agent 自己创建的技能。
+
+### 2. 两个技能系统的关系
+
+| | Cyrene 原有技能系统 | 自进化技能系统（新） |
+|---|---|---|
+| **定位** | 预定义的能力包（官方内置） | Agent 从经验中沉淀的流程 |
+| **调用方式** | `invoke_skill` 执行指令 | `skill_view` 查看内容 |
+| **管理方式** | 快照安装/更新 | `skill_manage` 创建/编辑/删除 |
+| **维护** | 官方更新 | Curator 自动维护（stale/归档） |
+| **存储** | 共用 `userData/skills/` 目录 | 共用 `userData/skills/` 目录 |
+
+两个系统**互补共存**，没有冲突。后续可考虑深度集成（如自进化创建的技能也能通过 `invoke_skill` 调用）。
+
+### 3. LLM 整合为框架版本
+
+P4 的 LLM 整合目前是**框架版本**：
+- ✅ 配置开关 `curator.consolidate`（默认关闭）
+- ✅ Curator 运行时自动触发 LLM 审查接口
+- ✅ `runLLMConsolidation()` 函数框架，记录日志并返回审查统计
+- ⏳ 后续深化：接入 Cyrene LLM 客户端，实际调用辅助模型进行审查，生成合并/修补建议并执行
+
+启用 LLM 整合前请确保已接入辅助模型配置，否则只会记录日志不会实际审查。
+
 ## 后续路线图
 
 ### 安全增强
