@@ -61,9 +61,9 @@ function configPath(): string {
   return path.join(app.getPath("userData"), "skills-curator.json");
 }
 
-/** 备份目录路径。 */
+/** 备份目录路径（放在用户数据目录下，避免复制到自身子目录的错误）。 */
 function backupDir(): string {
-  return path.join(getSkillsRootDir(), ".curator_backups");
+  return path.join(app.getPath("userData"), "skills-curator-backups");
 }
 
 /** 归档目录路径。 */
