@@ -1,230 +1,169 @@
-// skill-tools —— 自进化技能系统的工具实现。
-// 提供 skill_list（列出技能）、skill_view（查看技能）、skill_manage（创建/编辑/删除技能）三个工具。
-// 参考 Hermes Agent 的 skill_manage 工具设计，移植到 Cyrene。
+// Skill meta-tool —— 把 skill 系统暴露给 LLM 的两个工具。
+// 不把每个 skill 注册成业务 tool（skill 是指令层），而是用两个 meta-tool：
+//   invoke_skill：加载某 skill 的 SKILL.md 正文 + references 清单
+//   read_skill_reference：按需读 references 附件（带路径穿越防护）
+// 注册进现有 toolRegistry，两处 LLM 路径都从 registry 取，自动生效。
 
-import type { ToolDefinition } from "../orchestrator/tools/registry/tool-registry";
-import {
-  listSkills,
-  getSkill,
-  createSkill,
-  editSkill,
-  deleteSkill,
-  recordSkillViewed,
-  recordSkillUsed,
-} from "./skill-store";
+import { toolRegistry, type ToolEffectKind } from "../orchestrator/tools/registry/tool-registry";
+import { skillRegistry } from "./skill-registry";
+import { logger, LogTag } from "../logger";
+import type { ToolContext } from "../orchestrator/tools/registry/tool-context";
 
-// ── skill_list：列出所有技能 ────────────────────────────────
+const LOG_PREFIX = "[SkillTools]";
 
-/**
- * 列出所有可用技能（名称+描述），让 Agent 知道有哪些可复用流程。
- */
-async function executeSkillList(): Promise<string> {
-  const skills = listSkills();
-  if (skills.length === 0) {
-    return JSON.stringify({
-      success: true,
-      count: 0,
-      skills: [],
-      message: "暂无已保存的技能。完成复杂任务后，可以用 skill_manage 创建可复用技能。",
-    });
-  }
-  return JSON.stringify({
-    success: true,
-    count: skills.length,
-    skills: skills.map((s) => ({
-      name: s.name,
-      description: s.description,
-      category: s.category,
-      createdBy: s.createdBy,
-    })),
-  });
+// skill 正文 / reference 返回时的字符上限。CyreneAgent 的 FC 循环把 tool 返回值
+// 永久留在 conversation 里，超大正文（xlsx 8.5KB、skill-creator 33KB、docx 的
+// openxml_encyclopedia 单个 144KB）会顶过推理模型单轮 30s 预算导致连续超时。
+// 官方 skill 系统靠宿主 agent（Claude Code 等）的上下文压缩兜底，我们没那层，得自己截断。
+const SKILL_BODY_MAX_CHARS = 6000;
+const SKILL_REF_MAX_CHARS = 8000;
+
+export function isSkillAllowedForRun(id: string, allowedSkillIds?: ReadonlySet<string>): boolean {
+  return allowedSkillIds?.has(id) ?? true;
 }
 
-export const skillListTool: ToolDefinition = {
-  id: "skill_list",
-  name: "列出技能",
-  description:
-    "列出所有已保存的可复用技能（程序性记忆）。每个技能包含名称和描述。\n\n" +
-    "何时用：\n" +
-    "- 开始任务前，查看是否有相关的已保存技能可以直接复用\n" +
-    "- 用户问'你会做什么'或'你有什么技能'\n" +
-    "- 不确定某个流程是否已经被沉淀为技能\n\n" +
-    "不要用于：\n" +
-    "- 查看某个技能的具体内容 → 用 skill_view\n" +
-    "- 创建/修改/删除技能 → 用 skill_manage",
-  enabled: true,
-  risk: "safe",
-  effectKind: "read",
-  verificationPolicy: "none",
-  inputSchema: {
-    type: "object",
-    properties: {},
-  },
-  execute: executeSkillList,
-};
-
-// ── skill_view：查看单个技能完整内容 ────────────────────────
-
-/**
- * 查看单个技能的完整 SKILL.md 内容。
- */
-async function executeSkillView(args: Record<string, unknown>): Promise<string> {
-  const name = String(args.name || "").trim();
-  if (!name) {
-    return JSON.stringify({ success: false, error: "name 参数必填，指定要查看的技能名称" });
-  }
-  const skill = getSkill(name);
-  if (!skill) {
-    return JSON.stringify({
-      success: false,
-      error: `技能 '${name}' 不存在。用 skill_list 查看所有可用技能。`,
-    });
-  }
-  // 记录查看
-  recordSkillViewed(name);
-  return JSON.stringify({
-    success: true,
-    name: skill.name,
-    description: skill.description,
-    category: skill.category,
-    content: skill.content,
-  });
+/** 截断文本到 maxChars，超长时末尾附提示。保留前部（任务路由表/关键规则通常在前）。 */
+function truncateForContext(text: string, maxChars: number, hint: string): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) +
+    "\n\n[...正文过长已截断，仅显示前 " + maxChars + " 字符。" + hint + "...]";
 }
 
-export const skillViewTool: ToolDefinition = {
-  id: "skill_view",
-  name: "查看技能",
-  description:
-    "查看单个技能的完整内容（SKILL.md），包含操作步骤、注意事项、模板等。\n\n" +
-    "何时用：\n" +
-    "- 要用 skill_list 找到的某个技能，需要看具体步骤\n" +
-    "- 执行某类任务前，查看是否有已沉淀的标准流程\n" +
-    "- 修改技能前，先查看当前内容\n\n" +
-    "参数：name（必填，技能名称）",
-  enabled: true,
-  risk: "safe",
-  effectKind: "read",
-  verificationPolicy: "none",
-  inputSchema: {
-    type: "object",
-    properties: {
-      name: { type: "string", description: "技能名称（用 skill_list 查看可用名称）" },
-    },
-    required: ["name"],
-  },
-  execute: executeSkillView,
-};
-
-// ── skill_manage：创建/编辑/删除技能 ────────────────────────
-
 /**
- * 管理技能：创建、编辑（完整替换）、删除。
- * 这是自进化的核心——Agent 完成复杂任务后，把成功流程沉淀为可复用技能。
+ * 每轮对话的 reference 已读记录（skill_id + ref → true）。
+ * FC 循环开始时调 resetReadRefs() 清空。防止模型在同一轮任务里重复读同一文件。
  */
-async function executeSkillManage(args: Record<string, unknown>): Promise<string> {
-  const action = String(args.action || "").trim();
-  const name = String(args.name || "").trim();
-  const content = args.content !== undefined ? String(args.content) : "";
+const readRefs = new Set<string>();
 
-  if (!action) {
-    return JSON.stringify({ success: false, error: "action 参数必填，可选：create / edit / delete" });
-  }
-  if (!name) {
-    return JSON.stringify({ success: false, error: "name 参数必填" });
-  }
-
-  let result: { success: boolean; message?: string; error?: string };
-
-  switch (action) {
-    case "create":
-      if (!content) {
-        return JSON.stringify({ success: false, error: "create 操作需要 content 参数（完整的 SKILL.md 内容）" });
-      }
-      result = createSkill(name, content);
-      break;
-    case "edit":
-      if (!content) {
-        return JSON.stringify({ success: false, error: "edit 操作需要 content 参数（完整的更新后 SKILL.md 内容）" });
-      }
-      result = editSkill(name, content);
-      break;
-    case "delete":
-      result = deleteSkill(name);
-      break;
-    default:
-      return JSON.stringify({ success: false, error: `未知 action '${action}'，可选：create / edit / delete` });
-  }
-
-  return JSON.stringify(result);
+/** 每轮 FC 循环开始前调，清空已读记录。由 cyrene-agent.ts 在循环入口调。 */
+export function resetReadRefs(): void {
+  readRefs.clear();
 }
 
-export const skillManageTool: ToolDefinition = {
-  id: "skill_manage",
-  name: "管理技能",
-  description:
-    "管理可复用技能（程序性记忆）：创建、编辑、删除。\n\n" +
-    "技能是你从成功经验中沉淀的可复用流程。每个技能是一个 SKILL.md 文件，包含 YAML frontmatter（name/description）和 Markdown 操作步骤。\n\n" +
-    "Actions:\n" +
-    "- create — 创建新技能（需要完整 SKILL.md 内容）\n" +
-    "- edit — 完整替换现有技能的 SKILL.md 内容\n" +
-    "- delete — 删除技能（被 pin 的技能不能删除）\n\n" +
-    "何时创建技能：\n" +
-    "- 完成了复杂任务（5+ 次工具调用），流程可复用\n" +
-    "- 克服了错误，找到了正确方法\n" +
-    "- 用户纠正了你的做法，新方法有效\n" +
-    "- 发现了非平凡的工作流\n" +
-    "- 用户明确要求'记住这个流程'\n\n" +
-    "何时编辑技能：\n" +
-    "- 使用技能时发现步骤过时/错误\n" +
-    "- 发现了遗漏的步骤或陷阱\n" +
-    "- 操作系统特定的失败需要补充说明\n\n" +
-    "好的技能应包含：触发条件、带精确命令的编号步骤、常见陷阱、验证方法。\n\n" +
-    "SKILL.md 格式示例：\n" +
-    "---\n" +
-    "name: deploy-to-server\n" +
-    "description: 部署项目到阿里云服务器的标准流程\n" +
-    "category: devops\n" +
-    "---\n" +
-    "# 部署到服务器\n\n" +
-    "## 触发条件\n" +
-    "需要将本地项目部署到生产服务器时。\n\n" +
-    "## 步骤\n" +
-    "1. 本地构建：npm run build\n" +
-    "2. 打包：tar -czf dist.tar.gz dist/\n" +
-    "3. 上传：scp dist.tar.gz user@server:/tmp/\n" +
-    "4. 服务器解压并重启服务\n\n" +
-    "## 注意事项\n" +
-    "- 部署前确认配置文件已更新\n" +
-    "- 大文件上传前先压缩",
-  enabled: true,
-  risk: "fs-write",
-  effectKind: "mutation",
-  verificationPolicy: "none",
-  inputSchema: {
-    type: "object",
-    properties: {
-      action: {
-        type: "string",
-        enum: ["create", "edit", "delete"],
-        description: "操作类型",
-      },
-      name: { type: "string", description: "技能名称（小写字母数字连字符，如 deploy-to-server）" },
-      content: {
-        type: "string",
-        description: "完整的 SKILL.md 内容（YAML frontmatter + Markdown）。create 和 edit 时必填。",
-      },
-    },
-    required: ["action", "name"],
-  },
-  execute: executeSkillManage,
-};
+/**
+ * 执行纪律提示，拼在 invoke_skill 返回内容末尾。
+ * 约束模型"够用即执行、不重复读、不探索式遍历"，避免浪费轮数。
+ */
+const EXECUTION_DISCIPLINE =
+  "\n\n---\n" +
+  "【执行纪律 — 必须遵守】\n" +
+  "1. 只读完成任务所需的最少 reference，读到能执行就立即开始，不要把所有文档都读一遍。\n" +
+  "2. 同一 reference 文件不要重复读取（系统会拦截重复读取）。\n" +
+  "3. 不要用 list_dir 遍历 templates/scripts 目录——模板和脚本路径上文已给出，直接用。\n" +
+  "4. 信息足够后立即用其他工具执行产出，不要继续研究。\n" +
+  "5. 若预计轮数紧张，优先输出可交付版本而非继续优化格式。";
 
-// ── 注册所有技能工具 ──────────────────────────────────────────
-
-import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
-
+/**
+ * 注册 skill 系统的两个 meta-tool 进 toolRegistry。
+ * 标 risk:"safe"（只读本地 skill 文件），免权限打扰。
+ * initSkills 启动时调一次。
+ */
 export function registerSkillTools(): void {
-  toolRegistry.register(skillListTool);
-  toolRegistry.register(skillViewTool);
-  toolRegistry.register(skillManageTool);
+  toolRegistry.register({
+    id: "invoke_skill",
+    name: "调用 Skill",
+    description:
+      "加载某个 skill 的详细执行指令。当你判断当前任务适用某 skill 时（见系统提示里的「可用 Skill」清单），调用此工具获取该 skill 的完整指令，再按指令用其他工具执行。\n\n" +
+      "何时用：系统提示的「可用 Skill」清单里某条 description 适用于当前任务。\n\n" +
+      "不要用于：清单里没有的 skill id。\n\n" +
+      "参数：skill_id（必填，skill 的 id，见清单里的标识）。\n\n" +
+      "返回：该 skill 的指令正文 + 可用的 references 文件清单。若正文引用了 references/xxx，需要详情时再用 read_skill_reference 读取。",
+    enabled: true,
+    risk: "safe",
+    effectKind: "read" as const, // 默认值，effectResolver 会根据实际 skill 覆盖
+    effectResolver: (args: Record<string, unknown>): ToolEffectKind => {
+      const id = String(args.skill_id || "");
+      const skill = skillRegistry.getById(id);
+      if (!skill) return "unknown";
+      // skill 未声明 effectKind → unknown（会被 ExecutionPolicyGuard 拒绝）
+      return skill.effectKind ?? "unknown";
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: { type: "string", description: "skill 的 id（见「可用 Skill」清单）" },
+      },
+      required: ["skill_id"],
+    },
+    needsContext: true,
+    execute: async (args, ctx?: ToolContext) => {
+      const id = String(args.skill_id || "");
+      if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
+        return `[invoke_skill] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
+      }
+      const skill = skillRegistry.getById(id);
+      if (!skill || !skill.enabled || !skillRegistry.isAvailable(id)) {
+        const available = skillRegistry.getEnabled().map(s => s.id).join(", ") || "(无)";
+        return `[invoke_skill] skill not found: ${id}。可用 skill: ${available}`;
+      }
+      const body = skillRegistry.getBody(id);
+      if (body === null) {
+        return `[invoke_skill] 读取 skill 正文失败: ${id}`;
+      }
+      const refList = skill.references.length > 0
+        ? `\n\n可用 references（需要详情时调 read_skill_reference 读取）：\n${skill.references.map(r => "- " + r).join("\n")}`
+        : "";
+      console.log(LOG_PREFIX, "invoke_skill:", id, "bodyLen=" + body.length);
+      const truncatedBody = truncateForContext(
+        body,
+        SKILL_BODY_MAX_CHARS,
+        "如需完整指令或特定部分，可用 read_skill_reference 精准读取对应 reference 文件",
+      );
+      return `[已加载 skill: ${id}]\n${truncatedBody}${refList}${EXECUTION_DISCIPLINE}`;
+    },
+  });
+
+  toolRegistry.register({
+    id: "read_skill_reference",
+    name: "读取 Skill 附件",
+    description:
+      "读取某 skill 的 references 附件内容。当 invoke_skill 返回的正文引用了 references/xxx 且你需要详情时调用。\n\n" +
+      "何时用：invoke_skill 返回的正文提到 references/xxx 且需要该附件的详细内容。\n\n" +
+      "不要用于：不在 invoke_skill 返回清单里的 ref。\n\n" +
+      "参数：skill_id（必填），ref（必填，references 文件名，必须是 invoke_skill 返回清单里的）。",
+    enabled: true,
+    risk: "safe",
+    effectKind: "read" as const,
+    verificationPolicy: "none" as const,
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: { type: "string", description: "skill 的 id" },
+        ref:      { type: "string", description: "references 文件名（必须命中 invoke_skill 返回的清单）" },
+      },
+      required: ["skill_id", "ref"],
+    },
+    needsContext: true,
+    execute: async (args, ctx?: ToolContext) => {
+      const id = String(args.skill_id || "");
+      const ref = String(args.ref || "");
+      if (!isSkillAllowedForRun(id, ctx?.allowedSkillIds)) {
+        return `[read_skill_reference] E_SKILL_UNAVAILABLE_IN_MODE: ${id}`;
+      }
+      const skill = skillRegistry.getById(id);
+      if (!skill || !skill.enabled || !skillRegistry.isAvailable(id)) {
+        return `[read_skill_reference] skill not found: ${id}`;
+      }
+      // 去重：同一轮内同一 reference 不重复返回（内容已在对话历史里，再读浪费轮数+token）
+      const readKey = `${id}/${ref}`;
+      if (readRefs.has(readKey)) {
+        return `[read_skill_reference] "${ref}" 已在本轮读过，内容已在对话中，不要重复读取。` +
+          `如需其他文件，可读：${skill.references.filter(r => !readRefs.has(`${id}/${r}`)).join(", ") || "(全部已读)"}`;
+      }
+      const content = skillRegistry.getReference(id, ref);
+      if (content === null) {
+        return `[read_skill_reference] 读取失败（ref 不在清单或文件不存在）: ${ref}。可用: ${skill.references.join(", ") || "(无)"}`;
+      }
+      readRefs.add(readKey);
+      console.log(LOG_PREFIX, "read_skill_reference:", id, ref, "len=" + content.length);
+      const truncated = truncateForContext(
+        content,
+        SKILL_REF_MAX_CHARS,
+        "如需后半部分内容，请分段读取或说明你需要的具体章节",
+      );
+      return truncated;
+    },
+  });
+
+  logger.info(LogTag.SkillTools, "registered: invoke_skill / read_skill_reference");
 }

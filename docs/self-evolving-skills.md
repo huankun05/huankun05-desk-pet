@@ -16,10 +16,12 @@
 ## 架构
 
 ```
-src/main/skills/
+src/main/self-evolving/
 ├── skill-types.ts      # 类型定义（Skill、SkillMetadata、SkillUsageRecord）
 ├── skill-store.ts      # 存储引擎（SKILL.md 读写、验证、目录管理、使用记录）
-└── skill-tools.ts      # 工具实现（skill_list / skill_view / skill_manage）+ 注册
+├── skill-tools.ts      # 工具实现（skill_list / skill_view / skill_manage）+ 注册
+├── curator.ts          # Curator 后台维护（配置、状态转换、备份、Pin、恢复、LLM整合框架）
+└── curator-tools.ts    # skill_curator 管理工具（run/status/pin/unpin/restore/config）
 ```
 
 ### 存储结构
@@ -130,38 +132,109 @@ updatedAt: 2026-09-03T10:00:00.000Z
 | 特性 | Hermes | Cyrene（当前实现） |
 |------|--------|-------------------|
 | 技能存储 | SKILL.md + 子目录 | SKILL.md（子目录预留） |
-| 技能工具 | skill_view / skill_manage | skill_list / skill_view / skill_manage |
+| 技能工具 | skill_view / skill_manage | skill_list / skill_view / skill_manage / skill_curator |
 | 使用跟踪 | skill_usage.py | .usage.json |
-| Curator 后台维护 | ✅ 完整实现 | ⏳ P3 阶段 |
-| LLM 整合 | ✅ 可选 | ⏳ P4 阶段 |
+| Curator 后台维护 | ✅ 完整实现 | ✅ P3 已实现（自动状态转换 + 备份 + Pin + 恢复） |
+| LLM 整合 | ✅ 可选 | ✅ P4 框架已实现（配置开关 + 调用接口，实际 LLM 审查后续深化） |
 | 安全扫描 | ✅ skills_guard | ⏳ 后续 |
 | 审批门控 | ✅ write_approval | ⏳ 后续 |
 | 系统提示注入 | ✅ | ✅ |
 
+## P2：使用跟踪增强 + 自动生成引导
+
+### 系统提示优化
+技能系统引导始终注入系统提示（即使没有技能也让 Agent 知道有这个能力），包含：
+- 完整工作流：开始任务前查技能 → 有相关技能就读取 → 完成任务后沉淀
+- 明确的创建时机：5+ 工具调用的复杂任务、克服报错、用户纠正后新方法有效、非平凡工作流、用户明确要求
+- 好技能标准：触发条件 + 编号步骤 + 常见陷阱 + 验证方法
+
+### 日志记录
+所有技能操作（创建/更新/删除）都记录到日志，便于追踪自进化行为。
+
+## P3：Curator 后台维护
+
+### 架构
+```
+src/main/self-evolving/
+├── curator.ts          # Curator 核心（配置、状态转换、备份、Pin、恢复）
+└── curator-tools.ts    # skill_curator 管理工具
+```
+
+### 核心功能
+
+**自动状态转换（确定性，无 LLM 成本）：**
+- 30 天未使用 → 标记 `stale`
+- 90 天未使用 → 归档到 `.archive/` 目录（可恢复）
+- 被 `pin` 的技能跳过所有自动转换
+
+**触发方式：**
+- 应用启动时检查（距上次运行 > intervalHours 则自动运行）
+- 手动触发：`skill_curator` 工具的 `run` action（支持 force / dryRun）
+
+**备份与回滚：**
+- 每次运行前自动备份技能目录到 `.curator_backups/`
+- 保留最近 5 份备份（可配置）
+
+**配置（skills-curator.json）：**
+```json
+{
+  "enabled": true,
+  "intervalHours": 168,
+  "staleAfterDays": 30,
+  "archiveAfterDays": 90,
+  "backupKeep": 5,
+  "consolidate": false
+}
+```
+
+### skill_curator 工具 Actions
+- `run` — 手动触发运行（force / dryRun）
+- `status` — 查看状态（启用情况、上次运行、归档数量）
+- `pin` / `unpin` — 保护/取消保护技能
+- `list-archived` — 列出已归档技能
+- `restore` — 从归档恢复技能
+- `config` — 查看/修改配置
+
+## P4：LLM 整合（框架版本）
+
+### 功能
+用辅助模型审查技能库，识别相似技能（建议合并为 umbrella 技能）和过时技能（建议修补）。
+
+### 当前状态
+- ✅ 配置开关：`curator.consolidate`（默认 false）
+- ✅ 调用接口：Curator 运行时自动触发 LLM 整合
+- ✅ 框架实现：`runLLMConsolidation()` 函数，记录日志并返回审查统计
+- ⏳ 后续深化：接入 Cyrene LLM 客户端，实际调用辅助模型进行审查，生成合并/修补建议并执行
+
+### 启用方式
+```bash
+# 通过 skill_curator 工具启用
+skill_curator action=config consolidate=true
+```
+
 ## 后续路线图
 
-### P2：使用跟踪增强 + 自动生成引导
-- 技能使用成功后自动记录 useCount
-- 优化系统提示，更明确地引导 Agent 在完成任务后创建技能
-- 技能创建后自动通知用户
+### 安全增强
+- 技能内容安全扫描（防止恶意命令注入）
+- 技能创建/修改审批门控（高风险技能需用户确认）
 
-### P3：Curator 后台维护
-- 空闲时自动运行（距上次运行 >7天 + 空闲 >2小时）
-- 自动状态转换：30天未用 → stale，90天未用 → archived
-- 备份与回滚（每次运行前 tar.gz 备份）
-- Pin / Unpin 保护
-- CLI / 设置 UI 管理
+### LLM 整合深化
+- 接入辅助模型配置（auxiliary.curator）
+- 实现相似技能聚类与合并建议
+- 实现过时技能识别与修补建议
+- 支持用户确认后自动执行合并/修补
 
-### P4：LLM 整合（可选，默认关闭）
-- 用辅助模型审查技能库
-- 合并相似技能为 umbrella 技能
-- 修补过时技能
-- 配置项控制开关
+### 与 Cyrene 原有技能系统集成
+- 当前自进化技能系统独立于 Cyrene 原有技能系统（invoke_skill / read_skill_reference）
+- 后续可考虑深度集成：自进化创建的技能也能通过 invoke_skill 调用
 
 ## 相关文件
 
-- `src/main/skills/skill-types.ts` — 类型定义
-- `src/main/skills/skill-store.ts` — 存储引擎
-- `src/main/skills/skill-tools.ts` — 工具实现与注册
-- `src/main/orchestrator/tools/registry/tool-registration.ts` — 工具注册入口（调用 registerSkillTools）
-- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表）
+- `src/main/self-evolving/skill-types.ts` — 类型定义
+- `src/main/self-evolving/skill-store.ts` — 存储引擎
+- `src/main/self-evolving/skill-tools.ts` — 工具实现与注册（skill_list / skill_view / skill_manage）
+- `src/main/self-evolving/curator.ts` — Curator 后台维护核心
+- `src/main/self-evolving/curator-tools.ts` — skill_curator 管理工具
+- `src/main/orchestrator/tools/registry/tool-registration.ts` — 工具注册入口（调用 registerSkillTools + registerCuratorTools）
+- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表与引导）
+- `src/main/application/default-dependencies.ts` — 启动入口（initSkills 后调用 initCurator）

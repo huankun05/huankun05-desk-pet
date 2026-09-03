@@ -89,6 +89,7 @@ import { registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
 import { registerCallIpc } from "../call/call-manager";
 import { initSkills, skillRegistry } from "../skills";
+import { initCurator } from "../self-evolving/curator";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { startPluginRuntime } from "../plugin-runtime";
@@ -235,7 +236,11 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         ...getExternalContentPaths(),
       }),
       // Skill 系统：扫描双源 skills + 注册 meta-tool
-      initSkills,
+      // 自进化 Curator：在技能系统初始化后启动后台维护检查
+      initSkills: async () => {
+        await initSkills();
+        initCurator();
+      },
 
       createLowCostServices: () => {
         const runtimeStateService = createRuntimeStateService();
