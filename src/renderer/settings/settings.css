@@ -1,4 +1,4 @@
-/* 标记！AI写的超大技术债，延期重构*/
+﻿/* 标记！AI写的超大技术债，延期重构*/
 /* 柱状图/用量进度条共享样式（与 tasks 窗口共用） */
 @import "../ui/chart.css";
 
@@ -4525,11 +4525,21 @@ body {
   margin: 0;
 }
 
-/* 角色选择器下拉框：匹配外观面板白调主题 */
-.character-select {
+
+/* 角色选择器自定义下拉组件：匹配外观面板白调主题 */
+.character-dropdown {
+  position: relative;
   flex: 0 0 auto;
   min-width: 140px;
-  padding: 8px 32px 8px 12px;
+}
+
+.character-dropdown__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--rb-border-soft, rgba(0, 0, 0, 0.08));
   background: var(--rb-bg-2, rgba(255, 255, 255, 0.6));
@@ -4537,30 +4547,83 @@ body {
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--rb-text-muted, #6b7280) 50%),
-                    linear-gradient(135deg, var(--rb-text-muted, #6b7280) 50%, transparent 50%);
-  background-position: calc(100% - 14px) center, calc(100% - 9px) center;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.character-select:hover {
+.character-dropdown__trigger:hover {
   border-color: var(--rb-border, rgba(0, 0, 0, 0.15));
-  background-color: var(--rb-bg-3, rgba(255, 255, 255, 0.8));
+  background-color: var(--rb-bg-3, rgba(255, 255, 255, 0.85));
 }
 
-.character-select:focus {
+.character-dropdown__trigger.is-open,
+.character-dropdown__trigger:focus-visible {
   outline: none;
   border-color: var(--rb-accent, #8b7fd4);
   box-shadow: 0 0 0 3px rgba(139, 127, 212, 0.15);
 }
 
-.character-select option {
-  background: #ffffff;
-  color: #1a1b1c;
+.character-dropdown__value {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-dropdown__arrow {
+  flex-shrink: 0;
+  color: var(--rb-text-muted, #6b7280);
+  transition: transform 0.2s ease;
+}
+
+.character-dropdown__trigger.is-open .character-dropdown__arrow {
+  transform: rotate(180deg);
+}
+
+.character-dropdown__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--rb-border-soft, rgba(0, 0, 0, 0.08));
+  background: var(--rb-bg-1, #ffffff);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.character-dropdown__panel.is-hidden {
+  display: none;
+}
+
+.character-dropdown__option {
+  display: block;
+  width: 100%;
   padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rb-text-primary, #1a1b1c);
   font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.character-dropdown__option:hover {
+  background: var(--rb-bg-3, rgba(139, 127, 212, 0.08));
+}
+
+.character-dropdown__option.is-active {
+  background: var(--rb-accent, #8b7fd4);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.character-dropdown__option.is-active:hover {
+  background: var(--rb-accent, #7c6fcf);
 }

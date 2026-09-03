@@ -70,7 +70,7 @@ import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
-import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, characterSelect, chatLineHeightInput, chatLineHeightVal, assistantBubbleEnabledInput, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput } from "./appearance/dom";
+import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, characterDropdown, characterDropdownTrigger, characterDropdownValue, characterDropdownPanel, chatLineHeightInput, chatLineHeightVal, assistantBubbleEnabledInput, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, clearChatHistoryBtn, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, cyreneSaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
 import { pluginAddBtn, neteaseDetailView, permissionBlocksWrap, permissionNote } from "./plugins/dom";
@@ -1020,18 +1020,23 @@ async function loadGeneralSettings(): Promise<void> {
     petVisibleInput.checked = cfg.petVisible;
     petZoomInput.value = String(cfg.petZoom ?? 1);
     petZoomVal.textContent = Math.round((cfg.petZoom ?? 1) * 100) + "%";
-    // 角色选择器：从 characters 列表动态填充选项，选中当前角色
+    // 角色选择器：从 characters 列表动态渲染自定义下拉选项，选中当前角色
     const characters = Array.isArray(cfg.characters) && cfg.characters.length > 0
       ? cfg.characters
       : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json" }];
     const currentCharacterId = cfg.currentCharacterId ?? characters[0].id;
-    characterSelect.innerHTML = "";
+    const currentChar = characters.find((c) => c.id === currentCharacterId) ?? characters[0];
+    characterDropdownValue.textContent = currentChar.name;
+    characterDropdownPanel.innerHTML = "";
     for (const char of characters) {
-      const option = document.createElement("option");
-      option.value = char.id;
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "character-dropdown__option" + (char.id === currentCharacterId ? " is-active" : "");
+      option.dataset.characterId = char.id;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(char.id === currentCharacterId));
       option.textContent = char.name;
-      if (char.id === currentCharacterId) option.selected = true;
-      characterSelect.appendChild(option);
+      characterDropdownPanel.appendChild(option);
     }
     chatLineHeightInput.value = String(cfg.chatLineHeight ?? 1.75);
     chatLineHeightVal.textContent = (cfg.chatLineHeight ?? 1.75).toFixed(2);
@@ -1201,12 +1206,47 @@ petZoomInput.addEventListener("change", () => {
   setAppearanceSaveStatus("已应用", "is-ok");
 });
 
-characterSelect.addEventListener("change", async () => {
+// 角色选择器自定义下拉组件
+let characterDropdownOpen = false;
+function toggleCharacterDropdown(open?: boolean): void {
+  characterDropdownOpen = open ?? !characterDropdownOpen;
+  characterDropdownPanel.classList.toggle("is-hidden", !characterDropdownOpen);
+  characterDropdownTrigger.setAttribute("aria-expanded", String(characterDropdownOpen));
+  characterDropdownTrigger.classList.toggle("is-open", characterDropdownOpen);
+}
+
+characterDropdownTrigger.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleCharacterDropdown();
+});
+
+characterDropdownPanel.addEventListener("click", async (e) => {
+  const option = (e.target as HTMLElement).closest<HTMLButtonElement>(".character-dropdown__option");
+  if (!option) return;
+  const characterId = option.dataset.characterId;
+  if (!characterId) return;
+  // 更新 UI
+  characterDropdownValue.textContent = option.textContent;
+  characterDropdownPanel.querySelectorAll(".character-dropdown__option").forEach((el) => {
+    const btn = el as HTMLButtonElement;
+    const active = btn.dataset.characterId === characterId;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", String(active));
+  });
+  toggleCharacterDropdown(false);
+  // 保存
   try {
-    await window.settings!.saveGeneral({ currentCharacterId: characterSelect.value });
+    await window.settings!.saveGeneral({ currentCharacterId: characterId });
     setAppearanceSaveStatus("角色已切换，重启后生效", "is-ok");
   } catch {
     setAppearanceSaveStatus("角色切换保存失败", "is-error");
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (!characterDropdownOpen) return;
+  if (!characterDropdown.contains(e.target as Node)) {
+    toggleCharacterDropdown(false);
   }
 });
 
