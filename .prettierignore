@@ -1,7 +1,0 @@
-dist
-node_modules
-src/lib/framework
-src/lib/live2d
-public
-*.html
-*.json

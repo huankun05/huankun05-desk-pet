@@ -1,75 +1,57 @@
-/// <reference types="vitest/config" />
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+import { readFileSync } from "node:fs";
+import { resolve } from "path";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import path from "path";
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
-
-// https://vite.dev/config/
-export default defineConfig(async () => ({
-  plugins: [react(), tailwindcss()],
-
-  // 1. prevent Vite from obscuring rust errors
-  clearScreen: false,
-
-  // 2. tauri expects a fixed port, fail if that port is not available
-  server: {
-    port: 1420,
-    strictPort: true,
-    host: host || false,
-    cors: true,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : {
-          host: "localhost",
-          port: 1421,
-        },
-    watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+/**
+ * Inject the app version (read from package.json) into any HTML that
+ * contains the placeholder `<span data-app-version></span>`.
+ *
+ * Replaces the placeholder with `昔涟 v<version>`, matching the existing
+ * display format. Keeping the prefix in the plugin (rather than the HTML)
+ * means the version is the only thing that ever changes.
+ */
+function appVersionPlugin(): Plugin {
+  const pkg = JSON.parse(
+    readFileSync(resolve(__dirname, "package.json"), "utf8"),
+  ) as { version: string };
+  const versionText = `昔涟 v${pkg.version}`;
+  return {
+    name: "cyrene-app-version",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        return html.replace(
+          /<span data-app-version><\/span>/g,
+          `<span data-app-version>${versionText}</span>`,
+        );
+      },
     },
-  },
+  };
+}
 
-  resolve: {
-    alias: {
-      "@framework": path.resolve(__dirname, "src/lib/framework"),
-    },
-  },
-
-  // Vitest 配置
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    include: ['src/**/*.test.{ts,tsx}'],
-    setupFiles: ['./src/test/setup.ts'],
-  },
-
+export default defineConfig({
+  plugins: [react(), appVersionPlugin()],
+  root: resolve(__dirname, "src/renderer"),
+  base: "./",
   build: {
+    outDir: resolve(__dirname, "dist/renderer"),
+    emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, "index.html"),
-        settings: path.resolve(__dirname, "settings.html"),
-      },
-      output: {
-        // 代码分割：将大依赖分离为独立 chunk，优化缓存和加载
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react/jsx-runtime'],
-          'vendor-tauri': ['@tauri-apps/api'],
-          'vendor-settings': [
-            'react-router-dom',
-            'react-i18next',
-            'i18next',
-            'i18next-browser-languagedetector',
-          ],
-          'vendor-iconify': ['@iconify/react'],
-        },
+        renderer: resolve(__dirname, "src/renderer/index.html"),
+        sidebar: resolve(__dirname, "src/renderer/sidebar/index.html"),
+        tasks: resolve(__dirname, "src/renderer/tasks/index.html"),
+        settings: resolve(__dirname, "src/renderer/settings/index.html"),
+        stickers: resolve(__dirname, "src/renderer/sticker-manager/index.html"),
+        call: resolve(__dirname, "src/renderer/call/index.html"),
+        "chat-react": resolve(__dirname, "src/renderer/react/index.html"),
+        music: resolve(__dirname, "src/renderer/music/index.html"),
       },
     },
   },
-}));
+  server: {
+    port: 5173,
+    strictPort: false,
+  },
+});
