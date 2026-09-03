@@ -4838,3 +4838,125 @@ body {
   padding: 8px 16px;
   font-size: 13px;
 }
+
+/* ===== 角色与风格面板 ===== */
+.character-style-section {
+  margin-bottom: 24px;
+}
+
+.character-style-section__heading {
+  margin-bottom: 12px;
+}
+
+.character-style-section__heading h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rb-text-strong, #1a1b1c);
+}
+
+.character-style-section__heading p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rb-text-muted, #6b7280);
+}
+
+.character-style-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.character-style-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--rb-border-soft, #e5e7eb);
+  background: var(--rb-bg-2, rgba(255, 255, 255, 0.6));
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.character-style-item:hover {
+  border-color: var(--rb-border, #d1d5db);
+  background: var(--rb-bg-3, rgba(255, 255, 255, 0.85));
+}
+
+.character-style-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.character-style-item__info strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rb-text-strong, #1a1b1c);
+}
+
+.character-style-item__info span {
+  font-size: 12px;
+  color: var(--rb-text-muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-style-item__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.character-style-item__actions .ghost-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.character-style-item__actions .ghost-btn.is-danger {
+  color: #dc2626;
+}
+
+.character-style-item__actions .ghost-btn.is-danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.character-style-item__actions .ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.character-style-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.character-style-actions .save-btn {
+  margin: 0;
+}
+
+.character-style-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--rb-bg-2, rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--rb-border-soft, #e5e7eb);
+}
+
+.character-style-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.character-style-editor__actions .save-btn,
+.character-style-editor__actions .ghost-btn {
+  margin: 0;
+}

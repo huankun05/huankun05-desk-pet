@@ -31,8 +31,16 @@ interface StyleSettingsApi {
   saveGeneral?: (config: { currentCharacterId?: string; currentStyleId?: StyleId }) => Promise<unknown>;
 }
 
+interface SidebarApi {
+  openSettings?: (section?: string) => void;
+}
+
 function styleSettingsApi(): StyleSettingsApi | undefined {
   return (window as typeof window & { settings?: StyleSettingsApi }).settings;
+}
+
+function sidebarApi(): SidebarApi | undefined {
+  return (window as typeof window & { sidebar?: SidebarApi }).sidebar;
 }
 
 function ChevronIcon() {
@@ -80,14 +88,9 @@ export function StyleControl() {
     }
   }
 
-  async function selectCustomStyle() {
-    setCurrentStyleId("custom");
+  function openCustomStyleSettings() {
     setOpen(false);
-    try {
-      await styleSettingsApi()?.saveGeneral?.({ currentStyleId: "custom" });
-    } catch {
-      setCurrentStyleId(currentStyleId);
-    }
+    sidebarApi()?.openSettings?.("preferences");
   }
 
   return (
@@ -120,7 +123,7 @@ export function StyleControl() {
             <button
               type="button"
               className={`cy-style-panel__option ${currentStyleId === "custom" ? "is-active" : ""}`}
-              onClick={() => void selectCustomStyle()}
+              onClick={openCustomStyleSettings}
             >
               <img className="cy-style-icon" src={customIconUrl} alt="" />
               <span>{t("style.optionCustom")}</span>

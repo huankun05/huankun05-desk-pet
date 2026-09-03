@@ -353,13 +353,13 @@
     "entryCompleted": "计划已完成 · 点击查看"
   },
   "style": {
-    "panelTitle": "回复风格",
+    "panelTitle": "角色切换",
     "optionDefault": "温柔 · 和善",
     "optionLively": "元气 · 活泼",
     "optionHealing": "治愈 · 安心",
     "optionFocused": "知性 · 认真",
     "optionSweet": "撒娇 · 黏人",
-    "optionCustom": "自定义"
+    "optionCustom": "自定义风格"
   },
   "todo": {
     "modeWork": "工作",
