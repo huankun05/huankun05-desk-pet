@@ -1257,6 +1257,208 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// ── 角色管理 UI（动态生成，避免修改庞大的 index.html） ──
+(function initCharacterManager() {
+  // 在角色下拉框后面插入"管理角色"按钮
+  const manageBtn = document.createElement("button");
+  manageBtn.type = "button";
+  manageBtn.className = "ghost-btn character-manage-btn";
+  manageBtn.id = "character-manage-btn";
+  manageBtn.textContent = "管理角色";
+  characterDropdown.after(manageBtn);
+
+  // 创建角色管理弹窗
+  const modal = document.createElement("div");
+  modal.className = "character-modal is-hidden";
+  modal.id = "character-modal";
+  modal.innerHTML = `
+    <div class="character-modal__backdrop" data-close></div>
+    <div class="character-modal__card">
+      <div class="character-modal__header">
+        <h2>角色管理</h2>
+        <button type="button" class="ghost-btn" data-close>关闭</button>
+      </div>
+      <div class="character-modal__body">
+        <div class="character-modal__list" id="character-manage-list"></div>
+        <div class="character-modal__editor is-hidden" id="character-manage-editor">
+          <h3 id="character-editor-title">编辑角色</h3>
+          <label class="character-field">
+            <span>角色名称</span>
+            <input type="text" id="character-edit-name" placeholder="例如：昔涟" />
+          </label>
+          <label class="character-field">
+            <span>模型路径</span>
+            <input type="text" id="character-edit-modelpath" placeholder="相对于 assets/models/，例如 cyrene/Cyrene.model3.json" />
+          </label>
+          <label class="character-field">
+            <span>绑定风格</span>
+            <select id="character-edit-style">
+              <option value="default">温柔（默认）</option>
+              <option value="lively">元气·活泼</option>
+              <option value="healing">治愈·安心</option>
+              <option value="focused">知性·认真</option>
+              <option value="sweet">撒娇·黏人</option>
+              <option value="custom">自定义</option>
+            </select>
+          </label>
+          <div class="character-modal__actions">
+            <button type="button" class="ghost-btn" data-cancel>取消</button>
+            <button type="button" class="save-btn" data-save>保存角色</button>
+          </div>
+        </div>
+      </div>
+      <div class="character-modal__footer">
+        <span class="save-status" id="character-manage-status">等待操作</span>
+        <button type="button" class="save-btn" id="character-add-btn">+ 新建角色</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const listEl = modal.querySelector("#character-manage-list") as HTMLDivElement;
+  const editorEl = modal.querySelector("#character-manage-editor") as HTMLDivElement;
+  const editorTitle = modal.querySelector("#character-editor-title") as HTMLElement;
+  const nameInput = modal.querySelector("#character-edit-name") as HTMLInputElement;
+  const modelPathInput = modal.querySelector("#character-edit-modelpath") as HTMLInputElement;
+  const styleSelect = modal.querySelector("#character-edit-style") as HTMLSelectElement;
+  const statusEl = modal.querySelector("#character-manage-status") as HTMLElement;
+  const addBtn = modal.querySelector("#character-add-btn") as HTMLButtonElement;
+
+  let editingCharacters: CharacterConfig[] = [];
+  let editingIndex = -1;
+
+  function setStatus(text: string, type: "" | "is-ok" | "is-error" = "") {
+    statusEl.textContent = text;
+    statusEl.className = "save-status" + (type ? " " + type : "");
+  }
+
+  function renderList() {
+    listEl.innerHTML = "";
+    editingCharacters.forEach((char, idx) => {
+      const styleName = STYLE_DISPLAY_NAMES[char.styleId] ?? char.styleId;
+      const item = document.createElement("div");
+      item.className = "character-manage-item";
+      item.innerHTML = `
+        <div class="character-manage-item__info">
+          <strong>${char.name}</strong>
+          <span>${styleName}风格 · ${char.modelPath}</span>
+        </div>
+        <div class="character-manage-item__actions">
+          <button type="button" class="ghost-btn" data-edit="${idx}">编辑</button>
+          <button type="button" class="ghost-btn is-danger" data-delete="${idx}" ${char.id === "cyrene" ? "disabled title='默认角色不可删除'" : ""}>删除</button>
+        </div>
+      `;
+      listEl.appendChild(item);
+    });
+  }
+
+  function openEditor(index: number) {
+    editingIndex = index;
+    const char = editingCharacters[index];
+    editorTitle.textContent = index === -1 ? "新建角色" : "编辑角色";
+    nameInput.value = char?.name ?? "";
+    modelPathInput.value = char?.modelPath ?? "";
+    styleSelect.value = char?.styleId ?? "default";
+    listEl.classList.add("is-hidden");
+    editorEl.classList.remove("is-hidden");
+    addBtn.classList.add("is-hidden");
+  }
+
+  function closeEditor() {
+    editingIndex = -1;
+    listEl.classList.remove("is-hidden");
+    editorEl.classList.add("is-hidden");
+    addBtn.classList.remove("is-hidden");
+  }
+
+  async function saveEditor() {
+    const name = nameInput.value.trim();
+    const modelPath = modelPathInput.value.trim();
+    const styleId = styleSelect.value as StyleId;
+    if (!name) { setStatus("请填写角色名称", "is-error"); return; }
+    if (!modelPath) { setStatus("请填写模型路径", "is-error"); return; }
+
+    if (editingIndex === -1) {
+      // 新建：生成唯一 ID
+      const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, "-") || "character";
+      let id = baseId;
+      let n = 1;
+      while (editingCharacters.some((c) => c.id === id)) {
+        id = `${baseId}-${n++}`;
+      }
+      editingCharacters.push({ id, name, modelPath, styleId });
+    } else {
+      editingCharacters[editingIndex] = {
+        ...editingCharacters[editingIndex],
+        name,
+        modelPath,
+        styleId,
+      };
+    }
+
+    try {
+      await window.settings!.saveGeneral({ characters: editingCharacters });
+      setStatus("角色已保存", "is-ok");
+      closeEditor();
+      renderList();
+      // 刷新外观设置的角色下拉框
+      void loadGeneralSettings();
+    } catch {
+      setStatus("保存失败", "is-error");
+    }
+  }
+
+  // 事件绑定
+  manageBtn.addEventListener("click", async () => {
+    try {
+      const cfg = await window.settings!.getGeneral();
+      editingCharacters = Array.isArray(cfg.characters) && cfg.characters.length > 0
+        ? [...cfg.characters]
+        : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json", styleId: "default" }];
+      renderList();
+      closeEditor();
+      modal.classList.remove("is-hidden");
+      setStatus("等待操作");
+    } catch {
+      setStatus("读取角色列表失败", "is-error");
+    }
+  });
+
+  modal.querySelectorAll("[data-close]").forEach((el) => {
+    el.addEventListener("click", () => modal.classList.add("is-hidden"));
+  });
+
+  listEl.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const editBtn = target.closest("[data-edit]");
+    const deleteBtn = target.closest("[data-delete]");
+    if (editBtn) {
+      openEditor(Number(editBtn.getAttribute("data-edit")));
+    } else if (deleteBtn && !deleteBtn.hasAttribute("disabled")) {
+      const idx = Number(deleteBtn.getAttribute("data-delete"));
+      const char = editingCharacters[idx];
+      if (window.confirm(`确定删除角色「${char.name}」？\n删除后不可恢复。`)) {
+        editingCharacters.splice(idx, 1);
+        window.settings!.saveGeneral({ characters: editingCharacters })
+          .then(() => {
+            setStatus("角色已删除", "is-ok");
+            renderList();
+            void loadGeneralSettings();
+          })
+          .catch(() => setStatus("删除失败", "is-error"));
+      }
+    }
+  });
+
+  addBtn.addEventListener("click", () => {
+    editingIndex = -1;
+    openEditor(-1);
+  });
+
+  editorEl.querySelector("[data-cancel]")?.addEventListener("click", closeEditor);
+  editorEl.querySelector("[data-save]")?.addEventListener("click", () => void saveEditor());
+})();
+
 // 行间距滑块
 chatLineHeightInput.addEventListener("input", () => {
   const val = Number(chatLineHeightInput.value);
