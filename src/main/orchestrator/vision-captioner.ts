@@ -70,8 +70,9 @@ export async function captionImage(
       const ocrResult = await extractText(image);
       console.log("[Vision] OCR 预处理完成，耗时=" + (Date.now() - ocrStart) + "ms");
 
-      if (ocrResult.success && ocrResult.text.length > 0) {
-        // 有文字，把 OCR 结果补充到 instruction 中
+      if (ocrResult.success && ocrResult.text.length > 20) {
+        // 有足够文字（超过20字符），把 OCR 结果补充到 instruction 中
+        // 阈值过滤：避免只有 "1/10" 这类编号干扰视觉模型描述图片内容
         instruction =
           instruction +
           "\n\n另外，通过 OCR 识别到图片中的文字如下（仅供参考，可能存在识别错误）：\n" +
@@ -81,7 +82,7 @@ export async function captionImage(
           "请结合图片内容和上述文字回答用户问题。如果 OCR 结果与图片实际内容不符，请以图片实际内容为准。";
         console.log("[Vision] 图片含文字，已补充 OCR 结果，长度=" + ocrResult.text.length);
       } else {
-        console.log("[Vision] 图片未识别到文字或 OCR 失败，走纯视觉分析");
+        console.log("[Vision] 图片未识别到足够文字（长度=" + (ocrResult.text?.length || 0) + "）或 OCR 失败，走纯视觉分析");
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

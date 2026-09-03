@@ -702,6 +702,13 @@ Embedding 索引已采用后台 Worker、批处理和缓存机制，以降低文
 
 ---
 
+## 📚 相关文档
+
+- [视觉模型与 OCR 预处理](./docs/vision-ocr.md) — 视觉模型架构、minicpm/moondream 对比、OCR 预处理、Ollama 自动启动机制
+- [角色切换器设计与实施](./docs/character-switcher.md) — 角色与风格绑定、记忆共通、角色管理 UI 设计
+
+---
+
 ## 📄 许可证
 
 本仓库的**源代码**遵循 [MIT License](./LICENSE)，Copyright (c) 2026 Playa。
