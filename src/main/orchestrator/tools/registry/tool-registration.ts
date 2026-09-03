@@ -17,6 +17,7 @@ import { registerCodeGitTools } from "../git-tools";
 import type { LspManager } from "../../../lsp/manager";
 import { registerLspTool } from "../lsp-tool";
 import "../built-in-tools";
+import { registerSkillTools } from "../../../skills/skill-tools";
 
 export function syncBuiltInToolToggles(settings: GeneralSettings): void {
   toolRegistry.setEnabled("weather", settings.weatherEnabled);
@@ -43,6 +44,9 @@ export function registerAllTools(deps: { codeGitService: GitService; lspManager:
 
   registerTravelTools();
   registerEmailTools();
+
+  // 自进化技能系统工具（skill_list / skill_view / skill_manage）
+  registerSkillTools();
 
   syncBuiltInToolToggles(loadGeneralSettings());
 }

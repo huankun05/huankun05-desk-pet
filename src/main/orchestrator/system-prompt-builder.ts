@@ -14,6 +14,7 @@ import { buildToolCatalog } from "./tools/registry/tool-catalog";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import type { ConversationMode } from "../../shared/chat-types";
 import { buildModePrompt } from "./mode-prompt-profile";
+import { listSkills } from "../skills/skill-store";
 
 export function readStylePrompt(styleId: StyleId): string {
   if (styleId === "custom") {
@@ -69,10 +70,32 @@ export function buildToolSystemPrompt(
   enabledTools: ReadonlyArray<ToolDefinition>,
 ): string {
   const catalog = buildToolCatalog(enabledTools as ToolDefinition[]);
-  return [
+  const parts = [
     "## 当前可用工具",
     catalog,
-  ].filter(Boolean).join("\n\n");
+  ];
+
+  // 注入已保存技能列表（程序性记忆），让 Agent 知道有哪些可复用流程
+  try {
+    const skills = listSkills();
+    if (skills.length > 0) {
+      const skillLines = skills.map((s) => {
+        const creator = s.createdBy === "agent" ? " [自进化]" : "";
+        return `- **${s.name}**${creator}: ${s.description}`;
+      });
+      parts.push(
+        "## 已保存技能（程序性记忆）\n" +
+        "以下是你之前沉淀的可复用流程。开始任务前先用 skill_list 查看，" +
+        "有相关技能时用 skill_view 读取具体步骤。完成复杂任务后，" +
+        "用 skill_manage create 把成功流程沉淀为新技能。\n\n" +
+        skillLines.join("\n"),
+      );
+    }
+  } catch {
+    // 技能列表读取失败不影响工具目录
+  }
+
+  return parts.filter(Boolean).join("\n\n");
 }
 
 /**

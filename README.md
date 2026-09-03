@@ -704,6 +704,7 @@ Embedding 索引已采用后台 Worker、批处理和缓存机制，以降低文
 
 ## 📚 相关文档
 
+- [自进化技能系统](./docs/self-evolving-skills.md) — 移植自 Hermes 的程序性记忆，Agent 从成功经验中沉淀可复用流程，越用越聪明
 - [视觉模型与 OCR 预处理](./docs/vision-ocr.md) — 视觉模型架构、minicpm/moondream 对比、OCR 预处理、Ollama 自动启动机制
 - [角色切换器设计与实施](./docs/character-switcher.md) — 角色与风格绑定、记忆共通、角色管理 UI 设计
 
