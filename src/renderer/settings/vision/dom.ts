@@ -7,3 +7,8 @@ export const visionModelInput = document.getElementById("vision-model") as HTMLI
 export const visionFieldsWrap = document.getElementById("vision-fields-wrap") as HTMLElement;
 export const testVisionBtn = document.getElementById("test-vision-btn") as HTMLButtonElement;
 export const visionTestStatus = document.getElementById("vision-test-status") as HTMLElement;
+
+// OCR 预处理相关 DOM
+export const visionOcrToggle = document.getElementById("toggle-vision-ocr") as HTMLInputElement;
+export const testOcrBtn = document.getElementById("test-ocr-btn") as HTMLButtonElement;
+export const ocrTestStatus = document.getElementById("ocr-test-status") as HTMLElement;

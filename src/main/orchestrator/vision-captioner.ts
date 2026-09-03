@@ -7,12 +7,16 @@
 // 用框架指令让视觉模型自己理解任务。
 
 import { resolveTimeoutPolicy } from "../runtime-policy";
+import { extractText } from "./ocr-service";
+import { ensureOllamaRunning, isLocalOllamaUrl } from "./ollama-service";
 
 /** 视觉模型配置（OpenAI 兼容）。 */
 export interface VisionConfig {
   baseUrl: string;  // 如 https://api.openai.com/v1
   apiKey: string;
   model: string;    // 如 gpt-4o / glm-5v-turbo / qwen-vl-max
+  /** 是否启用本地 OCR 预处理（提取图片文字补充给视觉模型）。 */
+  ocrEnabled?: boolean;
 }
 
 /** 图片数据（不含 data: 前缀的纯 base64）。 */
@@ -54,7 +58,39 @@ export async function captionImage(
   userQuery: string,
   config: VisionConfig,
 ): Promise<string> {
-  const instruction = buildInstruction(userQuery);
+  let instruction = buildInstruction(userQuery);
+
+  // OCR 预处理：仅在配置启用时执行。
+  // 提取图片中的文字补充给视觉模型，解决 moondream 等纯视觉模型没有 OCR 能力的问题。
+  // OCR 失败或无文字时不影响主流程，走纯视觉分析。
+  if (config.ocrEnabled === true) {
+    try {
+      console.log("[Vision] OCR 已启用，开始 OCR 预处理...");
+      const ocrStart = Date.now();
+      const ocrResult = await extractText(image);
+      console.log("[Vision] OCR 预处理完成，耗时=" + (Date.now() - ocrStart) + "ms");
+
+      if (ocrResult.success && ocrResult.text.length > 0) {
+        // 有文字，把 OCR 结果补充到 instruction 中
+        instruction =
+          instruction +
+          "\n\n另外，通过 OCR 识别到图片中的文字如下（仅供参考，可能存在识别错误）：\n" +
+          '"""' +
+          ocrResult.text +
+          '"""\n' +
+          "请结合图片内容和上述文字回答用户问题。如果 OCR 结果与图片实际内容不符，请以图片实际内容为准。";
+        console.log("[Vision] 图片含文字，已补充 OCR 结果，长度=" + ocrResult.text.length);
+      } else {
+        console.log("[Vision] 图片未识别到文字或 OCR 失败，走纯视觉分析");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[Vision] OCR 预处理异常，跳过:", msg);
+    }
+  } else {
+    console.log("[Vision] OCR 未启用，走纯视觉分析");
+  }
+
   const dataUrl = "data:" + image.mime + ";base64," + image.base64;
 
   // 永远 OpenAI 兼容格式：image_url content block
@@ -85,47 +121,68 @@ export async function captionImage(
   console.log("[Vision] 调用视觉模型:", config.model, "url=" + url, "query.len=" + userQuery.length);
   const startMs = Date.now();
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
-  try {
-    const resp = await fetch(url, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + config.apiKey,
-      },
-      body: JSON.stringify(body),
-    });
+  // 实际的视觉模型请求逻辑（提取成内部函数，方便重试）
+  const doRequest = async (): Promise<string> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + config.apiKey,
+        },
+        body: JSON.stringify(body),
+      });
 
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      console.error("[Vision] 请求失败 HTTP " + resp.status, errText.slice(0, 200));
-      return "[错误·运行时] 视觉模型请求失败：HTTP " + resp.status + " " + errText.slice(0, 200);
-    }
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        console.error("[Vision] 请求失败 HTTP " + resp.status, errText.slice(0, 200));
+        return "[错误·运行时] 视觉模型请求失败：HTTP " + resp.status + " " + errText.slice(0, 200);
+      }
 
-    const data = await resp.json() as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-    };
-    const text = data.choices?.[0]?.message?.content ?? "";
-    if (!text) {
-      console.error("[Vision] 视觉模型未返回有效内容");
-      return "[错误·运行时] 视觉模型未返回有效内容";
-    }
+      const data = await resp.json() as {
+        choices?: Array<{ message?: { content?: string | null } }>;
+      };
+      const text = data.choices?.[0]?.message?.content ?? "";
+      if (!text) {
+        console.error("[Vision] 视觉模型未返回有效内容");
+        return "[错误·运行时] 视觉模型未返回有效内容";
+      }
 
-    console.log("[Vision] 完成，耗时=" + (Date.now() - startMs) + "ms，返回长度=" + text.length);
-    return text;
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      console.error("[Vision] 请求超时");
-      return "[错误·运行时] 视觉模型请求超时";
+      console.log("[Vision] 完成，耗时=" + (Date.now() - startMs) + "ms，返回长度=" + text.length);
+      return text;
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        console.error("[Vision] 请求超时");
+        return "[错误·运行时] 视觉模型请求超时";
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Vision] 请求异常:", msg);
+      return "[错误·运行时] 视觉模型请求异常：" + msg;
+    } finally {
+      clearTimeout(timer);
     }
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[Vision] 请求异常:", msg);
-    return "[错误·运行时] 视觉模型请求异常：" + msg;
-  } finally {
-    clearTimeout(timer);
+  };
+
+  // 第一次请求
+  let result = await doRequest();
+
+  // 如果请求失败（fetch failed）且是本地 Ollama 地址，尝试自动启动 Ollama 并重试一次
+  if (result.startsWith("[错误·运行时] 视觉模型请求异常：fetch failed") && isLocalOllamaUrl(config.baseUrl)) {
+    console.log("[Vision] 检测到本地 Ollama 未运行，尝试自动启动...");
+    const ollamaStarted = await ensureOllamaRunning();
+    if (ollamaStarted) {
+      console.log("[Vision] Ollama 已启动，重试视觉模型请求...");
+      result = await doRequest();
+    } else {
+      console.error("[Vision] Ollama 自动启动失败，请手动启动 Ollama");
+      result = "[错误·运行时] 本地 Ollama 未运行且自动启动失败，请手动启动 Ollama 后重试";
+    }
   }
+
+  return result;
 }
 
 /** 拼接 baseUrl + /chat/completions，兼容用户填的带或不带尾斜杠。 */

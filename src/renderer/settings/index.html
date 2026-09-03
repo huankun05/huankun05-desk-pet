@@ -266,6 +266,20 @@
 
               <button type="button" class="save-btn save-btn--ghost" id="test-vision-btn">测试视觉模型</button>
               <div class="save-status" id="vision-test-status"></div>
+
+              <!-- 本地 OCR 预处理配置 -->
+              <div class="vision-ocr-section">
+                <div class="settings-divider"><span>本地 OCR 预处理</span></div>
+                <p class="settings-hint">启用后，发图前先用本地 OCR 提取图片中的文字，再把文字和图片一起发给视觉模型。适合 moondream 等没有 OCR 能力的纯视觉模型。语言包首次下载后会持久化缓存，无需每次重新下载。</p>
+                <label class="field field--full field--switch">
+                  <span>启用 OCR 预处理</span>
+                  <span class="switch"><input id="toggle-vision-ocr" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
+                </label>
+                <div class="settings-actions-row">
+                  <button type="button" class="save-btn save-btn--ghost" id="test-ocr-btn">测试 OCR 服务</button>
+                  <div class="save-status" id="ocr-test-status"></div>
+                </div>
+              </div>
             </div>
           </div>
 

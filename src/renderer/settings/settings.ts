@@ -70,7 +70,7 @@ import { formatDateTime, escapeHtml } from "./shared/format";
 import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
-import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus } from "./vision/dom";
+import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, characterDropdown, characterDropdownTrigger, characterDropdownValue, characterDropdownPanel, chatLineHeightInput, chatLineHeightVal, assistantBubbleEnabledInput, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, clearChatHistoryBtn, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, cyreneSaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
@@ -645,18 +645,20 @@ function fillModelOptions(preset: ModelPreset, preferredModel?: string): void {
 // ── 档案编辑（表单绑定档案，不再绑定"当前厂商"） ────────────────
 
 /** 视觉三框是全局配置：切换档案/预设时先快照再恢复，避免被 preset 默认值覆盖。 */
-function snapshotVisionInputs(): { baseUrl: string; apiKey: string; model: string } {
+function snapshotVisionInputs(): { baseUrl: string; apiKey: string; model: string; ocrEnabled: boolean } {
   return {
     baseUrl: visionBaseUrlInput.value,
     apiKey: visionApiKeyInput.value,
     model: visionModelInput.value,
+    ocrEnabled: visionOcrToggle.checked,
   };
 }
 
-function restoreVisionInputs(snapshot: { baseUrl: string; apiKey: string; model: string }): void {
+function restoreVisionInputs(snapshot: { baseUrl: string; apiKey: string; model: string; ocrEnabled: boolean }): void {
   visionBaseUrlInput.value = snapshot.baseUrl;
   visionApiKeyInput.value = snapshot.apiKey;
   visionModelInput.value = snapshot.model;
+  visionOcrToggle.checked = snapshot.ocrEnabled;
 }
 
 /** 档案列表渲染：卡片 = 昵称 + 厂商 + 模型 + 徽标（默认/上下文/多模态）。 */
@@ -876,7 +878,7 @@ export function applyPreset(
   preferredBaseUrl?: string,
   preferredDisplayName?: string,
   preferredExplicitTransport?: ApiTransport,
-  preferredVision?: { baseUrl: string; apiKey: string; model: string },
+  preferredVision?: { baseUrl: string; apiKey: string; model: string; ocrEnabled?: boolean },
   preferredMultimodal?: boolean,
 ): void {
   const preset = findPreset(providerName);
@@ -927,10 +929,12 @@ export function applyPreset(
     visionBaseUrlInput.value = preferredVision.baseUrl;
     visionApiKeyInput.value = preferredVision.apiKey;
     visionModelInput.value = preferredVision.model;
+    visionOcrToggle.checked = preferredVision.ocrEnabled === true;
   } else {
     visionBaseUrlInput.value = preset.visionBaseUrl ?? baseUrlInput.value;
     visionApiKeyInput.value = apiKeyInput.value;
     visionModelInput.value = preset.defaultVisionModel ?? modelInput.value;
+    visionOcrToggle.checked = false;
   }
 
   fillVisionModelOptions(preset);
@@ -966,6 +970,7 @@ async function loadConfig(): Promise<void> {
             baseUrl: vision.baseUrl,
             apiKey: vision.apiKey,
             model: vision.model,
+            ocrEnabled: vision.ocrEnabled === true,
           }
         : undefined,
       cfg.multimodal,
@@ -1679,6 +1684,24 @@ testVisionBtn.addEventListener("click", async () => {
   }
 });
 
+// 测试 OCR 服务按钮
+testOcrBtn.addEventListener("click", async () => {
+  ocrTestStatus.textContent = "测试中…（首次需下载语言包，可能较慢）";
+  testOcrBtn.disabled = true;
+  try {
+    const result = await window.settings!.testOcr?.();
+    if (result?.ok) {
+      ocrTestStatus.textContent = "✅ OCR 服务正常 " + result.latency + "ms · " + (result.sample ?? "");
+    } else {
+      ocrTestStatus.textContent = "❌ " + (result?.error ?? "未知错误");
+    }
+  } catch (e) {
+    ocrTestStatus.textContent = "❌ " + (e instanceof Error ? e.message : String(e));
+  } finally {
+    testOcrBtn.disabled = false;
+  }
+});
+
 
 
 
@@ -1771,6 +1794,7 @@ apiForm.addEventListener("submit", async (e) => {
         baseUrl: visionBaseUrlInput.value.trim(),
         apiKey: visionApiKeyInput.value.trim(),
         model: visionModelInput.value.trim(),
+        ocrEnabled: visionOcrToggle.checked,
       },
       thinkingOverride: toggleEnableThinking.checked ? 1 : toggleDisableThinking.checked ? -1 : 0,
       disableMaxToken: toggleDisableMaxToken.checked,

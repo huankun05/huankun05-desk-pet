@@ -4960,3 +4960,57 @@ body {
 .character-style-editor__actions .ghost-btn {
   margin: 0;
 }
+
+/* 本地 OCR 预处理配置区 */
+.vision-ocr-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.settings-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.settings-divider span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rb-text-default);
+}
+.settings-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+
+.settings-hint {
+  font-size: 12px;
+  opacity: 0.6;
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+
+.field--switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.field--switch > span:first-child {
+  font-size: 13px;
+  color: var(--rb-text-default);
+}
+
+.settings-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-actions-row .save-status {
+  margin: 0;
+  flex: 1;
+}

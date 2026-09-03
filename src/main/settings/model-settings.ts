@@ -157,6 +157,8 @@ export interface VisionModelConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** 是否启用本地 OCR 预处理（提取图片文字补充给视觉模型）。默认 false。 */
+  ocrEnabled?: boolean;
 }
 
 const DEFAULT_MODEL_SETTINGS: ModelSettings = {
@@ -235,7 +237,12 @@ function normalizeVisionConfig(input: Partial<VisionModelConfig> | undefined): V
   const model = typeof input.model === "string" ? input.model.trim() : "";
   // 三项全空 = 未启用
   if (!baseUrl && !apiKey && !model) return undefined;
-  return { baseUrl, apiKey, model };
+  return {
+    baseUrl,
+    apiKey,
+    model,
+    ocrEnabled: input.ocrEnabled === true,
+  };
 }
 
 export function normalizeModelSettings(input: Partial<ModelSettings> | null | undefined): ModelSettings {

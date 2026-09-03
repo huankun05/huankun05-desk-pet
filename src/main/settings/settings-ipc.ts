@@ -291,6 +291,32 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     },
   );
 
+  /**
+   * 测试本地 OCR 服务可用性。
+   * 初始化 Tesseract worker（首次会下载语言包），用一张测试图验证识别流程。
+   * 主要验证 worker 能否初始化、语言包能否加载，而非 OCR 准确率。
+   */
+  ipc.handle(IPC.SETTINGS_TEST_OCR, async () => {
+    const start = Date.now();
+    console.log("[Cyrene] test OCR: initializing worker...");
+    try {
+      const { extractText } = await import("../orchestrator/ocr-service");
+      const result = await extractText({ base64: VISION_TEST_IMAGE_BASE64, mime: "image/png" });
+      const latency = Date.now() - start;
+      if (!result.success) {
+        return { ok: false, latency, error: "OCR 识别失败" };
+      }
+      return {
+        ok: true,
+        latency,
+        sample: result.text ? result.text.slice(0, 80) : "(测试图无文字，识别流程正常)",
+        confidence: result.confidence,
+      };
+    } catch (e) {
+      return { ok: false, latency: Date.now() - start, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
   ipc.handle(IPC.EMBEDDING_SET_MODEL, async (_event, modelKey: string) => {
     console.log("[Cyrene] embedding model switch requested:", modelKey);
     try {
