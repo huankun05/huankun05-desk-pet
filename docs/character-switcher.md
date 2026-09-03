@@ -33,13 +33,25 @@ interface CharacterConfig {
   id: string;           // 角色唯一 ID，如 "cyrene"
   name: string;         // 显示名称，如 "昔涟"
   modelPath: string;    // Live2D 模型相对路径（相对于 assets/models/）
+  styleId: StyleId;     // 绑定的回复风格（default/lively/healing/focused/sweet/custom）
   promptsDir?: string;  // 角色专属 prompts 目录（可选，第一版未使用）
 }
 ```
 
 GeneralSettings 新增字段：
-- `characters: CharacterConfig[]` — 可用角色列表，默认 `[{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json" }]`
+- `characters: CharacterConfig[]` — 可用角色列表，默认 `[{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json", styleId: "default" }]`
 - `currentCharacterId: string` — 当前选中角色 ID，默认 `"cyrene"`
+
+### 2.3 角色与风格绑定（v0.2 新增）
+
+每个角色绑定一种回复风格（StyleId），切换角色时同时切换：
+- **AI 说话风格**（currentStyleId）：实时生效，影响 prompt 和采样参数（temperature/repetition）
+- **Live2D 模型**（currentCharacterId）：重启后生效
+- **记忆**：全局共通，不区分角色
+
+内置风格：default（温柔）、lively（元气）、healing（治愈）、focused（知性）、sweet（撒娇）、custom（自定义）。
+
+UI 显示格式：`角色名 · 风格名`，如"昔涟 · 温柔"。
 
 ### 2.3 切换流程（第一版）
 
@@ -107,8 +119,9 @@ GeneralSettings 新增字段：
 | CLI 构建 | 通过 |
 | dev 模式启动 | 成功，Electron 窗口正常，无运行时错误 |
 | 默认角色（昔涟）模型加载 | 正常（与修改前行为一致） |
-| 角色选择器 UI 显示 | 外观设置 → 昔涟桌宠 → 角色形象下拉框，默认选中"昔涟" |
-| 角色切换保存 | 切换角色后自动保存 currentCharacterId，提示"重启后生效" |
+| 角色选择器 UI 显示 | 外观设置 → 昔涟桌宠 → 角色形象下拉框，默认显示"昔涟 · 温柔" |
+| 角色切换保存 | 切换角色后同时保存 currentCharacterId + currentStyleId，提示"风格实时生效，模型重启后生效" |
+| 风格联动 | 切换角色后 currentStyleId 同步更新，AI 说话风格实时生效 |
 
 ## 5. 后续待办
 
@@ -142,11 +155,13 @@ GeneralSettings 新增字段：
 1. 打开 Cyrene 设置界面（点击桌宠或状态栏的设置按钮）
 2. 左侧导航选择「外观设置」
 3. 找到「昔涟桌宠」section
-4. 第一个选项就是「角色形象」下拉框
-5. 选择目标角色后自动保存，状态栏提示「角色已切换，重启后生效」
-6. 重启 Cyrene，新角色的 Live2D 模型生效
+4. 第一个选项就是「角色形象」下拉框，显示格式为「角色名 · 风格名」
+5. 选择目标角色后自动保存，状态栏提示「已切换到「角色名」· 风格名风格实时生效，模型重启后生效」
+6. **AI 说话风格立即生效**（下一条消息就会用新风格回复）
+7. 重启 Cyrene，新角色的 Live2D 模型生效
 
-> 注意：第一版切换角色后需要重启 Cyrene 才能加载新模型。热切换（无需重启）后续添加。
+> 注意：切换角色后 AI 说话风格实时生效，但 Live2D 模型需要重启。热切换（无需重启）后续添加。
+> 聊天界面的风格选择按钮仍然保留，可以临时手动覆盖风格。
 
 ## 7. 配置示例
 
@@ -158,16 +173,19 @@ GeneralSettings 新增字段：
     {
       "id": "cyrene",
       "name": "昔涟",
-      "modelPath": "cyrene/Cyrene.model3.json"
+      "modelPath": "cyrene/Cyrene.model3.json",
+      "styleId": "default"
     },
     {
       "id": "custom-1",
       "name": "自定义角色",
-      "modelPath": "custom-1/model.model3.json"
+      "modelPath": "custom-1/model.model3.json",
+      "styleId": "lively"
     }
   ],
-  "currentCharacterId": "cyrene"
+  "currentCharacterId": "cyrene",
+  "currentStyleId": "default"
 }
 ```
 
-切换角色时，修改 `currentCharacterId` 为目标角色的 `id`，重启 Cyrene 即可生效。
+切换角色时，修改 `currentCharacterId` 为目标角色的 `id`，同时 `currentStyleId` 会自动更新为该角色绑定的风格。AI 说话风格实时生效，Live2D 模型重启后生效。

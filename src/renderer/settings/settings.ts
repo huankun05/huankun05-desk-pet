@@ -38,6 +38,7 @@ import {
   type DiversityPreference,
   type RepetitionLevel,
 } from "../../shared/style-sampling";
+import { STYLE_DISPLAY_NAMES } from "../../shared/character-types";
 import {
   CUSTOM_ENDPOINT_PROVIDERS,
   getCustomEndpointMode,
@@ -1026,16 +1027,19 @@ async function loadGeneralSettings(): Promise<void> {
       : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json" }];
     const currentCharacterId = cfg.currentCharacterId ?? characters[0].id;
     const currentChar = characters.find((c) => c.id === currentCharacterId) ?? characters[0];
-    characterDropdownValue.textContent = currentChar.name;
+    const currentStyleName = STYLE_DISPLAY_NAMES[currentChar.styleId] ?? currentChar.styleId;
+    characterDropdownValue.textContent = `${currentChar.name} · ${currentStyleName}`;
     characterDropdownPanel.innerHTML = "";
     for (const char of characters) {
       const option = document.createElement("button");
       option.type = "button";
       option.className = "character-dropdown__option" + (char.id === currentCharacterId ? " is-active" : "");
       option.dataset.characterId = char.id;
+      option.dataset.styleId = char.styleId;
       option.setAttribute("role", "option");
       option.setAttribute("aria-selected", String(char.id === currentCharacterId));
-      option.textContent = char.name;
+      const styleName = STYLE_DISPLAY_NAMES[char.styleId] ?? char.styleId;
+      option.textContent = `${char.name} · ${styleName}`;
       characterDropdownPanel.appendChild(option);
     }
     chatLineHeightInput.value = String(cfg.chatLineHeight ?? 1.75);
@@ -1224,7 +1228,8 @@ characterDropdownPanel.addEventListener("click", async (e) => {
   const option = (e.target as HTMLElement).closest<HTMLButtonElement>(".character-dropdown__option");
   if (!option) return;
   const characterId = option.dataset.characterId;
-  if (!characterId) return;
+  const styleId = option.dataset.styleId;
+  if (!characterId || !styleId) return;
   // 更新 UI
   characterDropdownValue.textContent = option.textContent;
   characterDropdownPanel.querySelectorAll(".character-dropdown__option").forEach((el) => {
@@ -1234,10 +1239,12 @@ characterDropdownPanel.addEventListener("click", async (e) => {
     btn.setAttribute("aria-selected", String(active));
   });
   toggleCharacterDropdown(false);
-  // 保存
+  // 保存：同时切换角色和绑定的回复风格
+  // 风格（currentStyleId）实时生效，Live2D 模型（currentCharacterId）重启后生效
   try {
-    await window.settings!.saveGeneral({ currentCharacterId: characterId });
-    setAppearanceSaveStatus("角色已切换，重启后生效", "is-ok");
+    await window.settings!.saveGeneral({ currentCharacterId: characterId, currentStyleId: styleId as StyleId });
+    const styleName = STYLE_DISPLAY_NAMES[styleId as StyleId] ?? styleId;
+    setAppearanceSaveStatus(`已切换到「${option.textContent?.split(" · ")[0]}」· ${styleName}风格实时生效，模型重启后生效`, "is-ok");
   } catch {
     setAppearanceSaveStatus("角色切换保存失败", "is-error");
   }
