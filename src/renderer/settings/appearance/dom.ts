@@ -11,6 +11,7 @@ export const petAlwaysOnTopInput = document.getElementById("pet-always-on-top") 
 export const petVisibleInput = document.getElementById("pet-visible") as HTMLInputElement;
 export const petZoomInput = document.getElementById("pet-zoom") as HTMLInputElement;
 export const petZoomVal = document.getElementById("pet-zoom-val") as HTMLElement;
+export const characterSelect = document.getElementById("character-select") as HTMLSelectElement;
 export const chatLineHeightInput = document.getElementById("chat-line-height") as HTMLInputElement;
 export const chatLineHeightVal = document.getElementById("chat-line-height-val") as HTMLElement;
 export const assistantBubbleEnabledInput = document.getElementById("assistant-bubble-enabled") as HTMLInputElement;
