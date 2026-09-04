@@ -23,25 +23,43 @@ declare global {
   }
 }
 
-// DOM 元素引用
-const els = {
-  list: document.getElementById("skills-list") as HTMLElement | null,
-  status: document.getElementById("skills-status") as HTMLElement | null,
-  installUrl: document.getElementById("skill-install-url") as HTMLInputElement | null,
-  installBtn: document.getElementById("skill-install-btn") as HTMLButtonElement | null,
-  backupBtn: document.getElementById("skill-backup-btn") as HTMLButtonElement | null,
-  refreshBtn: document.getElementById("skill-refresh-btn") as HTMLButtonElement | null,
-  modal: document.getElementById("skills-modal") as HTMLElement | null,
-  modalTitle: document.getElementById("skills-modal-title") as HTMLElement | null,
-  modalClose: document.getElementById("skills-modal-close") as HTMLButtonElement | null,
-  modalCancel: document.getElementById("skills-modal-cancel") as HTMLButtonElement | null,
-  modalSave: document.getElementById("skills-modal-save") as HTMLButtonElement | null,
-  meta: document.getElementById("skills-meta") as HTMLElement | null,
-  editor: document.getElementById("skills-editor") as HTMLTextAreaElement | null,
-  backupModal: document.getElementById("skills-backup-modal") as HTMLElement | null,
-  backupModalClose: document.getElementById("skills-backup-modal-close") as HTMLButtonElement | null,
-  backupModalCloseBtn: document.getElementById("skills-backup-modal-close-btn") as HTMLButtonElement | null,
-  backupList: document.getElementById("skills-backup-list") as HTMLElement | null,
+// DOM 元素引用（在 initSkillsPanel 中初始化）
+let els: {
+  list: HTMLElement | null;
+  status: HTMLElement | null;
+  installUrl: HTMLInputElement | null;
+  installBtn: HTMLButtonElement | null;
+  backupBtn: HTMLButtonElement | null;
+  refreshBtn: HTMLButtonElement | null;
+  modal: HTMLElement | null;
+  modalTitle: HTMLElement | null;
+  modalClose: HTMLButtonElement | null;
+  modalCancel: HTMLButtonElement | null;
+  modalSave: HTMLButtonElement | null;
+  meta: HTMLElement | null;
+  editor: HTMLTextAreaElement | null;
+  backupModal: HTMLElement | null;
+  backupModalClose: HTMLButtonElement | null;
+  backupModalCloseBtn: HTMLButtonElement | null;
+  backupList: HTMLElement | null;
+} = {
+  list: null,
+  status: null,
+  installUrl: null,
+  installBtn: null,
+  backupBtn: null,
+  refreshBtn: null,
+  modal: null,
+  modalTitle: null,
+  modalClose: null,
+  modalCancel: null,
+  modalSave: null,
+  meta: null,
+  editor: null,
+  backupModal: null,
+  backupModalClose: null,
+  backupModalCloseBtn: null,
+  backupList: null,
 };
 
 // 当前编辑的技能名
@@ -394,6 +412,27 @@ function closeBackupModal(): void {
 
 /** 初始化技能管理面板 */
 export function initSkillsPanel(): void {
+  // 获取 DOM 元素引用
+  els = {
+    list: document.getElementById("skills-list"),
+    status: document.getElementById("skills-status"),
+    installUrl: document.getElementById("skill-install-url") as HTMLInputElement | null,
+    installBtn: document.getElementById("skill-install-btn") as HTMLButtonElement | null,
+    backupBtn: document.getElementById("skill-backup-btn") as HTMLButtonElement | null,
+    refreshBtn: document.getElementById("skill-refresh-btn") as HTMLButtonElement | null,
+    modal: document.getElementById("skills-modal"),
+    modalTitle: document.getElementById("skills-modal-title"),
+    modalClose: document.getElementById("skills-modal-close") as HTMLButtonElement | null,
+    modalCancel: document.getElementById("skills-modal-cancel") as HTMLButtonElement | null,
+    modalSave: document.getElementById("skills-modal-save") as HTMLButtonElement | null,
+    meta: document.getElementById("skills-meta"),
+    editor: document.getElementById("skills-editor") as HTMLTextAreaElement | null,
+    backupModal: document.getElementById("skills-backup-modal"),
+    backupModalClose: document.getElementById("skills-backup-modal-close") as HTMLButtonElement | null,
+    backupModalCloseBtn: document.getElementById("skills-backup-modal-close-btn") as HTMLButtonElement | null,
+    backupList: document.getElementById("skills-backup-list"),
+  };
+
   // 绑定按钮事件
   els.installBtn?.addEventListener("click", installSkill);
   els.backupBtn?.addEventListener("click", () => {
