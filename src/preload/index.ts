@@ -804,6 +804,9 @@ const skillsApi = {
   listBackups: () => ipcRenderer.invoke(IPC.SKILLS_LIST_BACKUPS),
   restore: (backupName: string) => ipcRenderer.invoke(IPC.SKILLS_RESTORE, backupName),
   deleteBackup: (backupName: string) => ipcRenderer.invoke(IPC.SKILLS_DELETE_BACKUP, backupName),
+  listAll: () => ipcRenderer.invoke(IPC.SKILLS_LIST_ALL),
+  setEnabled: (id: string, enabled: boolean) =>
+    ipcRenderer.invoke(IPC.SKILLS_SET_ENABLED, { id, enabled }),
 };
 contextBridge.exposeInMainWorld("skills", skillsApi);
 

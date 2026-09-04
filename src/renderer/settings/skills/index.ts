@@ -19,6 +19,8 @@ declare global {
       listBackups: () => Promise<any>;
       restore: (backupName: string) => Promise<any>;
       deleteBackup: (backupName: string) => Promise<any>;
+      listAll: () => Promise<any>;
+      setEnabled: (id: string, enabled: boolean) => Promise<any>;
     };
   }
 }
@@ -42,6 +44,9 @@ let els: {
   backupModalClose: HTMLButtonElement | null;
   backupModalCloseBtn: HTMLButtonElement | null;
   backupList: HTMLElement | null;
+  filterSystem: HTMLElement | null;
+  filterEnabled: HTMLElement | null;
+  filterCount: HTMLElement | null;
 } = {
   list: null,
   status: null,
@@ -60,7 +65,19 @@ let els: {
   backupModalClose: null,
   backupModalCloseBtn: null,
   backupList: null,
+  filterSystem: null,
+  filterEnabled: null,
+  filterCount: null,
 };
+
+// 筛选器状态
+let filterState = {
+  system: "all", // all / cyrene-builtin / self-evolving
+  enabled: "all", // all / enabled / disabled
+};
+
+// 所有技能（未筛选）
+let allSkills: any[] = [];
 
 // 当前编辑的技能名
 let currentEditName: string | null = null;
@@ -102,56 +119,145 @@ async function loadSkills(): Promise<void> {
   els.list.innerHTML = '<p class="skills-loading">加载中...</p>';
 
   try {
-    const result = await window.skills?.list({ includeArchived: false });
+    const result = await window.skills?.listAll();
     if (!result?.success) {
       els.list.innerHTML = `<p class="skills-error">加载失败：${escapeHtml(result?.error || "未知错误")}</p>`;
       return;
     }
 
-    const skills = result.skills || [];
-    if (skills.length === 0) {
-      els.list.innerHTML = '<p class="skills-empty">暂无技能。完成复杂任务后，Agent 会自动沉淀可复用技能。</p>';
-      return;
-    }
-
-    // 渲染技能卡片列表
-    els.list.innerHTML = skills.map((skill: any) => `
-      <div class="skill-card" data-name="${escapeHtml(skill.name)}">
-        <div class="skill-card__header">
-          <span class="skill-card__name">${escapeHtml(skill.name)}</span>
-          <span class="skill-card__source skill-card__source--${escapeHtml(skill.source || 'unknown')}">${formatSource(skill.source)}</span>
-        </div>
-        <p class="skill-card__desc">${escapeHtml(skill.description || "无描述")}</p>
-        <div class="skill-card__actions">
-          <button class="skill-btn skill-btn--view" data-action="view">查看</button>
-          <button class="skill-btn skill-btn--edit" data-action="edit">编辑</button>
-          <button class="skill-btn skill-btn--check-update" data-action="check-update">检查更新</button>
-          <button class="skill-btn skill-btn--delete" data-action="delete">删除</button>
-        </div>
-      </div>
-    `).join("");
-
-    // 绑定卡片按钮事件
-    els.list.querySelectorAll(".skill-card").forEach((card) => {
-      const name = card.getAttribute("data-name");
-      if (!name) return;
-      card.querySelectorAll("button[data-action]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const action = btn.getAttribute("data-action");
-          handleSkillAction(name, action);
-        });
-      });
-    });
+    allSkills = result.skills || [];
+    renderSkillList();
   } catch (err) {
     els.list.innerHTML = `<p class="skills-error">加载异常：${escapeHtml(String(err))}</p>`;
   }
 }
 
+/** 根据筛选器状态渲染技能列表 */
+function renderSkillList(): void {
+  if (!els.list) return;
+
+  // 应用筛选器
+  let filtered = allSkills;
+  if (filterState.system !== "all") {
+    filtered = filtered.filter((s: any) => s.system === filterState.system);
+  }
+  if (filterState.enabled === "enabled") {
+    filtered = filtered.filter((s: any) => s.enabled);
+  } else if (filterState.enabled === "disabled") {
+    filtered = filtered.filter((s: any) => !s.enabled);
+  }
+
+  // 更新计数
+  if (els.filterCount) {
+    const total = allSkills.length;
+    const shown = filtered.length;
+    els.filterCount.textContent = `显示 ${shown} / 共 ${total} 个技能`;
+  }
+
+  if (filtered.length === 0) {
+    els.list.innerHTML = '<p class="skills-empty">没有符合筛选条件的技能。</p>';
+    return;
+  }
+
+  // 渲染技能卡片列表
+  els.list.innerHTML = filtered.map((skill: any) => {
+    const isCyrene = skill.system === "cyrene-builtin";
+    const systemLabel = isCyrene ? "Cyrene内置" : "自进化";
+    const systemClass = isCyrene ? "cyrene" : "self";
+    const disabledClass = skill.enabled ? "" : "skill-card--disabled";
+
+    // Cyrene 原有技能不显示"检查更新"和"删除"按钮
+    const checkUpdateBtn = isCyrene ? "" : '<button class="skill-btn skill-btn--check-update" data-action="check-update">检查更新</button>';
+    const deleteBtn = isCyrene ? "" : '<button class="skill-btn skill-btn--delete" data-action="delete">删除</button>';
+    // Cyrene 原有技能 source 标签显示"内置"
+    const sourceLabel = isCyrene ? "内置" : formatSource(skill.source);
+    const sourceClass = isCyrene ? "external" : (skill.source || "unknown");
+
+    return `
+      <div class="skill-card skill-card--${systemClass} ${disabledClass}" data-id="${escapeHtml(skill.id)}" data-name="${escapeHtml(skill.name)}">
+        <div class="skill-card__header">
+          <div class="skill-card__header-left">
+            <span class="skill-card__system skill-card__system--${systemClass}">${systemLabel}</span>
+            <span class="skill-card__name">${escapeHtml(skill.name)}</span>
+          </div>
+          <div class="skill-card__header-right">
+            <span class="skill-card__source skill-card__source--${systemClass}">${sourceLabel}</span>
+            <label class="skill-toggle">
+              <input type="checkbox" ${skill.enabled ? "checked" : ""} data-action="toggle" data-id="${escapeHtml(skill.id)}" />
+              <span class="skill-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <p class="skill-card__desc">${escapeHtml(skill.description || "无描述")}</p>
+        <div class="skill-card__actions">
+          <button class="skill-btn skill-btn--view" data-action="view">查看</button>
+          <button class="skill-btn skill-btn--edit" data-action="edit">编辑</button>
+          ${checkUpdateBtn}
+          ${deleteBtn}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // 绑定卡片按钮事件
+  els.list.querySelectorAll(".skill-card").forEach((card) => {
+    const id = card.getAttribute("data-id");
+    const name = card.getAttribute("data-name");
+    if (!id || !name) return;
+
+    // 滑动开关事件
+    const toggle = card.querySelector('input[data-action="toggle"]') as HTMLInputElement | null;
+    if (toggle) {
+      toggle.addEventListener("change", async () => {
+        const enabled = toggle.checked;
+        try {
+          const result = await window.skills?.setEnabled(id, enabled);
+          if (result?.success) {
+            showStatus(`技能 '${name}' 已${enabled ? "启用" : "禁用"}`, "success");
+            // 更新本地数据
+            const skill = allSkills.find((s: any) => s.id === id);
+            if (skill) skill.enabled = enabled;
+            // 重新渲染（如果筛选器会影响显示）
+            if (filterState.enabled !== "all") {
+              renderSkillList();
+            } else {
+              // 只更新卡片样式
+              card.classList.toggle("skill-card--disabled", !enabled);
+            }
+          } else {
+            showStatus(`操作失败：${result?.error || "未知错误"}`, "error");
+            toggle.checked = !enabled; // 回滚
+          }
+        } catch (err) {
+          showStatus(`操作异常：${String(err)}`, "error");
+          toggle.checked = !enabled; // 回滚
+        }
+      });
+    }
+
+    // 其他按钮事件
+    card.querySelectorAll("button[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.getAttribute("data-action");
+        handleSkillAction(id, name, action);
+      });
+    });
+  });
+}
+
 /** 处理技能操作 */
-async function handleSkillAction(name: string, action: string | null): Promise<void> {
+async function handleSkillAction(id: string, name: string, action: string | null): Promise<void> {
+  const isSelf = id.startsWith("self:");
+
+  // Cyrene 原有技能只支持查看，其他操作显示提示
+  if (!isSelf && action !== "view") {
+    showStatus("Cyrene 原有技能暂不支持此操作，请修改源码文件", "info");
+    return;
+  }
+
   switch (action) {
     case "view":
-      await viewSkill(name);
+      await viewSkill(id, name);
       break;
     case "edit":
       await editSkill(name);
@@ -166,7 +272,25 @@ async function handleSkillAction(name: string, action: string | null): Promise<v
 }
 
 /** 查看技能详情 */
-async function viewSkill(name: string): Promise<void> {
+async function viewSkill(id: string, name: string): Promise<void> {
+  const isSelf = id.startsWith("self:");
+
+  // Cyrene 原有技能：显示基本信息
+  if (!isSelf) {
+    const skill = allSkills.find((s: any) => s.id === id);
+    if (skill) {
+      openModal(name, {
+        name: skill.name,
+        description: skill.description,
+        content: `# ${skill.name}\n\n${skill.description}\n\n（Cyrene 原有技能，完整内容请查看项目源码目录 src/plugins/）`,
+        source: "external",
+        enabled: skill.enabled,
+      }, false);
+    }
+    return;
+  }
+
+  // 自进化技能：调用现有 API
   try {
     const result = await window.skills?.get(name);
     if (!result?.success) {
@@ -440,6 +564,9 @@ export function initSkillsPanel(): void {
     backupModalClose: document.getElementById("skills-backup-modal-close") as HTMLButtonElement | null,
     backupModalCloseBtn: document.getElementById("skills-backup-modal-close-btn") as HTMLButtonElement | null,
     backupList: document.getElementById("skills-backup-list"),
+    filterSystem: document.getElementById("filter-system"),
+    filterEnabled: document.getElementById("filter-enabled"),
+    filterCount: document.getElementById("skills-filter-count"),
   };
 
   // 绑定按钮事件
@@ -449,6 +576,27 @@ export function initSkillsPanel(): void {
     openBackupModal();
   });
   els.refreshBtn?.addEventListener("click", loadSkills);
+
+  // 筛选器事件
+  els.filterSystem?.querySelectorAll(".skills-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = btn.getAttribute("data-value") || "all";
+      filterState.system = value;
+      els.filterSystem?.querySelectorAll(".skills-filter-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderSkillList();
+    });
+  });
+
+  els.filterEnabled?.querySelectorAll(".skills-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = btn.getAttribute("data-value") || "all";
+      filterState.enabled = value;
+      els.filterEnabled?.querySelectorAll(".skills-filter-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderSkillList();
+    });
+  });
 
   // 模态框事件
   els.modalClose?.addEventListener("click", closeModal);

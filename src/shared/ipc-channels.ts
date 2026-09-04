@@ -227,6 +227,8 @@ export const IPC = {
   SKILLS_LIST_BACKUPS: "skills:list-backups",
   SKILLS_RESTORE: "skills:restore",
   SKILLS_DELETE_BACKUP: "skills:delete-backup",
+  SKILLS_LIST_ALL: "skills:list-all",
+  SKILLS_SET_ENABLED: "skills:set-enabled",
 
   // memory panel
   MEMORY_PANEL_GET_DATA: "memory-panel:get-data",

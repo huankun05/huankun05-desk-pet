@@ -1210,6 +1210,27 @@
             </div>
           </div>
 
+          <!-- 筛选器 -->
+          <div class="skills-filters" id="skills-filters">
+            <div class="skills-filter-group">
+              <span class="skills-filter-label">来源：</span>
+              <div class="skills-filter-btns" id="filter-system">
+                <button type="button" class="skills-filter-btn active" data-value="all">全部</button>
+                <button type="button" class="skills-filter-btn" data-value="cyrene-builtin">Cyrene内置</button>
+                <button type="button" class="skills-filter-btn" data-value="self-evolving">自进化</button>
+              </div>
+            </div>
+            <div class="skills-filter-group">
+              <span class="skills-filter-label">状态：</span>
+              <div class="skills-filter-btns" id="filter-enabled">
+                <button type="button" class="skills-filter-btn active" data-value="all">全部</button>
+                <button type="button" class="skills-filter-btn" data-value="enabled">已启用</button>
+                <button type="button" class="skills-filter-btn" data-value="disabled">已禁用</button>
+              </div>
+            </div>
+            <span class="skills-filter-count" id="skills-filter-count"></span>
+          </div>
+
           <!-- 状态提示 -->
           <div class="skills-status" id="skills-status" hidden></div>
 

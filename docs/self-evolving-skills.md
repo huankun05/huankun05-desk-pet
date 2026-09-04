@@ -482,20 +482,58 @@ Cyrene 原有的内置技能自动标记为 `protected: true`，禁止删除，C
 
 **入口**：设置 → 技能管理（侧边栏导航）
 
-**功能**：
-1. **技能列表**：卡片式展示所有技能（名称、描述、来源标签、操作按钮）
+### 统一技能管理
+
+技能管理面板统一展示两套技能系统的技能：
+- **Cyrene 原有技能**（`skills/` 目录下的内置技能）
+- **自进化技能**（`userData/skills/` 目录下的技能，包括 Agent 自成长创建和从网上安装的）
+
+通过 **System 标签**区分：
+- 🔵 **Cyrene内置**：Cyrene 原有的内置技能
+- 🟢 **自进化**：Agent 自成长创建或从网上安装的技能
+
+### 颜色方案
+
+每个技能卡片只有一种主色调，按 system 统一：
+- **Cyrene 内置技能**：蓝色系（左边框 + System标签 + Source标签 都是蓝色）
+- **自进化技能**：绿色系（左边框 + System标签 + Source标签 都是绿色）
+
+Source 标签的文字显示具体来源（内置/自成长/外部/Fork/伞技能），但颜色统一。
+
+### 启用/禁用
+
+每个技能卡片右上角有**滑动开关**（toggle switch），可以启用或禁用技能：
+- **启用**：技能对 Agent 可见，会注入 system prompt
+- **禁用**：技能对 Agent 不可见，不会注入 system prompt，卡片变灰，名称加删除线
+
+禁用技能不会删除技能文件，只是暂时隐藏，可以随时重新启用。
+
+### 筛选器
+
+操作栏下方提供筛选器，可以快速筛选技能：
+- **来源筛选**：全部 / Cyrene内置 / 自进化
+- **状态筛选**：全部 / 已启用 / 已禁用
+- 右下角显示"显示 X / 共 Y 个技能"
+
+### 功能列表
+
+1. **技能列表**：卡片式展示所有技能（名称、描述、System标签、Source标签、启用开关、操作按钮）
 2. **查看详情**：点击"查看"打开模态框，显示 SKILL.md 完整内容和元数据
-3. **编辑技能**：点击"编辑"打开编辑器，修改后保存
-4. **删除技能**：点击"删除"（系统内置受保护技能无法删除）
-5. **检查更新**：点击"检查更新"，有更新时提示是否更新（更新前自动备份）
+3. **编辑技能**：点击"编辑"打开编辑器，修改后保存（Cyrene 原有技能暂不支持在线编辑）
+4. **删除技能**：点击"删除"（系统内置受保护技能无法删除，Cyrene 原有技能不显示删除按钮）
+5. **检查更新**：点击"检查更新"，有更新时提示是否更新（更新前自动备份，仅自进化技能）
 6. **安装外部技能**：输入 GitHub 仓库 URL 或 SKILL.md raw URL，点击"安装技能"
 7. **备份管理**：点击"立即备份"打开备份管理模态框，可查看所有备份、恢复、删除
 8. **刷新列表**：点击"刷新列表"重新加载技能
+9. **启用/禁用**：通过滑动开关启用或禁用技能
+10. **筛选**：通过筛选器按来源和状态筛选技能
 
-**相关文件**：
+### 相关文件
+
 - `src/renderer/settings/skills/index.ts` — 渲染进程逻辑
 - `src/renderer/settings/skills/skills.css` — 样式
 - `src/main/skills/skills-ipc.ts` — 主进程 IPC handler
+- `src/main/skills/unified-skill-store.ts` — 统一技能存储（合并两套系统）
 - `src/preload/index.ts` — preload API 暴露（window.skills）
 
 ## 相关文件
@@ -505,6 +543,12 @@ Cyrene 原有的内置技能自动标记为 `protected: true`，禁止删除，C
 - `src/main/self-evolving/skill-tools.ts` — 工具实现与注册（skill_list / skill_view / skill_manage）
 - `src/main/self-evolving/curator.ts` — Curator 后台维护核心
 - `src/main/self-evolving/curator-tools.ts` — skill_curator 管理工具
+- `src/main/skills/unified-skill-store.ts` — 统一技能存储（合并 Cyrene 原有 + 自进化）
+- `src/main/skills/skills-ipc.ts` — 技能管理 IPC handler
 - `src/main/orchestrator/tools/registry/tool-registration.ts` — 工具注册入口（调用 registerSkillTools + registerCuratorTools）
-- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表与引导）
+- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表与引导，过滤禁用技能）
 - `src/main/application/default-dependencies.ts` — 启动入口（initSkills 后调用 initCurator）
+- `src/renderer/settings/skills/index.ts` — 技能管理 UI 渲染进程逻辑
+- `src/renderer/settings/skills/skills.css` — 技能管理 UI 样式
+- `src/preload/index.ts` — preload API 暴露（window.skills）
+- `src/shared/ipc-channels.ts` — IPC 通道定义

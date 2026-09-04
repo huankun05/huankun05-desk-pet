@@ -172,6 +172,9 @@ export function parseSkillMetadata(content: string): SkillMetadata | null {
       case "protected":
         metadata.protected = value === "true" || value === "yes" || value === "1";
         break;
+      case "enabled":
+        metadata.enabled = value === "true" || value === "yes" || value === "1";
+        break;
     }
   }
   return metadata.name ? metadata : null;
@@ -221,10 +224,13 @@ export function listSkills(options?: { includeArchived?: boolean }): SkillListIt
           name: metadata.name,
           description: metadata.description,
           category: metadata.category,
-          // 没有 source 字段的技能（Cyrene 原有内置技能）标记为 external
-          source: metadata.source || "external",
+          // source 字段判断：有则用，无则根据 createdBy 判断
+          source: metadata.source || (metadata.createdBy === "agent" ? "self-grown" : "external"),
           createdBy: metadata.createdBy,
           updatedAt: stat.mtime.toISOString(),
+          // 没有 enabled 字段的技能默认启用
+          enabled: metadata.enabled !== false,
+          protected: metadata.protected,
         });
       }
     } catch {
@@ -639,6 +645,55 @@ export function editSkill(name: string, content: string): { success: boolean; me
   // 记录修改
   updateUsageRecord(name, { lastPatchedAt: now, patchCount: 1 });
   return { success: true, message: `技能 '${name}' 更新成功` };
+}
+
+/**
+ * 设置技能启用/禁用状态。
+ * 修改 SKILL.md frontmatter 中的 enabled 字段。
+ */
+export function setSkillEnabled(name: string, enabled: boolean): { success: boolean; message?: string; error?: string } {
+  const skill = getSkill(name);
+  if (!skill) {
+    return { success: false, error: `技能 '${name}' 不存在` };
+  }
+
+  try {
+    let content = skill.content;
+
+    // 检查 frontmatter 中是否已有 enabled 字段
+    const enabledRegex = /^enabled:\s*(true|false|yes|no|1|0)\s*$/m;
+    if (enabledRegex.test(content)) {
+      // 替换已有的 enabled 字段
+      content = content.replace(enabledRegex, `enabled: ${enabled ? "true" : "false"}`);
+    } else {
+      // 在 frontmatter 中添加 enabled 字段（在 name 字段之后）
+      content = content.replace(/^(name:\s*.+)$/m, `$1\nenabled: ${enabled ? "true" : "false"}`);
+    }
+
+    // 写回文件
+    fs.writeFileSync(skill.filePath, content, "utf-8");
+
+    return {
+      success: true,
+      message: `技能 '${name}' 已${enabled ? "启用" : "禁用"}`,
+    };
+  } catch (err) {
+    return { success: false, error: `写入失败: ${String(err)}` };
+  }
+}
+
+/**
+ * 启用技能。
+ */
+export function enableSkill(name: string) {
+  return setSkillEnabled(name, true);
+}
+
+/**
+ * 禁用技能。
+ */
+export function disableSkill(name: string) {
+  return setSkillEnabled(name, false);
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   restoreBackup,
   deleteBackup,
 } from "../self-evolving/curator";
+import { listAllSkills, setSkillEnabled as setUnifiedSkillEnabled } from "./unified-skill-store";
 import { logger, LogTag } from "../logger";
 
 /**
@@ -168,6 +169,28 @@ export function registerSkillsIpc(): void {
       return result;
     } catch (err) {
       logger.warn(LogTag.Skills, `IPC skills:delete-backup 失败: ${err}`);
+      return { success: false, error: String(err) };
+    }
+  });
+
+  // 列出所有技能（统一列表：Cyrene 原有 + 自进化）
+  ipcMain.handle(IPC.SKILLS_LIST_ALL, () => {
+    try {
+      const skills = listAllSkills();
+      return { success: true, skills };
+    } catch (err) {
+      logger.warn(LogTag.Skills, `IPC skills:list-all 失败: ${err}`);
+      return { success: false, error: String(err) };
+    }
+  });
+
+  // 设置技能启用/禁用（统一接口）
+  ipcMain.handle(IPC.SKILLS_SET_ENABLED, (_event, payload: { id: string; enabled: boolean }) => {
+    try {
+      const result = setUnifiedSkillEnabled(payload.id, payload.enabled);
+      return result;
+    } catch (err) {
+      logger.warn(LogTag.Skills, `IPC skills:set-enabled 失败: ${err}`);
       return { success: false, error: String(err) };
     }
   });
