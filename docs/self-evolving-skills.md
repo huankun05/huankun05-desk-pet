@@ -17,11 +17,12 @@
 
 ```
 src/main/self-evolving/
-├── skill-types.ts      # 类型定义（Skill、SkillMetadata、SkillUsageRecord）
-├── skill-store.ts      # 存储引擎（SKILL.md 读写、验证、目录管理、使用记录）
+├── skill-types.ts      # 类型定义（Skill、SkillMetadata、SkillUsageRecord、SkillSource）
+├── skill-store.ts      # 存储引擎（SKILL.md 读写、验证、目录管理、使用记录、source 字段解析）
 ├── skill-tools.ts      # 工具实现（skill_list / skill_view / skill_manage）+ 注册
-├── curator.ts          # Curator 后台维护（配置、状态转换、备份、Pin、恢复、LLM整合框架）
-└── curator-tools.ts    # skill_curator 管理工具（run/status/pin/unpin/restore/config）
+├── curator.ts          # Curator 后台维护（配置、状态转换、备份、Pin、恢复、LLM整合调用、阈值触发）
+├── curator-tools.ts    # skill_curator 管理工具（run/status/pin/unpin/restore/config）
+└── consolidation.ts    # LLM 整合核心（伞技能合并：审查→识别相似组→生成伞技能→原技能打归档标签→备份）
 ```
 
 ### 存储结构
@@ -211,6 +212,95 @@ src/main/self-evolving/
 # 通过 skill_curator 工具启用
 skill_curator action=config consolidate=true
 ```
+
+## 技能来源（Skill Source）
+
+每个技能都有 `source` 字段，标记技能的来源，决定自整理/归档等自动操作的保护级别：
+
+| source | 说明 | Curator 自动归档 | LLM 整合 |
+|--------|------|-----------------|----------|
+| `self-grown` | Agent 自己沉淀的（默认） | ✅ 可以 | ✅ 可以合并 |
+| `forked` | 从外部技能 fork 出的本地定制版 | ✅ 可以 | ✅ 可以合并 |
+| `umbrella` | 自整理合并生成的伞技能 | ✅ 可以 | ✅ 可以合并 |
+| `external` | 外部引入的（预装/市场/GitHub下载） | ❌ 不自动归档 | ❌ 不合并 |
+
+- `source` 字段存储在 SKILL.md 的 YAML frontmatter 中
+- 创建技能时如果未指定 `source`，默认自动补充 `source: self-grown`
+- 外部引入的技能需要手动在 SKILL.md 中添加 `source: external` 和 `sourceUrl: <GitHub/市场链接>`
+
+## 辅助模型配置（Auxiliary Model）
+
+用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。
+
+**配置位置**：模型与API 设置 → 辅助模型（全局）
+
+**两种模式**：
+1. **跟随主模型（默认）**：所有后台辅助任务复用主对话模型，零配置
+2. **独立配置**：单独配置一个便宜快的模型（如 DeepSeek flash / 本地小模型），用于后台任务
+
+**配置字段**（`model-settings.json` 的 `auxiliary`）：
+```json
+{
+  "auxiliary": {
+    "mode": "inherit-main",  // 或 "dedicated"
+    "baseUrl": "https://api.openai.com/v1",  // dedicated 时
+    "apiKey": "sk-...",  // dedicated 时
+    "model": "deepseek-v4-flash"  // dedicated 时
+  }
+}
+```
+
+**加载函数**：`loadAuxiliaryConfig()` — 自动解析配置，dedicated 模式下如果配置不完整会回退到主模型。
+
+**支持的 API 协议**：OpenAI 兼容（/chat/completions）和 Anthropic 兼容（/v1/messages），根据 baseUrl 和 explicitTransport 自动判断。
+
+## 伞技能合并（LLM 整合 / Consolidation）
+
+用辅助模型审查自成长技能，识别功能高度相似/重叠的技能组，合并成"伞技能"（umbrella skill），原技能打归档标签（不删除，用户可手动清理）。
+
+### 合并流程
+
+```
+1. 过滤技能：只看 source=self-grown/forked/umbrella + 有使用记录的技能
+2. 备份：合并前自动备份整个技能目录
+3. 审查：用辅助模型生成合并建议（JSON 格式：哪些技能合并成什么伞技能）
+4. 执行：对每个合并建议
+   a. 读取原技能内容
+   b. 用辅助模型生成伞技能的 SKILL.md（抽象公共流程 + 保留特例）
+   c. 创建伞技能（source=umbrella）
+   d. 原技能打归档标签（status=archived + mergedInto=伞技能名）
+5. 记录日志
+```
+
+### 保守合并策略
+
+- 只合并"功能领域相同 + 描述高度相似 + 步骤重叠度高"的技能
+- 描述模糊、拿不准的一律不合并
+- 每个合并组至少 2 个技能
+- 至少一个技能有实际使用记录（没被用过的暂不合并）
+- 合并前自动备份，原技能打归档标签不删除
+
+### 触发机制
+
+- **定期触发**：随 Curator 定期运行（intervalHours，默认 7 天）
+- **阈值门槛**：活跃技能数达到 `consolidateMinSkills`（默认 5）才运行整合，低于阈值跳过
+- **手动触发**：通过 `skill_curator action=run` 手动触发
+- **开关**：`curator.consolidate`（默认 false，需手动启用）
+
+### 配置字段（`skills-curator.json`）
+
+```json
+{
+  "consolidate": false,           // 是否启用 LLM 整合
+  "consolidateMinSkills": 5       // 最低技能数门槛
+}
+```
+
+### 核心文件
+
+- `src/main/self-evolving/consolidation.ts` — LLM 整合核心（审查、生成建议、生成伞技能、执行合并）
+- `src/main/self-evolving/curator.ts` — Curator 调用 LLM 整合 + 阈值检查
+- `src/main/settings/model-settings.ts` — 辅助模型配置（AuxiliaryModelConfig + loadAuxiliaryConfig）
 
 ## 已知问题与注意事项
 

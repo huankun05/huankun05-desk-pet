@@ -18,6 +18,7 @@ import type {
   Skill,
   SkillListItem,
   SkillMetadata,
+  SkillSource,
   SkillUsageRecord,
   SkillValidationError,
 } from "./skill-types";
@@ -158,6 +159,15 @@ export function parseSkillMetadata(content: string): SkillMetadata | null {
       case "updatedAt":
         metadata.updatedAt = value;
         break;
+      case "source":
+        metadata.source = value as SkillSource;
+        break;
+      case "sourceUrl":
+        metadata.sourceUrl = value;
+        break;
+      case "mergedInto":
+        metadata.mergedInto = value;
+        break;
     }
   }
   return metadata.name ? metadata : null;
@@ -189,7 +199,7 @@ function findAllSkillFiles(rootDir: string): string[] {
 /**
  * 列出所有技能（不含完整内容，只含元数据）。
  */
-export function listSkills(): SkillListItem[] {
+export function listSkills(options?: { includeArchived?: boolean }): SkillListItem[] {
   ensureSkillsRoot();
   const rootDir = getSkillsRootDir();
   const skillFiles = findAllSkillFiles(rootDir);
@@ -199,11 +209,15 @@ export function listSkills(): SkillListItem[] {
       const content = fs.readFileSync(filePath, "utf-8");
       const metadata = parseSkillMetadata(content);
       if (metadata) {
+        // 过滤掉已归档的技能（除非显式要求包含）
+        const usage = getUsageRecord(metadata.name);
+        if (usage?.status === "archived" && !options?.includeArchived) continue;
         const stat = fs.statSync(filePath);
         skills.push({
           name: metadata.name,
           description: metadata.description,
           category: metadata.category,
+          source: metadata.source,
           createdBy: metadata.createdBy,
           updatedAt: stat.mtime.toISOString(),
         });
@@ -274,7 +288,7 @@ export function createSkill(name: string, content: string): { success: boolean; 
   const skillDir = path.join(getSkillsRootDir(), name);
   fs.mkdirSync(skillDir, { recursive: true });
   const skillFile = path.join(skillDir, "SKILL.md");
-  // 自动补充 createdAt 和 updatedAt
+  // 自动补充 createdAt、updatedAt、source（默认 self-grown）
   const now = new Date().toISOString();
   let finalContent = content;
   if (!/createdAt\s*:/.test(finalContent)) {
@@ -282,6 +296,9 @@ export function createSkill(name: string, content: string): { success: boolean; 
   }
   if (!/updatedAt\s*:/.test(finalContent)) {
     finalContent = finalContent.replace(/^---\n/, `---\nupdatedAt: ${now}\n`);
+  }
+  if (!/source\s*:/.test(finalContent)) {
+    finalContent = finalContent.replace(/^---\n/, `---\nsource: self-grown\n`);
   }
   fs.writeFileSync(skillFile, finalContent, "utf-8");
   // 记录使用情况

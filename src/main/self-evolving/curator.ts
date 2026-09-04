@@ -11,6 +11,7 @@ import { app } from "electron";
 import { logger, LogTag } from "../logger";
 import { getSkillsRootDir, getUsageRecord, updateUsageRecord, listSkills } from "./skill-store";
 import type { SkillUsageRecord } from "./skill-types";
+import { runConsolidation } from "./consolidation";
 
 /** Curator 配置。 */
 export interface CuratorConfig {
@@ -26,6 +27,8 @@ export interface CuratorConfig {
   backupKeep: number;
   /** 是否启用 LLM 整合（用辅助模型审查合并相似技能），默认 false。 */
   consolidate: boolean;
+  /** LLM 整合的最低技能数门槛：活跃技能数达到这个值才运行整合，默认 5。 */
+  consolidateMinSkills?: number;
   /** 上次运行时间（ISO 字符串）。 */
   lastRunAt?: string;
 }
@@ -54,6 +57,7 @@ const DEFAULT_CONFIG: CuratorConfig = {
   archiveAfterDays: 90,
   backupKeep: 5,
   consolidate: false,
+  consolidateMinSkills: 5,
 };
 
 /** 配置文件路径。 */
@@ -108,7 +112,7 @@ export function shouldRunCurator(): boolean {
 }
 
 /** 备份技能目录（tar.gz）。 */
-function backupSkills(): string | null {
+export function backupSkills(): string | null {
   try {
     const dir = backupDir();
     fs.mkdirSync(dir, { recursive: true });
@@ -257,15 +261,19 @@ export async function runCurator(options?: { force?: boolean; dryRun?: boolean }
   }
 
   // P4: LLM 整合（可选，默认关闭）
-  // 用辅助模型审查技能库，合并相似技能，修补过时技能
-  let consolidateResult: { reviewed: number; proposed: number } | undefined;
-  if (config.consolidate && !options?.dryRun && skills.length > 0) {
+  // 用辅助模型审查技能库，合并相似技能为伞技能，原技能打归档标签
+  // 阈值检查：活跃技能数达到 consolidateMinSkills 才运行整合
+  const minSkills = config.consolidateMinSkills ?? 5;
+  let consolidateResult: { reviewed: number; proposed: number; executed: number; umbrellaCreated: string[]; archived: string[] } | undefined;
+  if (config.consolidate && !options?.dryRun && skills.length >= minSkills) {
     try {
       consolidateResult = await runLLMConsolidation(skills);
-      logger.info(LogTag.Skills, `LLM 整合完成：审查 ${consolidateResult.reviewed} 个技能，建议 ${consolidateResult.proposed} 个操作`);
+      logger.info(LogTag.Skills, `LLM 整合完成：审查 ${consolidateResult.reviewed} 个技能，建议 ${consolidateResult.proposed} 组，执行 ${consolidateResult.executed} 组，创建伞技能 ${consolidateResult.umbrellaCreated.length} 个，归档 ${consolidateResult.archived.length} 个`);
     } catch (err) {
       logger.warn(LogTag.Skills, `LLM 整合异常: ${err}`);
     }
+  } else if (config.consolidate && skills.length < minSkills) {
+    logger.info(LogTag.Skills, `LLM 整合跳过：活跃技能数 ${skills.length} 低于阈值 ${minSkills}`);
   }
 
   if (!options?.dryRun) {
@@ -439,34 +447,22 @@ export function initCurator(): void {
 }
 
 /**
- * P4: LLM 整合（框架版本）
- * 用辅助模型审查技能库，识别相似技能、过时技能，建议合并或修补。
+ * LLM 整合（伞技能合并）。
+ * 调用 consolidation.ts 中的真正实现：用辅助模型审查自成长技能，
+ * 识别功能相似/重叠的技能组，合并成伞技能，原技能打归档标签。
  *
- * 当前实现：框架版本，记录日志并返回建议数量。
- * 后续深化：接入 Cyrene 的 LLM 客户端，实际调用辅助模型进行审查，
- * 生成合并建议（相似技能合并为 umbrella 技能）和修补建议（过时技能更新步骤）。
- *
- * @param skills 待审查的技能列表
- * @returns 审查结果（审查数量、建议操作数量）
+ * @param _skills 待审查的技能列表（实际由 runConsolidation 内部过滤）
+ * @returns 审查结果
  */
 async function runLLMConsolidation(
-  skills: Awaited<ReturnType<typeof listSkills>>,
-): Promise<{ reviewed: number; proposed: number }> {
-  logger.info(LogTag.Skills, `LLM 整合启动：审查 ${skills.length} 个技能...`);
-
-  // 框架版本：仅记录日志，不实际调用 LLM
-  // 后续实现步骤：
-  // 1. 加载辅助模型配置（auxiliary.curator）
-  // 2. 构建审查 prompt：列出所有技能的名称+描述，要求模型识别相似/过时技能
-  // 3. 调用 LLM 获取审查结果
-  // 4. 解析结果，生成合并/修补建议
-  // 5. 执行建议（需要用户确认或自动执行）
-
-  const proposed = 0; // 框架版本暂不生成建议
-  logger.info(LogTag.Skills, `LLM 整合完成（框架）：审查 ${skills.length} 个技能，建议 ${proposed} 个操作`);
-
+  _skills: Awaited<ReturnType<typeof listSkills>>,
+): Promise<{ reviewed: number; proposed: number; executed: number; umbrellaCreated: string[]; archived: string[] }> {
+  const result = await runConsolidation();
   return {
-    reviewed: skills.length,
-    proposed,
+    reviewed: result.reviewed,
+    proposed: result.proposed,
+    executed: result.executed,
+    umbrellaCreated: result.umbrellaCreated,
+    archived: result.archived,
   };
 }

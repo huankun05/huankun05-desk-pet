@@ -144,6 +144,8 @@ export interface ModelSettings {
   embeddingDimensions?: number;
   // 视觉模型配置（可选）。undefined 或未启用 = 不支持看图，read_image 诚实拒绝。
   vision?: VisionModelConfig;
+  /** 辅助模型配置（用于记忆压缩、会话摘要、技能自整理等后台任务）。默认跟随主模型。 */
+  auxiliary?: AuxiliaryModelConfig;
   /** 主模型是否多模态。true 时图片直发主模型（direct），vision 配置保留但忽略。 */
   multimodal: boolean;
   thinkingOverride?: -1 | 0 | 1;
@@ -159,6 +161,24 @@ export interface VisionModelConfig {
   model: string;
   /** 是否启用本地 OCR 预处理（提取图片文字补充给视觉模型）。默认 false。 */
   ocrEnabled?: boolean;
+}
+
+/**
+ * 辅助模型配置（Auxiliary Model）。
+ * 用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。
+ * 默认 "inherit-main" 跟随主模型；可切换 "dedicated" 独立配置一个便宜快的模型。
+ */
+export interface AuxiliaryModelConfig {
+  /** 模式：inherit-main = 跟随主模型（默认）；dedicated = 独立配置。 */
+  mode: "inherit-main" | "dedicated";
+  /** 独立配置时的 baseUrl。 */
+  baseUrl?: string;
+  /** 独立配置时的 apiKey。 */
+  apiKey?: string;
+  /** 独立配置时的 model。 */
+  model?: string;
+  /** 独立配置时的协议。 */
+  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
 }
 
 const DEFAULT_MODEL_SETTINGS: ModelSettings = {
@@ -180,6 +200,7 @@ const DEFAULT_MODEL_SETTINGS: ModelSettings = {
   embeddingModel: "bgem3",
   multimodal: true,
   contextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
+  auxiliary: { mode: "inherit-main" },
 };
 
 /**
@@ -293,6 +314,21 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
     multimodal = true;
   }
 
+  // 辅助模型配置 normalize：默认 inherit-main；dedicated 时校验必填字段。
+  const rawAuxiliary = input?.auxiliary as Partial<AuxiliaryModelConfig> | undefined;
+  let auxiliary: AuxiliaryModelConfig;
+  if (rawAuxiliary && rawAuxiliary.mode === "dedicated") {
+    auxiliary = {
+      mode: "dedicated",
+      baseUrl: typeof rawAuxiliary.baseUrl === "string" ? rawAuxiliary.baseUrl.trim() : "",
+      apiKey: typeof rawAuxiliary.apiKey === "string" ? rawAuxiliary.apiKey.trim() : "",
+      model: typeof rawAuxiliary.model === "string" ? rawAuxiliary.model.trim() : "",
+      explicitTransport: rawAuxiliary.explicitTransport,
+    };
+  } else {
+    auxiliary = { mode: "inherit-main" };
+  }
+
   const hasPersistedProfiles = Array.isArray(input?.modelProfiles);
   const modelProfiles: SavedModelProfile[] = hasPersistedProfiles
     ? input!.modelProfiles!.filter((item): item is SavedModelProfile => Boolean(item && typeof item === "object" && typeof item.id === "string" && typeof item.provider === "string"))
@@ -353,6 +389,7 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
       ? Math.round(input.embeddingDimensions)
       : undefined,
     vision: normalizeVisionConfig(rawVision),
+    auxiliary,
     multimodal,
     thinkingOverride: input?.thinkingOverride,
     disableMaxToken: input?.disableMaxToken,
@@ -467,6 +504,55 @@ export function loadVisionConfig(from: ModelSettings = loadModelSettings()): Vis
   if (!v) return null;
   if (!v.baseUrl || !v.apiKey || !v.model) return null;
   return { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model };
+}
+
+/**
+ * 加载辅助模型配置（用于记忆压缩、会话摘要、技能自整理等后台任务）。
+ * - inherit-main：返回主模型配置
+ * - dedicated：返回独立配置；如果独立配置不完整，回退到主模型
+ */
+export function loadAuxiliaryConfig(from: ModelSettings = loadModelSettings()): {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+  source: "inherit-main" | "dedicated";
+} | null {
+  const settings = resolveModelSettingsProfile(from);
+  const aux = settings.auxiliary;
+
+  // 默认跟随主模型
+  if (!aux || aux.mode === "inherit-main") {
+    if (!settings.apiKey || !settings.model) return null;
+    return {
+      baseUrl: settings.baseUrl,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      explicitTransport: settings.explicitTransport,
+      source: "inherit-main",
+    };
+  }
+
+  // 独立配置
+  if (aux.mode === "dedicated" && aux.baseUrl && aux.apiKey && aux.model) {
+    return {
+      baseUrl: aux.baseUrl,
+      apiKey: aux.apiKey,
+      model: aux.model,
+      explicitTransport: aux.explicitTransport,
+      source: "dedicated",
+    };
+  }
+
+  // 独立配置不完整，回退到主模型
+  if (!settings.apiKey || !settings.model) return null;
+  return {
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    explicitTransport: settings.explicitTransport,
+    source: "inherit-main",
+  };
 }
 
 /**
