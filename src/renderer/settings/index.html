@@ -283,7 +283,8 @@
             </div>
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
+          
+          <!-- 辅助模型配置区 -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -316,7 +317,8 @@
               </div>
             </div>
           </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+
+          <!-- 技能自整理配置区 -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -330,10 +332,10 @@
                 <span>启用技能自整理（LLM 整合）</span>
                 <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
               </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
+              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。合并完成后会发送桌面通知。</p>
             </div>
           </div>
-          <div class="form-actions">
+<div class="form-actions">
             <div class="save-status" id="save-status">等待保存</div>
             <button type="button" class="save-btn save-btn--danger" id="delete-profile-btn" hidden>删除档案</button>
             <button type="button" class="save-btn save-btn--ghost" id="test-connection-btn">测试连接</button>
@@ -370,56 +372,6 @@
               <input id="max-parallel-tool-calls" type="number" min="1" max="8" step="1" placeholder="4" autocomplete="off" />
               <span class="field-hint">同时执行的安全工具数量。范围：1~8；设为 1 时完全串行。保存后从下一个任务生效。</span>
             </label>
-          </div>
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>技能自整理（全局）</h2>
-                <p>启用后，Curator 定期用辅助模型审查自成长技能，把功能高度相似的技能合并成伞技能，原技能打归档标签（不删除）。默认关闭，需至少 5 个活跃技能才会运行。</p>
-              </div>
-            </div>
-            <div id="consolidation-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>启用技能自整理（LLM 整合）</span>
-                <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
-            </div>
           </div>
           <div class="form-actions">
             <div class="save-status" id="runtime-save-status">等待保存</div>
@@ -542,56 +494,6 @@
             </div> -->
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>技能自整理（全局）</h2>
-                <p>启用后，Curator 定期用辅助模型审查自成长技能，把功能高度相似的技能合并成伞技能，原技能打归档标签（不删除）。默认关闭，需至少 5 个活跃技能才会运行。</p>
-              </div>
-            </div>
-            <div id="consolidation-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>启用技能自整理（LLM 整合）</span>
-                <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
-            </div>
-          </div>
           <div class="form-actions">
             <div class="save-status" id="preferences-save-status">等待保存</div>
             <button type="submit" class="save-btn">保存偏好</button>
@@ -819,56 +721,6 @@
             </div>
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>技能自整理（全局）</h2>
-                <p>启用后，Curator 定期用辅助模型审查自成长技能，把功能高度相似的技能合并成伞技能，原技能打归档标签（不删除）。默认关闭，需至少 5 个活跃技能才会运行。</p>
-              </div>
-            </div>
-            <div id="consolidation-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>启用技能自整理（LLM 整合）</span>
-                <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
-            </div>
-          </div>
           <div class="form-actions">
             <div class="save-status" id="appearance-save-status">修改后自动应用</div>
           </div>
@@ -946,56 +798,6 @@
             </div>
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>技能自整理（全局）</h2>
-                <p>启用后，Curator 定期用辅助模型审查自成长技能，把功能高度相似的技能合并成伞技能，原技能打归档标签（不删除）。默认关闭，需至少 5 个活跃技能才会运行。</p>
-              </div>
-            </div>
-            <div id="consolidation-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>启用技能自整理（LLM 整合）</span>
-                <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
-            </div>
-          </div>
           <div class="form-actions">
             <div class="save-status" id="general-save-status">等待保存</div>
             <button type="submit" class="save-btn">保存设置</button>
@@ -1384,57 +1186,7 @@
               <div class="scheduler-tool-picker is-hidden" id="scheduler-tool-picker"></div>
               <div class="scheduler-tool-hint is-hidden" id="scheduler-tool-empty-hint">未选择工具时，任务只能使用模型自身能力，不会调用任何工具。</div>
 
-              <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>技能自整理（全局）</h2>
-                <p>启用后，Curator 定期用辅助模型审查自成长技能，把功能高度相似的技能合并成伞技能，原技能打归档标签（不删除）。默认关闭，需至少 5 个活跃技能才会运行。</p>
-              </div>
-            </div>
-            <div id="consolidation-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>启用技能自整理（LLM 整合）</span>
-                <span class="switch"><input id="toggle-consolidation" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <p class="vision-hint">启用后，Curator 运行时会自动合并相似技能。合并前会自动备份，原技能打归档标签不删除，可随时恢复。</p>
-            </div>
-          </div>
-          <div class="form-actions">
+              <div class="form-actions">
                 <div class="save-status" id="scheduler-save-status">等待操作</div>
                 <button type="button" class="ghost-btn" id="scheduler-cancel-btn">取消</button>
                 <button type="button" class="save-btn" id="scheduler-save-btn">保存任务</button>
