@@ -11,9 +11,14 @@ import {
   editSkill,
   deleteSkill,
   installSkillFromUrl,
+  checkSkillUpdate,
+  updateSkill,
   recordSkillViewed,
   recordSkillUsed,
+  recordSkillSuccess,
+  recordSkillFailure,
 } from "./skill-store";
+import { backupSkills, listBackups, restoreBackup, deleteBackup } from "./curator";
 
 // ── skill_list：列出所有技能 ────────────────────────────────
 
@@ -136,6 +141,75 @@ async function executeSkillManage(args: Record<string, unknown>): Promise<string
     return JSON.stringify(result);
   }
 
+  // 备份相关操作（不需要 name 参数）
+  if (action === "backup") {
+    const backupPath = backupSkills();
+    if (backupPath) {
+      return JSON.stringify({ success: true, message: "技能备份成功", backupPath });
+    } else {
+      return JSON.stringify({ success: false, error: "技能备份失败" });
+    }
+  }
+  if (action === "list-backups") {
+    const backups = listBackups();
+    return JSON.stringify({
+      success: true,
+      count: backups.length,
+      backups: backups.map((b) => ({
+        name: b.name,
+        time: b.time,
+        size: b.size,
+        skillCount: b.skillCount,
+      })),
+    });
+  }
+  if (action === "restore") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "restore 操作需要 name 参数（备份名称，如 skills-2026-09-04T12-00-00-000Z）" });
+    }
+    const result = restoreBackup(name);
+    return JSON.stringify(result);
+  }
+  if (action === "delete-backup") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "delete-backup 操作需要 name 参数（备份名称）" });
+    }
+    const result = deleteBackup(name);
+    return JSON.stringify(result);
+  }
+
+  // 技能使用反馈（success/failure）
+  if (action === "success") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "success 操作需要 name 参数（技能名称）" });
+    }
+    recordSkillSuccess(name);
+    return JSON.stringify({ success: true, message: `已记录技能 '${name}' 使用成功` });
+  }
+  if (action === "failure") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "failure 操作需要 name 参数（技能名称）" });
+    }
+    recordSkillFailure(name);
+    return JSON.stringify({ success: true, message: `已记录技能 '${name}' 使用失败，建议检查或更新该技能` });
+  }
+
+  // 外部技能更新检查和更新
+  if (action === "check-update") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "check-update 操作需要 name 参数（技能名称）" });
+    }
+    const result = await checkSkillUpdate(name);
+    return JSON.stringify(result);
+  }
+  if (action === "update") {
+    if (!name) {
+      return JSON.stringify({ success: false, error: "update 操作需要 name 参数（技能名称）" });
+    }
+    const result = await updateSkill(name);
+    return JSON.stringify(result);
+  }
+
   if (!name) {
     return JSON.stringify({ success: false, error: "name 参数必填" });
   }
@@ -184,12 +258,21 @@ export const skillManageTool: ToolDefinition = {
   id: "skill_manage",
   name: "管理技能",
   description:
-    "管理可复用技能（程序性记忆）：创建、编辑、删除。\n\n" +
+    "管理可复用技能（程序性记忆）：创建、编辑、删除、安装外部技能、备份/恢复。\n\n" +
     "技能是你从成功经验中沉淀的可复用流程。每个技能是一个 SKILL.md 文件，包含 YAML frontmatter（name/description）和 Markdown 操作步骤。\n\n" +
     "Actions:\n" +
     "- create — 创建新技能（需要完整 SKILL.md 内容）\n" +
     "- edit — 完整替换现有技能的 SKILL.md 内容\n" +
-    "- delete — 删除技能（被 pin 的技能不能删除）\n\n" +
+    "- delete — 删除技能（被保护的系统内置技能不能删除）\n" +
+    "- install — 从 URL 安装外部技能（需要 url 参数，支持 raw.githubusercontent.com）\n" +
+    "- backup — 备份当前所有技能\n" +
+    "- list-backups — 列出所有备份\n" +
+    "- restore — 从备份恢复技能（需要 name 参数=备份名，恢复前自动备份当前状态）\n" +
+    "- delete-backup — 删除指定备份（需要 name 参数=备份名）\n" +
+    "- success — 反馈技能使用成功（需要 name 参数=技能名，记录成功计数）\n" +
+    "- failure — 反馈技能使用失败（需要 name 参数=技能名，记录失败计数，建议检查更新）\n" +
+    "- check-update — 检查外部技能是否有更新（需要 name 参数=技能名，仅支持 source=external 的技能）\n" +
+    "- update — 更新外部技能到最新版本（需要 name 参数=技能名，更新前自动备份）\n\n" +
     "何时创建技能：\n" +
     "- 完成了复杂任务（5+ 次工具调用），流程可复用\n" +
     "- 克服了错误，找到了正确方法\n" +
@@ -210,8 +293,8 @@ export const skillManageTool: ToolDefinition = {
     properties: {
       action: {
         type: "string",
-        enum: ["create", "edit", "delete", "install"],
-        description: "操作类型：create（创建）/ edit（编辑）/ delete（删除）/ install（从URL安装外部技能）",
+        enum: ["create", "edit", "delete", "install", "backup", "list-backups", "restore", "delete-backup", "success", "failure", "check-update", "update"],
+        description: "操作类型：create（创建）/ edit（编辑）/ delete（删除）/ install（从URL安装外部技能）/ backup（备份）/ list-backups（列出备份）/ restore（从备份恢复）/ delete-backup（删除备份）/ success（反馈使用成功）/ failure（反馈使用失败）/ check-update（检查外部技能更新）/ update（更新外部技能）",
       },
       name: { type: "string", description: "技能名称（小写字母数字连字符，如 deploy-to-server）。create/edit/delete 时必填。" },
       content: {

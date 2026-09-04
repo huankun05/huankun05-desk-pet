@@ -33,6 +33,8 @@ export interface SkillMetadata {
   updatedAt?: string;
   /** 被合并进的伞技能名称（自整理合并后，原技能标记此字段并归档）。 */
   mergedInto?: string;
+  /** 是否为系统内置受保护技能（true 时禁止删除，Curator 不自动归档）。Cyrene 原有的内置技能自动标记为 true。 */
+  protected?: boolean;
 }
 
 /** 技能完整内容（元数据 + Markdown body）。 */
@@ -53,6 +55,14 @@ export interface SkillUsageRecord {
   viewCount: number;
   /** 使用次数（被 Agent 调用并成功执行的次数）。 */
   useCount: number;
+  /** 成功使用次数（Agent 反馈使用成功）。 */
+  successCount?: number;
+  /** 失败使用次数（Agent 反馈使用失败）。 */
+  failureCount?: number;
+  /** 最后成功使用时间（ISO 字符串）。 */
+  lastSuccessAt?: string;
+  /** 最后失败使用时间（ISO 字符串）。 */
+  lastFailureAt?: string;
   /** 修改次数（被 skill_manage patch/edit 的次数）。 */
   patchCount: number;
   /** 最后查看时间（ISO 字符串）。 */

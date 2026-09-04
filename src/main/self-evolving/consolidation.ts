@@ -150,9 +150,17 @@ async function generateMergeSuggestions(skills: SkillListItem[]): Promise<MergeS
 保守合并原则（必须严格遵守）：
 1. 只合并"功能领域相同 + 描述高度相似 + 步骤重叠度高"的技能
 2. 描述模糊、拿不准的一律不合并
-3. 每个合并组至少 2 个技能
-4. 伞技能名称用小写字母数字连字符，如 "deploy-server"
-5. 伞技能描述要清晰说明它覆盖了哪些原技能的功能
+3. 每个合并组至少 2 个技能，且至少一个技能有实际使用记录
+4. 成功率低（失败次数 > 成功次数）的技能优先考虑合并或重构
+5. 长期未使用（超过 30 天）且功能相似的技能优先合并
+6. 伞技能名称用小写字母数字连字符，如 "deploy-server"
+7. 伞技能描述要清晰说明它覆盖了哪些原技能的功能
+
+绝对不要合并的场景：
+- 功能领域不同（如"部署服务器"和"写邮件"）
+- 只是名称相似但功能完全不同
+- 一个是通用流程，另一个是特定场景的特例（应该保留特例，不合并）
+- 描述太短或太模糊，无法判断是否相似
 
 输出严格的 JSON 数组格式，不要输出其他文字：
 [
@@ -166,9 +174,13 @@ async function generateMergeSuggestions(skills: SkillListItem[]): Promise<MergeS
 ]
 如果没有值得合并的技能，输出空数组 []。`;
 
-  const skillListText = skills.map((s) =>
-    `- ${s.name} [${s.source ?? "unknown"}]：${s.description}${s.category ? `（分类：${s.category}）` : ""}`
-  ).join("\n");
+  const skillListText = skills.map((s) => {
+    const usage = getUsageRecord(s.name);
+    const usageInfo = usage
+      ? ` [使用${usage.useCount ?? 0}次/成功${usage.successCount ?? 0}次/失败${usage.failureCount ?? 0}次${usage.lastUsedAt ? `/最后使用${usage.lastUsedAt.slice(0, 10)}` : ""}]`
+      : " [未使用]";
+    return `- ${s.name} [${s.source ?? "unknown"}]：${s.description}${s.category ? `（分类：${s.category}）` : ""}${usageInfo}`;
+  }).join("\n");
 
   const userPrompt = `请审查以下 ${skills.length} 个自成长技能，识别功能高度相似或重叠的技能组，建议合并成伞技能：
 

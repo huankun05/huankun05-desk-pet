@@ -383,6 +383,99 @@ P4 的 LLM 整合目前是**框架版本**：
 - 当前自进化技能系统独立于 Cyrene 原有技能系统（invoke_skill / read_skill_reference）
 - 后续可考虑深度集成：自进化创建的技能也能通过 invoke_skill 调用
 
+## 备份与恢复
+
+技能自进化系统的所有危险操作（合并、更新、删除）前都会自动备份。
+
+**备份功能**：
+- `skill_manage action=backup` — 手动备份当前所有技能
+- `skill_manage action=list-backups` — 列出所有备份（含时间、大小、技能数量）
+- `skill_manage action=restore name=<备份名>` — 从备份恢复（恢复前自动备份当前状态）
+- `skill_manage action=delete-backup name=<备份名>` — 删除指定备份
+
+**自动备份时机**：
+- 伞技能合并前自动备份
+- 外部技能更新前自动备份
+- 从备份恢复前自动备份当前状态
+
+**备份位置**：`userData/skills-curator-backups/skills-<timestamp>/`
+
+## 技能使用反馈机制
+
+Agent 使用技能后可以反馈成功/失败，用于跟踪技能质量和影响 Curator 归档/合并优先级。
+
+**使用方式**：
+- `skill_manage action=success name=<技能名>` — 反馈使用成功
+- `skill_manage action=failure name=<技能名>` — 反馈使用失败
+
+**记录字段**（SkillUsageRecord）：
+- `successCount` — 成功使用次数
+- `failureCount` — 失败使用次数
+- `lastSuccessAt` — 最后成功使用时间
+- `lastFailureAt` — 最后失败使用时间
+
+**影响**：
+- 成功率低（失败 > 成功）的技能优先考虑合并或重构
+- 合并建议中包含使用统计信息，辅助 LLM 判断
+
+## 系统内置技能保护
+
+Cyrene 原有的内置技能自动标记为 `protected: true`，禁止删除，Curator 不自动归档。
+
+**保护规则**：
+- 没有 `source` 字段的技能（Cyrene 原有内置技能）自动标记为 `protected: true` + `source: external`
+- `protected: true` 的技能无法通过 `skill_manage action=delete` 删除
+- 如需修改内置技能，用 `skill_manage action=edit` 直接编辑
+- 如需替换，先 fork（复制为本地定制版）再修改
+
+## 技能热切换
+
+技能创建/编辑/删除后**无需重启应用**，下次对话自动生效。
+
+**实现原理**：
+- `listSkills()` / `getSkill()` 每次都从文件系统实时读取，无缓存
+- `system-prompt-builder` 每次构建系统提示时都调用 `listSkills()` 获取最新技能列表
+- 工具列表（skill_list/skill_view/skill_manage）在启动时注册，但技能内容是动态读取的
+
+## 外部技能包安装（GitHub 仓库）
+
+支持从 GitHub 仓库 URL 安装完整技能包（含 SKILL.md + references/templates/scripts 等附件）。
+
+**支持的 URL 格式**：
+1. GitHub 仓库目录 URL：`https://github.com/user/repo/tree/branch/path/to/skill`
+2. GitHub raw URL：`https://raw.githubusercontent.com/user/repo/branch/path/to/skill/SKILL.md`
+3. 直接 SKILL.md URL：任何直接返回 SKILL.md 文本的 URL
+
+**安装流程**（GitHub 仓库 URL）：
+1. 解析 URL，提取 user/repo/branch/path
+2. 调用 GitHub API 获取目录树（`/repos/{user}/{repo}/git/trees/{branch}?recursive=1`）
+3. 过滤目标路径下的所有文件
+4. 用 raw.githubusercontent.com 下载所有文件
+5. 保存到技能目录（SKILL.md + 附件保持原目录结构）
+6. 自动标记 `source: external` + `sourceUrl`
+
+**回退机制**：如果 GitHub API 调用失败（速率限制等），回退到直接下载 SKILL.md。
+
+## 外部技能更新检查与更新
+
+对于 `source=external` 且有 `sourceUrl` 的技能，可以检查更新并更新到最新版本。
+
+**使用方式**：
+- `skill_manage action=check-update name=<技能名>` — 检查是否有更新
+- `skill_manage action=update name=<技能名>` — 更新到最新版本（更新前自动备份）
+
+**更新比较逻辑**：
+- 下载远程 SKILL.md，与本地内容比较
+- 忽略 frontmatter 中的 `source` / `sourceUrl` / `updatedAt` 字段
+- 忽略换行符差异（CRLF/LF）
+- 内容不同则判定为有更新
+
+**更新流程**：
+1. 自动备份当前技能（复制到备份目录）
+2. 删除旧技能
+3. 用 sourceUrl 重新安装（下载最新版本）
+4. 如果安装失败，旧版本已备份，可手动恢复
+
 ## 相关文件
 
 - `src/main/self-evolving/skill-types.ts` — 类型定义
