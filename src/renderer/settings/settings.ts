@@ -73,6 +73,7 @@ import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, pr
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { auxiliaryDedicatedToggle, auxiliaryDedicatedFields, auxiliaryBaseUrlInput, auxiliaryApiKeyInput, auxiliaryModelInput } from "./auxiliary/dom";
 import { consolidationToggle } from "./consolidation/dom";
+import { initSkillsPanel } from "./skills";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, characterDropdown, characterDropdownTrigger, characterDropdownValue, characterDropdownPanel, chatLineHeightInput, chatLineHeightVal, assistantBubbleEnabledInput, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, clearChatHistoryBtn, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, cyreneSaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
@@ -2124,6 +2125,9 @@ musicToggle?.addEventListener("click", () => {
 
 // ── 音乐工具路由 ──────────────────────────────────────────────
 initLocalMusicPanel();
+
+// ── 技能管理面板 ──────────────────────────────────────────────
+initSkillsPanel();
 
 document.getElementById("music-platform-netease")?.addEventListener("click", () => {
   switchSection("music");

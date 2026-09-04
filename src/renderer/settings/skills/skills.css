@@ -1,0 +1,398 @@
+/* skills.css —— 技能管理设置面板样式 */
+
+/* 操作栏 */
+.skills-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg-secondary, #f7f7f8);
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e5e5e7);
+}
+
+.skills-install-group {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  max-width: 600px;
+}
+
+.skills-install-group input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #d4d4d8);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #1a1b1c);
+}
+
+.skills-install-group input:focus {
+  outline: none;
+  border-color: var(--accent-color, #4f8cff);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1);
+}
+
+.skills-backup-group {
+  display: flex;
+  gap: 8px;
+}
+
+/* 状态提示 */
+.skills-status {
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.skills-status--info {
+  background: rgba(79, 140, 255, 0.1);
+  color: var(--accent-color, #4f8cff);
+  border: 1px solid rgba(79, 140, 255, 0.2);
+}
+
+.skills-status--success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.skills-status--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* 技能列表 */
+.skills-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.skills-loading,
+.skills-empty,
+.skills-error {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+}
+
+.skills-error {
+  color: #ef4444;
+}
+
+/* 技能卡片 */
+.skill-card {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #e5e5e7);
+  border-radius: 12px;
+  padding: 16px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.skill-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent-color, #4f8cff);
+}
+
+.skill-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.skill-card__name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1a1b1c);
+  font-family: monospace;
+}
+
+.skill-card__source {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.skill-card__source--self-grown {
+  background: rgba(79, 140, 255, 0.1);
+  color: var(--accent-color, #4f8cff);
+}
+
+.skill-card__source--forked {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.skill-card__source--umbrella {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.skill-card__source--external {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.skill-card__source--unknown {
+  background: rgba(107, 114, 128, 0.1);
+  color: #9ca3af;
+}
+
+.skill-card__desc {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 技能按钮 */
+.skill-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border-color, #d4d4d8);
+  border-radius: 6px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.skill-btn:hover {
+  background: var(--bg-secondary, #f7f7f8);
+  border-color: var(--accent-color, #4f8cff);
+  color: var(--accent-color, #4f8cff);
+}
+
+.skill-btn--delete:hover {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* 模态框 */
+.skills-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.skills-modal-content {
+  background: var(--bg-primary, #fff);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.skills-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, #e5e5e7);
+}
+
+.skills-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1b1c);
+}
+
+.skills-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.skills-modal-close:hover {
+  background: var(--bg-secondary, #f7f7f8);
+  color: var(--text-primary, #1a1b1c);
+}
+
+.skills-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 技能元数据 */
+.skill-meta-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.skill-meta-row span {
+  min-width: 70px;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.skill-meta-row strong,
+.skill-meta-row a {
+  color: var(--text-primary, #1a1b1c);
+  font-weight: 500;
+}
+
+.skill-meta-row a {
+  color: var(--accent-color, #4f8cff);
+  text-decoration: none;
+}
+
+.skill-meta-row a:hover {
+  text-decoration: underline;
+}
+
+.skill-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.skill-badge--protected {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+/* 技能编辑器 */
+.skills-editor {
+  width: 100%;
+  min-height: 400px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border-color, #d4d4d8);
+  border-radius: 8px;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--bg-secondary, #fafafa);
+  color: var(--text-primary, #1a1b1c);
+  resize: vertical;
+  tab-size: 2;
+}
+
+.skills-editor:focus {
+  outline: none;
+  border-color: var(--accent-color, #4f8cff);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1);
+}
+
+.skills-editor[readonly] {
+  background: var(--bg-secondary, #f7f7f8);
+  color: var(--text-secondary, #6b7280);
+}
+
+.skills-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color, #e5e5e7);
+}
+
+/* 备份卡片 */
+.backup-card {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #e5e5e7);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.backup-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.backup-card__name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #1a1b1c);
+  font-family: monospace;
+}
+
+.backup-card__time {
+  font-size: 12px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.backup-card__meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 10px;
+}
+
+.backup-card__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .skills-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .skills-install-group {
+    max-width: 100%;
+  }
+
+  .skills-backup-group {
+    justify-content: flex-end;
+  }
+
+  .skills-list {
+    grid-template-columns: 1fr;
+  }
+}

@@ -476,6 +476,28 @@ Cyrene 原有的内置技能自动标记为 `protected: true`，禁止删除，C
 3. 用 sourceUrl 重新安装（下载最新版本）
 4. 如果安装失败，旧版本已备份，可手动恢复
 
+## 技能管理 UI 面板
+
+设置页面新增"技能管理"面板，提供可视化的技能管理界面，无需通过大模型工具调用即可管理技能。
+
+**入口**：设置 → 技能管理（侧边栏导航）
+
+**功能**：
+1. **技能列表**：卡片式展示所有技能（名称、描述、来源标签、操作按钮）
+2. **查看详情**：点击"查看"打开模态框，显示 SKILL.md 完整内容和元数据
+3. **编辑技能**：点击"编辑"打开编辑器，修改后保存
+4. **删除技能**：点击"删除"（系统内置受保护技能无法删除）
+5. **检查更新**：点击"检查更新"，有更新时提示是否更新（更新前自动备份）
+6. **安装外部技能**：输入 GitHub 仓库 URL 或 SKILL.md raw URL，点击"安装技能"
+7. **备份管理**：点击"立即备份"打开备份管理模态框，可查看所有备份、恢复、删除
+8. **刷新列表**：点击"刷新列表"重新加载技能
+
+**相关文件**：
+- `src/renderer/settings/skills/index.ts` — 渲染进程逻辑
+- `src/renderer/settings/skills/skills.css` — 样式
+- `src/main/skills/skills-ipc.ts` — 主进程 IPC handler
+- `src/preload/index.ts` — preload API 暴露（window.skills）
+
 ## 相关文件
 
 - `src/main/self-evolving/skill-types.ts` — 类型定义

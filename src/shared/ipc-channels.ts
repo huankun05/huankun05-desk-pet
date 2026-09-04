@@ -214,6 +214,20 @@ export const IPC = {
   USER_PROFILE_CHANGED: "user:profile-changed",
   USER_AVATAR_CHANGED: "user:avatar-changed",
 
+  // skills manager panel（自进化技能管理 UI）
+  SKILLS_LIST: "skills:list",
+  SKILLS_GET: "skills:get",
+  SKILLS_CREATE: "skills:create",
+  SKILLS_EDIT: "skills:edit",
+  SKILLS_DELETE: "skills:delete",
+  SKILLS_INSTALL: "skills:install",
+  SKILLS_CHECK_UPDATE: "skills:check-update",
+  SKILLS_UPDATE: "skills:update",
+  SKILLS_BACKUP: "skills:backup",
+  SKILLS_LIST_BACKUPS: "skills:list-backups",
+  SKILLS_RESTORE: "skills:restore",
+  SKILLS_DELETE_BACKUP: "skills:delete-backup",
+
   // memory panel
   MEMORY_PANEL_GET_DATA: "memory-panel:get-data",
   MEMORY_PANEL_DELETE_IMPORTED_DOC: "memory-panel:delete-imported-doc",
