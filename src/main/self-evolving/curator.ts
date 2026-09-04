@@ -12,6 +12,7 @@ import { logger, LogTag } from "../logger";
 import { getSkillsRootDir, getUsageRecord, updateUsageRecord, listSkills } from "./skill-store";
 import type { SkillUsageRecord } from "./skill-types";
 import { runConsolidation } from "./consolidation";
+import { loadModelSettings } from "../settings/model-settings";
 
 /** Curator 配置。 */
 export interface CuratorConfig {
@@ -426,7 +427,20 @@ export function getCuratorStatus(): {
 
 /** 应用启动时检查并运行 Curator（如果需要）。 */
 export function initCurator(): void {
-  const config = loadCuratorConfig();
+  let config = loadCuratorConfig();
+
+  // 同步 model-settings.json 中的 skillConsolidationEnabled 到 Curator 配置
+  try {
+    const modelSettings = loadModelSettings();
+    const uiConsolidateEnabled = modelSettings.skillConsolidationEnabled === true;
+    if (uiConsolidateEnabled !== config.consolidate) {
+      config = saveCuratorConfig({ consolidate: uiConsolidateEnabled });
+      logger.info(LogTag.Skills, `Curator: 同步技能自整理开关 → ${uiConsolidateEnabled ? "启用" : "禁用"}`);
+    }
+  } catch (err) {
+    logger.warn(LogTag.Skills, `Curator: 同步技能自整理开关失败: ${err}`);
+  }
+
   if (!config.enabled) {
     logger.info(LogTag.Skills, "Curator 已禁用，跳过初始化检查");
     return;

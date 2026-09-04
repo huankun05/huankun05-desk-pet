@@ -14,6 +14,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { app } from "electron";
+import { logger, LogTag } from "../logger";
 import type {
   Skill,
   SkillListItem,
@@ -304,6 +305,79 @@ export function createSkill(name: string, content: string): { success: boolean; 
   // 记录使用情况
   updateUsageRecord(name, { createdBy: "agent" });
   return { success: true, message: `技能 '${name}' 创建成功` };
+}
+
+/**
+ * 从 URL 安装外部技能（GitHub raw URL 或直接 SKILL.md URL）。
+ * 下载 SKILL.md 内容，自动标记 source=external 和 sourceUrl。
+ *
+ * @param url 技能的 SKILL.md 原始 URL（支持 raw.githubusercontent.com）
+ * @returns 安装结果
+ */
+export async function installSkillFromUrl(url: string): Promise<{ success: boolean; message?: string; error?: string; skillName?: string }> {
+  try {
+    // 验证 URL
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return { success: false, error: "无效的 URL" };
+    }
+
+    // 下载 SKILL.md 内容
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Cyrene-Agent/1.0" },
+    });
+    if (!response.ok) {
+      return { success: false, error: `下载失败：HTTP ${response.status}` };
+    }
+    const content = await response.text();
+    if (!content || content.length < 10) {
+      return { success: false, error: "下载的内容为空或无效" };
+    }
+
+    // 解析技能元数据
+    const metadata = parseSkillMetadata(content);
+    if (!metadata || !metadata.name) {
+      return { success: false, error: "无法解析技能名称，请确保 SKILL.md 包含 name 字段" };
+    }
+
+    // 检查是否已存在
+    if (skillExists(metadata.name)) {
+      return { success: false, error: `技能 '${metadata.name}' 已存在` };
+    }
+
+    // 自动补充 source 和 sourceUrl（如果用户没指定）
+    let finalContent = content;
+    if (!/source\s*:/.test(finalContent)) {
+      finalContent = finalContent.replace(/^---\n/, `---\nsource: external\n`);
+    }
+    if (!/sourceUrl\s*:/.test(finalContent)) {
+      finalContent = finalContent.replace(/^---\n/, `---\nsourceUrl: ${url}\n`);
+    }
+
+    // 创建目录和文件
+    ensureSkillsRoot();
+    const skillDir = path.join(getSkillsRootDir(), metadata.name);
+    fs.mkdirSync(skillDir, { recursive: true });
+    const skillFile = path.join(skillDir, "SKILL.md");
+    fs.writeFileSync(skillFile, finalContent, "utf-8");
+
+    // 记录使用情况
+    updateUsageRecord(metadata.name, { createdBy: "user" });
+
+    logger.info(LogTag.Skills, `外部技能安装成功：${metadata.name} (来自 ${url})`);
+
+    return {
+      success: true,
+      message: `技能 '${metadata.name}' 安装成功（来源：${parsedUrl.hostname}）`,
+      skillName: metadata.name,
+    };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(LogTag.Skills, `外部技能安装失败：${errorMsg}`);
+    return { success: false, error: `安装失败：${errorMsg}` };
+  }
 }
 
 /**

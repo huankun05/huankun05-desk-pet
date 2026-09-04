@@ -146,6 +146,8 @@ export interface ModelSettings {
   vision?: VisionModelConfig;
   /** 辅助模型配置（用于记忆压缩、会话摘要、技能自整理等后台任务）。默认跟随主模型。 */
   auxiliary?: AuxiliaryModelConfig;
+  /** 技能自整理（LLM 整合）开关：启用后 Curator 定期合并相似技能。默认 false。 */
+  skillConsolidationEnabled?: boolean;
   /** 主模型是否多模态。true 时图片直发主模型（direct），vision 配置保留但忽略。 */
   multimodal: boolean;
   thinkingOverride?: -1 | 0 | 1;
@@ -390,6 +392,7 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
       : undefined,
     vision: normalizeVisionConfig(rawVision),
     auxiliary,
+    skillConsolidationEnabled: input?.skillConsolidationEnabled === true,
     multimodal,
     thinkingOverride: input?.thinkingOverride,
     disableMaxToken: input?.disableMaxToken,

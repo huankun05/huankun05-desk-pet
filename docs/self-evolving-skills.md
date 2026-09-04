@@ -228,6 +228,32 @@ skill_curator action=config consolidate=true
 - 创建技能时如果未指定 `source`，默认自动补充 `source: self-grown`
 - 外部引入的技能需要手动在 SKILL.md 中添加 `source: external` 和 `sourceUrl: <GitHub/市场链接>`
 
+## 外部技能安装
+
+支持从 GitHub URL 或直接的 SKILL.md URL 安装外部技能，安装后自动标记 `source: external` 和 `sourceUrl`。
+
+**使用方式**（通过 skill_manage 工具）：
+```
+skill_manage action=install url=https://raw.githubusercontent.com/user/repo/main/skills/my-skill/SKILL.md
+```
+
+**安装流程**：
+1. 从 URL 下载 SKILL.md 内容
+2. 解析技能名称和描述
+3. 检查是否已存在（已存在则拒绝安装）
+4. 自动补充 `source: external` 和 `sourceUrl: <URL>`（如果用户没指定）
+5. 创建技能目录并保存 SKILL.md
+6. 记录使用情况（createdBy: user）
+
+**支持的 URL 格式**：
+- `raw.githubusercontent.com` 的原始文件 URL
+- 任何直接返回 SKILL.md 文本内容的 URL
+
+**注意**：
+- 外部技能安装后标记为 `source: external`，Curator 不会自动归档，也不会参与 LLM 整合
+- 如需修改外部技能，建议先 fork（复制为本地定制版），再修改
+- 目前只支持单个 SKILL.md 文件的安装，不支持包含 references/templates/scripts 等附件的完整技能包（后续扩展）
+
 ## 辅助模型配置（Auxiliary Model）
 
 用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。

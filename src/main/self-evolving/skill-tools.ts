@@ -10,6 +10,7 @@ import {
   createSkill,
   editSkill,
   deleteSkill,
+  installSkillFromUrl,
   recordSkillViewed,
   recordSkillUsed,
 } from "./skill-store";
@@ -115,10 +116,26 @@ async function executeSkillManage(args: Record<string, unknown>): Promise<string
   const action = String(args.action || "").trim();
   const name = String(args.name || "").trim();
   const content = args.content !== undefined ? String(args.content) : "";
+  const url = String(args.url || "").trim();
 
   if (!action) {
-    return JSON.stringify({ success: false, error: "action 参数必填，可选：create / edit / delete" });
+    return JSON.stringify({ success: false, error: "action 参数必填，可选：create / edit / delete / install" });
   }
+
+  // install 操作不需要 name 参数，需要 url
+  if (action === "install") {
+    if (!url) {
+      return JSON.stringify({ success: false, error: "install 操作需要 url 参数（技能的 SKILL.md 原始 URL，支持 raw.githubusercontent.com）" });
+    }
+    const result = await installSkillFromUrl(url);
+    if (result.success) {
+      logger.info(LogTag.Skills, `外部技能安装成功: ${result.skillName} (来自 ${url})`);
+    } else {
+      logger.warn(LogTag.Skills, `外部技能安装失败: ${url} - ${result.error}`);
+    }
+    return JSON.stringify(result);
+  }
+
   if (!name) {
     return JSON.stringify({ success: false, error: "name 参数必填" });
   }
@@ -157,7 +174,7 @@ async function executeSkillManage(args: Record<string, unknown>): Promise<string
       }
       break;
     default:
-      return JSON.stringify({ success: false, error: `未知 action '${action}'，可选：create / edit / delete` });
+      return JSON.stringify({ success: false, error: `未知 action '${action}'，可选：create / edit / delete / install` });
   }
 
   return JSON.stringify(result);
@@ -193,16 +210,20 @@ export const skillManageTool: ToolDefinition = {
     properties: {
       action: {
         type: "string",
-        enum: ["create", "edit", "delete"],
-        description: "操作类型",
+        enum: ["create", "edit", "delete", "install"],
+        description: "操作类型：create（创建）/ edit（编辑）/ delete（删除）/ install（从URL安装外部技能）",
       },
-      name: { type: "string", description: "技能名称（小写字母数字连字符，如 deploy-to-server）" },
+      name: { type: "string", description: "技能名称（小写字母数字连字符，如 deploy-to-server）。create/edit/delete 时必填。" },
       content: {
         type: "string",
         description: "完整的 SKILL.md 内容（YAML frontmatter + Markdown）。create 和 edit 时必填。",
       },
+      url: {
+        type: "string",
+        description: "外部技能的 SKILL.md 原始 URL（支持 raw.githubusercontent.com）。install 时必填。",
+      },
     },
-    required: ["action", "name"],
+    required: ["action"],
   },
   execute: executeSkillManage,
 };

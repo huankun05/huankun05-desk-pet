@@ -14,6 +14,7 @@ import { loadAuxiliaryConfig } from "../settings/model-settings";
 import { listSkills, getSkill, createSkill, updateUsageRecord, getUsageRecord } from "./skill-store";
 import type { SkillListItem, SkillSource } from "./skill-types";
 import { backupSkills } from "./curator";
+import { Notification } from "electron";
 
 /** 合并建议：一组相似技能合并成一个伞技能。 */
 export interface MergeSuggestion {
@@ -384,6 +385,20 @@ export async function runConsolidation(): Promise<ConsolidationResult> {
   const message = `审查 ${eligibleSkills.length} 个技能，建议 ${suggestions.length} 组合并，成功执行 ${executed} 组，创建伞技能 ${umbrellaCreated.length} 个，归档原技能 ${archived.length} 个`;
 
   logger.info(LogTag.Skills, `LLM 整合完成：${message}`);
+
+  // 合并执行后通知用户（桌面通知，不需确认）
+  if (executed > 0) {
+    try {
+      const notification = new Notification({
+        title: "技能自整理完成",
+        body: `已合并 ${executed} 组相似技能，创建伞技能 ${umbrellaCreated.length} 个，归档原技能 ${archived.length} 个。原技能未删除，可随时恢复。`,
+        silent: false,
+      });
+      notification.show();
+    } catch (err) {
+      logger.warn(LogTag.Skills, `LLM 整合：发送桌面通知失败: ${err}`);
+    }
+  }
 
   return {
     success: true,

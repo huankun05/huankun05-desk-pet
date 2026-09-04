@@ -72,6 +72,7 @@ import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { auxiliaryDedicatedToggle, auxiliaryDedicatedFields, auxiliaryBaseUrlInput, auxiliaryApiKeyInput, auxiliaryModelInput } from "./auxiliary/dom";
+import { consolidationToggle } from "./consolidation/dom";
 import { appearanceForm, appearanceSaveStatus, runtimeSyncSelect, runtimeSyncNote, windowCornerRadiusInput, windowCornerRadiusVal, petAlwaysOnTopInput, petVisibleInput, petZoomInput, petZoomVal, characterDropdown, characterDropdownTrigger, characterDropdownValue, characterDropdownPanel, chatLineHeightInput, chatLineHeightVal, assistantBubbleEnabledInput, chatParaSpacingInput, chatParaSpacingVal, launchAtLoginInput, uiFontCurrent, uiFontImportButton, uiFontResetButton, uiIconSelect, screenshotHotkeyInput, openChromeGpu, disableGpuInput, sidebarVisibleInput, tasksVisibleInput } from "./appearance/dom";
 import { generalForm, generalSaveStatus, languageSelect, defaultChatModeSelect, segmentedOutputSelect, mobileMessageSegmentationSelect, proactiveChatSelect, proactiveDeliveryRow, proactiveDeliverySelect, chatSocialContextEnabledInput, citaEnabledInput, citaEngineSelect, clearChatHistoryBtn, customStyleSamplingBtn, customStylePromptBtn } from "./general/dom";
 import { minBtn, closeBtn, preferencesForm, sectionTitle, sectionHint, placeholderPanel, cyrenePanel, disclaimerPanel, pluginsPanel, placeholderIcon, placeholderTitle, placeholderCopy, saveStatus, runtimeSaveStatus, preferencesSaveStatus, cyreneSaveStatus, openStickerManagerBtn, addStickerBtn } from "./shared/shell";
@@ -662,6 +663,26 @@ function restoreVisionInputs(snapshot: { baseUrl: string; apiKey: string; model:
   visionOcrToggle.checked = snapshot.ocrEnabled;
 }
 
+/** 辅助模型是全局配置：切换档案/预设时先快照再恢复，避免被 preset 默认值覆盖。 */
+function snapshotAuxiliaryInputs(): { mode: "inherit-main" | "dedicated"; baseUrl: string; apiKey: string; model: string } {
+  return {
+    mode: auxiliaryDedicatedToggle.checked ? "dedicated" : "inherit-main",
+    baseUrl: auxiliaryBaseUrlInput.value,
+    apiKey: auxiliaryApiKeyInput.value,
+    model: auxiliaryModelInput.value,
+  };
+}
+
+function restoreAuxiliaryInputs(snapshot: { mode: "inherit-main" | "dedicated"; baseUrl: string; apiKey: string; model: string }): void {
+  auxiliaryDedicatedToggle.checked = snapshot.mode === "dedicated";
+  auxiliaryBaseUrlInput.value = snapshot.baseUrl;
+  auxiliaryApiKeyInput.value = snapshot.apiKey;
+  auxiliaryModelInput.value = snapshot.model;
+  if (auxiliaryDedicatedFields) {
+    auxiliaryDedicatedFields.style.display = snapshot.mode === "dedicated" ? "block" : "none";
+  }
+}
+
 /** 档案列表渲染：卡片 = 昵称 + 厂商 + 模型 + 徽标（默认/上下文/多模态）。 */
 function renderProfileList(): void {
   if (!profileList) return;
@@ -734,6 +755,7 @@ function applyEditingStateUI(): void {
 /** 载入档案到编辑表单。 */
 function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
   const visionSnapshot = snapshotVisionInputs();
+  const auxiliarySnapshot = snapshotAuxiliaryInputs();
   apiState.editingProfileId = profile.id;
   apiState.editingReasoning = profile.reasoning;
   applyPreset(
@@ -745,6 +767,7 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void
     profile.explicitTransport as ProviderProfile["explicitTransport"],
   );
   restoreVisionInputs(visionSnapshot);
+  restoreAuxiliaryInputs(auxiliarySnapshot);
   // 档案级字段：未定义 = 老档案，回退全局值显示
   contextWindowInput.value = profile.contextWindowTokens ? String(profile.contextWindowTokens) : "";
   multimodalToggle.checked = profile.multimodal ?? globalMultimodal;
@@ -757,10 +780,12 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void
 /** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
 function startNewDraft(providerName: string): void {
   const visionSnapshot = snapshotVisionInputs();
+  const auxiliarySnapshot = snapshotAuxiliaryInputs();
   apiState.editingProfileId = undefined;
   apiState.editingReasoning = undefined;
   applyPreset(providerName);
   restoreVisionInputs(visionSnapshot);
+  restoreAuxiliaryInputs(auxiliarySnapshot);
   contextWindowInput.value = "";
   // 新建草稿默认开多模态；applyPreset 已不再按厂商门控
   multimodalToggle.checked = true;
@@ -988,6 +1013,23 @@ async function loadConfig(): Promise<void> {
     toggleEnableThinking.checked = cfg.thinkingOverride === 1;
     toggleDisableThinking.checked = cfg.thinkingOverride === -1;
     toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
+
+    // 辅助模型配置加载
+    const aux = cfg.auxiliary;
+    if (aux) {
+      auxiliaryDedicatedToggle.checked = aux.mode === "dedicated";
+      auxiliaryBaseUrlInput.value = aux.baseUrl ?? "";
+      auxiliaryApiKeyInput.value = aux.apiKey ?? "";
+      auxiliaryModelInput.value = aux.model ?? "";
+      if (auxiliaryDedicatedFields) {
+        auxiliaryDedicatedFields.style.display = aux.mode === "dedicated" ? "block" : "none";
+      }
+    }
+
+    // 技能自整理开关加载
+    if (consolidationToggle) {
+      consolidationToggle.checked = cfg.skillConsolidationEnabled === true;
+    }
 
     // 档案列表加载 + 默认进入默认档案的编辑态；
     // 无档案时保持上方 applyPreset 的顶层镜像作为"新建草稿"起点。
@@ -1796,7 +1838,7 @@ apiForm.addEventListener("submit", async (e) => {
     };
     const result = await window.settings!.saveModelProfile?.(profile);
     if (!result) throw new Error("模型列表不可用");
-    // 全局选项（视觉模型/思考开关/maxToken）不随档案走，单独保存
+    // 全局选项（视觉模型/辅助模型/思考开关/maxToken）不随档案走，单独保存
     await window.settings!.saveConfig({
       vision: {
         baseUrl: visionBaseUrlInput.value.trim(),
@@ -1804,6 +1846,13 @@ apiForm.addEventListener("submit", async (e) => {
         model: visionModelInput.value.trim(),
         ocrEnabled: visionOcrToggle.checked,
       },
+      auxiliary: {
+        mode: auxiliaryDedicatedToggle.checked ? "dedicated" : "inherit-main",
+        baseUrl: auxiliaryBaseUrlInput.value.trim(),
+        apiKey: auxiliaryApiKeyInput.value.trim(),
+        model: auxiliaryModelInput.value.trim(),
+      },
+      skillConsolidationEnabled: consolidationToggle ? consolidationToggle.checked : false,
       thinkingOverride: toggleEnableThinking.checked ? 1 : toggleDisableThinking.checked ? -1 : 0,
       disableMaxToken: toggleDisableMaxToken.checked,
     });
