@@ -1943,6 +1943,7 @@ function switchSection(section: string): void {
   else disposeMusicPanel();
   const skillsPanel = document.getElementById("skills-panel");
   if (skillsPanel) skillsPanel.classList.toggle("is-hidden", !isSkills);
+  if (isSkills) initSkillsPanel();
   placeholderPanel.classList.toggle(
     "is-hidden",
     isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills,
@@ -2131,8 +2132,7 @@ musicToggle?.addEventListener("click", () => {
 // ── 音乐工具路由 ──────────────────────────────────────────────
 initLocalMusicPanel();
 
-// ── 技能管理面板 ──────────────────────────────────────────────
-initSkillsPanel();
+// 技能管理面板改为懒加载，在 switchSection 中第一次切换到 skills 时初始化
 
 document.getElementById("music-platform-netease")?.addEventListener("click", () => {
   switchSection("music");

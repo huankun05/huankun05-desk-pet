@@ -410,8 +410,17 @@ function closeBackupModal(): void {
   if (els.backupModal) els.backupModal.hidden = true;
 }
 
-/** 初始化技能管理面板 */
+// 初始化标志，确保只初始化一次
+let initialized = false;
+
+/** 初始化技能管理面板（懒加载，只在用户第一次点击技能管理导航项时调用） */
 export function initSkillsPanel(): void {
+  if (initialized) {
+    console.log("[Skills] 已初始化，跳过");
+    return;
+  }
+  initialized = true;
+  console.log("[Skills] 开始初始化技能管理面板");
   // 获取 DOM 元素引用
   els = {
     list: document.getElementById("skills-list"),

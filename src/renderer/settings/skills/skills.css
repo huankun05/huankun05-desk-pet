@@ -206,6 +206,11 @@
   padding: 20px;
 }
 
+/* 确保 hidden 属性生效，覆盖 display: flex */
+.skills-modal[hidden] {
+  display: none !important;
+}
+
 .skills-modal-content {
   background: var(--bg-primary, #fff);
   border-radius: 16px;
