@@ -221,7 +221,8 @@ export function listSkills(options?: { includeArchived?: boolean }): SkillListIt
           name: metadata.name,
           description: metadata.description,
           category: metadata.category,
-          source: metadata.source,
+          // 没有 source 字段的技能（Cyrene 原有内置技能）标记为 external
+          source: metadata.source || "external",
           createdBy: metadata.createdBy,
           updatedAt: stat.mtime.toISOString(),
         });
