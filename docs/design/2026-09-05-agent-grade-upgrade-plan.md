@@ -43,7 +43,7 @@
 | P0 | 并行子 Agent（task_group + 并行执行器 + 结果聚合） | ✅ 已完成 | task-runtime / builtin-tools / dispatcher / tests |
 | P0 | AGENTS.md 项目上下文注入 | ✅ 已完成 | workspace-context / run-preparation / tests |
 | P1 | 验证闭环自迭代（改 → 验 → 修） | ✅ 已完成 | IterationBudget 移植 + 预算耗尽总结 + 文件变更页脚 |
-| P1 | 跨会话搜索（FTS/向量 + LLM 摘要） | ⏳ 待做 | 复用 embedding + RAG 管线 |
+| P1 | 跨会话搜索（FTS/向量 + LLM 摘要） | ✅ 已完成 | recall_history 工具增强（limit + sessionId 过滤 + 来源会话） |
 | P1 | 凭据全量加密（safeStorage） | ⏳ 待做 | settings 层迁移 |
 | P2 | 定时任务渠道投递 | ⏳ 待做 | scheduler 增加 deliver 目标 |
 | P2 | 成本核算（token × 单价） | ⏳ 待做 | 用量统计扩展 |
@@ -182,7 +182,29 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 
 ### 4.2 跨会话搜索
 
-复用已有 embedding（BGE-M3）+ RAG 索引管线，新增"会话级索引"：对历史会话消息建向量/BM25 索引，提供 `search_history` 工具，返回带来源的摘要；LLM 摘要可在后台异步生成。
+**核心发现**：Cyrene 已有完整的跨会话搜索基础设施，无需从零构建。
+
+**已有能力**（P1-2 启动前已存在）：
+- `recall_history` 工具（`history-tools.ts`）：全局注册，所有模式可用，语义检索所有历史对话（source="chat_history"）
+- `indexConversationTurn`：每轮对话后自动索引（user + assistant 各存一条），在 agui-bridge 和 channels/bootstrap 中调用
+- `HybridRetriever`（`rag/retriever.ts`）：向量 + BM25 混合检索 + jieba 中文分词（停用词降权/名词加权）+ reranker 精排
+- RAG 基础设施完整：`vectorstore.ts`、`embedding.ts`（BGE-M3 本地/云端）、`reranker.ts`、`file-ingest.ts`、`document-index-worker.ts`
+
+**本次增强**（P1-2 交付）：
+| 增强项 | 说明 |
+| --- | --- |
+| `limit` 参数 | 新增可选参数，默认 5，最大 20；Agent 档深度任务可请求更多结果 |
+| `sessionId` 过滤 | 新增可选参数，限定只搜索某个特定会话的历史；不传则搜索所有会话 |
+| 来源会话展示 | 每条结果增加 `[会话:xxxx]` 标签（sessionId 前 8 位），让模型知道历史来自哪个会话 |
+| 候选池扩大 | 检索时取 `max(limit*3, 15)` 条候选，再按 days/sessionId 过滤，避免过滤后结果不足 |
+
+**验收标准**：
+- [x] `recall_history` 工具支持 query/days/limit/sessionId 四个参数
+- [x] limit 默认 5，最大 20，超出自动截断
+- [x] sessionId 过滤正确工作，不传则搜索所有会话
+- [x] 每条结果带来源会话标签
+- [x] 全量 orchestrator 测试 1098/1099 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
 
 ### 4.3 凭据全量加密
 
@@ -200,3 +222,4 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 | --- | --- | --- |
 | 2026-09-05 | 规划落盘；P0-1 / P0-2 实施完成 | 并行子 Agent + AGENTS.md 注入已落地，新增 20 个单测用例，全部通过 |
 | 2026-09-05 | P1-1 验证闭环自迭代实施完成 | 移植 Hermes IterationBudget + 预算耗尽总结 + 文件变更失败页脚 + 回合退出诊断；新增 iteration-budget.ts（13 单测），修改 5 个核心文件；全量测试 1098/1099 通过 |
+| 2026-09-05 | P1-2 跨会话搜索实施完成 | 核心能力已存在（recall_history + 自动索引 + 混合检索）；增强 limit/sessionId 过滤/来源会话展示；修改 history-tools.ts；全量测试 1098/1099 通过 |

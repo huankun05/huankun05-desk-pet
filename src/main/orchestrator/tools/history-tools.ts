@@ -43,7 +43,7 @@ export function registerRecallHistoryTool(): void {
     id: "recall_history",
     name: "回忆历史",
     description:
-      "从所有历史对话中语义检索相关内容。返回按时间排序的相关片段（最多 5 条），每条带角色和时间戳。\n\n" +
+      "从所有历史对话中语义检索相关内容。返回按时间排序的相关片段，每条带角色、时间戳和来源会话。\n\n" +
       "何时用：\n" +
       "- 用户说「还记得」「上次」「之前」「那个」「前几天」等指代词\n" +
       "- 用户问的事在最近几轮对话里找不到答案\n" +
@@ -52,7 +52,7 @@ export function registerRecallHistoryTool(): void {
       "- 当前对话最近几轮里能直接看到的信息\n" +
       "- 完全无关的闲聊\n" +
       "- 用户从没提过的事（查不到就老实说不知道）\n\n" +
-      "参数：query（必填，检索关键词或自然语言问题），days（可选，限制最近 N 天，默认 30）。",
+      "参数：query（必填，检索关键词或自然语言问题），days（可选，限制最近 N 天，默认 30），limit（可选，返回条数，默认 5，最大 20），sessionId（可选，限定只搜索某个特定会话）。",
     enabled: true,
     risk: "safe",
     effectKind: "read" as const,
@@ -62,6 +62,8 @@ export function registerRecallHistoryTool(): void {
       properties: {
         query: { type: "string", description: "检索关键词或自然语言问题" },
         days: { type: "number", description: "可选，限制最近 N 天，默认 30" },
+        limit: { type: "number", description: "可选，返回结果条数，默认 5，最大 20" },
+        sessionId: { type: "string", description: "可选，限定只搜索某个特定会话的历史" },
       },
       required: ["query"],
     },
@@ -71,32 +73,45 @@ export function registerRecallHistoryTool(): void {
 
       const days = Number(args.days) || 30;
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 20);
+      const sessionFilter = typeof args.sessionId === "string" && args.sessionId.trim()
+        ? args.sessionId.trim()
+        : undefined;
 
       let hits;
       try {
-        hits = await searchHistoryEntries(query, 5);
+        // 多取一些候选，因为后续还要按 days / sessionId 过滤
+        hits = await searchHistoryEntries(query, Math.max(limit * 3, 15));
       } catch (e) {
         return "[recall_history] 检索失败：" + (e instanceof Error ? e.message : String(e));
       }
 
-      const filtered = hits.filter(h => h.createdAt >= cutoff);
+      const filtered = hits.filter((h) => {
+        if (h.createdAt < cutoff) return false;
+        if (sessionFilter && h.metadata?.sessionId !== sessionFilter) return false;
+        return true;
+      });
 
       if (filtered.length === 0) {
-        return `[recall_history] 没有找到关于 "${query}" 的历史记录`;
+        const scope = sessionFilter ? `会话 ${sessionFilter} 中` : "历史对话中";
+        return `[recall_history] 没有在${scope}找到关于 "${query}" 的记录`;
       }
 
       // 按时间正序（最早的在前），让对话脉络自然
-      const sorted = [...filtered].sort((a, b) => a.createdAt - b.createdAt);
+      const sorted = [...filtered].sort((a, b) => a.createdAt - b.createdAt).slice(0, limit);
 
-      const lines = sorted.map(h => {
+      const lines = sorted.map((h) => {
         const date = new Date(h.createdAt).toLocaleString(getDateLocale(), { timeZone: currentUserTimezone() });
         const role = h.metadata?.role === "user" ? "用户" : "昔涟";
+        const srcSession = typeof h.metadata?.sessionId === "string" ? h.metadata.sessionId.slice(0, 8) : "";
         // 截断过长内容，避免吃太多 token
         const text = h.text.length > 300 ? h.text.slice(0, 300) + "..." : h.text;
-        return `[${date}] ${role}：${text}`;
+        const sessionTag = srcSession ? ` [会话:${srcSession}]` : "";
+        return `[${date}]${sessionTag} ${role}：${text}`;
       });
 
-      return `[recall_history] 找到 ${sorted.length} 条相关历史：\n\n${lines.join("\n\n")}`;
+      const scope = sessionFilter ? `会话 ${sessionFilter} 中` : "所有历史对话中";
+      return `[recall_history] 在${scope}找到 ${sorted.length} 条相关历史：\n\n${lines.join("\n\n")}`;
     },
   });
 }
