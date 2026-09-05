@@ -13,8 +13,8 @@ import type { ToolDefinition } from "../tools/registry/tool-registry";
 import type { ToolCallResult } from "../types";
 import type { AgentState, HarnessEvent, ToolObservation } from "./types";
 import { parseToolCallArgs, toolCallFingerprint } from "./types";
-import { isHarnessBuiltin, isInteractiveHarnessBuiltin, TASK_TOOL_ID } from "./builtin-tools";
-import { executeUpdateTodo, executeAskUser, executeTask } from "./builtin-tools";
+import { isHarnessBuiltin, isInteractiveHarnessBuiltin, TASK_TOOL_ID, TASK_GROUP_TOOL_ID } from "./builtin-tools";
+import { executeUpdateTodo, executeAskUser, executeTask, executeTaskGroup } from "./builtin-tools";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, executeEnterPlanMode, executeWritePlan } from "./plan-tools";
 import { executeReadToolResult, READ_TOOL_RESULT_TOOL_ID } from "./tool-output/read-tool-result";
 import { resolveSideEffect } from "./side-effect-resolver";
@@ -82,6 +82,8 @@ export interface ToolDispatchContext {
   deferOutputPersistence?: boolean;
   executionLedger?: ExecutionLedger;
   taskExecutor?: import("../task-runtime").TaskExecuteRequest extends infer _T ? (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult> : never;
+  /** 并行子任务执行器（task_group 内置工具使用） */
+  taskGroupExecutor?: (request: import("../task-runtime").TaskGroupExecuteRequest) => Promise<import("../task-runtime").TaskGroupExecuteResult>;
 }
 
 export interface ToolDispatchResult extends ToolObservation {
@@ -285,7 +287,7 @@ function shouldPersistResult(
   call: ToolCall,
   result: ToolDispatchResult,
 ): result is ToolDispatchResult & { output: string; outcome: "success" | "failure" | "unknown" } {
-  return (call.name === TASK_TOOL_ID || !isHarnessBuiltin(call.name))
+  return (call.name === TASK_TOOL_ID || call.name === TASK_GROUP_TOOL_ID || !isHarnessBuiltin(call.name))
     && result.output !== undefined
     && (result.outcome === "success" || result.outcome === "failure" || result.outcome === "unknown");
 }
@@ -308,6 +310,8 @@ async function executeHarnessBuiltin(
       return executeWritePlan(call, ctx.toolContext, ctx.onEvent);
     case "task":
       return executeTask(call, ctx.taskExecutor);
+    case "task_group":
+      return executeTaskGroup(call, ctx.taskGroupExecutor);
     case READ_TOOL_RESULT_TOOL_ID:
       return executeReadToolResult(call, ctx.toolOutputStore, ctx.toolContext);
 

@@ -4,6 +4,7 @@ import type { ToolDefinition } from "./tools/registry/tool-registry";
 /** 子任务永远不能再委托、直接等待用户或替父任务确认危险副作用。 */
 const CHILD_BLOCKED_TOOL_IDS = new Set([
   "task",
+  "task_group",
   "ask_user",
   "ask_user_choice",
   "confirm_uncertain_effect",

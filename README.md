@@ -26,7 +26,7 @@
 - 💻 **代码协作（Code）** — 绑定可信代码目录，提供 LSP 语义查询（定义/引用/悬停/符号/诊断）与受限的读写改命令执行，安全边界由 Harness 的权限审批（Permission Policy）与 Execution Policy 统一把关
 - 📚 **学习陪伴（Learn）** — 绑定 Obsidian Vault，陪伴用户理解材料、整理笔记、生成练习与维护进
 - 🧠 **个性化记忆** — L0 / L1 / L2 分层记忆，结合自研记忆头像+Worldbook+沉淀长期互动
-- 🌱 **条目生命周期** — 自研DMAE算法（v4.0未实现最新v5.1）负责管理prompt在上下文中的生命周期
+- 🌱 **条目生命周期** — 自研 DMAE V5.1 算法负责管理 prompt 在上下文中的生命周期（关键词命中召回 + 激活度衰减 + Active/Dormant/Archived 三态可逆）
 - 🔊 **语音交互** — 集成 TTS、ASR 与语音通话，支持商汤 SenseAudio、MiniMax、小米 MiMo 等多种 TTS 引擎，音量和语速本地实时调节
 - 🎨 **技能管理** — 独立的技能管理面板，支持技能启用/禁用、按来源筛选、重新扫描，内置技能与自进化技能统一管理
 - 💾 **备份管理** — 独立的备份管理模块，支持手动备份、自动备份、备份恢复与删除，保护人设、风格、角色等重要配置
@@ -53,6 +53,8 @@ CyreneHarness 是 Cyrene Agent 的核心 Agent Loop，负责把**模型决策、
 - **四态 outcome 与 uncertainEffects 拦截** — 工具结果分为 `success / failure / unknown / not_executed`。当 `unknown` 且 `sideEffect === non_idempotent` 时，副作用会被记入 `state.uncertainEffects`，并 `halted = true` 暂停本轮后续同类调用，防止自动重放危险副作用。
 - **失败重试** — 工具失败时根据 `classifyToolResultError` + `resolveSideEffect` 决定是否重试；`sleepWithJitter` 退避可被 `AbortSignal` 中断。
 - **保守并行调度** — 默认串行，仅"显式声明并发安全的纯读工具"可并行（默认上限 4）；结果始终按模型原始 tool-call 顺序提交；halt / error / cancel 时已执行结果不丢弃，出错槽位以合成失败结果闭合 transcript。
+- **并行子 Agent（task_group）** — Work/Code 模式可一次并行委派多个互不依赖的前台子任务（默认并发 4），结果按输入顺序聚合；子任务各自独立会话/checkpoint/角色租约，单个失败不影响其余，且不能再委托或询问用户。
+- **AGENTS.md 项目上下文** — Code（及绑定工作目录的 Work）模式启动时读取工作区根目录的 `AGENTS.md` 一次性物化进启动 transcript（超长截断、无文件零侵入），让模型每轮都可见项目级构建/测试/架构约定。
 - **双时钟超时** — 执行计时与用户等待计时分离：`ask_user` 等待用户期间暂停执行计时，用户思考多久都不消耗任务超时预算。
 - **Mid-loop Compaction** — 每轮开始时根据 token 预算判断是否需要压缩上下文，超阈值时复用 LLM 做历史摘要，保留 todo 与已确定结果；压缩后 checkpoint 失败立即熔断，不再发起模型请求。
 - **前缀缓存体系** — 稳定前缀分层（stablePrefix / sessionPrefix / mode），Todo 等易变状态禁止进入前缀；工具清单在 run 期间冻结；动态事实一次性物化进 transcript 而非每轮拼接；`cacheEpoch` 缓存周期跨压缩 / 恢复推进；Kimi `prompt_cache_key` 等厂商缓存 hints 在请求层统一注入。
@@ -513,7 +515,7 @@ src/
 │   │   ├── code/     # Code 模式子模块（绑定工作目录 + LSP 工具）
 │   │   ├── vendors/  # 多模型厂商适配（A/B/M/D 分级 Structured Output + Function Calling）
 │   │   ├── structured-output/  # 统一 Structured Output Pipeline
-│   │   ├── subagents/ # 子 Agent（任务委派 / 子 Harness）
+│   │   ├── task-runtime.ts  # 子 Agent 委派（前台串行 task / 并行 task_group）
 │   │   ├── tools/    # 工具注册表
 │   │   ├── model-config/  # 模型配置（按 provider/model 分级）
 │   │   └── config/   # 超时 / 上下文窗口等全局配置
@@ -706,6 +708,7 @@ Embedding 索引已采用后台 Worker、批处理和缓存机制，以降低文
 
 ## 📚 相关文档
 
+- [Agent 能力升级规划](./docs/design/2026-09-05-agent-grade-upgrade-plan.md) — 双档位架构（陪伴 + Agent）与 P0-P2 升级路线图
 - [自进化技能系统](./docs/self-evolving-skills.md) — 移植自 Hermes 的程序性记忆，Agent 从成功经验中沉淀可复用流程，越用越聪明
 - [视觉模型与 OCR 预处理](./docs/vision-ocr.md) — 视觉模型架构、minicpm/moondream 对比、OCR 预处理、Ollama 自动启动机制
 - [角色切换器设计与实施](./docs/character-switcher.md) — 角色与风格绑定、记忆共通、角色管理 UI 设计

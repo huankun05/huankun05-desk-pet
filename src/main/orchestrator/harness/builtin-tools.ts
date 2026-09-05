@@ -17,7 +17,7 @@ import type {
 import { parseToolCallArgs } from "./types";
 import { isAbortError } from "../../abort-utils";
 import { resolveUncertainEffect } from "./uncertain-effect-guard";
-import type { TaskExecuteRequest, TaskExecuteResult } from "../task-runtime";
+import type { TaskExecuteRequest, TaskExecuteResult, TaskGroupExecuteRequest, TaskGroupExecuteResult } from "../task-runtime";
 import { buildGoldenDescendantsPrompt, getGoldenDescendantNames } from "../../tasks/task-character-pool";
 import { READ_TOOL_RESULT_TOOL_ID, readToolResultToolSpec } from "./tool-output/read-tool-result";
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, writePlanToolSpec } from "./plan-tools";
@@ -26,6 +26,7 @@ import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, enterPlanModeToolSpec, wri
 
 export const UPDATE_TODO_TOOL_ID = "update_todo";
 export const TASK_TOOL_ID = "task";
+export const TASK_GROUP_TOOL_ID = "task_group";
 
 const goldenDescendantNames = getGoldenDescendantNames();
 const hasGoldenDescendants = goldenDescendantNames.length > 0;
@@ -70,6 +71,85 @@ export async function executeTask(
   return { outcome: result.status === "completed" ? "success" : "failure", tool: TASK_TOOL_ID,
     message: `子任务"${description}"已${result.status === "completed" ? "完成" : result.status}。`,
     output: JSON.stringify({ taskId: result.taskId, status: result.status, text: result.text }) };
+}
+
+// ── task_group：并行子任务 ─────────────────────────────
+
+export const taskGroupToolSpec: ToolSpec = {
+  name: TASK_GROUP_TOOL_ID,
+  description: [
+    "并行委托多个互不依赖的前台子任务，一次调用聚合返回全部结果。",
+    "何时用：多个独立调查方向；多个文件或模块的独立审查；可并行实现的专项任务。",
+    "何时不用：子任务之间存在依赖或需要共享中间结果；一句话能回答的。",
+    "并行子任务必须选择不同的 companion_id（黄金裔互不相同）；某位正忙时该子任务会失败，请换一位再委托。",
+    "父任务会等待全部子任务结束；description 只用于向用户显示委托标签，prompt 是子任务完整指令。子任务不能询问用户或再次委托（含 task_group）。",
+    "建议不要拆分过细：每个子任务应有明确交付物，子任务各自消耗独立上下文窗口。",
+    buildGoldenDescendantsPrompt(),
+  ].filter(Boolean).join(""),
+  parameters: { type: "object", properties: {
+    tasks: {
+      type: "array",
+      description: "并行执行的子任务列表（1-8 个）",
+      items: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "给用户显示的 3-40 字任务标签" },
+          prompt: { type: "string", description: "子任务完整执行指令" },
+          subagent_type: { type: "string", enum: ["general", "document", "search"] },
+          ...(hasGoldenDescendants ? {
+            companion_id: { type: "string", enum: [...goldenDescendantNames], description: "本子任务的黄金裔名字；并行任务必须互不相同" },
+          } : {}),
+          task_id: { type: "string", description: "可选：恢复此前同一子任务" },
+        },
+        required: ["description", "prompt", "subagent_type", ...(hasGoldenDescendants ? ["companion_id"] : [])],
+      },
+    },
+    max_parallel: { type: "number", description: "可选：并发上限（默认 4，不超过任务数）" },
+  }, required: ["tasks"] },
+};
+
+export async function executeTaskGroup(
+  call: ToolCall,
+  executor: ((request: TaskGroupExecuteRequest) => Promise<TaskGroupExecuteResult>) | undefined,
+): Promise<ToolObservation> {
+  if (!executor) {
+    return { outcome: "failure", category: "runtime_safety", tool: TASK_GROUP_TOOL_ID, message: "TaskGroupRuntime 未注入，当前运行不能并行委托子任务" };
+  }
+  const args = parseToolCallArgs(call);
+  const rawTasks = args.tasks;
+  if (!Array.isArray(rawTasks) || rawTasks.length === 0 || rawTasks.length > 8) {
+    return { outcome: "failure", category: "invalid_arguments", tool: TASK_GROUP_TOOL_ID, message: "task_group 需要 1-8 个 tasks" };
+  }
+  const tasks: TaskExecuteRequest[] = [];
+  for (const raw of rawTasks) {
+    if (!raw || typeof raw !== "object") {
+      return { outcome: "failure", category: "invalid_arguments", tool: TASK_GROUP_TOOL_ID, message: "tasks 内每一项都必须是对象" };
+    }
+    const item = raw as Record<string, unknown>;
+    const description = typeof item.description === "string" ? item.description.trim() : "";
+    const prompt = typeof item.prompt === "string" ? item.prompt.trim() : "";
+    const subagentType = item.subagent_type;
+    const companionId = typeof item.companion_id === "string" ? item.companion_id.trim() : "";
+    const taskId = typeof item.task_id === "string" ? item.task_id.trim() || undefined : undefined;
+    if (description.length < 3 || description.length > 40 || !prompt
+      || !companionId
+      || (subagentType !== "general" && subagentType !== "document" && subagentType !== "search")) {
+      return { outcome: "failure", category: "invalid_arguments", tool: TASK_GROUP_TOOL_ID, message: "tasks 内每一项都需要 3-40 字 description、非空 prompt、合法 subagent_type 与明确 companion_id" };
+    }
+    tasks.push({ description, prompt, subagentType, companionId, taskId });
+  }
+  const maxParallel = typeof args.max_parallel === "number" && Number.isFinite(args.max_parallel)
+    ? Math.max(1, Math.floor(args.max_parallel))
+    : undefined;
+  const result = await executor({ tasks, ...(maxParallel !== undefined ? { maxParallel } : {}) });
+  const summary = result.results.map((item) => ({ taskId: item.taskId, status: item.status, text: item.text }));
+  const completed = result.results.filter((item) => item.status === "completed").length;
+  return {
+    outcome: result.results.every((item) => item.status === "completed") ? "success" : "failure",
+    tool: TASK_GROUP_TOOL_ID,
+    message: `并行子任务完成 ${completed}/${result.results.length}。`,
+    output: JSON.stringify({ results: summary }),
+  };
 }
 
 export const updateTodoToolSpec: ToolSpec = {
@@ -578,6 +658,7 @@ export async function executeConfirmUncertainEffect(
 
 export const HARNESS_BUILTIN_TOOL_IDS = new Set([
   TASK_TOOL_ID,
+  TASK_GROUP_TOOL_ID,
   UPDATE_TODO_TOOL_ID,
   ASK_USER_TOOL_ID,
   CONFIRM_UNCERTAIN_EFFECT_TOOL_ID,
@@ -622,7 +703,7 @@ export function getHarnessBuiltinToolSpecs(options?: {
   const interactive = options?.includeInteractive !== false
     ? [askUserToolSpec, confirmUncertainEffectToolSpec]
     : [];
-  const task = options?.includeTask === false ? [] : [taskToolSpec];
+  const task = options?.includeTask === false ? [] : [taskToolSpec, taskGroupToolSpec];
   const plan = planToolSpecsFor(options?.planState);
   return [updateTodoToolSpec, ...interactive, ...task, readToolResultToolSpec, ...plan];
 }

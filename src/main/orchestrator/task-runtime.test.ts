@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskSessionStore } from "../tasks/task-session-store";
-import { buildChildPromptLayers, createTaskExecutor } from "./task-runtime";
+import { buildChildPromptLayers, createTaskExecutor, createTaskGroupExecutor } from "./task-runtime";
 import type { ToolDefinition } from "./tools/registry/tool-registry";
 import { TaskCharacterLeasePool } from "../tasks/task-character-pool";
 import type { TaskDelegationPresentation } from "../../shared/task-session";
@@ -230,5 +230,143 @@ describe("TaskRuntime", () => {
 
     expect(lifecycle.at(-1)?.status).toBe(expected);
     expect(characterPool.acquire("conversation-1", "风堇").nickname).toBe("风堇");
+  });
+});
+
+describe("TaskGroupRuntime", () => {
+  function createGroupStore() {
+    let id = 0;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-task-group-"));
+    roots.push(root);
+    return new TaskSessionStore(root, {
+      createId: () => `task-${++id}`,
+      createChildRunId: () => `child-run-${id}`,
+    });
+  }
+
+  function okResult(text: string) {
+    return {
+      finalAnswer: text,
+      finalState: { todoItems: [], uncertainEffects: [] },
+      terminated: false,
+      rounds: 1,
+      terminal: { status: "success" as const, externalEffectsMayContinue: false },
+    };
+  }
+
+  it("runs members concurrently and aggregates results in input order", async () => {
+    const store = createGroupStore();
+    let concurrent = 0;
+    let peak = 0;
+    const runHarness = vi.fn(async (input: any) => {
+      concurrent += 1;
+      peak = Math.max(peak, concurrent);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      concurrent -= 1;
+      return okResult(input.systemPrompt);
+    });
+    const execute = createTaskGroupExecutor({ parent, store, runHarness });
+
+    const result = await execute({
+      tasks: [
+        { description: "调查 A", prompt: "调查 A", subagentType: "general" as const, companionId: "风堇" },
+        { description: "调查 B", prompt: "调查 B", subagentType: "general" as const, companionId: "丹恒" },
+        { description: "调查 C", prompt: "调查 C", subagentType: "general" as const, companionId: "缇宝" },
+      ],
+    });
+
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(runHarness).toHaveBeenCalledTimes(3);
+    expect(result.results).toHaveLength(3);
+    expect(result.results.map((item) => item.status)).toEqual(["completed", "completed", "completed"]);
+  });
+
+  it("respects an explicit concurrency cap", async () => {
+    const store = createGroupStore();
+    let concurrent = 0;
+    let peak = 0;
+    const runHarness = vi.fn(async () => {
+      concurrent += 1;
+      peak = Math.max(peak, concurrent);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      concurrent -= 1;
+      return okResult("ok");
+    });
+    const execute = createTaskGroupExecutor({ parent, store, runHarness });
+
+    await execute({
+      maxParallel: 2,
+      tasks: ["风堇", "丹恒", "缇宝", "白厄", "万敌"].map((nickname, index) => ({
+        description: `任务${index}`,
+        prompt: `执行${index}`,
+        subagentType: "general" as const,
+        companionId: nickname,
+      })),
+    });
+
+    expect(peak).toBe(2);
+    expect(runHarness).toHaveBeenCalledTimes(5);
+  });
+
+  it("persists each member as its own isolated session", async () => {
+    const store = createGroupStore();
+    const runHarness = vi.fn(async () => okResult("完成。"));
+    const execute = createTaskGroupExecutor({ parent, store, runHarness });
+
+    const result = await execute({
+      tasks: [
+        { description: "检查 A", prompt: "检查 A", subagentType: "general" as const, companionId: "风堇" },
+        { description: "检查 B", prompt: "检查 B", subagentType: "general" as const, companionId: "丹恒" },
+      ],
+    });
+
+    expect(store.get("task-1")).toMatchObject({ status: "completed", resultText: "完成。" });
+    expect(store.get("task-2")).toMatchObject({ status: "completed", resultText: "完成。" });
+    expect(result.results.map((item) => item.taskId)).toEqual(["task-1", "task-2"]);
+  });
+
+  it("isolates a failing member without aborting the group", async () => {
+    const store = createGroupStore();
+    const runHarness = vi.fn(async (input: any) => {
+      if (String(input.messages?.[0]?.content).includes("失败")) throw new Error("BOOM");
+      return okResult("完成。");
+    });
+    const execute = createTaskGroupExecutor({ parent, store, runHarness });
+
+    const result = await execute({
+      tasks: [
+        { description: "检查 A", prompt: "检查 A", subagentType: "general" as const, companionId: "风堇" },
+        { description: "检查 B", prompt: "失败任务", subagentType: "general" as const, companionId: "丹恒" },
+      ],
+    });
+
+    expect(runHarness).toHaveBeenCalledTimes(2);
+    expect(result.results[0].status).toBe("completed");
+    expect(result.results[1]).toMatchObject({ status: "failed", text: "BOOM" });
+    expect(store.get("task-2")).toMatchObject({ status: "failed", error: { message: "BOOM" } });
+  });
+
+  it("rejects an empty group before scheduling", async () => {
+    const store = createGroupStore();
+    const execute = createTaskGroupExecutor({ parent, store, runHarness: vi.fn() as never });
+
+    await expect(execute({ tasks: [] })).rejects.toThrow("TASK_GROUP_EMPTY");
+  });
+
+  it("releases every nickname back to the pool after the group settles", async () => {
+    const store = createGroupStore();
+    const characterPool = new TaskCharacterLeasePool();
+    const execute = createTaskGroupExecutor({ parent, store, characterPool, runHarness: vi.fn(async () => okResult("完成。")) });
+
+    await execute({
+      tasks: [
+        { description: "检查 A", prompt: "检查 A", subagentType: "general" as const, companionId: "风堇" },
+        { description: "检查 B", prompt: "检查 B", subagentType: "general" as const, companionId: "丹恒" },
+      ],
+    });
+
+    expect(characterPool.acquire("conversation-1", "风堇").nickname).toBe("风堇");
+    expect(characterPool.acquire("conversation-1", "丹恒").nickname).toBe("丹恒");
   });
 });

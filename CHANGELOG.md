@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **并行子 Agent（task_group）**：Work/Code 模式新增 `task_group` 内置工具，一次调用可并行委派多个互不依赖的子任务（默认并发上限 4，结果按输入顺序聚合返回）；子任务各自独立会话/checkpoint/角色租约，单个失败不影响其余
+- **AGENTS.md 项目上下文**：Code（及绑定工作目录的 Work）模式启动时读取工作区根目录 AGENTS.md 注入启动 transcript，让模型看到项目级构建/测试/架构约定；超长自动截断，无文件时零侵入
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置

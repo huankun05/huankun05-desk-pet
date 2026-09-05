@@ -27,6 +27,21 @@ export interface TaskExecuteResult {
   text: string;
 }
 
+/** 并行子任务组的执行请求：一次聚合多个独立子任务。 */
+export interface TaskGroupExecuteRequest {
+  tasks: TaskExecuteRequest[];
+  /** 并发上限；缺省用 DEFAULT_TASK_GROUP_MAX_PARALLEL，且不超过任务数。 */
+  maxParallel?: number;
+}
+
+/** 并行子任务组的聚合结果：results 与 tasks 输入顺序一一对齐。 */
+export interface TaskGroupExecuteResult {
+  results: TaskExecuteResult[];
+}
+
+/** 并行子任务默认并发上限（对应 Harness 保守并行调度的默认 4）。 */
+export const DEFAULT_TASK_GROUP_MAX_PARALLEL = 4;
+
 export interface TaskRuntimeParentContext {
   parentConversationId: string;
   parentRunId: string;
@@ -66,6 +81,133 @@ export function buildChildPromptLayers(parent: TaskRuntimeParentContext, profile
   };
 }
 
+/** 单个子任务执行所需的最小依赖集合；单任务执行器与并行组执行器共享。 */
+interface TaskRuntimeDeps {
+  parent: TaskRuntimeParentContext;
+  store: TaskSessionStore;
+  runHarness: typeof runCyreneHarness;
+  characterPool: Pick<TaskCharacterLeasePool, "acquire">;
+  onLifecycle?: (event: TaskDelegationPresentation) => void;
+}
+
+/**
+ * 执行单个前台子任务：创建/恢复会话 → 租角色 → 跑子 Harness → 结算落盘 → 释放角色。
+ * 业务错误（含父会话不匹配、角色正忙、子 Harness 失败）统一在会话已创建后
+ * 落盘为 failed/cancelled 并**上抛**，由调用方决定单任务拒绝还是组内隔离。
+ */
+async function runSingleTask(deps: TaskRuntimeDeps, request: TaskExecuteRequest): Promise<TaskExecuteResult> {
+  const { parent, store, runHarness, characterPool, onLifecycle } = deps;
+  const profile = getTaskAgentProfile(request.subagentType);
+  const session = request.taskId
+    ? store.resume(request.taskId, {
+        parentConversationId: parent.parentConversationId,
+        parentRunId: parent.parentRunId,
+        subagentType: request.subagentType,
+        prompt: request.prompt,
+      })
+    : store.create({
+        parentConversationId: parent.parentConversationId,
+        parentRunId: parent.parentRunId,
+        description: request.description,
+        prompt: request.prompt,
+        subagentType: request.subagentType,
+        mode: parent.mode,
+        resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot,
+      });
+
+  const toolContext: ToolContext = {
+    userQuery: request.prompt,
+    conversationId: parent.parentConversationId,
+    runId: session.childRunId,
+    signal: parent.signal,
+    resolvedWorkspaceRoot: parent.resolvedWorkspaceRoot,
+    mode: parent.mode,
+    allowedSkillIds: parent.capabilities?.skillIds,
+    permissionMode: parent.permissionMode,
+  };
+
+  const lease = characterPool.acquire(parent.parentConversationId, request.companionId);
+  const presentation = {
+    invocationId: session.childRunId,
+    taskId: session.id,
+    description: request.description,
+    nickname: lease.nickname,
+    assetFileName: lease.assetFileName,
+  };
+  onLifecycle?.({ ...presentation, status: "running" });
+
+  try {
+    const promptLayers = buildChildPromptLayers(parent, profile.systemPrompt);
+    const result = await runHarness({
+      systemPrompt: promptLayers.stablePrefix,
+      promptLayers,
+      messages: session.messages as ChatMessage[],
+      tools: resolveTaskTools(profile, parent.tools),
+      vendorConfig: parent.vendorConfig,
+      config: { totalTimeoutMs: profile.timeoutMs },
+      initialState: {
+        todoItems: session.todoItems,
+        uncertainEffects: [],
+      },
+      signal: parent.signal,
+      toolContext,
+      toolOutputStore: parent.toolOutputStore,
+      checkPermission: parent.checkPermission,
+      includeInteractiveTools: parent.includeInteractiveTools,
+      onEvent: (event) => {
+        const trace = projectTaskTraceEvent(event);
+        if (trace) {
+          const current = store.get(session.id);
+          if (current) store.checkpoint(session.id, { trace: [...current.trace, trace] });
+        }
+      },
+      onCheckpoint: (checkpoint) => {
+        store.checkpoint(session.id, {
+          messages: checkpoint.messages as TaskTranscriptMessage[],
+          todoItems: checkpoint.state.todoItems,
+        });
+      },
+    });
+    const mapped = taskStatus(result);
+    store.checkpoint(session.id, {
+      status: mapped.status,
+      resultText: result.finalAnswer,
+      todoItems: result.finalState.todoItems,
+      ...(mapped.error ? { error: mapped.error } : {}),
+      completedAt: Date.now(),
+    });
+    onLifecycle?.({ ...presentation, status: mapped.status });
+    return { taskId: session.id, status: mapped.status, text: result.finalAnswer };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    store.checkpoint(session.id, {
+      status: parent.signal?.aborted ? "cancelled" : "failed",
+      error: { code: parent.signal?.aborted ? "TASK_CANCELLED" : "TASK_RUNTIME_ERROR", message },
+      completedAt: Date.now(),
+    });
+    onLifecycle?.({ ...presentation, status: parent.signal?.aborted ? "cancelled" : "failed" });
+    throw error;
+  } finally {
+    lease.release();
+  }
+}
+
+function buildTaskRuntimeDeps(input: {
+  parent: TaskRuntimeParentContext;
+  store: TaskSessionStore;
+  runHarness?: typeof runCyreneHarness;
+  characterPool?: Pick<TaskCharacterLeasePool, "acquire">;
+  onLifecycle?: (event: TaskDelegationPresentation) => void;
+}): TaskRuntimeDeps {
+  return {
+    parent: input.parent,
+    store: input.store,
+    runHarness: input.runHarness ?? runCyreneHarness,
+    characterPool: input.characterPool ?? taskCharacterLeasePool,
+    onLifecycle: input.onLifecycle,
+  };
+}
+
 export function createTaskExecutor(input: {
   parent: TaskRuntimeParentContext;
   store: TaskSessionStore;
@@ -73,101 +215,56 @@ export function createTaskExecutor(input: {
   characterPool?: Pick<TaskCharacterLeasePool, "acquire">;
   onLifecycle?: (event: TaskDelegationPresentation) => void;
 }): (request: TaskExecuteRequest) => Promise<TaskExecuteResult> {
-  const runHarness = input.runHarness ?? runCyreneHarness;
-  const characterPool = input.characterPool ?? taskCharacterLeasePool;
+  const deps = buildTaskRuntimeDeps(input);
+  return (request) => runSingleTask(deps, request);
+}
+
+/**
+ * 并行子任务执行器：以 maxParallel（默认 4）并发上限调度多个独立子任务，
+ * 单个子任务失败/取消不影响其余；结果按输入顺序对齐。
+ * 每个子任务仍然走独立的 TaskSessionStore 会话、checkpoint 与角色租约。
+ */
+export function createTaskGroupExecutor(input: {
+  parent: TaskRuntimeParentContext;
+  store: TaskSessionStore;
+  runHarness?: typeof runCyreneHarness;
+  characterPool?: Pick<TaskCharacterLeasePool, "acquire">;
+  onLifecycle?: (event: TaskDelegationPresentation) => void;
+}): (request: TaskGroupExecuteRequest) => Promise<TaskGroupExecuteResult> {
+  const deps = buildTaskRuntimeDeps(input);
   return async (request) => {
-    const profile = getTaskAgentProfile(request.subagentType);
-    const session = request.taskId
-      ? input.store.resume(request.taskId, {
-          parentConversationId: input.parent.parentConversationId,
-          parentRunId: input.parent.parentRunId,
-          subagentType: request.subagentType,
-          prompt: request.prompt,
-        })
-      : input.store.create({
-          parentConversationId: input.parent.parentConversationId,
-          parentRunId: input.parent.parentRunId,
-          description: request.description,
-          prompt: request.prompt,
-          subagentType: request.subagentType,
-          mode: input.parent.mode,
-          resolvedWorkspaceRoot: input.parent.resolvedWorkspaceRoot,
-        });
+    const tasks = Array.isArray(request.tasks) ? request.tasks : [];
+    if (tasks.length === 0) throw new Error("TASK_GROUP_EMPTY");
+    const maxParallel = Math.max(
+      1,
+      Math.min(
+        Number.isFinite(request.maxParallel) && request.maxParallel !== undefined
+          ? Math.floor(request.maxParallel)
+          : DEFAULT_TASK_GROUP_MAX_PARALLEL,
+        tasks.length,
+      ),
+    );
 
-    const toolContext: ToolContext = {
-      userQuery: request.prompt,
-      conversationId: input.parent.parentConversationId,
-      runId: session.childRunId,
-      signal: input.parent.signal,
-      resolvedWorkspaceRoot: input.parent.resolvedWorkspaceRoot,
-      mode: input.parent.mode,
-      allowedSkillIds: input.parent.capabilities?.skillIds,
-      permissionMode: input.parent.permissionMode,
+    const results = new Array<TaskExecuteResult>(tasks.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < tasks.length) {
+        const index = cursor;
+        cursor += 1;
+        const task = tasks[index];
+        try {
+          results[index] = await runSingleTask(deps, task);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          results[index] = {
+            taskId: task.taskId ?? "",
+            status: deps.parent.signal?.aborted ? "cancelled" : "failed",
+            text: message,
+          };
+        }
+      }
     };
-
-    const lease = characterPool.acquire(input.parent.parentConversationId, request.companionId);
-    const presentation = {
-      invocationId: session.childRunId,
-      taskId: session.id,
-      description: request.description,
-      nickname: lease.nickname,
-      assetFileName: lease.assetFileName,
-    };
-    input.onLifecycle?.({ ...presentation, status: "running" });
-
-    try {
-      const promptLayers = buildChildPromptLayers(input.parent, profile.systemPrompt);
-      const result = await runHarness({
-        systemPrompt: promptLayers.stablePrefix,
-        promptLayers,
-        messages: session.messages as ChatMessage[],
-        tools: resolveTaskTools(profile, input.parent.tools),
-        vendorConfig: input.parent.vendorConfig,
-        config: { totalTimeoutMs: profile.timeoutMs },
-        initialState: {
-          todoItems: session.todoItems,
-          uncertainEffects: [],
-        },
-        signal: input.parent.signal,
-        toolContext,
-        toolOutputStore: input.parent.toolOutputStore,
-        checkPermission: input.parent.checkPermission,
-        includeInteractiveTools: input.parent.includeInteractiveTools,
-        onEvent: (event) => {
-          const trace = projectTaskTraceEvent(event);
-          if (trace) {
-            const current = input.store.get(session.id);
-            if (current) input.store.checkpoint(session.id, { trace: [...current.trace, trace] });
-          }
-        },
-        onCheckpoint: (checkpoint) => {
-          input.store.checkpoint(session.id, {
-            messages: checkpoint.messages as TaskTranscriptMessage[],
-            todoItems: checkpoint.state.todoItems,
-          });
-        },
-      });
-      const mapped = taskStatus(result);
-      input.store.checkpoint(session.id, {
-        status: mapped.status,
-        resultText: result.finalAnswer,
-        todoItems: result.finalState.todoItems,
-        ...(mapped.error ? { error: mapped.error } : {}),
-        completedAt: Date.now(),
-      });
-      input.onLifecycle?.({ ...presentation, status: mapped.status });
-      return { taskId: session.id, status: mapped.status, text: result.finalAnswer };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      input.store.checkpoint(session.id, {
-        status: input.parent.signal?.aborted ? "cancelled" : "failed",
-        error: { code: input.parent.signal?.aborted ? "TASK_CANCELLED" : "TASK_RUNTIME_ERROR", message },
-        completedAt: Date.now(),
-      });
-      input.onLifecycle?.({ ...presentation, status: input.parent.signal?.aborted ? "cancelled" : "failed" });
-      throw error;
-    } finally {
-      lease.release();
-    }
+    await Promise.all(Array.from({ length: maxParallel }, worker));
+    return { results };
   };
 }

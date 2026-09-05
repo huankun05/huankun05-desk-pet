@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getById, checkPermission, createTaskExecutor, taskStore, toolOutputStore } = vi.hoisted(() => ({
+const { getById, checkPermission, createTaskExecutor, createTaskGroupExecutor, taskStore, toolOutputStore } = vi.hoisted(() => ({
   getById: vi.fn(),
   checkPermission: vi.fn(),
   createTaskExecutor: vi.fn(() => ({ execute: vi.fn() })),
+  createTaskGroupExecutor: vi.fn(() => ({ executeGroup: vi.fn() })),
   taskStore: vi.fn(),
   toolOutputStore: vi.fn(),
 }));
@@ -11,7 +12,7 @@ const { getById, checkPermission, createTaskExecutor, taskStore, toolOutputStore
 vi.mock("../../tools/registry/tool-registry", () => ({ toolRegistry: { getById } }));
 vi.mock("../../../permission", () => ({ checkPermission }));
 vi.mock("../../plan-mode", () => ({ isPlanReadOnly: vi.fn(() => false) }));
-vi.mock("../../task-runtime", () => ({ createTaskExecutor }));
+vi.mock("../../task-runtime", () => ({ createTaskExecutor, createTaskGroupExecutor }));
 vi.mock("../../../tasks/task-session-store", () => ({ TaskSessionStore: taskStore }));
 vi.mock("../tool-output/file-tool-output-store", () => ({ FileToolOutputStore: toolOutputStore }));
 vi.mock("./event-mapper", () => ({ sendTaskLifecycleAsAgui: vi.fn() }));
@@ -24,6 +25,7 @@ describe("harness tool runtime", () => {
     getById.mockReset();
     checkPermission.mockReset();
     createTaskExecutor.mockClear();
+    createTaskGroupExecutor.mockClear();
     checkPermission.mockResolvedValue({ allowed: true });
     getById.mockReturnValue({
       id: "read_file",
@@ -65,6 +67,10 @@ describe("harness tool runtime", () => {
     }));
     await runtime.taskExecutor;
     expect(createTaskExecutor).toHaveBeenCalledWith(expect.objectContaining({
+      parent: expect.objectContaining({ signal: controller.signal }),
+    }));
+    await runtime.taskGroupExecutor;
+    expect(createTaskGroupExecutor).toHaveBeenCalledWith(expect.objectContaining({
       parent: expect.objectContaining({ signal: controller.signal }),
     }));
   });

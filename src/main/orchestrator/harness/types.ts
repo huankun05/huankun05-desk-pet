@@ -264,6 +264,8 @@ export interface HarnessInput {
   toolOutputStore?: ToolOutputStore;
   /** 父会话注入的前台子任务执行器；子 Harness 不会继续注入它。 */
   taskExecutor?: (request: import("../task-runtime").TaskExecuteRequest) => Promise<import("../task-runtime").TaskExecuteResult>;
+  /** 父会话注入的并行子任务执行器（task_group）；子 Harness 不会继续注入它。 */
+  taskGroupExecutor?: (request: import("../task-runtime").TaskGroupExecuteRequest) => Promise<import("../task-runtime").TaskGroupExecuteResult>;
 }
 
 export interface HarnessResult {

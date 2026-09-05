@@ -8,7 +8,8 @@ import { isPlanReadOnly } from "../../plan-mode";
 import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "../../tools/registry/tool-context";
 import type { HarnessInput } from "../index";
 import { TaskSessionStore } from "../../../tasks/task-session-store";
-import { createTaskExecutor } from "../../task-runtime";
+import type { TaskDelegationPresentation } from "../../../../shared/task-session";
+import { createTaskExecutor, createTaskGroupExecutor } from "../../task-runtime";
 import { FileToolOutputStore } from "../tool-output/file-tool-output-store";
 import { sendTaskLifecycleAsAgui } from "./event-mapper";
 import type { PreparedHarnessRun } from "./run-preparation";
@@ -23,6 +24,7 @@ export interface PreparedToolRuntime {
   checkPermission: NonNullable<HarnessInput["checkPermission"]>;
   toolOutputStore: FileToolOutputStore;
   taskExecutor: HarnessInput["taskExecutor"];
+  taskGroupExecutor: HarnessInput["taskGroupExecutor"];
 }
 
 export function prepareToolRuntime(input: {
@@ -77,12 +79,13 @@ export function prepareToolRuntime(input: {
   };
   const toolOutputStore = new FileToolOutputStore(app.getPath("userData"));
   // 只有 work/code 模式允许派生任务；chat 模式不创建 TaskSession，避免出现不可见的后台执行。
-  const taskExecutor = options.conversationMode === "work" || options.conversationMode === "code"
-    ? createTaskExecutor({
+  const canDelegate = options.conversationMode === "work" || options.conversationMode === "code";
+  const taskExecutorInput = canDelegate
+    ? {
       parent: {
         parentConversationId: threadId,
         parentRunId: runId,
-        mode: options.conversationMode,
+        mode: options.conversationMode as "work" | "code",
         capabilities: options.capabilities,
         systemPrompt,
         vendorConfig,
@@ -95,9 +98,11 @@ export function prepareToolRuntime(input: {
         toolOutputStore,
       },
       store: new TaskSessionStore(app.getPath("userData")),
-      onLifecycle: (event) => sendTaskLifecycleAsAgui(event, threadId, runId, input.sendBaseEvent),
-    })
+      onLifecycle: (event: TaskDelegationPresentation) => sendTaskLifecycleAsAgui(event, threadId, runId, input.sendBaseEvent),
+    }
     : undefined;
+  const taskExecutor = taskExecutorInput ? createTaskExecutor(taskExecutorInput) : undefined;
+  const taskGroupExecutor = taskExecutorInput ? createTaskGroupExecutor(taskExecutorInput) : undefined;
 
-  return { toolContext, checkPermission: permissionCheck, toolOutputStore, taskExecutor };
+  return { toolContext, checkPermission: permissionCheck, toolOutputStore, taskExecutor, taskGroupExecutor };
 }

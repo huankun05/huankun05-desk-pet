@@ -12,6 +12,7 @@ import {
   materializeHarnessStartTranscript,
 } from "./prompt-builder";
 import { preparePlanRunContext } from "./plan-lifecycle";
+import { loadWorkspaceContext } from "../../workspace-context";
 import { app } from "electron";
 
 /**
@@ -133,10 +134,15 @@ export async function prepareHarnessRun(
   const promptLayers = buildHarnessPromptLayers(
     recoveryContext ? { ...options, recoveryContext } : options,
   );
+  // AGENTS.md 项目上下文：仅 work/code 且绑定工作目录时读取，随启动 transcript 一次性物化，
+  // 不进 stablePrefix，不破坏前缀缓存；无文件时与现状完全一致。
+  const workspaceContext = (options.conversationMode === "work" || options.conversationMode === "code")
+    ? loadWorkspaceContext(options.resolvedWorkspaceRoot)
+    : undefined;
   const runMessages = materializeHarnessStartTranscript({
     messages: baseRunMessages,
     runId,
-    runtimeContext: promptLayers.runtimeContext,
+    runtimeContext: [promptLayers.runtimeContext, workspaceContext].filter(Boolean).join("\n\n"),
     initialState: recovered?.state,
     kind: recovered ? "recovery" : "run_start",
   });

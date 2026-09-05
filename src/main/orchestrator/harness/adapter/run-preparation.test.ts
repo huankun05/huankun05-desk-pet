@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const { trace, preparePlanRunContext, buildHarnessPromptLayers, materializeHarnessStartTranscript, runStore } = vi.hoisted(() => ({
   trace: [] as string[],
@@ -57,6 +60,50 @@ describe("harness run preparation", () => {
       conversationId: "thread-1",
       runId: "run-preparation",
       messages: expect.arrayContaining([{ role: "user", content: "materialized" }]),
+    }));
+  });
+
+  it("injects AGENTS.md workspace context into the startup transcript for code mode", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cyrene-run-prep-"));
+    try {
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "构建命令：npm run build", "utf8");
+
+      await prepareHarnessRun({
+        runId: "run-code",
+        conversationId: "thread-1",
+        conversationMode: "code",
+        settings: { provider: "test", baseUrl: "", model: "model", apiKey: "" },
+        messages: [{ role: "user", content: "改代码" }],
+        toolSystemContent: "",
+        soulSystemBaseContent: "persona",
+        resolvedWorkspaceRoot: root,
+      } as never, new AbortController().signal);
+
+      expect(materializeHarnessStartTranscript).toHaveBeenCalledWith(expect.objectContaining({
+        runtimeContext: expect.stringContaining("[WORKSPACE_CONTEXT]"),
+      }));
+      expect(materializeHarnessStartTranscript).toHaveBeenCalledWith(expect.objectContaining({
+        runtimeContext: expect.stringContaining("npm run build"),
+      }));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not inject workspace context for chat mode or an unbound workspace", async () => {
+    await prepareHarnessRun({
+      runId: "run-chat",
+      conversationId: "thread-1",
+      conversationMode: "chat",
+      settings: { provider: "test", baseUrl: "", model: "model", apiKey: "" },
+      messages: [{ role: "user", content: "聊聊" }],
+      toolSystemContent: "",
+      soulSystemBaseContent: "persona",
+      resolvedWorkspaceRoot: "E:\\some-root",
+    } as never, new AbortController().signal);
+
+    expect(materializeHarnessStartTranscript).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeContext: "runtime",
     }));
   });
 });

@@ -7,6 +7,8 @@ import {
   executeUpdateTodo,
   taskToolSpec,
   executeTask,
+  taskGroupToolSpec,
+  executeTaskGroup,
   getHarnessBuiltinToolSpecs,
 } from "./builtin-tools";
 import type { AgentState } from "./types";
@@ -27,7 +29,7 @@ function currentState(): AgentState {
 describe("Harness user-wait builtins", () => {
   it("omits interactive builtins when the channel cannot render Ask", () => {
     expect(getHarnessBuiltinToolSpecs({ includeInteractive: false }).map((tool) => tool.name))
-      .toEqual(["update_todo", "task", "read_tool_result"]);
+      .toEqual(["update_todo", "task", "task_group", "read_tool_result"]);
   });
 
   it("omits task when the run has no task executor", () => {
@@ -306,5 +308,86 @@ describe("Harness user-wait builtins", () => {
 
     expect(result.outcome).toBe("success");
     expect(state.uncertainEffects[0].repeatAuthorization).toBeUndefined();
+  });
+});
+
+describe("task_group parallel builtin", () => {
+  function groupCall(tasks: unknown[]) {
+    return { id: "group-call", name: "task_group", arguments: JSON.stringify({ tasks }) };
+  }
+
+  it("advertises the parallel contract with distinct companions", () => {
+    expect(taskGroupToolSpec.name).toBe("task_group");
+    expect(taskGroupToolSpec.description).toContain("并行");
+    expect(JSON.stringify(taskGroupToolSpec.parameters)).toContain("companion_id");
+    expect(JSON.stringify(taskGroupToolSpec.parameters)).toContain("max_parallel");
+  });
+
+  it("delegates all parsed tasks and aggregates results in input order", async () => {
+    const executor = vi.fn(async ({ tasks }: { tasks: { description: string }[] }) => ({
+      results: tasks.map((task, index) => ({ taskId: `task-${index}`, status: "completed" as const, text: `结果${index}` })),
+    }));
+    const result = await executeTaskGroup(groupCall([
+      { description: "调查 A 方案", prompt: "调查 A。", subagent_type: "general", companion_id: "风堇" },
+      { description: "调查 B 方案", prompt: "调查 B。", subagent_type: "search", companion_id: "丹恒" },
+    ]), executor);
+
+    expect(executor).toHaveBeenCalledWith({
+      tasks: [
+        { description: "调查 A 方案", prompt: "调查 A。", subagentType: "general", companionId: "风堇", taskId: undefined },
+        { description: "调查 B 方案", prompt: "调查 B。", subagentType: "search", companionId: "丹恒", taskId: undefined },
+      ],
+    });
+    expect(result.outcome).toBe("success");
+    const output = JSON.parse(result.output!) as { results: Array<{ status: string }> };
+    expect(output.results.map((item) => item.status)).toEqual(["completed", "completed"]);
+    expect(result.message).toContain("2/2");
+  });
+
+  it("reports partial failure while still returning every child result", async () => {
+    const executor = vi.fn(async () => ({
+      results: [
+        { taskId: "task-0", status: "completed" as const, text: "好的" },
+        { taskId: "task-1", status: "failed" as const, text: "角色正忙" },
+      ],
+    }));
+    const result = await executeTaskGroup(groupCall([
+      { description: "任务一", prompt: "执行一", subagent_type: "general", companion_id: "风堇" },
+      { description: "任务二", prompt: "执行二", subagent_type: "general", companion_id: "丹恒" },
+    ]), executor);
+
+    expect(result.outcome).toBe("failure");
+    expect(result.message).toContain("1/2");
+    expect(JSON.parse(result.output!).results[1]).toMatchObject({ status: "failed", text: "角色正忙" });
+  });
+
+  it.each([
+    { name: "missing tasks", tasks: undefined },
+    { name: "empty tasks", tasks: [] },
+    { name: "more than eight tasks", tasks: Array.from({ length: 9 }, () => ({ description: "任务", prompt: "执行", subagent_type: "general", companion_id: "风堇" })) },
+  ])("rejects $name before delegating", async ({ tasks }) => {
+    const executor = vi.fn();
+    const result = await executeTaskGroup({ id: "group-call", name: "task_group", arguments: JSON.stringify({ tasks }) }, executor);
+    expect(result).toMatchObject({ outcome: "failure", category: "invalid_arguments" });
+    expect(executor).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member that misses a required field and delegates nothing", async () => {
+    const executor = vi.fn();
+    const result = await executeTaskGroup(groupCall([
+      { description: "任务一", prompt: "执行一", subagent_type: "general", companion_id: "风堇" },
+      { description: "任务二", prompt: "执行二", subagent_type: "general" },
+    ]), executor);
+
+    expect(result).toMatchObject({ outcome: "failure", category: "invalid_arguments" });
+    expect(executor).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the group runtime is not injected", async () => {
+    const result = await executeTaskGroup(groupCall([
+      { description: "任务一", prompt: "执行一", subagent_type: "general", companion_id: "风堇" },
+    ]), undefined);
+
+    expect(result).toMatchObject({ outcome: "failure", category: "runtime_safety" });
   });
 });

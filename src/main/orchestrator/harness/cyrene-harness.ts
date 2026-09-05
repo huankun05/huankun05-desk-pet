@@ -240,6 +240,7 @@ function createRun(input: HarnessInput): HarnessRun {
       toolContext: input.toolContext,
       executionLedger: input.executionLedger,
       taskExecutor: input.taskExecutor,
+      taskGroupExecutor: input.taskGroupExecutor,
       deferOutputPersistence: true,
     },
   };
