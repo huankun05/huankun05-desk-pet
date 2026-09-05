@@ -5,6 +5,8 @@ import {
   getLogLevel,
   addLogSink,
   removeLogSink,
+  setLogRedactor,
+  getLogRedactor,
   type LogLevel,
   type LogEntry,
 } from "./logger";
@@ -35,6 +37,7 @@ beforeEach(() => {
 afterEach(() => {
   outSpy.mockRestore();
   errSpy.mockRestore();
+  setLogRedactor(null); // 清除脱敏钩子，避免影响其他测试
 });
 
 describe("logger levels", () => {
@@ -190,5 +193,65 @@ describe("log sinks", () => {
       unsubBoom();
       unsubCollect();
     }
+  });
+});
+
+describe("log redactor", () => {
+  const received: LogEntry[] = [];
+  const collect = (entry: LogEntry): void => {
+    received.push(entry);
+  };
+
+  beforeEach(() => {
+    setLogLevel("info");
+    received.length = 0;
+  });
+
+  it("default redactor is null", () => {
+    expect(getLogRedactor()).toBeNull();
+  });
+
+  it("setLogRedactor registers a redaction function", () => {
+    const redactor = (text: string) => text.replace(/secret/g, "***");
+    setLogRedactor(redactor);
+    expect(getLogRedactor()).toBe(redactor);
+  });
+
+  it("registered redactor is applied to log messages", () => {
+    setLogRedactor((text: string) => text.replace(/sk-[a-zA-Z0-9]+/g, "sk-***"));
+    logger.info(LogTag.Cyrene, "api key is sk-abc123def456");
+    expect(stdoutBuf).toContain("sk-***");
+    expect(stdoutBuf).not.toContain("sk-abc123def456");
+  });
+
+  it("redactor is applied to sink entries", () => {
+    setLogRedactor((text: string) => text.replace(/secret/g, "***"));
+    const unsub = addLogSink(collect);
+    try {
+      logger.info(LogTag.Cyrene, "this is a secret message");
+      expect(received).toHaveLength(1);
+      expect(received[0].message).toContain("***");
+      expect(received[0].message).not.toContain("secret");
+      expect(received[0].line).toContain("***");
+    } finally {
+      unsub();
+    }
+  });
+
+  it("a throwing redactor does not break logging", () => {
+    setLogRedactor(() => {
+      throw new Error("redactor boom");
+    });
+    expect(() => logger.info(LogTag.Cyrene, "still-works")).not.toThrow();
+    expect(stdoutBuf).toContain("still-works");
+  });
+
+  it("setLogRedactor(null) removes the redactor", () => {
+    setLogRedactor((text: string) => text.replace(/secret/g, "***"));
+    expect(getLogRedactor()).not.toBeNull();
+    setLogRedactor(null);
+    expect(getLogRedactor()).toBeNull();
+    logger.info(LogTag.Cyrene, "this is a secret message");
+    expect(stdoutBuf).toContain("secret");
   });
 });
