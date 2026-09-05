@@ -17,6 +17,14 @@ import * as os from "os";
 import type { ToolDefinition } from "../registry/tool-registry";
 import { runShellTool } from "./run-shell-tool";
 import { logger, LogTag } from "../../../logger";
+import {
+  DEFAULT_RPC_ALLOWED_TOOLS,
+  DEFAULT_RPC_MAX_TOOL_CALLS,
+  startCodeRpcServer,
+  buildPythonStubSource,
+  buildNodeStubSource,
+  type CodeRpcServer,
+} from "./execute-code-rpc";
 
 const LOG_PREFIX = "[BuiltinTools]";
 
@@ -96,6 +104,59 @@ function cleanupTempFile(filePath: string): void {
   }
 }
 
+/** 关闭脚本内 RPC 服务器（幂等，忽略错误）。 */
+function closeRpcServer(server: CodeRpcServer | null): void {
+  if (!server) return;
+  server.close().catch((err) => {
+    logger.warn(LogTag.BuiltinTools, `[execute_code] RPC server close error: ${err instanceof Error ? err.message : String(err)}`);
+  });
+}
+
+// ── 脚本内 RPC（让脚本可调用白名单工具，移植 Hermes 设计） ──
+
+/** RPC stub 文件名（与脚本同目录，脚本开头 import/require 即可使用）。 */
+const PY_STUB_FILE = "rpc_stubs.py";
+const NODE_STUB_FILE = "rpc_stubs.js";
+
+/**
+ * 启动脚本内 RPC 服务器并写入 stub 模块，返回改造后的代码与服务器句柄。
+ * 失败时降级：返回原代码 + null（脚本仍可正常执行，只是没有工具调用能力）。
+ */
+async function prepareRpcForCode(
+  code: string,
+  language: "python" | "node",
+  tempDir: string,
+  context?: import("../registry/tool-context").ToolContext,
+): Promise<{ code: string; server: CodeRpcServer | null }> {
+  try {
+    const server = await startCodeRpcServer({
+      allowedTools: DEFAULT_RPC_ALLOWED_TOOLS,
+      maxToolCalls: DEFAULT_RPC_MAX_TOOL_CALLS,
+      context,
+    });
+    const stubFile = language === "python" ? PY_STUB_FILE : NODE_STUB_FILE;
+    const stubPath = path.join(tempDir, stubFile);
+    const stubSource =
+      language === "python"
+        ? buildPythonStubSource(server.port, DEFAULT_RPC_ALLOWED_TOOLS)
+        : buildNodeStubSource(server.port, DEFAULT_RPC_ALLOWED_TOOLS);
+    fs.writeFileSync(stubPath, stubSource, "utf8");
+
+    // 在脚本开头注入 import：python 用 from rpc_stubs import *，node 用 require
+    const importLine =
+      language === "python"
+        ? "from rpc_stubs import *\n"
+        : "const { call_tool, json_parse, read_file, write_file, list_dir, search_code, search_text, run_shell, web_search, fetch_url, apply_patch } = require(\"./rpc_stubs.js\");\n";
+
+    logger.info(LogTag.BuiltinTools, `[execute_code] RPC ready: language=${language} port=${server.port} stub=${stubFile}`);
+    return { code: `${importLine}${code}`, server };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(LogTag.BuiltinTools, `[execute_code] RPC server unavailable, script runs without tool calls: ${msg}`);
+    return { code, server: null };
+  }
+}
+
 // ── 执行逻辑 ───────────────────────────────────────────────
 
 interface ExecuteCodeResult {
@@ -163,7 +224,18 @@ async function executeCode(
     });
   }
 
-  logger.info(LogTag.BuiltinTools, `[execute_code] entry: language=${language} cwd=${cwd || "(undefined)"} tempFile=${tempFilePath} codeLen=${code.length}`);
+  // 1.5 脚本内 RPC（仅 python/node）：启动服务器、写入 stub、注入 import。
+  //     失败降级为无工具调用（脚本仍正常执行）。
+  let rpcServer: CodeRpcServer | null = null;
+  if (language === "python" || language === "node") {
+    const prepared = await prepareRpcForCode(code, language, path.dirname(tempFilePath), context);
+    rpcServer = prepared.server;
+    if (prepared.server) {
+      fs.writeFileSync(tempFilePath, prepared.code, "utf8");
+    }
+  }
+
+  logger.info(LogTag.BuiltinTools, `[execute_code] entry: language=${language} cwd=${cwd || "(undefined)"} tempFile=${tempFilePath} codeLen=${code.length} rpc=${rpcServer ? `:${rpcServer.port}` : "off"}`);
 
   // 2. 构建要尝试的命令列表（主命令 + fallback）
   const quotedPath = `"${tempFilePath}"`;
@@ -270,6 +342,7 @@ async function executeCode(
       // 所有命令都失败，解析失败时返回原始输出
       const msg = err instanceof Error ? err.message : String(err);
       cleanupTempFile(tempFilePath);
+      closeRpcServer(rpcServer);
       return JSON.stringify({
         language,
         exitCode: -1,
@@ -282,8 +355,9 @@ async function executeCode(
     }
   }
 
-  // 4. 清理临时文件（无论成功失败都清理）
+  // 4. 清理临时文件与 RPC 服务器（无论成功失败都清理）
   cleanupTempFile(tempFilePath);
+  closeRpcServer(rpcServer);
 
   // 5. 返回结果
   if (finalResult) {
@@ -314,9 +388,15 @@ export const executeCodeTool: ToolDefinition = {
     "- python：Python 3.x，自动 fallback 到 py（Windows Python Launcher），需要 python 或 py 在 PATH 中\n" +
     "- node：Node.js，需要系统已安装 Node.js 且 node 在 PATH 中\n" +
     "- shell：Windows 批处理（.bat），用 cmd.exe 执行\n\n" +
+    "脚本内可调用工具（python/node）：脚本会自动注入 `rpc_stubs`，可以直接调用\n" +
+    "- python：`from rpc_stubs import *` 后直接调用 read_file / write_file / list_dir / search_code / search_text / run_shell / web_search / fetch_url / apply_patch；\n" +
+    "- node：`const { read_file, write_file, run_shell, ... } = require(\"./rpc_stubs.js\")`；\n" +
+    "- 通用入口：call_tool(\"工具名\", {参数})，返回 {status: \"succeeded\"|\"failed\", output, errorCode?, category?}；\n" +
+    "- 单次执行最多 50 次工具调用；只允许上述白名单工具；适合需要 3+ 次工具调用并带逻辑处理（循环/分支/过滤）的场景。\n\n" +
     "何时用：\n" +
     "- 快速验证一段代码逻辑\n" +
     "- 跑数据处理脚本（Python pandas / Node.js 脚本）\n" +
+    "- 需要循环/条件处理多个工具结果的流程（如批量读文件、逐个分析、汇总）\n" +
     "- 计算/转换/生成内容\n" +
     "- 调用 API 测试\n" +
     "- 用户明确要求'跑一下这段代码'\n\n" +
@@ -326,7 +406,7 @@ export const executeCodeTool: ToolDefinition = {
     "- 写文件 → write_file\n" +
     "- 启动常驻进程（dev server / watch）→ 本工具只适合跑完就退出的代码，常驻进程会在 2 分钟无输出后被强制终止\n\n" +
     "安全说明：非完全信任档位下，代码在沙箱中执行（限制文件系统访问范围）。" +
-    "代码写入工作区下的 .cyrene-temp/ 临时目录，执行后自动清理。\n" +
+    "代码写入工作区下的 .cyrene-temp/ 临时目录，执行后自动清理；脚本内工具调用受白名单约束。" +
     "参数：language (python/node/shell，默认 python)，code (代码内容)，cwd (可选工作目录绝对路径)。",
   enabled: true,
   risk: "shell",

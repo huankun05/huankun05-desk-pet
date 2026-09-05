@@ -96,6 +96,7 @@ import { getLspConfig, initLspConfigStorage, registerLspConfigIpcHandlers } from
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { startPluginRuntime } from "../plugin-runtime";
 import { createAgentRuntime } from "../orchestrator/agent-runtime";
+import { buildDefaultSkillCreationCallback, setSkillCreationCallback } from "../orchestrator/harness-adapter";
 import { createRuntimeStateService } from "../orchestrator/runtime-state-service";
 import { createProactiveLifecycle } from "../proactive/proactive-lifecycle";
 import { createCitaService } from "../services/cita/cita-service";
@@ -361,7 +362,17 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         logger.info(LogTag.RAG, "RAG initialized OK");
       },
 
-      createRuntime: (services) => createAgentRuntime({
+      createRuntime: (services) => {
+        // 自动技能沉淀：Run 结束后后台判定是否把成功经验沉淀为技能（复用主模型配置，
+        // 与 LLM 审查同模式；回调不注入时该功能不启用）。
+        setSkillCreationCallback(buildDefaultSkillCreationCallback(async (prompt, systemPrompt) => {
+          const messages = [
+            ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
+            { role: "user" as const, content: prompt },
+          ];
+          return services.llm.chat(loadModelSettings(), messages, undefined, 90000, "后台技能沉淀", false);
+        }));
+        return createAgentRuntime({
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,
         enqueueLLMTask,
@@ -382,7 +393,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         chatsStore,
         socialAtomStore: services.social.store,
         buildPluginPromptContext: (input) => pluginPromptRegistry.build(input),
-      }),
+        });
+      },
 
       createChannels: (runtime, services) => createChannelsSubsystem({
         agentRuntime: runtime,

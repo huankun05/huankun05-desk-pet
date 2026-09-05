@@ -23,6 +23,7 @@ export {
 import { app } from "electron";
 import { getRunReviewTracker } from "./review/run-review-tracker";
 import { runLLMReview, saveLLMReview, hasLLMReview, type LLMCallFn } from "./review/llm-reviewer";
+import { runSkillCreation, type SkillCreationInput, type LLMCallFn as SkillLLMCallFn } from "../self-evolving/skill-creation";
 import type { ReviewRunStatus } from "../../shared/review-types";
 import { sendHarnessEventAsAgui } from "./harness/adapter/event-mapper";
 export { sendHarnessEventAsAgui, sendTaskLifecycleAsAgui } from "./harness/adapter/event-mapper";
@@ -71,6 +72,36 @@ export function buildDefaultLLMReviewCallback(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`${LOG_PREFIX} LLM review failed for runId=${snapshot.runId}: ${msg}`);
+    }
+  };
+}
+
+// ── 自动技能沉淀回调（可注入，默认不启用） ───────────────────
+// 与 LLM 审查同模式：模块级可注入回调，Run 结束后在后台触发。
+// 通过 setSkillCreationCallback 注入真实 LLM 调用函数后启用。
+type SkillCreationCallback = (input: SkillCreationInput) => Promise<void>;
+let skillCreationCallback: SkillCreationCallback | null = null;
+
+/**
+ * 注入自动技能沉淀回调。传入 null 可禁用。
+ * 回调应在后台异步执行，不应阻塞 Run 结果返回。
+ */
+export function setSkillCreationCallback(callback: SkillCreationCallback | null): void {
+  skillCreationCallback = callback;
+  console.log(`${LOG_PREFIX} skill creation callback ${callback ? "enabled" : "disabled"}`);
+}
+
+/**
+ * 构建默认的技能沉淀回调（使用给定的 LLM 调用函数）。
+ */
+export function buildDefaultSkillCreationCallback(llmCall: SkillLLMCallFn): SkillCreationCallback {
+  return async (input) => {
+    try {
+      const outcome = await runSkillCreation(input, llmCall);
+      console.log(`${LOG_PREFIX} skill creation outcome for runId=${input.runId}: ${outcome.status}${outcome.skillName ? ` (${outcome.skillName})` : ""}${outcome.detail ? ` - ${outcome.detail}` : ""}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`${LOG_PREFIX} skill creation failed for runId=${input.runId}: ${msg}`);
     }
   };
 }
@@ -206,6 +237,26 @@ export async function runHarnessWithAdapter(
     llmReviewCallback(reviewSnapshot).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`${LOG_PREFIX} LLM review callback threw: ${msg}`);
+    });
+  }
+
+  // ── 自动技能沉淀（可选，需通过 setSkillCreationCallback 注入） ──
+  // 异步触发；从 runStore 读取工具调用轨迹，配合 Review 快照组装沉淀输入。
+  if (skillCreationCallback) {
+    const session = runStore.get(runId);
+    const creationInput: SkillCreationInput = {
+      runId,
+      status: terminalRunStatus,
+      rounds: session?.rounds ?? result.rounds,
+      toolCalls: (session?.toolCalls ?? []).map((call) => ({ toolName: call.toolName, status: call.status })),
+      finalAnswer: result.finalAnswer,
+      files: reviewSnapshot?.files ?? [],
+      conversationMode: options.conversationMode,
+    };
+    // 不 await：后台执行，不阻塞
+    skillCreationCallback(creationInput).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`${LOG_PREFIX} skill creation callback threw: ${msg}`);
     });
   }
 

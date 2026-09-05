@@ -45,6 +45,8 @@ All notable changes to this project will be documented in this file.
 - **音量和语速本地实时调节**：播放时实时调节音量和语速，不需要重新合成
 - **技能自整理机制**：支持技能自动合并、归档，定期或阈值触发，辅助模型参与
 - **LSP 设置面板接线**：lsp-config-ipc（配置存储/连接测试/状态）在主进程组合根注册，LSP 设置面板的保存/测试/状态查询链路打通；设置面板中启用的自定义服务器（lsp-config.json）优先于内置语言服务候选（支持按 workspaceRoot 限定生效范围）
+- **技能自动创建闭环**：移植 Hermes skill creation 设计，新增 skill-creation.ts（Run 结束后异步判定是否沉淀技能：确定性门槛检查 → LLM 生成 SKILL.md → 幂等检查 → 安全扫描 → 写入技能库）与 security-scan.ts（静态正则扫描技能内容，拦截 curl 密钥窃取/rm -rf/降权提权等危险命令）；harness-adapter 新增 setSkillCreationCallback 可注入回调，default-dependencies 组合根注入后台执行（复用主模型配置，默认不注入时不启用）
+- **脚本内 RPC 调用工具**：移植 Hermes code_execution_tool RPC 设计，新增 execute-code-rpc.ts（回环 TCP 服务器：工具白名单 + 单次调用上限 + newline-delimited JSON 协议）；execute_code 工具启动脚本时自动注入 stub（rpc_stubs.py / rpc_stubs.js），脚本内可调用 read_file/run_shell/web_search 等白名单工具；Node stub 响应消费后自动关闭连接，脚本可自然退出；修复 Windows 下子进程退出后服务器侧 socket ECONNRESET 未监听导致的崩溃隐患
 
 ### Changed
 

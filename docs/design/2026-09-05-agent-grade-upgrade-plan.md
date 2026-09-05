@@ -1239,3 +1239,7 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 | 2026-09-05 | P7-5 LSP 代码智能功能实施完成 | lsp-client.ts 新增 getCompletions（textDocument/completion，支持 CompletionList 和 CompletionItem[] 两种格式）、getHover（textDocument/hover）、getDefinition（textDocument/definition）；lsp-protocol.ts 新增 CompletionItem/CompletionList/Hover/Location 类型；32 单测（原有25+新增7）通过 + tsc 通过 |
 | 2026-09-05 | P7-6 技能服务集成实施完成 | 新增 skill-catalog-store.ts（17 个内置技能模板，6 大分类）；新增 skill-installer.ts（技能安装器，自动生成 SKILL.md 模板，支持安装/卸载）；新增 skill-service.ts（统一技能服务，listSkills/recommendSkills/getSkillCatalog/searchCatalog/installSkill/uninstallSkill，同时推荐已安装和未安装技能）；25 单测通过 + tsc 通过 |
 | 2026-09-05 | LSP 进程泄漏修复 | 发现 lsp-client.ts 中 initialize 失败时进程未终止，且 shutdown 在 error 状态下直接返回，导致进程泄漏；修复：initialize 失败时主动调用 process.kill()；提交 353b04b |
+| 2026-09-05 | 9 项差距清单制定 | 复盘 Hermes 差距，制定 9 项任务清单：①技能自动创建闭环 ②脚本内 RPC 调用工具 ③LSP 接线 ④Git Worktree 隔离 ⑤文件系统快照与 /rollback ⑥MCP sampling + HTTP 传输 ⑦（预留） ⑧自然语言创建定时任务 ⑨轨迹压缩 |
+| 2026-09-05 | ①技能自动创建闭环实施完成 | 移植 Hermes skill creation：新增 skill-creation.ts（门槛检查→LLM 生成→幂等→安全扫描→写入）与 security-scan.ts（15+ 危险命令模式静态扫描）；harness-adapter 可注入回调 + default-dependencies 组合根注入；16 单测 + tsc 通过 |
+| 2026-09-05 | ③LSP 接线实施完成 | lsp-config-ipc 在主进程组合根注册（保存/测试/状态链路打通）；删除 lsp-client.ts 死代码，类型迁移至 lsp-process.ts；已提交 |
+| 2026-09-05 | ②脚本内 RPC 调用工具实施完成 | 移植 Hermes code_execution_tool RPC：新增 execute-code-rpc.ts（回环 TCP + 白名单 + 调用上限 + NL-JSON 协议）；execute_code 注入 rpc_stubs.py/.js；修复两个真实 bug（Windows 子进程退出后服务器 socket ECONNRESET 未监听会崩父进程；Node stub 持久 socket 占住事件循环导致脚本无法自然退出）；14 单测（含 python/node 真实运行时 E2E）+ execute-code-tool 23 单测 + tsc 通过 |
