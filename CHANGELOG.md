@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - **跨会话搜索增强**：recall_history 工具新增 limit 参数（默认 5，最大 20）和 sessionId 过滤参数（限定搜索特定会话），每条结果增加来源会话标签；检索候选池扩大避免过滤后结果不足
 - **凭据全量加密**：新增 CredentialVault（基于 Electron safeStorage / Windows DPAPI），model-settings.json 中所有 API Key 落盘时自动加密，读取时解密；旧明文配置自动兼容；safeStorage 不可用时优雅回退
 - **定时任务桌面通知**：ScheduledTask 新增 deliver 字段（local/desktop），deliver=desktop 时任务完成/失败后自动弹桌面通知（成功显示结果预览，失败显示错误信息）
+- **成本核算**：新增 model-pricing（30+ 常见模型默认单价，支持自定义覆盖）和 cost-calculator（input/output/cacheHit/cacheCreation 四档成本计算，按天/按模型汇总，智能格式化输出）
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置
