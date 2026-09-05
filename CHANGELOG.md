@@ -44,8 +44,11 @@ All notable changes to this project will be documented in this file.
 - **API Key 眼睛图标**：所有密码/API Key 输入框统一添加可查看/隐藏的眼睛图标
 - **音量和语速本地实时调节**：播放时实时调节音量和语速，不需要重新合成
 - **技能自整理机制**：支持技能自动合并、归档，定期或阈值触发，辅助模型参与
+- **LSP 设置面板接线**：lsp-config-ipc（配置存储/连接测试/状态）在主进程组合根注册，LSP 设置面板的保存/测试/状态查询链路打通；设置面板中启用的自定义服务器（lsp-config.json）优先于内置语言服务候选（支持按 workspaceRoot 限定生效范围）
 
 ### Changed
+
+- **LSP 客户端去重**：删除未接入的 lsp-client.ts 死代码（其 LSPProcess/LSPClientConfig 类型迁移至 lsp-process.ts），保留已接入 manager 的 client.ts；LSP 代码智能功能（补全/悬停/定义）由 manager 通用 request 通道提供
 
 - **粉色主题**：全局 UI 主题从紫色改为粉色（#f472b6）
 - **导航栏结构优化**：技能管理和备份管理从通用设置中移出，作为独立导航项

@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { LspClient } from "./client";
 import { BUILTIN_LSP_SERVERS, findServerCandidates } from "./server-catalog";
 import { resolveLspServer, type ResolvedLspServer } from "./server-discovery";
+import { parseCommandLine, type LspServerConfig } from "./lsp-config";
 import { LspContractError, toProtocolPosition, type LspQuery, type LspServerOverride, type LspToolResult } from "./types";
 
 export interface LspClientLike {
@@ -19,6 +20,8 @@ export interface LspManagerOptions {
   createClient?: (input: { server: ResolvedLspServer; workspaceRoot: string }) => LspClientLike;
   /** 从设置缓存读取；每次执行重新取值，用户保存配置后无需重启。 */
   getServerOverrides?: () => readonly LspServerOverride[];
+  /** 从 LSP 设置面板（lsp-config.json）读取；启用的自定义服务器优先于内置候选。 */
+  getConfigServers?: () => readonly LspServerConfig[];
 }
 
 export interface LspExecutionContext {
@@ -52,17 +55,31 @@ function fileParams(filePath: string, query: LspQuery): { textDocument: { uri: s
   };
 }
 
+/** 将设置面板中的自定义服务器转换为候选定义（不限定扩展名，作为全局兜底）。 */
+function definitionFromConfigServer(index: number, config: LspServerConfig): ResolvedLspServer["definition"] {
+  const parsed = parseCommandLine(config.command);
+  return {
+    id: `custom-lsp-${index}`,
+    extensions: [],
+    commands: [{ command: parsed.command, args: parsed.args }],
+    rootMarkers: [".git"],
+    installHint: config.name || config.command,
+  };
+}
+
 /** 复用同一可信工作区中同一外部语言服务进程的管理器。 */
 export class LspManager {
   private readonly clients = new Map<string, LspClientLike>();
   private readonly resolveServer: NonNullable<LspManagerOptions["resolveServer"]>;
   private readonly createClient: NonNullable<LspManagerOptions["createClient"]>;
   private readonly getServerOverrides: NonNullable<LspManagerOptions["getServerOverrides"]>;
+  private readonly getConfigServers: NonNullable<LspManagerOptions["getConfigServers"]>;
 
   constructor(options: LspManagerOptions = {}) {
     this.resolveServer = options.resolveServer ?? resolveLspServer;
     this.createClient = options.createClient ?? ((input) => new LspClient(input));
     this.getServerOverrides = options.getServerOverrides ?? (() => []);
+    this.getConfigServers = options.getConfigServers ?? (() => []);
   }
 
   async execute(query: LspQuery, context: LspExecutionContext): Promise<LspToolResult> {
@@ -122,7 +139,16 @@ export class LspManager {
 
   private async clientFor(workspaceRoot: string, filePath?: string): Promise<{ client: LspClientLike; serverId: string }> {
     const overrides = this.getServerOverrides();
-    const candidates = filePath ? findServerCandidates(filePath, overrides) : [...BUILTIN_LSP_SERVERS];
+    // 用户从 LSP 设置面板显式启用的服务器优先；其 workspaceRoot 为空或与当前工作区一致时生效。
+    const configured = (this.getConfigServers() ?? [])
+      .filter((server) => server.enabled && server.command.trim().length > 0)
+      .filter((server) => !server.workspaceRoot || server.workspaceRoot.trim().length === 0
+        || path.resolve(workspaceRoot) === path.resolve(server.workspaceRoot));
+    const candidates: ResolvedLspServer["definition"][] = configured.length > 0
+      ? configured.map((server, index) => definitionFromConfigServer(index, server))
+      : filePath
+        ? findServerCandidates(filePath, overrides)
+        : [...BUILTIN_LSP_SERVERS];
     for (const definition of candidates) {
       const server = this.resolveServer(definition, workspaceRoot);
       if (!server) continue;

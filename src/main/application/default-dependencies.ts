@@ -92,6 +92,7 @@ import { initSkills, skillRegistry } from "../skills";
 import { initCurator } from "../self-evolving/curator";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { registerBackupIpc } from "../backup/backup-ipc";
+import { getLspConfig, initLspConfigStorage, registerLspConfigIpcHandlers } from "../lsp/lsp-config-ipc";
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { startPluginRuntime } from "../plugin-runtime";
 import { createAgentRuntime } from "../orchestrator/agent-runtime";
@@ -295,6 +296,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // LSP：管理器预创建；具体语言服务进程按需启动
         const lsp = new LspManager({
           getServerOverrides: () => loadGeneralSettings().lspServerOverrides,
+          // 设置面板（lsp-config.json）中启用的自定义服务器优先于内置候选
+          getConfigServers: () => getLspConfig().servers,
         });
 
         // 截图：原生 helper IPC、全局热键。预热在 background 阶段执行。
@@ -435,6 +438,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         // ── TTS IPC ──
         registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });
         registerBackupIpc();
+
+        // ── LSP 设置面板 IPC（lsp-config.json 存储/连接测试/状态）──
+        initLspConfigStorage(app.getPath("userData"));
+        registerLspConfigIpcHandlers();
 
         // 聊天会话存储 IPC（chats-store.initialize 建好 cyrene-chats 目录并加载 index）
         registerChatsIpc(ipc);

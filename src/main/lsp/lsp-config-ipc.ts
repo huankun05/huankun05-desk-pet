@@ -20,13 +20,13 @@ import {
   type LspConnectionStatus,
 } from "./lsp-config";
 import { createLSPProcess, isLSPCommandAvailable } from "./lsp-process";
+import type { LSPClientConfig } from "./lsp-process";
 import {
   encodeRequest,
   decodeAllLSPMessages,
   isResponse,
   LSP_METHODS,
 } from "./lsp-protocol";
-import type { LSPClientConfig } from "./lsp-client";
 
 // ── 配置存储 ─────────────────────────────────────────────────
 

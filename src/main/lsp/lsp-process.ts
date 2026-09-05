@@ -4,7 +4,42 @@
 // 测试时可以使用 MockLSPProcess 替代。
 
 import { spawn, type ChildProcess } from "node:child_process";
-import type { LSPProcess, LSPClientConfig } from "./lsp-client";
+
+// ── 进程抽象与客户端配置 ─────────────────────────────────────
+// （原定义于 lsp-client.ts；该模块为死代码已删除，类型迁移至此）
+
+/**
+ * LSP 进程抽象接口。
+ *
+ * 真实实现会包装 child_process.spawn，测试时可以用 mock 实现。
+ */
+export interface LSPProcess {
+  /** 向进程 stdin 写入数据 */
+  write(data: string): void;
+  /** 注册 stdout 数据回调 */
+  onStdout(callback: (data: string) => void): void;
+  /** 注册 stderr 数据回调 */
+  onStderr(callback: (data: string) => void): void;
+  /** 注册进程退出回调 */
+  onExit(callback: (code: number | null) => void): void;
+  /** 终止进程 */
+  kill(): void;
+  /** 进程是否已退出 */
+  isExited(): boolean;
+}
+
+export interface LSPClientConfig {
+  /** 语言服务器命令（如 "typescript-language-server"） */
+  command: string;
+  /** 命令参数（如 ["--stdio"]） */
+  args?: string[];
+  /** 工作区根目录 */
+  workspaceRoot: string;
+  /** 初始化超时（毫秒，默认 30000） */
+  initializeTimeout?: number;
+  /** 请求超时（毫秒，默认 10000） */
+  requestTimeout?: number;
+}
 
 /**
  * 创建真实的 LSP 进程。

@@ -121,4 +121,37 @@ describe("LspManager", () => {
 
     expect(client.request).toHaveBeenCalledWith("textDocument/hover", expect.any(Object), undefined, controller.signal);
   });
+
+  it("prioritizes enabled custom servers from the LSP settings panel", async () => {
+    const { root, file } = workspace();
+    const resolveServer = vi.fn((definition: LspServerDefinition) => ({
+      ...resolvedServer,
+      definition,
+      executablePath: "C:\\tools\\panel-lsp.exe",
+      args: definition.commands[0].args,
+    }));
+    const client = {
+      initialize: vi.fn(async () => {}), touchFile: vi.fn(async () => {}),
+      request: vi.fn(async () => null), getDiagnostics: vi.fn(() => []), dispose: vi.fn(async () => {}),
+    };
+    const manager = new LspManager({
+      getConfigServers: () => [
+        { enabled: true, command: "my-langserver --stdio", name: "MyLSP" },
+        { enabled: false, command: "disabled-server", name: "Disabled" },
+        { enabled: true, command: "other-root", workspaceRoot: "C:\\elsewhere" },
+      ],
+      resolveServer,
+      createClient: () => client,
+    });
+
+    await manager.execute({ operation: "hover", filePath: file, line: 1, character: 1 }, { resolvedWorkspaceRoot: root });
+
+    expect(resolveServer).toHaveBeenCalledWith(expect.objectContaining({
+      id: "custom-lsp-0",
+      commands: [{ command: "my-langserver", args: ["--stdio"] }],
+    }), root);
+    // 禁用的服务器与 workspaceRoot 不匹配的服务器不应进入候选
+    expect(resolveServer).not.toHaveBeenCalledWith(expect.objectContaining({ id: "custom-lsp-1" }), root);
+    expect(resolveServer).not.toHaveBeenCalledWith(expect.objectContaining({ id: "custom-lsp-2" }), root);
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createLSPProcess, isLSPCommandAvailable } from "./lsp-process";
-import type { LSPClientConfig } from "./lsp-client";
+import type { LSPClientConfig } from "./lsp-process";
 
 // ── 测试辅助函数 ─────────────────────────────────────────────
 
