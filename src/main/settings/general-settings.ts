@@ -62,7 +62,7 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   /** 主动消息最终投递到本地、微信或飞书。 */
   proactiveDeliveryTarget: ProactiveDeliveryTarget;
   // TTS 配置
-  ttsEngine: "off" | "minimax" | "gptsovits" | "custom-cloud" | "mimo" | "mossland";
+  ttsEngine: "off" | "minimax" | "gptsovits" | "custom-cloud" | "mimo" | "mossland" | "senseaudio";
   ttsAutoRead: boolean;
   ttsSpeed: number;
   ttsVolume: number;
@@ -98,6 +98,11 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   ttsMosslandModel: string;
   ttsMosslandTestText: string;
   ttsMosslandFormat: "mp3" | "wav";
+  // 商汤 SenseAudio TTS
+  ttsSenseaudioKey: string;
+  ttsSenseaudioVoiceId: string;
+  ttsSenseaudioModel: string;
+  ttsSenseaudioSpeed: number;
   /** 天气源：open-meteo(免配置默认) | amap(高德,需填key) */
   weatherSource: "open-meteo" | "amap";
   /** 天气插件是否启用（开关） */

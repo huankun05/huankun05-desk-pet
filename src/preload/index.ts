@@ -328,6 +328,13 @@ const settingsApi = {
   previewRuntimeSync: (value: "off" | "local" | "llm") => ipcRenderer.send(IPC.SETTINGS_PREVIEW_RUNTIME_SYNC, value),
   openStickerManager: () => ipcRenderer.invoke(IPC.SETTINGS_OPEN_STICKER_MANAGER),
   openCustomStylePrompt: () => ipcRenderer.invoke(IPC.SETTINGS_OPEN_CUSTOM_STYLE_PROMPT),
+  readStylePrompt: (styleId: string) => ipcRenderer.invoke(IPC.SETTINGS_READ_STYLE_PROMPT, styleId),
+  writeStylePrompt: (styleId: string, content: string) => ipcRenderer.invoke(IPC.SETTINGS_WRITE_STYLE_PROMPT, styleId, content),
+  backupCreate: (category?: string, type?: string, description?: string) => ipcRenderer.invoke(IPC.BACKUP_CREATE, category, type, description),
+  backupList: () => ipcRenderer.invoke(IPC.BACKUP_LIST),
+  backupRestore: (backupId: string) => ipcRenderer.invoke(IPC.BACKUP_RESTORE, backupId),
+  backupDelete: (backupId: string) => ipcRenderer.invoke(IPC.BACKUP_DELETE, backupId),
+  backupCleanup: (keepCount?: number, category?: string) => ipcRenderer.invoke(IPC.BACKUP_CLEANUP, keepCount, category),
   stickerPickFile: () => ipcRenderer.invoke(IPC.STICKERS_PICK_FILE),
   stickerAdd: (payload: { sourcePath: string; id: string; description: string; phrases: string[] }) => ipcRenderer.invoke(IPC.STICKERS_ADD, payload),
   getEmbeddingStatus: () => ipcRenderer.invoke(IPC.EMBEDDING_GET_STATUS),
@@ -760,6 +767,16 @@ const ttsApi = {
   listMosslandVoices: (payload: {
     apiKey: string; limit?: number; offset?: number; after?: string; status?: string;
   }) => ipcRenderer.invoke(IPC.TTS_LIST_MOSSLAND_VOICES, payload),
+  // 商汤 SenseAudio TTS（api.senseaudio.cn，POST /v1/t2a_v2）
+  synthesizeSenseAudio: (payload: {
+    apiKey: string; voiceId: string; text: string;
+    model?: string; speed?: number;
+  }) => ipcRenderer.invoke(IPC.TTS_SYNTHESIZE_SENSEAUDIO, payload),
+  // 商汤 SenseAudio 拉取账号下音色列表（POST /v1/get_voice）
+  listSenseAudioVoices: (payload: {
+    apiKey: string; voiceType?: "system" | "voice_clone" | "voice_generation" | "all";
+  }) => ipcRenderer.invoke(IPC.TTS_LIST_SENSEAUDIO_VOICES, payload),
+  clearSenseAudioCache: () => ipcRenderer.invoke(IPC.TTS_CLEAR_SENSEAUDIO_CACHE),
   // 选择音频文件（复用 TTS_PICK_AUDIO，gptsovits 选 ref audio 也用这个）
   pickAudioFile: () => ipcRenderer.invoke(IPC.TTS_PICK_AUDIO),
   // 流式语音合成（边合成边播）

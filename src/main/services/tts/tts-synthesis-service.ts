@@ -1,4 +1,4 @@
-import * as fs from "fs";
+﻿import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { loadGeneralSettings } from "../../settings/settings-facade";
@@ -15,6 +15,7 @@ import { synthesize as gptsovitsSynthesize } from "../../tts/gptsovits-engine";
 import { synthesize as customCloudSynthesize } from "../../tts/custom-cloud-engine";
 import { synthesize as mimoSynthesize } from "../../tts/mimo-engine";
 import { synthesize as mosslandSynthesize } from "../../tts/mossland-engine";
+import { synthesize as senseaudioSynthesize } from "../../tts/senseaudio-engine";
 import { synthesizeByEngine } from "../../tts/tts-dispatcher";
 import { runTtsStreamingWithFallback } from "../../tts/tts-streaming-fallback";
 import { versionTtsCacheKey } from "../../tts/tts-cache-key";
@@ -28,6 +29,7 @@ import {
   buildCustomCloudCacheKey,
   buildMimoCacheKey,
   buildMosslandCacheKey,
+  buildSenseaudioCacheKey,
   getTtsCachePath,
   readTtsCacheByKey,
 } from "../../tts/tts-cache";
@@ -239,6 +241,19 @@ export function createTtsSynthesisService(
       };
       cacheKey = buildMimoCacheKey(payload);
       audio = (await mimoSynthesize({ ...payload, debugLog: appendMimoTtsLog })).audio;
+    } else if (settings.ttsEngine === "senseaudio") {
+      if (!settings.ttsSenseaudioKey || !settings.ttsSenseaudioVoiceId) {
+        throw new Error("商汤 SenseAudio TTS 配置不完整");
+      }
+      format = "mp3";
+      const senseaudioPayload = {
+        apiKey: settings.ttsSenseaudioKey,
+        voiceId: settings.ttsSenseaudioVoiceId,
+        text: request.speechText,
+        model: settings.ttsSenseaudioModel,
+      };
+      cacheKey = buildSenseaudioCacheKey(senseaudioPayload);
+      audio = (await senseaudioSynthesize(senseaudioPayload)).audio;
     } else {
       if (!settings.ttsMosslandKey || !settings.ttsMosslandVoiceId) {
         throw new Error("Mossland TTS 配置不完整");
@@ -298,6 +313,9 @@ export function createTtsSynthesisService(
     if (cfg.ttsEngine === "mossland" && (!cfg.ttsMosslandKey || !cfg.ttsMosslandVoiceId)) {
       return null;
     }
+    if (cfg.ttsEngine === "senseaudio" && (!cfg.ttsSenseaudioKey || !cfg.ttsSenseaudioVoiceId)) {
+      return null;
+    }
 
     const ttsText = text.length > 1000 ? text.slice(0, 1000) + "…" : text;
     try {
@@ -311,6 +329,8 @@ export function createTtsSynthesisService(
             ? cfg.ttsMimoKey
             : cfg.ttsEngine === "mossland"
               ? cfg.ttsMosslandKey
+            : cfg.ttsEngine === "senseaudio"
+              ? cfg.ttsSenseaudioKey
             : cfg.ttsEngine === "custom-cloud"
               ? cfg.ttsCustomCloudApiKey
               : cfg.ttsMinimaxKey,
@@ -319,10 +339,12 @@ export function createTtsSynthesisService(
             ? ""
             : cfg.ttsEngine === "mossland"
               ? cfg.ttsMosslandVoiceId
+            : cfg.ttsEngine === "senseaudio"
+              ? cfg.ttsSenseaudioVoiceId
             : cfg.ttsEngine === "custom-cloud"
               ? cfg.ttsCustomCloudVoiceId
               : cfg.ttsMinimaxVoiceId,
-        model: cfg.ttsEngine === "mossland" ? cfg.ttsMosslandModel : cfg.ttsMinimaxModel,
+        model: cfg.ttsEngine === "mossland" ? cfg.ttsMosslandModel : cfg.ttsEngine === "senseaudio" ? cfg.ttsSenseaudioModel : cfg.ttsMinimaxModel,
         baseUrl: cfg.ttsGptsovitsBaseUrl,
         refAudioPath: cfg.ttsGptsovitsRefAudioPath,
         promptText: cfg.ttsGptsovitsPromptText,

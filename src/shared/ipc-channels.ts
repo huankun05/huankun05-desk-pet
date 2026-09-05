@@ -117,6 +117,8 @@ export const IPC = {
   SETTINGS_PREVIEW_RUNTIME_SYNC: "settings:preview-runtime-sync",
   SETTINGS_OPEN_STICKER_MANAGER: "settings:open-sticker-manager",
   SETTINGS_OPEN_CUSTOM_STYLE_PROMPT: "settings:open-custom-style-prompt",
+  SETTINGS_READ_STYLE_PROMPT: "settings:read-style-prompt",
+  SETTINGS_WRITE_STYLE_PROMPT: "settings:write-style-prompt",
 
   // chat sessions (multi-conversation history, persisted to userData/cyrene-chats/)
   CHATS_LIST: "chats:list",
@@ -294,6 +296,9 @@ export const IPC = {
   TTS_SYNTHESIZE_CACHED_MOSSLAND: "tts:synthesize-cached-mossland", // Mossland 合成 + 本地缓存
   TTS_CLONE_MOSSLAND: "tts:clone-mossland",           // Mossland 克隆音色（multipart 上传）
   TTS_LIST_MOSSLAND_VOICES: "tts:list-mossland-voices", // Mossland 拉取账号下音色列表
+  TTS_SYNTHESIZE_SENSEAUDIO: "tts:synthesize-senseaudio", // 商汤 SenseAudio TTS 合成 → base64
+  TTS_LIST_SENSEAUDIO_VOICES: "tts:list-senseaudio-voices", // 商汤 SenseAudio 拉取账号下音色列表
+  TTS_CLEAR_SENSEAUDIO_CACHE: "tts:clear-senseaudio-cache", // 商汤 SenseAudio 清空缓存
 
   // agent permission level (file/shell access)
   PERMISSION_GET_LEVEL: "permission:get-level",
@@ -417,6 +422,14 @@ export const IPC = {
   PLUGINS_RESCAN: "plugins:rescan",
   PLUGINS_IMPORT_ZIP: "plugins:import-zip",
   PLUGINS_UNINSTALL: "plugins:uninstall",
+
+
+  // backup manager
+  BACKUP_CREATE: "backup:create",
+  BACKUP_LIST: "backup:list",
+  BACKUP_RESTORE: "backup:restore",
+  BACKUP_DELETE: "backup:delete",
+  BACKUP_CLEANUP: "backup:cleanup",
 
 } as const;
 

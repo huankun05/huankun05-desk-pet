@@ -1,4 +1,4 @@
-// 角色与风格面板逻辑
+﻿// 角色与风格面板逻辑
 import { STYLE_DISPLAY_NAMES, type CharacterConfig } from "../../../shared/character-types";
 import type { StyleId } from "../../../shared/style-sampling";
 import {
@@ -14,6 +14,7 @@ import {
   characterStyleSamplingBtn,
   characterStylePromptBtn,
   characterStyleSaveStatus,
+  characterStyleForm,
 } from "./dom";
 
 interface GeneralSettingsWithCharacters {
@@ -192,4 +193,150 @@ export function initCharacterStylePanel(): void {
   if (characterStyleForm) {
     observer.observe(characterStyleForm, { attributes: true, attributeFilter: ["class"] });
   }
+}
+
+
+// ========== 风格编辑器 ==========
+function initStyleEditor(): void {
+  const styleSelect = document.getElementById("style-editor-select") as HTMLSelectElement | null;
+  const promptTextarea = document.getElementById("style-editor-prompt") as HTMLTextAreaElement | null;
+  const temperatureInput = document.getElementById("style-editor-temperature") as HTMLInputElement | null;
+  const repetitionSelect = document.getElementById("style-editor-repetition") as HTMLSelectElement | null;
+  const saveBtn = document.getElementById("style-editor-save-btn") as HTMLButtonElement | null;
+  const reloadBtn = document.getElementById("style-editor-reload-btn") as HTMLButtonElement | null;
+  const statusEl = document.getElementById("style-editor-status") as HTMLElement | null;
+
+  if (!styleSelect || !promptTextarea || !saveBtn || !reloadBtn) return;
+
+  function setStatus(text: string, type?: string): void {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.className = "save-status" + (type ? " " + type : "");
+  }
+
+  async function loadStyle(styleId: string): Promise<void> {
+    try {
+      setStatus("加载中...");
+      const settingsApi = (window as unknown as { settings?: { readStylePrompt?: (id: string) => Promise<{ ok: boolean; content?: string; error?: string }> } }).settings;
+      const result = await settingsApi?.readStylePrompt?.(styleId);
+      if (result?.ok && result.content !== undefined) {
+        promptTextarea.value = result.content;
+        setStatus("加载成功");
+      } else {
+        promptTextarea.value = "";
+        setStatus("加载失败: " + (result?.error || "未知错误"), "error");
+      }
+    } catch (error) {
+      setStatus("加载失败: " + (error instanceof Error ? error.message : String(error)), "error");
+    }
+  }
+
+  async function saveStyle(): Promise<void> {
+    try {
+      setStatus("保存中...");
+      const styleId = styleSelect.value;
+      const content = promptTextarea.value;
+      const settingsApi = (window as unknown as { settings?: { writeStylePrompt?: (id: string, content: string) => Promise<{ ok: boolean; filePath?: string; error?: string }> } }).settings;
+      const result = await settingsApi?.writeStylePrompt?.(styleId, content);
+      if (result?.ok) {
+        setStatus("保存成功", "success");
+      } else {
+        setStatus("保存失败: " + (result?.error || "未知错误"), "error");
+      }
+    } catch (error) {
+      setStatus("保存失败: " + (error instanceof Error ? error.message : String(error)), "error");
+    }
+  }
+
+  styleSelect.addEventListener("change", () => {
+    void loadStyle(styleSelect.value);
+  });
+
+  saveBtn.addEventListener("click", () => {
+    void saveStyle();
+  });
+
+  reloadBtn.addEventListener("click", () => {
+    void loadStyle(styleSelect.value);
+  });
+
+  // 初始加载第一个风格
+  void loadStyle(styleSelect.value);
+}
+
+// 在面板初始化时调用
+const originalInit = initCharacterStylePanel;
+// 确保风格编辑器在DOM就绪后初始化
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => setTimeout(initStyleEditor, 500));
+} else {
+  setTimeout(initStyleEditor, 500);
+}
+
+
+// ========== 人设编辑器 ==========
+function initSoulEditor(): void {
+  const promptTextarea = document.getElementById("soul-editor-prompt") as HTMLTextAreaElement | null;
+  const saveBtn = document.getElementById("soul-editor-save-btn") as HTMLButtonElement | null;
+  const reloadBtn = document.getElementById("soul-editor-reload-btn") as HTMLButtonElement | null;
+  const statusEl = document.getElementById("soul-editor-status") as HTMLElement | null;
+
+  if (!promptTextarea || !saveBtn || !reloadBtn) return;
+
+  function setStatus(text: string, type?: string): void {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.className = "save-status" + (type ? " " + type : "");
+  }
+
+  async function loadSoul(): Promise<void> {
+    try {
+      setStatus("加载中...");
+      const settingsApi = (window as unknown as { settings?: { readStylePrompt?: (id: string) => Promise<{ ok: boolean; content?: string; error?: string }> } }).settings;
+      const result = await settingsApi?.readStylePrompt?.("soul");
+      if (result?.ok && result.content !== undefined) {
+        promptTextarea.value = result.content;
+        setStatus("加载成功");
+      } else {
+        promptTextarea.value = "";
+        setStatus("加载失败: " + (result?.error || "未知错误"), "error");
+      }
+    } catch (error) {
+      setStatus("加载失败: " + (error instanceof Error ? error.message : String(error)), "error");
+    }
+  }
+
+  async function saveSoul(): Promise<void> {
+    try {
+      setStatus("保存中...");
+      const content = promptTextarea.value;
+      const settingsApi = (window as unknown as { settings?: { writeStylePrompt?: (id: string, content: string) => Promise<{ ok: boolean; filePath?: string; error?: string }> } }).settings;
+      const result = await settingsApi?.writeStylePrompt?.("soul", content);
+      if (result?.ok) {
+        setStatus("保存成功", "success");
+      } else {
+        setStatus("保存失败: " + (result?.error || "未知错误"), "error");
+      }
+    } catch (error) {
+      setStatus("保存失败: " + (error instanceof Error ? error.message : String(error)), "error");
+    }
+  }
+
+  saveBtn.addEventListener("click", () => {
+    void saveSoul();
+  });
+
+  reloadBtn.addEventListener("click", () => {
+    void loadSoul();
+  });
+
+  // 初始加载
+  void loadSoul();
+}
+
+// 在DOM就绪后初始化人设编辑器
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => setTimeout(initSoulEditor, 800));
+} else {
+  setTimeout(initSoulEditor, 800);
 }

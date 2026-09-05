@@ -3195,10 +3195,12 @@ body {
 }
 
 .tts-engine.is-active {
-  background: rgba(255, 192, 230, 0.16);
-  border-color: rgba(255, 182, 220, 0.6);
-  box-shadow: 0 0 14px rgba(236, 72, 153, 0.22);
+  background: rgba(255, 192, 230, 0.22) !important;
+  border-color: rgba(255, 182, 220, 0.8) !important;
+  box-shadow: 0 0 18px rgba(236, 72, 153, 0.35) !important;
+  transform: translateY(-1px);
 }
+
 
 /* 占位 / 敬请期待卡：data-mode="coming-soon"（不会被通用 click handler 选中） */
 .tts-engine.is-coming-soon {
@@ -4558,8 +4560,8 @@ body {
 .character-dropdown__trigger.is-open,
 .character-dropdown__trigger:focus-visible {
   outline: none;
-  border-color: var(--rb-accent, #8b7fd4);
-  box-shadow: 0 0 0 3px rgba(139, 127, 212, 0.15);
+  border-color: #f472b6;
+  box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.15);
 }
 
 .character-dropdown__value {
@@ -4615,17 +4617,17 @@ body {
 }
 
 .character-dropdown__option:hover {
-  background: var(--rb-bg-3, rgba(139, 127, 212, 0.08));
+  background: var(--rb-bg-3, rgba(244, 114, 182, 0.08));
 }
 
 .character-dropdown__option.is-active {
-  background: var(--rb-accent, #8b7fd4);
+  background: #f472b6;
   color: #ffffff;
   font-weight: 500;
 }
 
 .character-dropdown__option.is-active:hover {
-  background: var(--rb-accent, #7c6fcf);
+  background: #ec4899;
 }
 
 /* 角色管理按钮 */
@@ -5013,4 +5015,96 @@ body {
 .settings-actions-row .save-status {
   margin: 0;
   flex: 1;
+}
+
+
+/* ===== 密码输入框和眼睛图标 ===== */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrapper .password-input {
+  padding-right: 40px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--rb-text-muted, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.password-toggle-btn:hover {
+  color: var(--rb-text-primary, #1a1b1c);
+  background-color: var(--rb-bg-3, rgba(0, 0, 0, 0.05));
+}
+
+.password-toggle-btn .eye-icon {
+  display: block;
+}
+
+/* ===== 音色列表容器 ===== */
+.voice-list-container {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--rb-border-soft, rgba(0, 0, 0, 0.08));
+  border-radius: 8px;
+  background: var(--rb-bg-1, #ffffff);
+}
+
+.voice-list-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--rb-border-soft, rgba(0, 0, 0, 0.05));
+  transition: background-color 0.12s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.voice-list-item:last-child {
+  border-bottom: none;
+}
+
+.voice-list-item:hover {
+  background-color: var(--rb-bg-3, rgba(0, 0, 0, 0.05));
+}
+
+.voice-list-item .voice-name {
+  font-weight: 500;
+  color: var(--rb-text-primary, #1a1b1c);
+}
+
+.voice-list-item .voice-id {
+  font-size: 12px;
+  color: var(--rb-text-muted, #6b7280);
+  font-family: monospace;
+}
+
+.voice-list-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--rb-text-muted, #6b7280);
+  font-size: 13px;
+}
+
+.voice-list-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--rb-text-muted, #6b7280);
+  font-size: 13px;
 }

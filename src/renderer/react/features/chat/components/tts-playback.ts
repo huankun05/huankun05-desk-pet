@@ -102,13 +102,15 @@ function releaseAudio(keepSessionEvents = false, keepStreamMetadata = false): vo
   browserApis().live2dSpeech?.stopMouth();
 }
 
-function createAudio(result: Extract<TtsStartResult, { status: "ready" }>, messageId: string): HTMLAudioElement {
+function createAudio(result: Extract<TtsStartResult, { status: "ready" }>, messageId: string, volume: number, playbackRate: number): HTMLAudioElement {
   const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
   const mime = result.format === "wav" ? "audio/wav" : result.format === "pcm" ? "audio/pcm" : "audio/mpeg";
   const blob = new Blob([bytes], { type: mime });
   currentObjectUrl = URL.createObjectURL(blob);
   const audio = new Audio(currentObjectUrl);
   audio.preload = "auto";
+  audio.volume = Math.max(0, Math.min(1, volume));
+  audio.playbackRate = Math.max(0.25, Math.min(4, playbackRate));
   audio.onended = () => {
     if (currentAudio !== audio) return;
     browserApis().live2dSpeech?.stopMouth();
@@ -131,10 +133,52 @@ function startMouth(audio: HTMLAudioElement, estimatedDurationMs?: number): void
 }
 
 async function playAudio(audio: HTMLAudioElement, messageId: string, estimatedDurationMs?: number): Promise<void> {
+  // 播放前从配置读取音量和语速
+  let currentVolume = 1;
+  let currentSpeed = 1;
+  try {
+    const generalSettings = await (window as unknown as { settings?: { getGeneral?: () => Promise<{ ttsVolume?: number; ttsSpeed?: number }> } }).settings?.getGeneral?.();
+    if (generalSettings?.ttsVolume !== undefined) currentVolume = generalSettings.ttsVolume;
+    if (generalSettings?.ttsSpeed !== undefined) currentSpeed = generalSettings.ttsSpeed;
+  } catch { /* 忽略配置获取失败，使用默认值 */ }
+
+  audio.volume = Math.max(0, Math.min(1, currentVolume));
+  audio.playbackRate = Math.max(0.25, Math.min(4, currentSpeed));
+
   await audio.play();
   if (currentAudio !== audio) return;
   startMouth(audio, estimatedDurationMs);
   publish({ messageId, status: "playing" });
+
+  // 实时调节：定期检查配置变化，只有变化时才更新
+  const playbackInterval = setInterval(async () => {
+    if (currentAudio !== audio) {
+      clearInterval(playbackInterval);
+      return;
+    }
+    try {
+      const generalSettings = await (window as unknown as { settings?: { getGeneral?: () => Promise<{ ttsVolume?: number; ttsSpeed?: number }> } }).settings?.getGeneral?.();
+      if (generalSettings?.ttsVolume !== undefined) {
+        const newVolume = Math.max(0, Math.min(1, generalSettings.ttsVolume));
+        if (Math.abs(audio.volume - newVolume) > 0.01) {
+          audio.volume = newVolume;
+        }
+      }
+      if (generalSettings?.ttsSpeed !== undefined) {
+        const newSpeed = Math.max(0.25, Math.min(4, generalSettings.ttsSpeed));
+        if (Math.abs(audio.playbackRate - newSpeed) > 0.01) {
+          audio.playbackRate = newSpeed;
+        }
+      }
+    } catch { /* 忽略配置获取失败 */ }
+  }, 500);
+
+  // 播放结束时清除定时器
+  const originalOnEnded = audio.onended;
+  audio.onended = () => {
+    clearInterval(playbackInterval);
+    if (originalOnEnded) originalOnEnded.call(audio);
+  };
 }
 
 function supportsStreamingPlayback(): boolean {
@@ -195,6 +239,7 @@ function prepareStreamingPlayback(
   currentObjectUrl = URL.createObjectURL(mediaSource);
   const audio = new Audio(currentObjectUrl);
   audio.preload = "auto";
+  // 流式播放的音量和语速在 playAudio 中设置
   currentAudio = audio;
   const stream: StreamingPlayback = {
     requestId,
@@ -339,6 +384,15 @@ export async function startTtsPlayback(request: TtsPlaybackRequest): Promise<voi
   });
 
   try {
+    // 获取音量和语速配置
+    let ttsVolume = 1;
+    let ttsSpeed = 1;
+    try {
+      const generalSettings = await (window as unknown as { settings?: { getGeneral?: () => Promise<{ ttsVolume?: number; ttsSpeed?: number }> } }).settings?.getGeneral?.();
+      if (generalSettings?.ttsVolume !== undefined) ttsVolume = generalSettings.ttsVolume;
+      if (generalSettings?.ttsSpeed !== undefined) ttsSpeed = generalSettings.ttsSpeed;
+    } catch (e) { console.log("[TTS Playback] 配置获取失败:", e); }
+
     const result = await api.startSession({
       requestId,
       conversationId: request.conversationId,
@@ -362,7 +416,7 @@ export async function startTtsPlayback(request: TtsPlaybackRequest): Promise<voi
       return;
     }
     request.onCacheKey?.(result.cacheKey, speech.converterVersion);
-    const audio = createAudio(result, request.messageId);
+    const audio = createAudio(result, request.messageId, ttsVolume, ttsSpeed);
     currentAudio = audio;
     await playAudio(audio, request.messageId);
   } catch (error) {

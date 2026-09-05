@@ -1,7 +1,8 @@
-/* 标记！AI写的超大技术债，延期重构*/
+﻿/* 标记！AI写的超大技术债，延期重构*/
 import "../ui/base.css";
 import "./settings.css";
 import "../ui/theme";
+import { CustomSelect } from "./components/custom-select/custom-select";
 import neteaseLogoUrl from "./assets/netease-logo.svg?url";
 import {
   normalizeChatSocialContextEnabled,
@@ -69,7 +70,7 @@ import { modalState } from "./shared/modal-state";
 import { formatDateTime, escapeHtml } from "./shared/format";
 import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
-import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, toggleEnableThinking, toggleDisableThinking, toggleDisableMaxToken } from "./api/dom";
+import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, thinkingModeSelect, toggleDisableMaxToken } from "./api/dom";
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { auxiliaryDedicatedToggle, auxiliaryDedicatedFields, auxiliaryBaseUrlInput, auxiliaryApiKeyInput, auxiliaryModelInput } from "./auxiliary/dom";
 import { consolidationToggle } from "./consolidation/dom";
@@ -82,6 +83,8 @@ import { stickerEnabledInput, stickerSizeSelect, stickerThresholdInput, stickerT
 import { diversityDriverOf, diversityValueOf } from "./preferences/style-utils";
 import { characterStyleForm } from "./character-style/dom";
 import { initCharacterStylePanel } from "./character-style/panel";
+import { initBackupPanel } from "./backup/backup-panel";
+import { initSkillsPanel } from "./skills-panel";
 import { pluginsState } from "./plugins/state";
 import type {
   GeneralSettings,
@@ -128,6 +131,7 @@ import "./user/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/panel";  // 副作用导入：执行事件绑定 + 初始加载
 import "./plugins/permission";  // 副作用导入：权限档位 UI + 风险确认弹窗
 import "./tts/panel";  // 副作用导入：TTS 配置加载 + 引擎切换 + 测试发音 + 音色复刻
+import "./tts/senseaudio-panel";  // 副作用导入：商汤 SenseAudio TTS 配置 + 密码显示/隐藏 + 音色列表
 import "./rag/panel";  // 副作用导入：RAG 模型切换 + Embedding 下载/删除 + Reranker 模式
 import "./preferences/panel";  // 副作用导入：截图热键捕获 + 表情包列表/添加/删除
 import "./mcp/panel";  // 副作用导入：MCP Server 添加/删除/启停 + 自定义端点接入说明
@@ -310,6 +314,8 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   user: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: "用户信息", hint: "编辑你的个人资料" },
   tasks: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M23.9998 44.3332C34.1251 44.3332 42.3332 36.1251 42.3332 25.9999C42.3332 15.8747 34.1251 7.66656 23.9998 7.66656C13.8746 7.66656 5.6665 15.8747 5.6665 25.9999C5.6665 36.1251 13.8746 44.3332 23.9998 44.3332Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M23.7594 15.3536L23.7582 26.3624L31.5305 34.1347" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.00001L11 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 9.00001L37 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: "定时任务", hint: "管理定时提醒与日程" },
   plugins: { emoji: "🔌", title: "工具配置", hint: "管理昔涟可调用的工具能力" },
+  skills: { emoji: "📦", title: "技能管理", hint: "管理内置、自进化和外部技能" },
+  backup: { emoji: "💾", title: "备份管理", hint: "备份和恢复人设、风格与配置" },
   preferences: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>偏好设置</title><path d="M12 35.0137H9H4V8.01273C4 6.90868 4.89543 6.01367 6 6.01367H42C43.1046 6.01367 44 6.90868 44 8.01273V35.0137H36" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 32L14 42H34L24 32Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "偏好设置", hint: "设置聊天窗口和输出行为的默认偏好" },
   "character-style": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>角色与风格</title><circle cx="24" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M10 42C10 34.268 16.268 28 24 28C31.732 28 38 34.268 38 42" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 8L42 12L38 16" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: "角色与风格", hint: "管理桌宠角色、绑定回复风格，所有角色共享记忆" },
   appearance: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>外观设置</title><path d="M24 44C29.9601 44 26.3359 35.136 30 31C33.1264 27.4709 44 29.0856 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M28 17C29.6569 17 31 15.6569 31 14C31 12.3431 29.6569 11 28 11C26.3431 11 25 12.3431 25 14C25 15.6569 26.3431 17 28 17Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 21C17.6569 21 19 19.6569 19 18C19 16.3431 17.6569 15 16 15C14.3431 15 13 16.3431 13 18C13 19.6569 14.3431 21 16 21Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M17 34C18.6569 34 20 32.6569 20 31C20 29.3431 18.6569 28 17 28C15.3431 28 14 29.3431 14 31C14 32.6569 15.3431 34 17 34Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: "外观设置", hint: "调整窗口布局、界面主题与昔涟桌宠" },
@@ -733,6 +739,22 @@ function renderProfileList(): void {
     }
     card.appendChild(badges);
 
+    if (!isDefault) {
+      const setDefaultBtn = document.createElement("span");
+      setDefaultBtn.className = "profile-card__set-default";
+      setDefaultBtn.textContent = "设为默认";
+      setDefaultBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          await window.settings?.setDefaultModelProfile?.(profile.id);
+          await reloadProfiles();
+        } catch (err) {
+          console.warn("设置默认档案失败:", err);
+        }
+      });
+      card.appendChild(setDefaultBtn);
+    }
+
     profileList.appendChild(card);
   }
 }
@@ -1010,8 +1032,15 @@ async function loadConfig(): Promise<void> {
     if (embeddingDimensionsInput) {
       embeddingDimensionsInput.value = cfg.embeddingDimensions ? String(cfg.embeddingDimensions) : "";
     }
-    toggleEnableThinking.checked = cfg.thinkingOverride === 1;
-    toggleDisableThinking.checked = cfg.thinkingOverride === -1;
+    if (thinkingModeSelect) {
+      const thinkingModeValue = cfg.thinkingOverride === 1 ? "enable" : cfg.thinkingOverride === -1 ? "disable" : "default";
+if (thinkingModeCustomSelect) {
+  console.log("[CustomSelect] 加载设置，设置值:", thinkingModeValue);
+  thinkingModeCustomSelect.setValue(thinkingModeValue, false);
+} else if (thinkingModeSelect) {
+  thinkingModeSelect.value = thinkingModeValue;
+}
+    }
     toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
 
     // 辅助模型配置加载
@@ -1131,16 +1160,20 @@ async function loadGeneralSettings(): Promise<void> {
 }
 
 
-toggleEnableThinking.addEventListener("change", () => {
-  if (toggleEnableThinking.checked) {
-    toggleDisableThinking.checked = false;
+// 替换原生 select 为自定义下拉组件
+let thinkingModeCustomSelect: CustomSelect | null = null;
+if (thinkingModeSelect) {
+  console.log("[CustomSelect] 开始替换 thinkingModeSelect");
+  try {
+    thinkingModeCustomSelect = CustomSelect.fromNativeSelect(thinkingModeSelect, () => {
+      console.log("[CustomSelect] 值改变:", thinkingModeCustomSelect?.getValue());
+      setSaveStatus("有未保存的更改");
+    });
+    console.log("[CustomSelect] 替换成功，当前值:", thinkingModeCustomSelect.getValue());
+  } catch (error) {
+    console.error("[CustomSelect] 替换失败:", error);
   }
-});
-toggleDisableThinking.addEventListener("change", () => {
-  if (toggleDisableThinking.checked) {
-    toggleEnableThinking.checked = false;
-  }
-});
+}
 
 runtimeSyncSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1187,6 +1220,90 @@ tasksVisibleInput.addEventListener("change", () => {
   else window.settings?.closeTasks();
   void window.settings?.saveGeneral({ tasksVisible: tasksVisibleInput.checked });
 });
+
+
+// ===== 主题切换逻辑 =====
+function initThemeSwitcher(): void {
+  const themeOptions = document.querySelectorAll<HTMLButtonElement>(".theme-option");
+  if (themeOptions.length === 0) return;
+
+  // 更新主题选项的激活状态
+  function updateActiveTheme(theme: string): void {
+    themeOptions.forEach((option) => {
+      const isActive = option.dataset.theme === theme;
+      option.classList.toggle("is-active", isActive);
+      option.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  // 为每个主题选项添加点击事件
+  themeOptions.forEach((option) => {
+    option.addEventListener("click", async () => {
+      const theme = option.dataset.theme;
+      if (!theme) return;
+      try {
+        // 通过保存 general settings 来设置主题
+        await window.settings!.saveGeneral({ uiTheme: theme as never });
+        updateActiveTheme(theme);
+        setAppearanceSaveStatus("主题已应用", "is-ok");
+      } catch (error) {
+        console.error("切换主题失败:", error);
+        setAppearanceSaveStatus("切换主题失败", "is-error");
+      }
+    });
+  });
+
+  // 初始化时读取当前主题
+  window.cyreneTheme?.get()
+    .then((theme) => updateActiveTheme(theme as string))
+    .catch(() => updateActiveTheme("pearl-white"));
+
+  // 监听主题变化
+  window.cyreneTheme?.onChanged((theme) => {
+    updateActiveTheme(theme as string);
+  });
+}
+
+// 延迟初始化，确保 DOM 已加载
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    initThemeSwitcher();
+    initCustomSelects();
+    initPasswordToggles();
+  });
+} else {
+  initThemeSwitcher();
+  initCustomSelects();
+  initPasswordToggles();
+}
+
+function initCustomSelects(): void {
+  setTimeout(() => {
+    try {
+      const count = CustomSelect.wrapAll("select.setting-select");
+      console.log("[CustomSelect] 成功包装", count.length, "个下拉栏");
+    } catch (error) {
+      console.error("[CustomSelect] 批量包装失败:", error);
+    }
+  }, 100);
+}
+// 通用密码显示/隐藏切换
+function initPasswordToggles(): void {
+  document.querySelectorAll<HTMLButtonElement>(".password-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.target;
+      if (!targetId) return;
+      const input = document.getElementById(targetId) as HTMLInputElement | null;
+      if (!input) return;
+      if (input.type === "password") {
+        input.type = "text";
+      } else {
+        input.type = "password";
+      }
+    });
+  });
+}
+
 
 windowCornerRadiusInput.addEventListener("input", () => {
   const radius = applyWindowCornerRadius(windowCornerRadiusInput.value);
@@ -1853,7 +1970,7 @@ apiForm.addEventListener("submit", async (e) => {
         model: auxiliaryModelInput.value.trim(),
       },
       skillConsolidationEnabled: consolidationToggle ? consolidationToggle.checked : false,
-      thinkingOverride: toggleEnableThinking.checked ? 1 : toggleDisableThinking.checked ? -1 : 0,
+      thinkingOverride: (thinkingModeCustomSelect ? thinkingModeCustomSelect.getValue() : thinkingModeSelect?.value) === "enable" ? 1 : (thinkingModeCustomSelect ? thinkingModeCustomSelect.getValue() : thinkingModeSelect?.value) === "disable" ? -1 : 0,
       disableMaxToken: toggleDisableMaxToken.checked,
     });
     if (isEditing) {
@@ -1891,6 +2008,12 @@ function switchSection(section: string): void {
   const label = NAV_LABELS[section] ?? NAV_LABELS.api;
   sectionTitle.textContent = label.title;
   sectionHint.textContent = label.hint;
+  // 先更新导航栏激活状态，确保即使后面的面板初始化出错也能正确高亮
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    const isMatch = (el as HTMLElement).dataset.section === section;
+    el.classList.toggle("is-active", isMatch);
+  });
+
 
   const isApi = section === "api";
   const isApiAdvanced = section === "api-advanced";
@@ -1909,6 +2032,8 @@ function switchSection(section: string): void {
   const isTts = section === "tts";
   const isAsr = section === "asr";
   const isMusic = section === "music";
+  const isSkills = section === "skills";
+  const isBackup = section === "backup";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
   appearanceForm.classList.toggle("is-hidden", !isAppearance);
@@ -1938,9 +2063,16 @@ function switchSection(section: string): void {
   if (musicPanel) musicPanel.classList.toggle("is-hidden", !isMusic);
   if (isMusic) void loadMusicPanel();
   else disposeMusicPanel();
+  const skillsPanel = document.getElementById("skills-panel");
+  if (skillsPanel) skillsPanel.classList.toggle("is-hidden", !isSkills);
+  if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
+  const backupPanel = document.getElementById("backup-panel");
+  if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
+  if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
+
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isBackup,
   );
 
   if (
@@ -2043,6 +2175,7 @@ void loadChannelsPanel();
 
 // 初始化角色与风格面板
 initCharacterStylePanel();
+initBackupPanel();
 
 // 启动时读 URL hash 决定初始标签（main 通过 loadURL 带 #api 实现"切换模型按钮跳 API"）。
 // 无 hash 默认 general。

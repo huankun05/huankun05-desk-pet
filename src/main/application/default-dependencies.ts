@@ -91,6 +91,7 @@ import { registerCallIpc } from "../call/call-manager";
 import { initSkills, skillRegistry } from "../skills";
 import { initCurator } from "../self-evolving/curator";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
+import { registerBackupIpc } from "../backup/backup-ipc";
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { startPluginRuntime } from "../plugin-runtime";
 import { createAgentRuntime } from "../orchestrator/agent-runtime";
@@ -433,6 +434,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // ── TTS IPC ──
         registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });
+        registerBackupIpc();
 
         // 聊天会话存储 IPC（chats-store.initialize 建好 cyrene-chats 目录并加载 index）
         registerChatsIpc(ipc);

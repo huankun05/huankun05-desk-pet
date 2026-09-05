@@ -54,7 +54,7 @@ export function getTtsCacheDir(): string {
 }
 
 export function assertTtsCacheKey(cacheKey: string): string {
-  if (!/^(minimax|gptsovits|custom-cloud|mimo|mossland)-[a-f0-9]{64}$/.test(cacheKey)) {
+  if (!/^(minimax|gptsovits|custom-cloud|mimo|mossland|senseaudio)-[a-f0-9]{64}$/.test(cacheKey)) {
     throw new Error("非法 TTS 缓存 key");
   }
   return cacheKey;
@@ -159,6 +159,24 @@ export function buildMosslandCacheKey(payload: {
     text: payload.text,
   });
   return "mossland-" + createHash("sha256").update(source, "utf8").digest("hex");
+}
+
+/** 商汤 SenseAudio cache key：voice_id + model + speed + format + text 哈希。 */
+export function buildSenseaudioCacheKey(payload: {
+  voiceId?: string;
+  text: string;
+  model?: string;
+  format?: "mp3" | "wav";
+}): string {
+  const source = JSON.stringify({
+    version: 1,
+    engine: "senseaudio",
+    model: payload.model ?? "senseaudio-tts-1.5-260319",
+    voiceId: payload.voiceId ?? "",
+    format: payload.format ?? "mp3",
+    text: payload.text,
+  });
+  return "senseaudio-" + createHash("sha256").update(source, "utf8").digest("hex");
 }
 
 export function readTtsCacheByKey(cacheKey: string): { audio: Buffer; format: TtsAudioFormat } | null {

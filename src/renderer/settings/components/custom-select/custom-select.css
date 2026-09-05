@@ -1,0 +1,181 @@
+/* ===== 通用自定义下拉组件样式（与 character-dropdown 风格统一，粉色边框） ===== */
+
+.custom-select {
+  position: relative;
+  display: inline-block;
+  min-width: 140px;
+  flex: 0 0 auto;
+}
+
+/* 触发按钮 */
+.custom-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #f472b6;
+  background: var(--rb-bg-2, rgba(255, 255, 255, 0.6));
+  color: var(--rb-text-primary, #1a1b1c);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.custom-select__trigger:hover {
+  border-color: #ec4899;
+  background-color: var(--rb-bg-3, rgba(255, 255, 255, 0.85));
+}
+
+.custom-select__trigger.is-open,
+.custom-select__trigger:focus-visible {
+  outline: none;
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.15);
+}
+
+/* 值显示 */
+.custom-select__value {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 箭头 - 与 character-dropdown 一致，使用灰色 */
+.custom-select__arrow {
+  flex-shrink: 0;
+  color: var(--rb-text-muted, #6b7280);
+  transition: transform 0.2s ease;
+}
+
+.custom-select__trigger.is-open .custom-select__arrow {
+  transform: rotate(180deg);
+}
+
+/* 下拉面板 - 与 character-dropdown 一致，有 4px 间隙，完整圆角 */
+.custom-select__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--rb-border-soft, rgba(0, 0, 0, 0.08));
+  background: var(--rb-bg-1, #ffffff);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: 200px;
+  overflow-y: auto;
+  animation: customSelectSlideDown 0.15s ease;
+}
+
+@keyframes customSelectSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-select__panel.is-hidden {
+  display: none;
+}
+
+/* 选项 - 与 character-dropdown 一致 */
+.custom-select__option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rb-text-primary, #1a1b1c);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.custom-select__option:hover {
+  background: var(--rb-bg-3, rgba(255, 255, 255, 0.85));
+  color: var(--rb-text-primary, #1a1b1c);
+}
+
+.custom-select__option.is-selected {
+  background: #f472b6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.custom-select__option.is-selected:hover {
+  background: #ec4899;
+  color: #ffffff;
+}
+
+.custom-select__option.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-select__option.is-disabled:hover {
+  background: transparent;
+  color: var(--rb-text-primary, #1a1b1c);
+}
+
+/* 滚动条样式 - 与 character-dropdown 一致 */
+.custom-select__panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-select__panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-select__panel::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.custom-select__panel::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 深色主题适配 */
+[data-ui-theme="midnight-purple"] .custom-select__trigger {
+  background: #241635;
+  border-color: #ec4899;
+  color: #e0d5f0;
+}
+
+[data-ui-theme="midnight-purple"] .custom-select__trigger:hover {
+  background: #2d1b45;
+}
+
+[data-ui-theme="midnight-purple"] .custom-select__panel {
+  background: #241635;
+  border-color: #ec4899;
+}
+
+[data-ui-theme="midnight-purple"] .custom-select__option {
+  color: #e0d5f0;
+}
+
+[data-ui-theme="midnight-purple"] .custom-select__option:hover {
+  background: #3d2a6c;
+  color: #c084fc;
+}
+
+[data-ui-theme="midnight-purple"] .custom-select__option.is-selected {
+  background: #ec4899;
+  color: #ffffff;
+}

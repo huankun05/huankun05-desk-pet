@@ -8,6 +8,10 @@ import { DEFAULT_UI_FONT, isSupportedFontFileName } from "../../shared/ui-font";
 import type { GeneralSettings } from "./general-settings";
 import type { TimeoutSettings } from "../../shared/timeout-types";
 import { ensureCustomStylePrompt } from "../style-prompt";
+import { readStylePrompt } from "../orchestrator/system-prompt-builder";
+import { STYLE_FILE_BY_ID, type StyleId } from "../../shared/style-sampling";
+import { findPromptPath } from "../external-content-paths";
+import { autoBackup } from "../backup/backup-manager";
 import type { WindowManager } from "../windows/window-manager";
 import {
   reactChatWindow,
@@ -217,6 +221,47 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     const filePath = ensureCustomStylePrompt();
     await shell.showItemInFolder(filePath);
     return { ok: true, filePath };
+  });
+
+  // 读取风格 Prompt 文件
+  ipc.handle(IPC.SETTINGS_READ_STYLE_PROMPT, async (_event, styleId: string) => {
+    try {
+      let content: string;
+      if (styleId === "soul") {
+        const soulPath = findPromptPath("soul.md") || path.join(process.cwd(), "prompts", "soul.md");
+        content = fs.readFileSync(soulPath, "utf8");
+      } else {
+        content = readStylePrompt(styleId as StyleId);
+      }
+      return { ok: true, content };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // 写入风格 Prompt 文件
+  ipc.handle(IPC.SETTINGS_WRITE_STYLE_PROMPT, async (_event, styleId: string, content: string) => {
+    try {
+      let filePath: string;
+      if (styleId === "soul") {
+        filePath = findPromptPath("soul.md") || path.join(process.cwd(), "prompts", "soul.md");
+      } else if (styleId === "custom") {
+        filePath = ensureCustomStylePrompt();
+      } else {
+        const styleKey = styleId as Exclude<StyleId, "custom">;
+        const fileName = STYLE_FILE_BY_ID[styleKey];
+        filePath = findPromptPath("styles/" + fileName) || path.join(process.cwd(), "prompts", "styles", fileName);
+      }
+      // 写入前自动备份
+      const backupCategory = styleId === "soul" ? "soul" : "styles";
+      autoBackup(backupCategory);
+      
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, content, "utf8");
+      return { ok: true, filePath };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
   });
 
   ipc.on(IPC.SETTINGS_OPEN_SIDEBAR, () => {

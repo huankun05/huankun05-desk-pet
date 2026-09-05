@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../ui/fonts.css" />
   <link rel="stylesheet" href="../ui/base.css" />
   <link rel="stylesheet" href="./settings.css" />
+  <link rel="stylesheet" href="./components/custom-select/custom-select.css" />
   <link rel="stylesheet" href="../ui/theme.css" />
 </head>
 <body>
@@ -35,6 +36,8 @@
         <button type="button" class="nav-item" data-section="channels"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>连接手机</title><rect x="11" y="4" width="26" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="4"/><path d="M22 10L26 10" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 38H28" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>连接手机</button>
         <hr class="nav-divider" />
         <button type="button" class="nav-item" data-section="plugins"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><title>工具配置</title><path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z"/><path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z"/></svg></span>工具配置</button>
+        <button type="button" class="nav-item" data-section="skills"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></span>技能管理</button>
+        <button type="button" class="nav-item" data-section="backup"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20C12 20 16 16 24 16C32 16 36 20 36 20" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></span>备份管理</button>
         <button type="button" class="nav-item" data-section="tasks"><span><svg width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M23.9998 44.3332C34.1251 44.3332 42.3332 36.1251 42.3332 25.9999C42.3332 15.8747 34.1251 7.66656 23.9998 7.66656C13.8746 7.66656 5.6665 15.8747 5.6665 25.9999C5.6665 36.1251 13.8746 44.3332 23.9998 44.3332Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M23.7594 15.3536L23.7582 26.3624L31.5305 34.1347" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.00001L11 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 9.00001L37 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>定时任务</button>
         <hr class="nav-divider" />
         <button type="button" class="nav-item" data-section="general"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>通用设置</title><path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span>通用设置</button>
@@ -127,7 +130,12 @@
 
             <label class="field">
               <span id="api-key-label">API Key</span>
-              <input id="api-key" type="password" placeholder="sk-..." autocomplete="off" />
+              <div class="password-input-wrapper"><input class="password-input" id="api-key" type="password" placeholder="sk-..." autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="api-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               <span class="form-hint" id="api-key-hint">填写对应平台创建的 API Key</span>
             </label>
 
@@ -221,17 +229,14 @@
               </label>
               <label class="setting-row">
                 <div>
-                  <strong>强制启用模型思考</strong>
-                  <span>强制模型进入思考模式。</span>
+                  <strong>模型思考模式</strong>
+                  <span>控制模型是否输出思考过程。</span>
                 </div>
-                <span class="switch"><input id="toggle-enable-thinking" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <label class="setting-row">
-                <div>
-                  <strong>强制禁用模型思考</strong>
-                  <span>强制模型不输出思考过程。</span>
-                </div>
-                <span class="switch"><input id="toggle-disable-thinking" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
+                <select id="thinking-mode-select" class="setting-select">
+                  <option value="default">默认（由模型决定）</option>
+                  <option value="enable">强制启用思考</option>
+                  <option value="disable">强制禁用思考</option>
+                </select>
               </label>
             </div>
           </div>
@@ -254,7 +259,12 @@
                 </label>
                 <label class="field">
                   <span>API Key</span>
-                  <input id="vision-api-key" type="password" placeholder="sk-..." autocomplete="off" />
+                  <div class="password-input-wrapper"><input class="password-input" id="vision-api-key" type="password" placeholder="sk-..." autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="vision-api-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                 </label>
                 <label class="field">
                   <span>视觉型号</span>
@@ -305,7 +315,12 @@
                   </label>
                   <label class="field">
                     <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="auxiliary-api-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </label>
                   <label class="field">
                     <span>辅助型号</span>
@@ -371,40 +386,7 @@
               <span class="field-hint">同时执行的安全工具数量。范围：1~8；设为 1 时完全串行。保存后从下一个任务生效。</span>
             </label>
           </div>
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+                    <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -542,40 +524,7 @@
             </div> -->
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+                    <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -634,7 +583,7 @@
               </label>
               <label class="character-field">
                 <span>绑定风格</span>
-                <select id="character-style-edit-style">
+                <select class="setting-select" id="character-style-edit-style">
                   <option value="default">温柔（默认）</option>
                   <option value="lively">元气·活泼</option>
                   <option value="healing">治愈·安心</option>
@@ -650,14 +599,65 @@
             </div>
           </div>
 
-          <div class="character-style-section">
+                    <div class="character-style-section">
             <div class="character-style-section__heading">
-              <h2>自定义风格</h2>
-              <p>配置"自定义"风格的采样参数和 Prompt 文件。</p>
+              <h2>人设管理</h2>
+              <p>编辑角色的核心人设文件 (soul.md)，定义角色的人格、世界观、表达方式等核心设定。</p>
             </div>
-            <div class="settings-actions-inline">
-              <button type="button" class="save-btn save-btn--ghost" id="character-style-sampling-btn">自定义风格采样</button>
-              <button type="button" class="save-btn save-btn--ghost" id="character-style-prompt-btn">打开 Prompt 文件</button>
+            <div class="soul-editor">
+              <label class="character-field character-field--full">
+                <span>核心人设 (soul.md)</span>
+                <textarea id="soul-editor-prompt" rows="12" placeholder="在此编辑角色的核心人设..." style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);resize:vertical;font-family:inherit;font-size:13px;line-height:1.6;"></textarea>
+              </label>
+              <div class="settings-actions-inline" style="margin-top:12px;">
+                <button type="button" class="save-btn" id="soul-editor-save-btn">保存人设</button>
+                <button type="button" class="save-btn save-btn--ghost" id="soul-editor-reload-btn">重新加载</button>
+                <span class="save-status" id="soul-editor-status">等待操作</span>
+              </div>
+            </div>
+          </div>
+
+<div class="character-style-section">
+            <div class="character-style-section__heading">
+              <h2>风格管理</h2>
+              <p>编辑每种回复风格的人设 Prompt 和采样参数。所有角色共享这些风格，切换角色时绑定的风格自动联动。</p>
+            </div>
+            <div class="style-editor">
+              <label class="character-field">
+                <span>选择风格</span>
+                <select class="setting-select" id="style-editor-select">
+                  <option value="default">温柔（默认）</option>
+                  <option value="lively">元气·活泼</option>
+                  <option value="healing">治愈·安心</option>
+                  <option value="focused">知性·专注</option>
+                  <option value="sweet">撒娇·甜美</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+              <label class="character-field character-field--full">
+                <span>人设 Prompt</span>
+                <textarea id="style-editor-prompt" rows="8" placeholder="在此编辑该风格的人设提示词..." style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);resize:vertical;font-family:inherit;"></textarea>
+              </label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <label class="character-field" style="margin:0;">
+                  <span>Temperature (多样性)</span>
+                  <input type="number" id="style-editor-temperature" min="0" max="2" step="0.05" placeholder="0.65" />
+                </label>
+                <label class="character-field" style="margin:0;">
+                  <span>重复惩罚级别</span>
+                  <select class="setting-select" id="style-editor-repetition">
+                    <option value="model-default">模型默认</option>
+                    <option value="light">轻度</option>
+                    <option value="medium">中度</option>
+                    <option value="strong">强力</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-actions-inline" style="margin-top:12px;">
+                <button type="button" class="save-btn" id="style-editor-save-btn">保存风格</button>
+                <button type="button" class="save-btn save-btn--ghost" id="style-editor-reload-btn">重新加载</button>
+                <span class="save-status" id="style-editor-status">等待操作</span>
+              </div>
             </div>
           </div>
 
@@ -742,7 +742,30 @@
               <p>字体和图标会立即应用；请仅导入你有权使用的字体文件。</p>
             </div>
             <div class="appearance-placeholder-list">
-              <label class="setting-row">
+              <div class="appearance-theme-control">
+                <div class="appearance-theme-control__heading">
+                  <strong>界面主题</strong>
+                  <span>选择你喜欢的颜色主题，立即应用到所有窗口。</span>
+                </div>
+                <div class="appearance-theme-options" id="theme-options">
+                  <button type="button" class="theme-option is-active" data-theme="pearl-white" aria-pressed="true">
+                    <span class="theme-option__preview" style="background: linear-gradient(135deg, #ffffff 0%, #fff1f6 100%);"></span>
+                    <span class="theme-option__name">珍珠白</span>
+                  </button>
+                  <button type="button" class="theme-option" data-theme="midnight-purple" aria-pressed="false">
+                    <span class="theme-option__preview" style="background: linear-gradient(135deg, #1a1025 0%, #2d1b4e 100%);"></span>
+                    <span class="theme-option__name">午夜紫</span>
+                  </button>
+                  <button type="button" class="theme-option" data-theme="ocean-blue" aria-pressed="false">
+                    <span class="theme-option__preview" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);"></span>
+                    <span class="theme-option__name">海洋蓝</span>
+                  </button>
+                  <button type="button" class="theme-option" data-theme="forest-green" aria-pressed="false">
+                    <span class="theme-option__preview" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);"></span>
+                    <span class="theme-option__name">森林绿</span>
+                  </button>
+                </div>
+              </div><label class="setting-row">
                 <div><strong>窗口圆角</strong><span>统一调整所有应用窗口的四角弧度（0 ~ 40px）。</span></div>
                 <div class="range-row">
                   <input id="window-corner-radius" type="range" min="0" max="40" step="1" value="24" />
@@ -819,40 +842,7 @@
             </div>
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+                    <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -946,40 +936,7 @@
             </div>
           </div>
 
-          <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+                    <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -1000,7 +957,9 @@
             <div class="save-status" id="general-save-status">等待保存</div>
             <button type="submit" class="save-btn">保存设置</button>
           </div>
-        </form>
+        
+          
+</form>
 
 
         <form class="settings-panel is-hidden" id="cyrene-panel" data-panel="cyrene">
@@ -1228,7 +1187,142 @@
           </div>
         </section>
 
-                <section class="settings-panel is-hidden" id="user-panel" data-panel="user">
+                ﻿<section class="settings-panel is-hidden" id="skills-panel" data-panel="skills">
+          <div class="panel-heading">
+            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></div>
+            <div>
+              <h1>技能管理</h1>
+              <p>管理内置、自进化和外部技能。可以启用/禁用技能，按来源和状态筛选。</p>
+            </div>
+          </div>
+
+          <!-- 操作栏：筛选器 + 操作按钮 -->
+          <div class="skills-toolbar">
+            <div class="skills-filter-group">
+              <label for="skills-filter-source">来源：</label>
+              <select id="skills-filter-source">
+                <option value="all">全部</option>
+                <option value="self">自进化</option>
+                <option value="external">外部获取</option>
+              </select>
+              <label for="skills-filter-enabled">状态：</label>
+              <select id="skills-filter-enabled">
+                <option value="all">全部</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已禁用</option>
+              </select>
+              <span class="skills-filter-count" id="skills-filter-count"></span>
+            </div>
+            <div class="skills-actions-group">
+              <button type="button" class="save-btn" id="skill-refresh-btn" style="padding:8px 16px;font-size:13px;">刷新列表</button>
+              <button type="button" class="save-btn save-btn--ghost" id="skill-rescan-btn" style="padding:8px 16px;font-size:13px;">重新扫描</button>
+            </div>
+          </div>
+
+          <!-- 状态提示 -->
+          <div class="skills-status" id="skills-status" hidden></div>
+
+          <!-- 技能列表 -->
+          <div class="skills-list" id="skills-list">
+            <p class="skills-loading">加载中...</p>
+          </div>
+        </section>
+
+        <section class="settings-panel is-hidden" id="backup-panel" data-panel="backup">
+          <div class="panel-heading">
+            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div>
+              <h1>备份管理</h1>
+              <p>备份和恢复人设、风格、角色配置和应用设置。修改人设或风格时会自动备份。</p>
+            </div>
+          </div>
+
+          <!-- 手动备份区域 -->
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>手动备份</h2>
+              <p>选择要备份的内容，立即创建一个备份点。</p>
+            </div>
+            <div class="settings-section__body">
+              <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;">
+                <label class="character-field" style="margin:0;min-width:240px;flex:1;">
+                  <span>备份内容</span>
+                  <select class="setting-select" id="backup-category-select">
+                    <option value="all">全部（人设 + 风格 + 配置）</option>
+                    <option value="soul">仅人设 (soul.md)</option>
+                    <option value="styles">仅风格 (styles/)</option>
+                    <option value="characters">仅角色配置</option>
+                    <option value="settings">仅应用设置</option>
+                    <option value="skills">仅技能</option>
+                  </select>
+                </label>
+                <button type="button" class="save-btn" id="backup-create-btn" style="padding:10px 24px;font-size:14px;">立即备份</button>
+              </div>
+              <p class="save-status" id="backup-status" style="margin-top:12px;">等待操作</p>
+            </div>
+          </div>
+
+          <!-- 自动备份设置 -->
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>自动备份设置</h2>
+              <p>配置自动备份的触发条件和保留策略。</p>
+            </div>
+            <div class="settings-section__body">
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <label class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;">
+                  <div>
+                    <div style="font-weight:500;color:var(--text-primary);">人设修改自动备份</div>
+                    <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">保存 soul.md 前自动创建备份</div>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="auto-backup-soul" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </label>
+                <label class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;">
+                  <div>
+                    <div style="font-weight:500;color:var(--text-primary);">风格修改自动备份</div>
+                    <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">保存风格 Prompt 前自动创建备份</div>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="auto-backup-styles" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </label>
+                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                  <label class="character-field" style="margin:0;min-width:200px;">
+                    <span>自动备份保留数量</span>
+                    <select class="setting-select" id="backup-keep-count">
+                      <option value="3">最近 3 个</option>
+                      <option value="5" selected>最近 5 个</option>
+                      <option value="10">最近 10 个</option>
+                      <option value="20">最近 20 个</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 备份列表 -->
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>备份列表</h2>
+              <p>所有备份按时间倒序排列。恢复前会自动备份当前状态。</p>
+            </div>
+            <div class="settings-section__body">
+              <div id="backup-list" style="display:flex;flex-direction:column;gap:12px;">
+                <p style="color:var(--text-secondary);font-size:13px;">加载中...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+
+
+        <section class="settings-panel is-hidden" id="user-panel" data-panel="user">
           <div class="panel-heading">
             <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <div>
@@ -1274,7 +1368,7 @@
                 </div>
                 <div class="tts-field">
                   <label for="user-timezone">时区</label>
-                  <select id="user-timezone" data-timezone-select></select>
+                  <select class="setting-select" id="user-timezone" data-timezone-select></select>
                 </div>
                 <p class="user-field-hint">这些信息会告诉昔涟，让她知道怎么称呼你、你在哪。默认城市用于天气等需要定位的工具；时区仅用于时间计算，不代表所在城市。</p>
               </div>
@@ -1333,7 +1427,7 @@
               <div class="form-grid scheduler-form-grid">
                 <label class="field">
                   <span>频率</span>
-                  <select id="scheduler-kind">
+                  <select class="setting-select" id="scheduler-kind">
                     <option value="once">仅一次</option>
                     <option value="daily">每天</option>
                     <option value="weekly">每周</option>
@@ -1350,7 +1444,7 @@
                 </label>
                 <label class="field scheduler-weekly-field">
                   <span>星期</span>
-                  <select id="scheduler-day-of-week">
+                  <select class="setting-select" id="scheduler-day-of-week">
                     <option value="1">周一</option>
                     <option value="2">周二</option>
                     <option value="3">周三</option>
@@ -1366,7 +1460,7 @@
                 </label>
                 <label class="field scheduler-interval-field">
                   <span>间隔单位</span>
-                  <select id="scheduler-interval-unit">
+                  <select class="setting-select" id="scheduler-interval-unit">
                     <option value="minutes">分钟</option>
                     <option value="hours">小时</option>
                   </select>
@@ -1384,40 +1478,7 @@
               <div class="scheduler-tool-picker is-hidden" id="scheduler-tool-picker"></div>
               <div class="scheduler-tool-hint is-hidden" id="scheduler-tool-empty-hint">未选择工具时，任务只能使用模型自身能力，不会调用任何工具。</div>
 
-              <!-- 辅助模型配置区（全局，用于记忆压缩、会话摘要、技能自整理等后台任务） -->
-          <div class="vision-config-section">
-            <div class="vision-config-heading">
-              <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>辅助模型</title><path d="M24 4L4 14L24 24L44 14L24 4Z" fill="currentColor"/><path d="M4 24L24 34L44 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 34L24 44L44 34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div>
-                <h2>辅助模型（全局）</h2>
-                <p>用于记忆压缩、会话摘要、技能自整理（合并相似技能）等后台辅助任务。默认跟随主模型，可单独配置一个便宜快的模型。</p>
-              </div>
-            </div>
-            <div id="auxiliary-fields-wrap">
-              <label class="field field--full field--switch">
-                <span>独立配置辅助模型（关闭则跟随主模型）</span>
-                <span class="switch"><input id="toggle-auxiliary-dedicated" type="checkbox" /><span class="switch__track"><span class="switch__thumb"></span></span></span>
-              </label>
-              <div id="auxiliary-dedicated-fields" style="display: none;">
-                <div class="form-grid vision-fields">
-                  <label class="field field--full">
-                    <span>Base URL</span>
-                    <input id="auxiliary-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>API Key</span>
-                    <input id="auxiliary-api-key" type="password" placeholder="sk-..." autocomplete="off" />
-                  </label>
-                  <label class="field">
-                    <span>辅助型号</span>
-                    <input id="auxiliary-model" type="text" placeholder="deepseek-v4-flash / qwen3-4b" autocomplete="off" />
-                  </label>
-                </div>
-                <p class="vision-hint">该模型用于后台辅助任务，建议配置一个响应快、成本低的模型。支持 OpenAI 兼容和 Anthropic 兼容接口。</p>
-              </div>
-            </div>
-          </div>
-          <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
+                        <!-- 技能自整理配置区（LLM 整合 / 伞技能合并） -->
           <div class="vision-config-section">
             <div class="vision-config-heading">
               <span class="vision-config-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>技能自整理</title><path d="M8 10H40V14H8V10Z" fill="currentColor"/><path d="M12 20H36V24H12V20Z" fill="currentColor"/><path d="M16 30H32V34H16V30Z" fill="currentColor"/><path d="M42 12L46 16L42 20" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22L2 26L6 30" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -1513,7 +1574,12 @@
               <div class="form-row">
                 <label class="form-label">App Secret</label>
                 <div class="form-input-with-action">
-                  <input type="password" id="channels-feishu-app-secret" class="form-input form-input--wide" placeholder="点击保存配置时自动加密保存" autocomplete="off" />
+                  <div class="password-input-wrapper"><input type="password" id="channels-feishu-app-secret" class="password-input form-input form-input--wide" placeholder="点击保存配置时自动加密保存" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="channels-feishu-app-secret" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   <button type="button" class="btn-reveal" id="channels-feishu-app-secret-reveal" title="显示/隐藏">👁</button>
                 </div>
               </div>
@@ -1541,7 +1607,7 @@
               </p>
               <div class="form-row">
                 <label class="form-label" for="channels-qq-listen-mode">监听模式</label>
-                <select id="channels-qq-listen-mode" class="form-input form-input--wide">
+                <select id="channels-qq-listen-mode" class="form-input form-input--wide setting-select">
                   <option value="auto">自动（优先 WSL，失败回环）</option>
                   <option value="wsl">Windows WSL 虚拟网卡</option>
                   <option value="loopback">仅本机 127.0.0.1</option>
@@ -1566,7 +1632,12 @@
               <div class="form-row">
                 <label class="form-label" for="channels-qq-token">Access Token（可选）</label>
                 <div class="form-input-with-action">
-                  <input type="password" id="channels-qq-token" class="form-input form-input--wide" autocomplete="off" placeholder="留空表示不修改已保存 Token" />
+                  <div class="password-input-wrapper"><input type="password" id="channels-qq-token" class="password-input form-input form-input--wide" autocomplete="off" placeholder="留空表示不修改已保存 Token" /><button type="button" class="password-toggle-btn" data-target="channels-qq-token" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   <button type="button" class="btn-secondary" id="channels-qq-token-generate">生成</button>
                   <button type="button" class="btn-secondary" id="channels-qq-token-copy">复制</button>
                 </div>
@@ -1608,7 +1679,12 @@
               </div>
               <div class="form-row">
                 <label class="form-label" for="channels-qqbot-app-secret">AppSecret</label>
-                <input type="password" id="channels-qqbot-app-secret" class="form-input form-input--wide" placeholder="点击保存配置时自动加密保存" autocomplete="off" />
+                <div class="password-input-wrapper"><input type="password" id="channels-qqbot-app-secret" class="password-input form-input form-input--wide" placeholder="点击保存配置时自动加密保存" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="channels-qqbot-app-secret" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <div class="form-row">
                 <label class="form-label" for="channels-qqbot-allow-any-private">放行所有单聊</label>
@@ -1699,7 +1775,7 @@
                 <div class="plugin-config" id="plugin-weather-config">
                   <div class="tts-field">
                     <label for="weather-source">天气源</label>
-                    <select id="weather-source">
+                    <select class="setting-select" id="weather-source">
                       <option value="open-meteo">Open-Meteo（免配置，推荐）</option>
                       <option value="amap">高德天气（需 Key，国内准）</option>
                     </select>
@@ -1707,7 +1783,12 @@
                   <div id="amap-fields" style="display:none">
                     <div class="tts-field">
                       <label for="amap-key">高德 Key</label>
-                      <input type="password" id="amap-key" placeholder="lbs.amap.com 注册 Web服务 Key" autocomplete="off" />
+                      <div class="password-input-wrapper"><input class="password-input" type="password" id="amap-key" placeholder="lbs.amap.com 注册 Web服务 Key" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="amap-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                     </div>
                     <p class="user-field-hint">高德开放平台 → 控制台 → 应用管理 → 创建「Web服务」类型 Key。</p>
                   </div>
@@ -1732,7 +1813,12 @@
                 <div class="plugin-config" id="plugin-travel-config">
                   <div class="tts-field">
                     <label for="travel-amap-key">高德 Key</label>
-                    <input type="password" id="travel-amap-key" placeholder="lbs.amap.com 注册 Web服务 Key" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="travel-amap-key" placeholder="lbs.amap.com 注册 Web服务 Key" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="travel-amap-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <p class="user-field-hint">高德开放平台 → 控制台 → 应用管理 → 创建「Web服务」类型 Key。与天气查询共用同一个 Key。</p>
                 </div>
@@ -1751,7 +1837,7 @@
                 <div class="plugin-config" id="plugin-search-config">
                   <div class="tts-field">
                     <label for="search-engine">搜索源</label>
-                    <select id="search-engine">
+                    <select class="setting-select" id="search-engine">
                       <option value="bocha">博查 Bocha（国内，AI 友好）</option>
                       <option value="tavily">Tavily（海外，AI 友好）</option>
                       <option value="minimax">MiniMax（需 uvx）</option>
@@ -1760,19 +1846,39 @@
                   </div>
                   <div class="tts-field" id="search-bocha-row" style="display:none">
                     <label for="search-bocha-key">博查 Key</label>
-                    <input type="password" id="search-bocha-key" placeholder="open.bochaai.com 注册获取" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="search-bocha-key" placeholder="open.bochaai.com 注册获取" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="search-bocha-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <div class="tts-field" id="search-tavily-row" style="display:none">
                     <label for="search-tavily-key">Tavily Key</label>
-                    <input type="password" id="search-tavily-key" placeholder="tavily.com 注册获取" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="search-tavily-key" placeholder="tavily.com 注册获取" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="search-tavily-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <div class="tts-field" id="search-minimax-row" style="display:none">
                     <label for="search-minimax-key">MiniMax Key</label>
-                    <input type="password" id="search-minimax-key" placeholder="MiniMax 平台 API Key" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="search-minimax-key" placeholder="MiniMax 平台 API Key" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="search-minimax-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <div class="tts-field" id="search-anysearch-row" style="display:none">
                     <label for="search-anysearch-key">AnySearch Key</label>
-                    <input type="password" id="search-anysearch-key" placeholder="anysearch.com 注册获取" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="search-anysearch-key" placeholder="anysearch.com 注册获取" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="search-anysearch-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <p class="user-field-hint" id="search-engine-hint">选择搜索源后填入对应 Key。MiniMax 需先安装 uvx（Python）。</p>
                 </div>
@@ -1808,7 +1914,12 @@
                   </div>
                   <div class="tts-field">
                     <label for="email-smtp-pass">SMTP 授权码</label>
-                    <input type="password" id="email-smtp-pass" placeholder="非邮箱登录密码" autocomplete="off" />
+                    <div class="password-input-wrapper"><input class="password-input" type="password" id="email-smtp-pass" placeholder="非邮箱登录密码" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="email-smtp-pass" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
                   </div>
                   <div class="tts-field">
                     <label for="email-from-name">发件人名称（可选）</label>
@@ -2173,17 +2284,32 @@
                   <span class="tts-engine__name">自定义云端</span>
                   <span class="tts-engine__tag">接口</span>
                 </button>
+                <button type="button" class="tts-engine" data-engine="senseaudio" role="radio" aria-checked="false">
+                  <span class="tts-engine__icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <title>商汤 SenseAudio</title>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <span class="tts-engine__name">商汤</span>
+                  <span class="tts-engine__desc">SenseAudio</span>
+                </button>
               </div>
             </div>
 
             <!-- 引擎配置表单（选中哪个显示哪个） -->
             <div class="tts-config" id="tts-config-minimax" hidden>
               <h2 class="tts-section__title"><svg class="tts-clone-logo" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><title>Minimax</title><defs><linearGradient id="lobe-icons-minimax-_R_2" x1="0%" x2="100.182%" y1="50.057%" y2="50.057%"><stop offset="0%" stop-color="#E2167E"></stop><stop offset="100%" stop-color="#FE603C"></stop></linearGradient></defs><path d="M16.278 2c1.156 0 2.093.927 2.093 2.07v12.501a.74.74 0 00.744.709.74.74 0 00.743-.709V9.099a2.06 2.06 0 012.071-2.049A2.06 2.06 0 0124 9.1v6.561a.649.649 0 01-.652.645.649.649 0 01-.653-.645V9.1a.762.762 0 00-.766-.758.762.762 0 00-.766.758v7.472a2.037 2.037 0 01-2.048 2.026 2.037 2.037 0 01-2.048-2.026v-12.5a.785.785 0 00-.788-.753.785.785 0 00-.789.752l-.001 15.904A2.037 2.037 0 0113.441 22a2.037 2.037 0 01-2.048-2.026V18.04c0-.356.292-.645.652-.645.36 0 .652.289.652.645v1.934c0 .263.142.506.372.638.23.131.514.131.744 0a.734.734 0 00.372-.638V4.07c0-1.143.937-2.07 2.093-2.07zm-5.674 0c1.156 0 2.093.927 2.093 2.07v11.523a.648.648 0 01-.652.645.648.648 0 01-.652-.645V4.07a.785.785 0 00-.789-.78.785.785 0 00-.789.78v14.013a2.06 2.06 0 01-2.07 2.048 2.06 2.06 0 01-2.071-2.048V9.1a.762.762 0 00-.766-.758.762.762 0 00-.766.758v3.8a2.06 2.06 0 01-2.071 2.049A2.06 2.06 0 010 12.9v-1.378c0-.357.292-.646.652-.646.36 0 .653.29.653.646V12.9c0 .418.343.757.766.757s.766-.339.766-.757V9.099a2.06 2.06 0 012.07-2.048 2.06 2.06 0 012.071 2.048v8.984c0 .419.343.758.767.758.423 0 .766-.339.766-.758V4.07c0-1.143.937-2.07 2.093-2.07z" fill="url(#lobe-icons-minimax-_R_2)" fill-rule="nonzero"></path></svg> MiniMax 配置</h2>
-              <div class="tts-field"><label>API Key</label><input type="password" id="tts-minimax-key" placeholder="MiniMax API Key" /></div>
+              <div class="tts-field"><label>API Key</label><div class="password-input-wrapper"><input class="password-input" type="password" id="tts-minimax-key" placeholder="MiniMax API Key" /><button type="button" class="password-toggle-btn" data-target="tts-minimax-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div></div>
               <div class="tts-field"><label>音色 ID</label><input type="text" id="tts-minimax-voice" placeholder="训练好的音色 ID（或下方复刻后自动填入）" /></div>
               <div class="tts-field">
                 <label>合成模型</label>
-                <select id="tts-minimax-model">
+                <select class="setting-select" id="tts-minimax-model">
                   <option value="speech-2.8-turbo">speech-2.8-turbo（极速 ¥2.0/万字符）</option>
                   <option value="speech-2.8-hd">speech-2.8-hd（高保真 ¥3.5/万字符）</option>
                 </select>
@@ -2266,7 +2392,7 @@
               </div>
               <div class="tts-field">
                 <label>输出格式</label>
-                <select id="tts-gptsovits-format">
+                <select class="setting-select" id="tts-gptsovits-format">
                   <option value="wav">wav（推荐，gptsovits 默认）</option>
                   <option value="mp3">mp3（需服务端支持）</option>
                 </select>
@@ -2292,7 +2418,12 @@
               </div>
               <div class="tts-field">
                 <label>API Key</label>
-                <input type="password" id="tts-custom-cloud-key" placeholder="可选；为空则不发送 Authorization" />
+                <div class="password-input-wrapper"><input class="password-input" type="password" id="tts-custom-cloud-key" placeholder="可选；为空则不发送 Authorization" /><button type="button" class="password-toggle-btn" data-target="tts-custom-cloud-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <div class="tts-field">
                 <label>音色 ID</label>
@@ -2300,7 +2431,7 @@
               </div>
               <div class="tts-field">
                 <label>输出格式</label>
-                <select id="tts-custom-cloud-format">
+                <select class="setting-select" id="tts-custom-cloud-format">
                   <option value="mp3">mp3</option>
                   <option value="wav">wav</option>
                 </select>
@@ -2322,7 +2453,12 @@
               <h2 class="tts-section__title"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><title>小米MiMo</title><path d="M.958 15.936a.459.459 0 01.459.44v2.729a.46.46 0 01-.918 0v-2.729a.459.459 0 01.459-.44zm4.814-2.035a.46.46 0 01.553.45v4.754a.458.458 0 11-.918 0V15.48L3.74 17.202a.462.462 0 01-.655.016.462.462 0 01-.065-.082L.628 14.67a.459.459 0 01.658-.637l2.124 2.187 2.127-2.188a.46.46 0 01.235-.13zm2.068.004a.46.46 0 01.458.445v4.755a.46.46 0 01-.458.458.459.459 0 01-.458-.458V14.35a.459.459 0 01.458-.445zm1.973 2.014a.46.46 0 01.46.457v2.729a.46.46 0 01-.784.324.46.46 0 01-.134-.324v-2.729a.46.46 0 01.458-.458zm.002-2.045a.458.458 0 01.328.157l2.127 2.19 2.125-2.19a.459.459 0 01.784.318v4.756a.46.46 0 01-.455.458.46.46 0 01-.458-.458V15.48l-1.667 1.723a.46.46 0 01-.65.008l-.005-.005c0-.002-.002-.002-.004-.003l-2.455-2.534a.46.46 0 01-.008-.667.461.461 0 01.338-.128zm6.797 1.206a.46.46 0 01.53.651A1.966 1.966 0 0019.81 18.4a.462.462 0 01.623.18.46.46 0 01-.181.624 2.863 2.863 0 01-1.38.353l-.142-.004a2.88 2.88 0 01-2.393-4.263.461.461 0 01.274-.21zm.864-.931a2.884 2.884 0 013.915 3.914.46.46 0 01-.402.24l-.057-.004a.458.458 0 01-.164-.055.46.46 0 01-.182-.622 1.967 1.967 0 00-2.669-2.67.459.459 0 11-.441-.803zM9.59 6.368c1.481 0 1.696 1.202 1.696 1.654v2.648h-.917v-.432c-.26.346-.792.535-1.36.535-.133 0-1.289-.03-1.384-1.136-.082-.932.675-1.61 2.053-1.61h.691c0-.563-.367-.886-.983-.886-.44.013-.864.174-1.2.458l-.36-.664c.484-.379 1.012-.567 1.764-.567zm4.427.1c1.263 0 2.082.97 2.083 2.15 0 1.181-.824 2.154-2.083 2.154-1.26 0-2.084-.972-2.084-2.152 0-1.18.82-2.153 2.084-2.153zm6.801.015c.68 0 1.202.465 1.197 1.548v2.642H21.1V8.29c0-.312-.002-.98-.63-.98s-.628.667-.628.838v2.524h-.89V8.148c0-.17-.001-.838-.63-.838-.628 0-.628.668-.628.98v2.383h-.917v-4.03h.917V7a1.22 1.22 0 01.947-.516c.398 0 .76.193.982.686a1.321 1.321 0 011.195-.686zm-18.093.872l1.457-1.772H5.32L3.311 8.07l2.14 2.602H4.24L2.725 8.796 1.21 10.672H0L2.138 8.07.13 5.583h1.138l1.458 1.772zm4.149 3.317h-.916V6.644h.916v4.028zm16.99 0h-.916V6.644h.916v4.028zM9.925 8.71c-1.055 0-1.359.412-1.326.742.032.329.324.537.757.537a1.013 1.013 0 001.014-.968l.002-.31h-.447zM14.018 7.3c-.663 0-1.184.487-1.184 1.32 0 .832.52 1.32 1.184 1.32.662 0 1.182-.49 1.182-1.32 0-.832-.52-1.32-1.182-1.32zM6.417 5.001a.568.568 0 01.587.582.588.588 0 01-1.175 0A.57.57 0 016.417 5zm16.991 0a.57.57 0 01.592.582.588.588 0 01-1.174 0 .57.57 0 01.357-.542.572.572 0 01.225-.04z"></path></svg> 小米 MiMo 配置</h2>
               <div class="tts-field">
                 <label>API Key</label>
-                <input type="password" id="tts-mimo-key" placeholder="小米 MiMo API Key" />
+                <div class="password-input-wrapper"><input class="password-input" type="password" id="tts-mimo-key" placeholder="小米 MiMo API Key" /><button type="button" class="password-toggle-btn" data-target="tts-mimo-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <div class="tts-field">
                 <label>昔涟克隆音频</label>
@@ -2351,11 +2487,16 @@
               <p class="tts-hint">基于 Mossland 云端 TTS（api.mosi.cn）。Bearer 鉴权；POST /v1/audio/speech 合成；POST /v1/audio/voices 克隆；GET /v1/audio/voices 拉取列表。</p>
               <div class="tts-field">
                 <label>API Key</label>
-                <input type="password" id="tts-mossland-key" placeholder="Mossland API Key (Bearer)" autocomplete="off" />
+                <div class="password-input-wrapper"><input class="password-input" type="password" id="tts-mossland-key" placeholder="Mossland API Key (Bearer)" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="tts-mossland-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <div class="tts-field">
                 <label>合成模型</label>
-                <select id="tts-mossland-model">
+                <select class="setting-select" id="tts-mossland-model">
                   <option value="moss-tts-1.5-flash">MOSS-TTS 1.5 Flash</option>
                   <option value="moss-tts-1.0-pro">MOSS-TTS 1.0 Pro</option>
                 </select>
@@ -2370,7 +2511,7 @@
               </div>
               <div class="tts-field">
                 <label>试听格式</label>
-                <select id="tts-mossland-format">
+                <select class="setting-select" id="tts-mossland-format">
                   <option value="mp3">mp3</option>
                   <option value="wav">wav</option>
                 </select>
@@ -2425,6 +2566,278 @@
                 <ul class="tts-mossland-voice-list" id="tts-mossland-voice-list"></ul>
               </div>
             </div>
+            <!-- 商汤 SenseAudio TTS 配置 -->
+            <div class="tts-config" id="tts-config-senseaudio" hidden>
+              <h2 class="tts-section__title">商汤 SenseAudio 配置</h2>
+              <p class="tts-section__desc">
+                商汤科技语音合成服务，支持 70+ 系统音色、克隆音色与文生音色。
+                <a href="https://docs.senseaudio.cn/api-reference/endpoint/tts/synthesize" target="_blank" rel="noopener">查看文档</a>
+              </p>
+              
+              <div class="tts-field">
+                <label>API Key</label>
+                <div class="password-input-wrapper">
+                  <input type="password" id="tts-senseaudio-key" class="form-input form-input--wide password-input" placeholder="输入商汤 SenseAudio API Key" autocomplete="off" />
+                  <button type="button" class="password-toggle-btn" data-target="tts-senseaudio-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="tts-field">
+                <label>选择官方音色</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <select id="tts-senseaudio-voice-select" class="form-input form-input--wide setting-select" style="flex: 1;">
+                  <option value="">-- 选择官方音色 --</option>
+<optgroup label="利落青年">
+<option value="male_0029_a">male_0029_a (内容剖析)</option>
+<option value="male_0029_b">male_0029_b (开场介绍)</option>
+<option value="male_0029_c">male_0029_c (广告中插)</option>
+<option value="male_0029_d">male_0029_d (轻松铺陈)</option>
+<option value="male_0029_e">male_0029_e (细心提问)</option>
+<option value="male_0029_f">male_0029_f (主题升华)</option>
+</optgroup>
+<optgroup label="亲切女孩">
+<option value="female_0038_a">female_0038_a (平稳通用)</option>
+<option value="female_0038_b">female_0038_b (温柔讲解)</option>
+<option value="female_0038_c">female_0038_c (致歉安慰)</option>
+<option value="female_0038_d">female_0038_d (严肃告知)</option>
+<option value="female_0038_e">female_0038_e (清晰播报)</option>
+<option value="female_0038_f">female_0038_f (耐心关怀)</option>
+</optgroup>
+<optgroup label="自然少女">
+<option value="female_0037_a">female_0037_a (劝导)</option>
+<option value="female_0037_b">female_0037_b (委屈)</option>
+<option value="female_0037_c">female_0037_c (温柔)</option>
+<option value="female_0037_d">female_0037_d (严肃)</option>
+<option value="female_0037_e">female_0037_e (平稳)</option>
+</optgroup>
+<optgroup label="青春女声">
+<option value="female_0036_a">female_0036_a (内容剖析)</option>
+<option value="female_0036_b">female_0036_b (开场介绍)</option>
+<option value="female_0036_c">female_0036_c (广告中插)</option>
+<option value="female_0036_d">female_0036_d (轻松铺陈)</option>
+<option value="female_0036_e">female_0036_e (细心提问)</option>
+<option value="female_0036_f">female_0036_f (主题升华)</option>
+</optgroup>
+<optgroup label="俏皮女孩">
+<option value="female_0016_a">female_0016_a (开心)</option>
+<option value="female_0016_b">female_0016_b (低落)</option>
+<option value="female_0016_c">female_0016_c (傲娇)</option>
+</optgroup>
+<optgroup label="温柔霸总">
+<option value="male_0025_a">male_0025_a (平稳)</option>
+<option value="male_0025_b">male_0025_b (严肃)</option>
+<option value="male_0025_c">male_0025_c (深情)</option>
+</optgroup>
+<optgroup label="哭泣少女">
+<option value="female_0015_a">female_0015_a (低落)</option>
+<option value="female_0015_b">female_0015_b (生气)</option>
+</optgroup>
+<optgroup label="美艳女人">
+<option value="female_0011_a">female_0011_a (妩媚)</option>
+</optgroup>
+<optgroup label="温柔青年">
+<option value="male_0017_a">male_0017_a (平稳)</option>
+</optgroup>
+<optgroup label="沉稳帅姐">
+<option value="female_0030_b">female_0030_b (平稳)</option>
+</optgroup>
+<optgroup label="风流浪子">
+<option value="male_0014_a">male_0014_a (开心)</option>
+<option value="male_0014_b">male_0014_b (平稳)</option>
+<option value="male_0014_c">male_0014_c (低落)</option>
+</optgroup>
+<optgroup label="柔弱公子">
+<option value="male_0021_a">male_0021_a (平稳)</option>
+<option value="male_0021_b">male_0021_b (低落)</option>
+<option value="male_0021_c">male_0021_c (开心)</option>
+<option value="male_0021_d">male_0021_d (生气)</option>
+<option value="male_0021_e">male_0021_e (深情)</option>
+</optgroup>
+<optgroup label="刁蛮小姐">
+<option value="female_0012_a">female_0012_a (撒娇)</option>
+</optgroup>
+<optgroup label="霸道男神">
+<option value="male_0008_a">male_0008_a (平稳)</option>
+</optgroup>
+<optgroup label="阳光少年">
+<option value="male_0022_a">male_0022_a (平稳)</option>
+</optgroup>
+<optgroup label="贴心女人">
+<option value="female_0030_e">female_0030_e (深情)</option>
+</optgroup>
+<optgroup label="儒雅道长">
+<option value="male_0004_a">male_0004_a (平稳)</option>
+</optgroup>
+<optgroup label="森系少女">
+<option value="female_0018_a">female_0018_a (害羞)</option>
+<option value="female_0018_b">female_0018_b (开心)</option>
+</optgroup>
+<optgroup label="乐天女孩">
+<option value="female_0004_a">female_0004_a (开心)</option>
+</optgroup>
+<optgroup label="纨绔青年">
+<option value="male_0006_a">male_0006_a (平稳)</option>
+</optgroup>
+<optgroup label="战场指挥">
+<option value="female_0001_a">female_0001_a (平稳)</option>
+</optgroup>
+<optgroup label="潇洒青叔">
+<option value="male_0009_a">male_0009_a (平稳)</option>
+</optgroup>
+<optgroup label="心机少女">
+<option value="female_0030_f">female_0030_f (妩媚)</option>
+</optgroup>
+<optgroup label="冷艳御姐">
+<option value="female_0019_a">female_0019_a (平稳)</option>
+</optgroup>
+<optgroup label="惬意老翁">
+<option value="male_0005_a">male_0005_a (平稳)</option>
+</optgroup>
+<optgroup label="羞涩甜妹">
+<option value="female_0023_a">female_0023_a (平稳)</option>
+<option value="female_0023_b">female_0023_b (开心)</option>
+<option value="female_0023_c">female_0023_c (傲娇)</option>
+</optgroup>
+<optgroup label="凌厉御姐">
+<option value="female_0030_a">female_0030_a (平稳)</option>
+</optgroup>
+<optgroup label="傲娇少女">
+<option value="female_0003_a">female_0003_a (傲娇)</option>
+</optgroup>
+<optgroup label="暴躁大叔">
+<option value="male_0003_a">male_0003_a (生气)</option>
+</optgroup>
+<optgroup label="可爱萌娃">
+<option value="child_0001_a">child_0001_a (开心)</option>
+<option value="child_0001_b">child_0001_b (平稳)</option>
+</optgroup>
+<optgroup label="冷酷少女">
+<option value="female_0017_a">female_0017_a (傲娇)</option>
+<option value="female_0017_b">female_0017_b (平稳)</option>
+<option value="female_0017_c">female_0017_c (低落)</option>
+</optgroup>
+<optgroup label="酷痞青年">
+<option value="male_0001_a">male_0001_a (平稳)</option>
+</optgroup>
+<optgroup label="病娇青年">
+<option value="male_0007_a">male_0007_a (病娇)</option>
+</optgroup>
+<optgroup label="高能姐姐">
+<option value="female_0030_c">female_0030_c (平稳)</option>
+</optgroup>
+<optgroup label="羞涩少女">
+<option value="female_0009_a">female_0009_a (撒娇)</option>
+</optgroup>
+<optgroup label="阳光甜弟">
+<option value="male_0020_a">male_0020_a (撒娇)</option>
+</optgroup>
+<optgroup label="沙哑青年">
+<option value="male_0018_a">male_0018_a (深情)</option>
+</optgroup>
+<optgroup label="冷面霸总">
+<option value="male_0011_a">male_0011_a (平稳)</option>
+</optgroup>
+<optgroup label="英武老者">
+<option value="male_0015_a">male_0015_a (严肃)</option>
+</optgroup>
+<optgroup label="亢奋主播 (Plus)">
+<option value="male_0027_a">male_0027_a (热情介绍)</option>
+<option value="male_0027_b">male_0027_b (卖点解读)</option>
+<option value="male_0027_c">male_0027_c (促销逼单)</option>
+</optgroup>
+<optgroup label="撒娇青年 (Plus)">
+<option value="male_0023_a">male_0023_a (平稳)</option>
+</optgroup>
+<optgroup label="孔武青年 (Pro+)">
+<option value="male_0019_a">male_0019_a (平稳)</option>
+</optgroup>
+<optgroup label="嗲嗲台妹 (Pro+)">
+<option value="female_0033_a">female_0033_a (平稳)</option>
+<option value="female_0033_b">female_0033_b (开心)</option>
+<option value="female_0033_c">female_0033_c (撒娇)</option>
+<option value="female_0033_d">female_0033_d (低落)</option>
+<option value="female_0033_e">female_0033_e (委屈)</option>
+<option value="female_0033_f">female_0033_f (生气)</option>
+</optgroup>
+<optgroup label="乐观少年 (Pro+)">
+<option value="male_0026_a">male_0026_a (平稳)</option>
+<option value="male_0026_b">male_0026_b (开心)</option>
+<option value="male_0026_c">male_0026_c (深情)</option>
+</optgroup>
+<optgroup label="温柔御姐 (Pro+)">
+<option value="female_0006_a">female_0006_a (深情)</option>
+</optgroup>
+<optgroup label="可靠青叔 (Pro+)">
+<option value="male_0028_a">male_0028_a (内容剖析)</option>
+<option value="male_0028_b">male_0028_b (开场介绍)</option>
+<option value="male_0028_c">male_0028_c (广告中插)</option>
+<option value="male_0028_d">male_0028_d (轻松铺陈)</option>
+<option value="male_0028_e">male_0028_e (细心提问)</option>
+<option value="male_0028_f">male_0028_f (主题升华)</option>
+</optgroup>
+<optgroup label="魅力姐姐 (Pro+)">
+<option value="female_0027_a">female_0027_a (平稳)</option>
+<option value="female_0027_b">female_0027_b (撒娇)</option>
+<option value="female_0027_c">female_0027_c (病娇)</option>
+<option value="female_0027_d">female_0027_d (低落)</option>
+<option value="female_0027_e">female_0027_e (妩媚)</option>
+<option value="female_0027_f">female_0027_f (傲娇)</option>
+</optgroup>
+<optgroup label="气质学姐 (Pro+)">
+<option value="female_0008_a">female_0008_a (生气)</option>
+<option value="female_0008_b">female_0008_b (开心)</option>
+<option value="female_0008_c">female_0008_c (平稳)</option>
+</optgroup>
+<optgroup label="知心少女 (Pro+)">
+<option value="female_0035_a">female_0035_a (内容剖析)</option>
+<option value="female_0035_b">female_0035_b (开场介绍)</option>
+<option value="female_0035_c">female_0035_c (广告中插)</option>
+<option value="female_0035_d">female_0035_d (轻松铺陈)</option>
+<option value="female_0035_e">female_0035_e (细心提问)</option>
+<option value="female_0035_f">female_0035_f (主题升华)</option>
+</optgroup>
+
+                </select>
+                  <button type="button" id="tts-senseaudio-list-voices" class="ghost-btn" style="white-space: nowrap;">获取音色列表</button>
+                </div>
+                <div id="tts-senseaudio-list-voices-status" class="save-status" style="margin-top: 4px;"></div>
+              </div>
+              
+              <div class="tts-field">
+                <label>合成模型</label>
+                <select id="tts-senseaudio-model" class="form-input form-input--wide setting-select">
+                  <option value="senseaudio-tts-1.5-260319">senseaudio-tts-1.5-260319（稳定版）</option>
+                  <option value="senseaudio-tts-2.0">senseaudio-tts-2.0（最新版）</option>
+                  <option value="senseaudio-tts-1.5">senseaudio-tts-1.5</option>
+                </select>
+              </div>
+              
+              <div class="tts-field">
+                <label>语速</label>
+                <input type="number" id="tts-senseaudio-speed" class="form-input form-input--wide" placeholder="1.0" value="1" min="0.5" max="2" step="0.1" />
+              </div>
+              
+              <div class="tts-config-actions">
+                <div class="save-status" id="tts-senseaudio-test-status"></div>
+                <button type="button" class="ghost-btn" id="tts-senseaudio-test">
+                  <svg width="14" height="14" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                    <title>测试发音</title>
+                    <path d="M24 6V42C17 42 11.7985 32.8391 11.7985 32.8391H6C4.89543 32.8391 4 31.9437 4 30.8391V17.0108C4 15.9062 4.89543 15.0108 6 15.0108H11.7985C11.7985 15.0108 17 6 24 6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+                  </svg>
+                  测试合成
+                </button>
+              </div>
+              
+              <div class="tts-config-actions">
+                <div class="save-status" id="tts-senseaudio-save-status"></div>
+                <button type="button" class="save-btn" id="tts-senseaudio-save">保存配置</button>
+              </div>
+            </div></div>
 
             <p class="tts-hint">💡 MiniMax 需在控制台训练音色并填写音色 ID。GPT-SoVITS 需自行启动本地服务并提供参考音频。自定义云端会 POST 固定 JSON 到你的 Endpoint。小米 MiMo 当前使用昔涟参考音频走 voiceclone 非流式 wav 合成。Mossland 通过 multipart 上传克隆音频到 POST /v1/audio/voices，并返回 voice_id。</p>
 
@@ -2444,7 +2857,7 @@
               <h2 class="tts-section__title">语音识别引擎</h2>
               <div class="tts-field">
                 <label for="asr-engine">ASR 服务商</label>
-                <select id="asr-engine">
+                <select class="setting-select" id="asr-engine">
                   <option value="off">关闭</option>
                   <option value="aliyun">阿里云（实时语音识别）</option>
                   <option value="mossland">Mossland（轮次结束后转写）</option>
@@ -2466,11 +2879,16 @@
               </div>
               <div class="tts-field">
                 <label for="asr-aliyun-access-key-secret">AccessKey Secret</label>
-                <input type="password" id="asr-aliyun-access-key-secret" placeholder="创建 AccessKey 时显示的 Secret" autocomplete="off" />
+                <div class="password-input-wrapper"><input class="password-input" type="password" id="asr-aliyun-access-key-secret" placeholder="创建 AccessKey 时显示的 Secret" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="asr-aliyun-access-key-secret" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <div class="tts-field">
                 <label for="asr-language">识别语言</label>
-                <select id="asr-language">
+                <select class="setting-select" id="asr-language">
                   <option value="zh">中文</option>
                   <option value="en">英文</option>
                 </select>
@@ -2482,7 +2900,12 @@
               <h2 class="tts-section__title">Mossland 配置</h2>
               <div class="tts-field">
                 <label for="asr-mossland-key">API Key</label>
-                <input type="password" id="asr-mossland-key" placeholder="MOSI API 平台 → API 密钥" autocomplete="off" />
+                <div class="password-input-wrapper"><input class="password-input" type="password" id="asr-mossland-key" placeholder="MOSI API 平台 → API 密钥" autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="asr-mossland-key" aria-label="显示/隐藏密码">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
               </div>
               <p class="tts-hint">与 Mossland TTS 共用同一 API Key。音频在 VAD 判定本轮结束后上传到 moss-transcribe，不提供实时中间字幕。</p>
             </div>
@@ -2555,8 +2978,7 @@
       </div>
     </div>
   </div>
-
-  <script type="module" src="./settings.ts"></script>
+            <script type="module" src="./settings.ts"></script>
 </body>
 </html>
 

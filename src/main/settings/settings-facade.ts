@@ -93,6 +93,10 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   ttsMosslandModel: DEFAULT_MOSSLAND_TTS_MODEL,
   ttsMosslandTestText: "你好呀，我是昔涟。今天也请多多关照♪",
   ttsMosslandFormat: "mp3",
+  ttsSenseaudioKey: "",
+  ttsSenseaudioVoiceId: "female_0033_b",
+  ttsSenseaudioModel: "senseaudio-tts-1.5-260319",
+  ttsSenseaudioSpeed: 1,
   weatherSource: "open-meteo",
   weatherEnabled: false,
   amapKey: "",
@@ -219,7 +223,7 @@ export function normalizeGeneralSettings(
     mobileMessageSegmentation: normalizeMobileMessageSegmentationMode(input?.mobileMessageSegmentation),
     proactiveChatMode: normalizeProactiveChatMode(input?.proactiveChatMode),
     proactiveDeliveryTarget: normalizeProactiveDeliveryTarget(input?.proactiveDeliveryTarget),
-    ttsEngine: (["off", "minimax", "gptsovits", "custom-cloud", "mimo", "mossland"].includes(input?.ttsEngine as string)
+    ttsEngine: (["off", "minimax", "gptsovits", "custom-cloud", "mimo", "mossland", "senseaudio"].includes(input?.ttsEngine as string)
       ? input?.ttsEngine
       : "off") as GeneralSettings["ttsEngine"],
     ttsAutoRead: input?.ttsAutoRead === undefined
@@ -304,6 +308,10 @@ export function normalizeGeneralSettings(
     ttsMosslandModel: normalizeMosslandTtsModel(input?.ttsMosslandModel),
     ttsMosslandTestText: typeof input?.ttsMosslandTestText === "string" ? input.ttsMosslandTestText : DEFAULT_GENERAL_SETTINGS.ttsMosslandTestText,
     ttsMosslandFormat: input?.ttsMosslandFormat === "wav" ? "wav" : "mp3",
+    ttsSenseaudioKey: typeof input?.ttsSenseaudioKey === "string" ? input.ttsSenseaudioKey : "",
+    ttsSenseaudioVoiceId: typeof input?.ttsSenseaudioVoiceId === "string" ? input.ttsSenseaudioVoiceId : DEFAULT_GENERAL_SETTINGS.ttsSenseaudioVoiceId,
+    ttsSenseaudioModel: typeof input?.ttsSenseaudioModel === "string" ? input.ttsSenseaudioModel : DEFAULT_GENERAL_SETTINGS.ttsSenseaudioModel,
+    ttsSenseaudioSpeed: typeof input?.ttsSenseaudioSpeed === "number" ? input.ttsSenseaudioSpeed : DEFAULT_GENERAL_SETTINGS.ttsSenseaudioSpeed,
     ...normalizeChatAppearance(input),
     toolModeOverrides: normalizeToolModeOverrides(input?.toolModeOverrides),
     chatToolsEnabled: Boolean(input?.chatToolsEnabled),

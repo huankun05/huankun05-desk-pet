@@ -10,6 +10,7 @@ import { synthesize as gptsovitsSynthesize } from "./gptsovits-engine";
 import { synthesize as mimoSynthesize } from "./mimo-engine";
 import { cloneVoice as minimaxCloneVoice, synthesize as minimaxSynthesize, uploadFile as minimaxUploadFile } from "./minimax-engine";
 import { cloneVoice as mosslandCloneVoice, listVoices as mosslandListVoices, synthesize as mosslandSynthesize } from "./mossland-engine";
+import { listVoices as senseaudioListVoices, synthesize as senseaudioSynthesize } from "./senseaudio-engine";
 import { TtsSessionService } from "./tts-session-service";
 import {
   appendCustomCloudTtsLog,
@@ -21,8 +22,11 @@ import {
   buildGptsovitsCacheKey,
   buildMimoCacheKey,
   buildMosslandCacheKey,
+  buildSenseaudioCacheKey,
   buildTtsCacheKey,
+  getTtsCacheDir,
   getTtsCachePath,
+  readTtsCacheByKey,
 } from "./tts-cache";
 import { versionTtsCacheKey } from "./tts-cache-key";
 
@@ -618,5 +622,98 @@ export function registerTtsIpc(deps: RegisterTtsIpcDeps): void {
       status: payload.status,
     });
     return result;
+  });
+
+  // ── 商汤 SenseAudio (api.senseaudio.cn) ──────────────────────────────
+
+  // 商汤 SenseAudio 合成（Settings「测试发音」用，无缓存）
+  ipc.handle(IPC.TTS_SYNTHESIZE_SENSEAUDIO, async (_event, payload: {
+    apiKey: string; voiceId: string; text: string;
+    model?: string; speed?: number;
+  }) => {
+    if (!payload?.apiKey || !payload?.voiceId || !payload?.text) {
+      throw new Error("缺少必要参数（apiKey/voiceId/text）");
+    }
+
+    // 构建缓存 key 并检查缓存
+    const cacheKey = buildSenseaudioCacheKey({
+      voiceId: payload.voiceId,
+      text: payload.text,
+      model: payload.model,
+      format: "mp3",
+    });
+    const cached = readTtsCacheByKey(cacheKey);
+    if (cached) {
+      console.log("[SenseAudio TTS] 缓存命中，直接返回");
+      return {
+        base64: cached.audio.toString("base64"),
+        cached: true,
+        format: cached.format,
+      };
+    }
+
+    const result = await senseaudioSynthesize({
+      apiKey: payload.apiKey,
+      voiceId: payload.voiceId,
+      text: payload.text,
+      model: payload.model,
+      speed: payload.speed,
+    });
+
+    // 写入缓存
+    try {
+      const cachePath = getTtsCachePath(cacheKey, result.format as "mp3" | "wav");
+      fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+      fs.writeFileSync(cachePath, result.audio);
+      console.log("[SenseAudio TTS] 缓存已写入:", cachePath);
+    } catch (cacheErr) {
+      console.warn("[SenseAudio TTS] 写入缓存失败:", cacheErr);
+    }
+
+    return {
+      base64: result.audio.toString("base64"),
+      cached: false,
+      format: result.format,
+    };
+  });
+
+  // 商汤 SenseAudio 拉取账号下音色列表
+  ipc.handle(IPC.TTS_LIST_SENSEAUDIO_VOICES, async (_event, payload: {
+    apiKey: string; voiceType?: "system" | "voice_clone" | "voice_generation" | "all";
+  }) => {
+    if (!payload?.apiKey) {
+      throw new Error("缺少 API Key");
+    }
+    const result = await senseaudioListVoices(
+      payload.apiKey,
+      payload.voiceType ?? "all",
+    );
+    return result;
+  });
+
+  // 商汤 SenseAudio 清空缓存
+  ipc.handle(IPC.TTS_CLEAR_SENSEAUDIO_CACHE, async () => {
+    try {
+      const cacheDir = getTtsCacheDir();
+      if (!fs.existsSync(cacheDir)) {
+        return { ok: true, cleared: 0 };
+      }
+      const files = fs.readdirSync(cacheDir);
+      const senseaudioFiles = files.filter(f => f.startsWith("senseaudio-"));
+      let cleared = 0;
+      for (const file of senseaudioFiles) {
+        try {
+          fs.unlinkSync(path.join(cacheDir, file));
+          cleared++;
+        } catch (err) {
+          console.warn("[SenseAudio TTS] 删除缓存文件失败:", file, err);
+        }
+      }
+      console.log(`[SenseAudio TTS] 已清空 ${cleared} 个缓存文件`);
+      return { ok: true, cleared };
+    } catch (err) {
+      console.error("[SenseAudio TTS] 清空缓存失败:", err);
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 }

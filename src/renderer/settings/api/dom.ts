@@ -78,6 +78,5 @@ export const multimodalToggle = document.getElementById("multimodal-toggle") as 
 export const embeddingDimensionsInput = document.getElementById("embedding-dimensions-input") as HTMLInputElement | null;
 export const modelRequestTimeoutSecInput = document.getElementById("model-request-timeout-sec") as HTMLInputElement;
 export const modelRequestTimeoutSecReset = document.getElementById("model-request-timeout-sec-reset-btn") as HTMLButtonElement;
-export const toggleEnableThinking = document.getElementById("toggle-enable-thinking") as HTMLInputElement;
-export const toggleDisableThinking = document.getElementById("toggle-disable-thinking") as HTMLInputElement;
+export const thinkingModeSelect = document.getElementById("thinking-mode-select") as HTMLSelectElement;
 export const toggleDisableMaxToken = document.getElementById("toggle-disable-max-token") as HTMLInputElement;

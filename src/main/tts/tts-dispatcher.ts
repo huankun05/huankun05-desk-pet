@@ -6,6 +6,7 @@ import { synthesize as gptsovitsSynthesize } from "./gptsovits-engine";
 import { synthesize as customCloudSynthesize } from "./custom-cloud-engine";
 import { synthesize as mimoSynthesize } from "./mimo-engine";
 import { synthesize as mosslandSynthesize } from "./mossland-engine";
+import { synthesize as senseaudioSynthesize } from "./senseaudio-engine";
 import { DEFAULT_MOSSLAND_TTS_MODEL, type TtsEngine } from "../../shared/tts-types";
 import type { MiniMaxVocalEnhanceOptions } from "./minimax-vocal-enhancer";
 
@@ -122,6 +123,21 @@ export async function synthesizeByEngine(
       text: payload.text,
       model: payload.model ?? DEFAULT_MOSSLAND_TTS_MODEL,
       format,
+    });
+    return { audio: result.audio, format: result.format };
+  }
+
+  if (engine === "senseaudio") {
+    if (!payload.apiKey) {
+      throw new Error("商汤 SenseAudio TTS 未配置 apiKey");
+    }
+    const result = await senseaudioSynthesize({
+      apiKey: payload.apiKey,
+      voiceId: payload.voiceId,
+      text: payload.text,
+      speed: payload.speed,
+      model: payload.model,
+      timeoutMs: payload.timeoutMs,
     });
     return { audio: result.audio, format: result.format };
   }

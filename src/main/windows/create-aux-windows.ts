@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from "electron";
+﻿import { app, BrowserWindow, screen } from "electron";
 import * as path from "path";
 import { IPC } from "../../shared/ipc-channels";
 import { isDev } from "../env";

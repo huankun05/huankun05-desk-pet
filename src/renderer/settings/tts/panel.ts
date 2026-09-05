@@ -1,4 +1,4 @@
-// TTS 设置面板交互：配置加载/保存、引擎切换、语速/音量滑块、
+﻿// TTS 设置面板交互：配置加载/保存、引擎切换、语速/音量滑块、
 // MiniMax/GPT-SoVITS/自定义云端/MiMo/Mossland 测试发音、音色快速复刻
 // 从 settings.ts 抽离。依赖 ttsState + TTS_FIELD_MAP + shared modal/utils。
 // 副作用导入：模块加载时执行事件绑定 + 初始加载配置。
@@ -112,15 +112,16 @@ async function loadTtsConfig(): Promise<void> {
 
   // 引擎选择
   const engine = String(ttsState.config.ttsEngine || "off");
-  document.querySelectorAll<HTMLButtonElement>(".tts-engine").forEach((btn) => {
+    const engineButtons = document.querySelectorAll<HTMLButtonElement>(".tts-engine");
+      engineButtons.forEach((btn) => {
     const isActive = btn.dataset.engine === engine;
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-checked", isActive ? "true" : "false");
   });
-  document.querySelectorAll<HTMLElement>(".tts-config").forEach((el) => { el.hidden = true; });
+      document.querySelectorAll<HTMLElement>(".tts-config").forEach((el) => { el.hidden = true; });
   if (engine !== "off") {
     const config = document.getElementById("tts-config-" + engine);
-    if (config) config.hidden = false;
+        if (config) config.hidden = false;
   }
 
   // 播放交互
