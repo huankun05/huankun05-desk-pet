@@ -866,6 +866,30 @@ P3-2 实现的 execute_code 工具使用 `python` 命令执行 Python 代码。�
 - [x] `tsc --noEmit` 类型检查通过
 - [x] 不影响 Node.js 和 Shell 语言（无 fallback）
 
+### 5.3 P5-3 LLM 审查增强（列表 + 统计汇总）
+
+#### 5.3.1 背景
+
+P3-3 实现的 llm-reviewer 已有保存/加载/检查单个审查结果的功能，但缺少：
+1. 列出所有审查结果（用于 UI 展示历史审查记录）
+2. 统计汇总（用于了解整体审查质量、安全问题分布等）
+
+#### 5.3.2 增强内容
+
+1. **ReviewStats 类型**：统计汇总接口，包含总审查数、成功/失败/跳过数、平均质量分、有安全问题的审查数、有潜在 bug 的审查数、总审查文件数、最早/最近审查时间
+2. **listLLMReviews(userDataRoot, limit?)**：列出所有已保存的审查结果，按审查时间倒序排列，支持 limit 参数（默认 50）
+3. **getReviewStats(userDataRoot)**：遍历所有审查结果，计算统计指标，平均质量分仅统计 completed 状态的审查
+
+#### 5.3.3 验收标准
+
+- [x] listLLMReviews 按时间倒序列出所有审查
+- [x] listLLMReviews 支持 limit 参数
+- [x] 空目录返回空数组/零统计
+- [x] getReviewStats 正确计算所有统计指标
+- [x] 平均质量分仅统计 completed 状态
+- [x] 35 个单测全部通过（原有 33 + 新增 2）
+- [x] `tsc --noEmit` 类型检查通过
+
 ---
 
 ## 6. 执行记录
@@ -888,3 +912,4 @@ P3-2 实现的 execute_code 工具使用 `python` 命令执行 Python 代码。�
 | 2026-09-05 | P4-2 流式思维链清理实施完成 | 移植 Hermes think_scrubber.py，新增 think-scrubber.ts（状态机+部分标签暂存+块边界规则+5种标签变体+不区分大小写+便捷函数）；39 单测通过；核心模块完成，集成到流式输出管线留作后续优化；**P0-P4 全部 12 项路线图完成** |
 | 2026-09-05 | P5-1 think-filter 增强实施完成 | 发现 Cyrene 已有 think-filter 且已集成 runtime.ts 流式管线，决定增强而非替换；新增 5 种标签变体支持（think/thinking/reasoning/thought/REASONING_SCRATCHPAD）+ 孤立关闭标签移除 + 精确部分标签暂存（maxPartialSuffix）；保持接口完全兼容；47 单测（原有28+新增19）+ 全量 1408/1409 通过 |
 | 2026-09-05 | P5-2 execute_code 增强实施完成 | LanguageRuntime 新增 fallbackCommand 字段，Python 配置 fallback 到 py（Windows Python Launcher）；自动 fallback 机制（执行异常或运行时不存在错误时自动尝试 fallback）；fallback 成功提示；23 单测通过 + tsc 类型检查通过 |
+| 2026-09-05 | P5-3 LLM 审查增强实施完成 | 新增 ReviewStats 类型（总审查数/状态分布/平均质量分/安全问题数/潜在bug数/文件数/时间范围）；新增 listLLMReviews（按时间倒序列出，支持 limit）；新增 getReviewStats（遍历所有审查计算统计指标，平均质量分仅统计 completed）；35 单测（原有33+新增2）通过 + tsc 类型检查通过 |

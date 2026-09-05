@@ -13,6 +13,8 @@ import {
   saveLLMReview,
   loadLLMReview,
   hasLLMReview,
+  listLLMReviews,
+  getReviewStats,
   type LLMReviewResult,
   type FileReview,
 } from "./llm-reviewer";
@@ -421,6 +423,96 @@ describe("llm-reviewer", () => {
       fs.mkdirSync(reviewDir, { recursive: true });
       fs.writeFileSync(path.join(reviewDir, "llm-review.json"), "not json", "utf8");
       expect(loadLLMReview(tempDir, "corrupted")).toBeNull();
+    });
+
+    it("listLLMReviews 按时间倒序列出所有审查", () => {
+      // 空目录返回空数组
+      expect(listLLMReviews(tempDir)).toEqual([]);
+
+      // 保存 3 个审查结果（不同时间）
+      const now = Date.now();
+      for (let i = 0; i < 3; i++) {
+        const result: LLMReviewResult = {
+          runId: `run-${i}`,
+          reviewedAt: now - i * 1000, // run-0 最新，run-2 最早
+          summary: `review ${i}`,
+          overallQualityScore: 3 + i,
+          securityConcerns: i === 0 ? ["issue"] : [],
+          improvementSuggestions: [],
+          fileReviews: [
+            {
+              filePath: `file-${i}.ts`,
+              changeKind: "modified",
+              qualityScore: 3 + i,
+              qualityComment: "",
+              securityIssues: [],
+              improvements: [],
+              hasPotentialBug: i === 1,
+            },
+          ],
+          status: i === 2 ? "failed" : "completed",
+        };
+        saveLLMReview(tempDir, result);
+      }
+
+      const list = listLLMReviews(tempDir);
+      expect(list).toHaveLength(3);
+      // 按时间倒序：run-0 最新，应该在第一个
+      expect(list[0].runId).toBe("run-0");
+      expect(list[1].runId).toBe("run-1");
+      expect(list[2].runId).toBe("run-2");
+
+      // limit 参数生效
+      const limited = listLLMReviews(tempDir, 2);
+      expect(limited).toHaveLength(2);
+      expect(limited[0].runId).toBe("run-0");
+    });
+
+    it("getReviewStats 正确计算统计汇总", () => {
+      // 空目录返回零统计
+      const emptyStats = getReviewStats(tempDir);
+      expect(emptyStats.totalReviews).toBe(0);
+      expect(emptyStats.completedReviews).toBe(0);
+      expect(emptyStats.avgOverallQualityScore).toBeNull();
+
+      // 保存审查结果
+      const now = Date.now();
+      for (let i = 0; i < 3; i++) {
+        const result: LLMReviewResult = {
+          runId: `stats-run-${i}`,
+          reviewedAt: now - i * 1000,
+          summary: "",
+          overallQualityScore: 3 + i, // 3, 4, 5
+          securityConcerns: i === 0 ? ["security issue"] : [],
+          improvementSuggestions: [],
+          fileReviews: [
+            {
+              filePath: `file-${i}.ts`,
+              changeKind: "modified",
+              qualityScore: 3 + i,
+              qualityComment: "",
+              securityIssues: [],
+              improvements: [],
+              hasPotentialBug: i === 1,
+            },
+          ],
+          status: i === 2 ? "failed" : "completed",
+        };
+        saveLLMReview(tempDir, result);
+      }
+
+      const stats = getReviewStats(tempDir);
+      expect(stats.totalReviews).toBe(3);
+      expect(stats.completedReviews).toBe(2); // run-0, run-1
+      expect(stats.failedReviews).toBe(1); // run-2
+      expect(stats.skippedReviews).toBe(0);
+      // 平均质量分：(3 + 4) / 2 = 3.5（仅统计 completed）
+      expect(stats.avgOverallQualityScore).toBe(3.5);
+      expect(stats.reviewsWithSecurityConcerns).toBe(1); // run-0
+      expect(stats.reviewsWithPotentialBugs).toBe(1); // run-1
+      expect(stats.totalFilesReviewed).toBe(3);
+      expect(stats.earliestReviewAt).toBe(now - 2000); // run-2 最早
+      expect(stats.latestReviewAt).toBe(now); // run-0 最新
     });
   });
 });

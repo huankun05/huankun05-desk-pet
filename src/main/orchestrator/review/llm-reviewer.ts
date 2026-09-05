@@ -384,3 +384,131 @@ export function loadLLMReview(userDataRoot: string, runId: string): LLMReviewRes
 export function hasLLMReview(userDataRoot: string, runId: string): boolean {
   return loadLLMReview(userDataRoot, runId) !== null;
 }
+
+// ── 列表与统计 ──────────────────────────────────────────────
+
+/** 审查统计汇总 */
+export interface ReviewStats {
+  /** 总审查数 */
+  totalReviews: number;
+  /** 成功审查数（status=completed） */
+  completedReviews: number;
+  /** 失败审查数（status=failed） */
+  failedReviews: number;
+  /** 跳过审查数（status=skipped） */
+  skippedReviews: number;
+  /** 平均总体质量分（1-5，仅统计 completed） */
+  avgOverallQualityScore: number | null;
+  /** 有安全问题的审查数 */
+  reviewsWithSecurityConcerns: number;
+  /** 有潜在 bug 的审查数 */
+  reviewsWithPotentialBugs: number;
+  /** 总审查文件数 */
+  totalFilesReviewed: number;
+  /** 最早审查时间 */
+  earliestReviewAt: number | null;
+  /** 最近审查时间 */
+  latestReviewAt: number | null;
+}
+
+/**
+ * 列出所有已保存的 LLM 审查结果。
+ * 按审查时间倒序排列。
+ * @param userDataRoot 用户数据根目录
+ * @param limit 最大返回数量（默认 50）
+ */
+export function listLLMReviews(userDataRoot: string, limit: number = 50): LLMReviewResult[] {
+  const reviewsDir = path.join(userDataRoot, "cyrene-runs", "reviews");
+  if (!fs.existsSync(reviewsDir)) return [];
+
+  const results: LLMReviewResult[] = [];
+  try {
+    const runDirs = fs.readdirSync(reviewsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+
+    for (const runId of runDirs) {
+      const review = loadLLMReview(userDataRoot, runId);
+      if (review) {
+        results.push(review);
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(LogTag.Runtime, `[LLMReviewer] list reviews failed: ${msg}`);
+    return [];
+  }
+
+  // 按审查时间倒序
+  results.sort((a, b) => b.reviewedAt - a.reviewedAt);
+  return results.slice(0, limit);
+}
+
+/**
+ * 获取 LLM 审查统计汇总。
+ * 遍历所有已保存的审查结果，计算统计指标。
+ */
+export function getReviewStats(userDataRoot: string): ReviewStats {
+  const allReviews = listLLMReviews(userDataRoot, 10000); // 足够大的 limit 以获取全部
+
+  const stats: ReviewStats = {
+    totalReviews: allReviews.length,
+    completedReviews: 0,
+    failedReviews: 0,
+    skippedReviews: 0,
+    avgOverallQualityScore: null,
+    reviewsWithSecurityConcerns: 0,
+    reviewsWithPotentialBugs: 0,
+    totalFilesReviewed: 0,
+    earliestReviewAt: null,
+    latestReviewAt: null,
+  };
+
+  if (allReviews.length === 0) return stats;
+
+  let totalQualityScore = 0;
+  let completedCount = 0;
+
+  for (const review of allReviews) {
+    // 状态统计
+    if (review.status === "completed") {
+      stats.completedReviews++;
+      totalQualityScore += review.overallQualityScore;
+      completedCount++;
+    } else if (review.status === "failed") {
+      stats.failedReviews++;
+    } else if (review.status === "skipped") {
+      stats.skippedReviews++;
+    }
+
+    // 安全问题统计
+    if (review.securityConcerns && review.securityConcerns.length > 0) {
+      stats.reviewsWithSecurityConcerns++;
+    }
+
+    // 潜在 bug 统计
+    if (review.fileReviews && review.fileReviews.some((f) => f.hasPotentialBug)) {
+      stats.reviewsWithPotentialBugs++;
+    }
+
+    // 文件数统计
+    if (review.fileReviews) {
+      stats.totalFilesReviewed += review.fileReviews.length;
+    }
+
+    // 时间统计
+    if (stats.earliestReviewAt === null || review.reviewedAt < stats.earliestReviewAt) {
+      stats.earliestReviewAt = review.reviewedAt;
+    }
+    if (stats.latestReviewAt === null || review.reviewedAt > stats.latestReviewAt) {
+      stats.latestReviewAt = review.reviewedAt;
+    }
+  }
+
+  // 平均质量分
+  if (completedCount > 0) {
+    stats.avgOverallQualityScore = Math.round((totalQualityScore / completedCount) * 100) / 100;
+  }
+
+  return stats;
+}
