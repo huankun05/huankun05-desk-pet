@@ -159,4 +159,62 @@ describe("scheduler store", () => {
 
     expect(enabled.nextFireAt).toBe("2026-06-22T13:00:00.000Z");
   });
+
+  it("normalizes and persists deliver field (desktop / undefined=local)", () => {
+    const dir = tmpDir();
+    const store = createSchedulerStore({
+      tasksFile: path.join(dir, "scheduled-tasks.json"),
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-deliver",
+    });
+    store.load();
+
+    // addTask with deliver: "desktop"
+    const desktopTask = store.addTask({
+      title: "Desktop Notify",
+      prompt: "test",
+      schedule: { kind: "daily", timeOfDay: "09:00" },
+      deliver: "desktop",
+    });
+    expect(desktopTask.deliver).toBe("desktop");
+
+    // addTask without deliver → undefined (= local default)
+    const localTask = store.addTask({
+      title: "Local Only",
+      prompt: "test",
+      schedule: { kind: "daily", timeOfDay: "10:00" },
+    });
+    expect(localTask.deliver).toBeUndefined();
+
+    // addTask with invalid deliver → normalized to undefined
+    const invalidTask = store.addTask({
+      title: "Invalid Deliver",
+      prompt: "test",
+      schedule: { kind: "daily", timeOfDay: "11:00" },
+      deliver: "wechat" as never,
+    });
+    expect(invalidTask.deliver).toBeUndefined();
+
+    // Persist + reload: deliver field survives round-trip
+    const store2 = createSchedulerStore({
+      tasksFile: path.join(dir, "scheduled-tasks.json"),
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-2",
+    });
+    store2.load();
+    const reloaded = store2.getTasks();
+    expect(reloaded).toHaveLength(3);
+    expect(reloaded.find(t => t.title === "Desktop Notify")?.deliver).toBe("desktop");
+    expect(reloaded.find(t => t.title === "Local Only")?.deliver).toBeUndefined();
+
+    // updateTask: patch deliver from desktop → undefined (local)
+    const updated = store2.updateTask(desktopTask.id, { deliver: undefined });
+    expect(updated.deliver).toBeUndefined();
+
+    // updateTask: patch deliver from undefined → desktop
+    const updated2 = store2.updateTask(localTask.id, { deliver: "desktop" });
+    expect(updated2.deliver).toBe("desktop");
+  });
 });

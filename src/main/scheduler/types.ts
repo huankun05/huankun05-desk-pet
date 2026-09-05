@@ -1,5 +1,8 @@
 export type ScheduleKind = "once" | "daily" | "weekly" | "interval";
 
+/** 定时任务完成后的投递目标。"local" = 仅聊天窗口（默认）；"desktop" = 额外弹桌面通知。 */
+export type ScheduledTaskDelivery = "local" | "desktop";
+
 export type ScheduleConfig =
   | { kind: "once"; runAt: string }
   | { kind: "daily"; timeOfDay: string }
@@ -18,6 +21,8 @@ export interface ScheduledTask {
   lastFiredAt?: string;
   toolMode: SchedulerToolMode;
   allowedToolIds: string[];
+  /** 完成后投递目标，默认 "local"（仅聊天窗口）。"desktop" 额外弹桌面通知。 */
+  deliver?: ScheduledTaskDelivery;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,11 +34,12 @@ export interface NewScheduledTaskInput {
   schedule: ScheduleConfig;
   toolMode?: SchedulerToolMode;
   allowedToolIds?: string[];
+  deliver?: ScheduledTaskDelivery;
 }
 
 export type ScheduledTaskPatch = Partial<Pick<
   ScheduledTask,
-  "title" | "prompt" | "enabled" | "schedule" | "nextFireAt" | "lastFiredAt" | "toolMode" | "allowedToolIds"
+  "title" | "prompt" | "enabled" | "schedule" | "nextFireAt" | "lastFiredAt" | "toolMode" | "allowedToolIds" | "deliver"
 >>;
 
 export interface ScheduledTaskHistoryEntry {

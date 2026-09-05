@@ -22,6 +22,8 @@ interface RunnerDeps {
   recordHistory: (entry: ScheduledTaskHistoryEntry) => void;
   id: () => string;
   now: () => Date;
+  /** 任务完成后的投递回调（桌面通知等）。task.deliver === "desktop" 时触发。 */
+  deliverResult?: (task: ScheduledTask, result: ScheduledRunResult) => void;
 }
 
 /** 定时任务是无人值守的 Work Harness：不询问、不审批，直接执行已分配工具。 */
@@ -121,7 +123,11 @@ export function createSchedulerRunner(deps: RunnerDeps) {
         outputPreview: reply.slice(0, 160),
         effectiveToolIds,
       });
-      return { ok: true, historyId, reply, effectiveToolIds };
+      const result: ScheduledRunResult = { ok: true, historyId, reply, effectiveToolIds };
+      if (task.deliver === "desktop" && deps.deliverResult) {
+        deps.deliverResult(task, result);
+      }
+      return result;
     } catch (err) {
       const finishedAt = deps.now();
       const message = err instanceof Error ? err.message : String(err);
@@ -137,7 +143,11 @@ export function createSchedulerRunner(deps: RunnerDeps) {
         effectiveToolIds,
       });
       send({ type: "RUN_ERROR", message, code: err instanceof AgentRuntimeError ? err.code : undefined, threadId: `scheduler-${task.id}`, runId: historyId, schedulerRunId: historyId, schedulerTaskId: task.id });
-      return { ok: false, historyId, error: message, effectiveToolIds };
+      const result: ScheduledRunResult = { ok: false, historyId, error: message, effectiveToolIds };
+      if (task.deliver === "desktop" && deps.deliverResult) {
+        deps.deliverResult(task, result);
+      }
+      return result;
     }
   }
 

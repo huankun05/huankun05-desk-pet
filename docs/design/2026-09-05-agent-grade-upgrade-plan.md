@@ -45,7 +45,7 @@
 | P1 | 验证闭环自迭代（改 → 验 → 修） | ✅ 已完成 | IterationBudget 移植 + 预算耗尽总结 + 文件变更页脚 |
 | P1 | 跨会话搜索（FTS/向量 + LLM 摘要） | ✅ 已完成 | recall_history 工具增强（limit + sessionId 过滤 + 来源会话） |
 | P1 | 凭据全量加密（safeStorage） | ✅ 已完成 | CredentialVault + model-settings 读写路径加解密 |
-| P2 | 定时任务渠道投递 | ⏳ 待做 | scheduler 增加 deliver 目标 |
+| P2 | 定时任务渠道投递 | ✅ 已完成 | ScheduledTask.deliver + 桌面通知投递 |
 | P2 | 成本核算（token × 单价） | ⏳ 待做 | 用量统计扩展 |
 | P2 | Trajectory 导出（训练/评测） | ⏳ 待做 | run-store 轨迹导出 |
 
@@ -250,7 +250,44 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 
 ### 4.4 定时任务渠道投递
 
-`ScheduledTask` 增加可选 `deliver` 目标（桌面 / 飞书 / QQ / 微信），结果在 `scheduler-runner` 完成后投递；复用 `proactive` 渠道路由。
+**设计决策**：第一期实现桌面通知投递（`deliver: "desktop"`），渠道投递（飞书/QQ/微信）留作后续增强。桌面通知是最通用、最可逆的投递方式，且不依赖渠道连接状态。
+
+**新增类型**：
+```ts
+type ScheduledTaskDelivery = "local" | "desktop";
+// "local" = 仅聊天窗口（默认，既有行为）
+// "desktop" = 额外弹桌面通知
+```
+
+**ScheduledTask 新增字段**：
+- `deliver?: ScheduledTaskDelivery` — 可选，默认 undefined（= local）
+
+**实现要点**：
+| 模块 | 变更 |
+| --- | --- |
+| `scheduler/types.ts` | 新增 `ScheduledTaskDelivery` 类型；ScheduledTask/NewScheduledTaskInput/ScheduledTaskPatch 增加 `deliver` 字段 |
+| `scheduler/scheduler-runner.ts` | RunnerDeps 新增 `deliverResult` 回调；任务成功/失败后，若 `task.deliver === "desktop"` 则调用回调 |
+| `scheduler/bootstrap.ts` | 新增 `deliverScheduledResultToDesktop()` 函数，使用 Electron `Notification` API 弹桌面通知；成功显示结果预览（前 120 字），失败显示错误信息 |
+| `scheduler/scheduler-store.ts` | 新增 `normalizeDelivery()`；normalizeLoadedTask/addTask/updateTask 三处规范化 deliver 字段（非法值 → undefined） |
+
+**桌面通知内容**：
+- 成功：标题 `定时任务完成：{title}`，正文为回复前 120 字
+- 失败：标题 `定时任务失败：{title}`，正文为错误信息前 120 字
+
+**验收标准**：
+- [x] ScheduledTask 支持 deliver 字段（local/desktop）
+- [x] deliver=desktop 时任务完成后弹桌面通知
+- [x] 成功和失败均触发通知
+- [x] deliver 字段持久化到 scheduled-tasks.json
+- [x] 非法 deliver 值规范化为 undefined（local）
+- [x] scheduler 28/28 测试通过（含新增 deliver 测试）
+- [x] 全量 1168/1169 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
+
+**后续增强（P2+）**：
+- 渠道投递（飞书/QQ/微信）：复用 proactive-delivery-routing，将任务结果通过渠道发送
+- 通知点击跳转：点击桌面通知打开聊天窗口并定位到任务结果
+- 通知静默时段：夜间不弹桌面通知
 
 ---
 
@@ -262,3 +299,4 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 | 2026-09-05 | P1-1 验证闭环自迭代实施完成 | 移植 Hermes IterationBudget + 预算耗尽总结 + 文件变更失败页脚 + 回合退出诊断；新增 iteration-budget.ts（13 单测），修改 5 个核心文件；全量测试 1098/1099 通过 |
 | 2026-09-05 | P1-2 跨会话搜索实施完成 | 核心能力已存在（recall_history + 自动索引 + 混合检索）；增强 limit/sessionId 过滤/来源会话展示；修改 history-tools.ts；全量测试 1098/1099 通过 |
 | 2026-09-05 | P1-3 凭据全量加密实施完成 | 新增 CredentialVault（safeStorage 封装，移植自 TokenVault 模式）；model-settings 读写路径加解密；旧明文自动兼容；18 单测 + 全量 1098/1099 通过 |
+| 2026-09-05 | P2-1 定时任务渠道投递实施完成 | ScheduledTask 新增 deliver 字段（local/desktop）；scheduler-runner 完成后触发 deliverResult 回调；bootstrap 接入 Electron 桌面通知；store 层规范化；scheduler 28/28 + 全量 1168/1169 通过 |

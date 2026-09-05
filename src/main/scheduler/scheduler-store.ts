@@ -5,6 +5,7 @@ import { computeInitialNextFireAt, normalizeOverdueNextFireAt } from "./schedule
 import type {
   NewScheduledTaskInput,
   ScheduledTask,
+  ScheduledTaskDelivery,
   ScheduledTaskHistoryEntry,
   ScheduledTaskPatch,
   ScheduleConfig,
@@ -71,6 +72,10 @@ function normalizeToolMode(value: unknown): SchedulerToolMode {
   return value === "allow-list" ? "allow-list" : "all-enabled";
 }
 
+function normalizeDelivery(value: unknown): ScheduledTaskDelivery | undefined {
+  return value === "desktop" ? "desktop" : undefined; // undefined = "local" 默认
+}
+
 function normalizeLoadedTask(raw: unknown): ScheduledTask | null {
   if (!raw || typeof raw !== "object") return null;
   const task = raw as Partial<ScheduledTask>;
@@ -88,6 +93,7 @@ function normalizeLoadedTask(raw: unknown): ScheduledTask | null {
     lastFiredAt: typeof task.lastFiredAt === "string" ? task.lastFiredAt : undefined,
     toolMode: normalizeToolMode(task.toolMode),
     allowedToolIds: uniq(Array.isArray(task.allowedToolIds) ? task.allowedToolIds : []),
+    deliver: normalizeDelivery(task.deliver),
     createdAt: typeof task.createdAt === "string" ? task.createdAt : new Date(0).toISOString(),
     updatedAt: typeof task.updatedAt === "string" ? task.updatedAt : new Date(0).toISOString(),
   };
@@ -153,6 +159,7 @@ export function createSchedulerStore(deps: StoreDeps) {
       nextFireAt: next ? next.toISOString() : null,
       toolMode: normalizeToolMode(input.toolMode),
       allowedToolIds: uniq(input.allowedToolIds ?? []),
+      deliver: normalizeDelivery(input.deliver),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -200,6 +207,9 @@ export function createSchedulerStore(deps: StoreDeps) {
       nextFireAt: next ? next.toISOString() : null,
       toolMode: normalizeToolMode(patch.toolMode ?? current.toolMode),
       allowedToolIds: patch.allowedToolIds ? uniq(patch.allowedToolIds) : [...current.allowedToolIds],
+      deliver: Object.prototype.hasOwnProperty.call(patch, "deliver")
+        ? normalizeDelivery(patch.deliver)
+        : current.deliver,
       updatedAt: now.toISOString(),
     };
     tasks = [...tasks.slice(0, idx), updated, ...tasks.slice(idx + 1)];
