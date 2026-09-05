@@ -29,6 +29,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ChatMessage, ChatSession, ChatSessionMeta, ConversationMode } from "../../shared/chat-types";
 import type { ToolExecutionRecord } from "../../shared/chat-types";
+import { redactSensitiveText } from "../orchestrator/security/message-redactor";
 
 export interface TrajectoryTurn {
   session_id: string;
@@ -84,24 +85,17 @@ export interface ExportResult {
 
 /**
  * 敏感信息脱敏：替换 API Key、Token、密码等。
- * 匹配常见模式：sk-xxx, Bearer xxx, api_key=xxx, password=xxx 等。
+ *
+ * 增强版：使用 message-redactor 模块的 redactSensitiveText，
+ * 支持 30+ API key 前缀 + 15 种脱敏模式（ENV 赋值、JSON 字段、
+ * Authorization header、私钥块、数据库连接串、JWT、URL 查询参数、
+ * 手机号等）。
+ *
+ * 保留函数名保持接口兼容。
  */
 export function sanitizeText(text: string): string {
   if (!text) return text;
-  let result = text;
-  // OpenAI-style API keys: sk-...
-  result = result.replace(/sk-[a-zA-Z0-9]{20,}/g, "[REDACTED_API_KEY]");
-  // Bearer tokens
-  result = result.replace(/Bearer\s+[a-zA-Z0-9._-]{20,}/gi, "Bearer [REDACTED_TOKEN]");
-  // api_key=xxx or apiKey=xxx
-  result = result.replace(/(api[_-]?key\s*[=:]\s*)[^\s,;"']+/gi, "$1[REDACTED]");
-  // password=xxx
-  result = result.replace(/(password\s*[=:]\s*)[^\s,;"']+/gi, "$1[REDACTED]");
-  // token=xxx
-  result = result.replace(/(token\s*[=:]\s*)[^\s,;"']{10,}/gi, "$1[REDACTED]");
-  // secret=xxx
-  result = result.replace(/(secret\s*[=:]\s*)[^\s,;"']+/gi, "$1[REDACTED]");
-  return result;
+  return redactSensitiveText(text);
 }
 
 /**

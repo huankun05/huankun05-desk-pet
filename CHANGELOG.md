@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - **think-filter 增强**：增强已有 think-filter 模块（已集成 runtime.ts 流式管线），新增 5 种标签变体支持（think/thinking/reasoning/thought/REASONING_SCRATCHPAD）+ 孤立关闭标签移除 + 精确部分标签暂存（maxPartialSuffix）；保持 createThinkFilter/stripThinkBlocks/ThinkStreamFilter 接口完全兼容
 - **execute_code Python fallback**：execute_code 工具新增 Python 运行时自动 fallback 机制，主命令 python 失败时自动尝试 py（Windows Python Launcher）；LanguageRuntime 新增 fallbackCommand 字段；fallback 成功时添加提示；不影响 Node.js 和 Shell 语言
 - **LLM 审查列表与统计**：llm-reviewer 新增 listLLMReviews（按时间倒序列出所有审查结果，支持 limit 参数）和 getReviewStats（统计汇总：总审查数/状态分布/平均质量分/安全问题数/潜在bug数/文件数/时间范围）；新增 ReviewStats 类型；平均质量分仅统计 completed 状态
+- **消息脱敏模块**：移植自 Hermes redact.py，新增 message-redactor.ts（30+ API key 前缀 + 15 种脱敏模式 + 性能预检查优化）；支持已知 API key 前缀、ENV 赋值、JSON 字段、Authorization header、私钥块、数据库连接串、JWT、URL 查询参数、手机号等脱敏；短 token 完全脱敏为 ***，长 token 保留前 6 后 4 字符；支持 force/codeFile/enabled 配置和 redactObject 递归脱敏；集成到 trajectory 导出（sanitizeText 增强）
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置

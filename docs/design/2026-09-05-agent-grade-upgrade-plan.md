@@ -892,7 +892,68 @@ P3-3 实现的 llm-reviewer 已有保存/加载/检查单个审查结果的功�
 
 ---
 
-## 6. 执行记录
+## 6. P6 安全增强（2026-09-05）
+
+### 6.1 P6-1 消息脱敏模块（移植 Hermes redact.py）
+
+#### 6.1.1 背景
+
+Agent 系统在日志、trajectory 导出、调试输出等场景中可能泄露敏感信息（API key、token、密码等）。Hermes 有完善的 `agent/redact.py` 模块，支持 30+ API key 前缀 + 15 种脱敏模式，且有性能预检查优化。
+
+Cyrene 原有的 `trajectory-exporter.ts` 中只有简单的 `sanitizeText` 函数（仅 6 种基本模式），需要增强。
+
+#### 6.1.2 移植内容
+
+新增 `src/main/orchestrator/security/message-redactor.ts`，完整移植 Hermes redact.py 的核心能力：
+
+1. **30+ 已知 API key 前缀**：sk-（OpenAI/Anthropic）、ghp_/github_pat_（GitHub）、xoxb-（Slack）、AIza（Google）、AKIA（AWS）、sk_live_（Stripe）、hf_（HuggingFace）、npm_（npm）、gsk_（Groq）、xai-（xAI）等
+2. **15 种脱敏模式**：
+   - 已知 API key 前缀
+   - ENV 赋值（`KEY=value`，负向回顾断言 `(?<![?&])` 避免匹配 URL 参数）
+   - JSON 字段（`"key": "value"`）
+   - Authorization header（`Bearer token`）
+   - Telegram bot token
+   - 私钥块（`-----BEGIN PRIVATE KEY-----`）
+   - 数据库连接串（`postgres://user:pass@host`）
+   - JWT token（`eyJ...`）
+   - URL 查询参数（`?token=xxx`）
+   - URL userinfo（`user:pass@host`）
+   - HTTP request target 查询参数
+   - Form-urlencoded body
+   - E.164 手机号
+3. **性能预检查**：每个正则模式都有廉价的子串预检查（如 `"=" in text` 用于 ENV 赋值），在典型日志行上从 ~5.6us 降到 ~1.8us（-68%）
+4. **脱敏策略**：短 token（< 18 字符）完全脱敏为 `***`；长 token 保留前 6 和后 4 字符便于调试（如 `sk-pro...cdef`）
+5. **配置选项**：`force`（强制脱敏，安全边界）、`codeFile`（跳过 ENV/JSON 避免误匹配源代码）、`enabled`（全局开关）
+6. **redactObject**：递归脱敏对象中的所有字符串值，用于结构化数据导出
+
+#### 6.1.3 集成到 trajectory 导出
+
+修改 `src/main/chats/trajectory-exporter.ts`：
+- 导入 `redactSensitiveText`
+- 增强 `sanitizeText` 函数，内部调用 `redactSensitiveText`
+- 保留函数名保持接口兼容
+- 更新测试期望为新的脱敏格式（保留前后字符而非 `[REDACTED]`）
+
+#### 6.1.4 关键设计决策
+
+1. **ENV 赋值正则的负向回顾断言**：`(?<![?&])` 确保不匹配 URL 查询参数（`?token=xxx`、`&state=xxx`），避免 URL 中的参数被 ENV 正则错误匹配
+2. **ENV 赋值值的字符集**：`[^\s&]+` 代替 `\S+`，避免贪婪匹配吞掉 `&` 后面的参数
+3. **保留函数名**：`sanitizeText` 函数名保留，内部实现替换为 `redactSensitiveText`，保持接口兼容和可逆性
+4. **脱敏格式**：采用 Hermes 的设计（保留前 6 + 后 4 字符），而非原有的 `[REDACTED]` 完全替换，便于调试时识别 key 的来源
+
+#### 6.1.5 验收标准
+
+- [x] 30+ API key 前缀全部支持
+- [x] 15 种脱敏模式全部实现
+- [x] 性能预检查优化
+- [x] 50 个单测全部通过
+- [x] `tsc --noEmit` 类型检查通过
+- [x] trajectory 导出集成完成，19 个测试通过
+- [x] 全量测试 1460/1461 通过（唯一失败为环境缺 Git Bash，历史既有）
+
+---
+
+## 7. 执行记录
 
 | 日期 | 事项 | 结果 |
 | --- | --- | --- |
@@ -913,3 +974,4 @@ P3-3 实现的 llm-reviewer 已有保存/加载/检查单个审查结果的功�
 | 2026-09-05 | P5-1 think-filter 增强实施完成 | 发现 Cyrene 已有 think-filter 且已集成 runtime.ts 流式管线，决定增强而非替换；新增 5 种标签变体支持（think/thinking/reasoning/thought/REASONING_SCRATCHPAD）+ 孤立关闭标签移除 + 精确部分标签暂存（maxPartialSuffix）；保持接口完全兼容；47 单测（原有28+新增19）+ 全量 1408/1409 通过 |
 | 2026-09-05 | P5-2 execute_code 增强实施完成 | LanguageRuntime 新增 fallbackCommand 字段，Python 配置 fallback 到 py（Windows Python Launcher）；自动 fallback 机制（执行异常或运行时不存在错误时自动尝试 fallback）；fallback 成功提示；23 单测通过 + tsc 类型检查通过 |
 | 2026-09-05 | P5-3 LLM 审查增强实施完成 | 新增 ReviewStats 类型（总审查数/状态分布/平均质量分/安全问题数/潜在bug数/文件数/时间范围）；新增 listLLMReviews（按时间倒序列出，支持 limit）；新增 getReviewStats（遍历所有审查计算统计指标，平均质量分仅统计 completed）；35 单测（原有33+新增2）通过 + tsc 类型检查通过 |
+| 2026-09-05 | P6-1 消息脱敏模块实施完成 | 移植 Hermes redact.py，新增 message-redactor.ts（30+ API key 前缀 + 15 种脱敏模式 + 性能预检查 + force/codeFile/enabled 配置 + redactObject 递归脱敏）；ENV 赋值正则用负向回顾断言 (?<![?&]) 避免匹配 URL 参数，值用 [^\s&]+ 避免贪婪匹配；集成到 trajectory 导出（sanitizeText 增强，保留函数名兼容）；50 单测 + trajectory 19 单测 + 全量 1460/1461 通过 |

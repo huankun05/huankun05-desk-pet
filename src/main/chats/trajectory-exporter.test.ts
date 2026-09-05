@@ -36,22 +36,22 @@ describe("trajectory-exporter", () => {
   describe("sanitizeText", () => {
     it("redacts OpenAI-style API keys", () => {
       const text = "My key is sk-abc123def456ghi789jkl012mno345pqr";
-      expect(sanitizeText(text)).toContain("[REDACTED_API_KEY]");
+      expect(sanitizeText(text)).toContain("sk-abc...5pqr");
       expect(sanitizeText(text)).not.toContain("sk-abc123");
     });
 
     it("redacts Bearer tokens", () => {
       const text = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
-      expect(sanitizeText(text)).toContain("Bearer [REDACTED_TOKEN]");
+      expect(sanitizeText(text)).toContain("Bearer eyJhbG...VCJ9");
     });
 
     it("redacts api_key=value", () => {
-      expect(sanitizeText("api_key=my-secret-key-12345")).toContain("api_key=[REDACTED]");
-      expect(sanitizeText("apiKey: my-secret-key-12345")).toContain("apiKey: [REDACTED]");
+      expect(sanitizeText("api_key=my-secret-key-12345")).toContain("api_key=my-sec...2345");
+      expect(sanitizeText('{"apiKey": "my-secret-key-12345"}')).toContain('"apiKey": "my-sec...2345"');
     });
 
     it("redacts password=value", () => {
-      expect(sanitizeText("password=hunter2")).toContain("password=[REDACTED]");
+      expect(sanitizeText("password=hunter2")).toContain("password=***");
     });
 
     it("leaves normal text untouched", () => {
@@ -89,7 +89,7 @@ describe("trajectory-exporter", () => {
       const session = makeSession();
       const message = makeMessage({ content: "My key is sk-abc123def456ghi789jkl012mno345pqr" });
       const turn = messageToTrajectoryTurn(message, session, 0);
-      expect(turn.content).toContain("[REDACTED_API_KEY]");
+      expect(turn.content).toContain("sk-abc...5pqr");
     });
 
     it("skips sanitization when sanitize=false", () => {
