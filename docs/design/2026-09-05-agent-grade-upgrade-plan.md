@@ -47,7 +47,7 @@
 | P1 | 凭据全量加密（safeStorage） | ✅ 已完成 | CredentialVault + model-settings 读写路径加解密 |
 | P2 | 定时任务渠道投递 | ✅ 已完成 | ScheduledTask.deliver + 桌面通知投递 |
 | P2 | 成本核算（token × 单价） | ✅ 已完成 | model-pricing + cost-calculator（30+ 常见模型默认价） |
-| P2 | Trajectory 导出（训练/评测） | ⏳ 待做 | run-store 轨迹导出 |
+| P2 | Trajectory 导出（训练/评测） | ✅ 已完成 | trajectory-exporter（JSONL + 脱敏 + 筛选） |
 
 ---
 
@@ -333,14 +333,59 @@ type ScheduledTaskDelivery = "local" | "desktop";
 
 ### 4.6 Trajectory 导出（训练/评测）
 
-**目标**：将 Agent 运行轨迹（输入/输出/工具调用/中间状态）导出为结构化格式，用于模型训练、效果评测和问题复现。
+**核心发现**：Cyrene 已有完整的聊天会话存储（`chats-store.ts`），按会话持久化到 `cyrene-chats/sessions/<id>.json`，每条 `ChatMessage` 含 role/content/reasoning/toolExecutions/contextUsage 等丰富字段。P2-3 只需新增导出层，将会话转换为结构化 JSONL。
 
-**设计要点（预研）**：
-- 复用现有 run-store / checkpoint 机制
-- 导出格式：JSONL（每行一个 turn），含 prompt、response、tool_calls、tool_results、latency、token_usage
-- 支持按会话/按任务/按时间范围筛选导出
-- 敏感信息脱敏（API Key、个人信息）
-- ⏳ 待做
+**新增模块**：
+| 文件 | 说明 |
+| --- | --- |
+| `chats/trajectory-exporter.ts` | Trajectory 导出模块，纯函数转换 + 文件写入 |
+| `chats/trajectory-exporter.test.ts` | 19 个单测 |
+
+**导出格式（JSONL，每行一个 turn）**：
+```json
+{
+  "session_id": "...",
+  "session_title": "...",
+  "session_mode": "chat|work|code|learn",
+  "turn_index": 0,
+  "role": "user|assistant|system|tool",
+  "content": "...",
+  "reasoning": "...",
+  "tool_calls": [{"id": "...", "name": "...", "arguments": "..."}],
+  "tool_results": [{"tool_call_id": "...", "content": "...", "is_error": false}],
+  "timestamp": 1700000000000,
+  "token_usage": {"input": 100, "output": 50, "total": 150}
+}
+```
+
+**核心 API**：
+- `sanitizeText(text)` — 敏感信息脱敏（API Key/Bearer Token/password/token/secret）
+- `messageToTrajectoryTurn(message, session, turnIndex, sanitize?)` — 单条消息转换
+- `sessionToTrajectory(session, options?)` — 会话转换（支持 since/until 时间过滤）
+- `exportTrajectory(sessions, getSession, options?)` — 完整导出（支持 sessionId/mode/时间范围筛选 + 文件写入）
+
+**筛选选项**：
+- `sessionId` — 只导出指定会话
+- `mode` — 只导出指定模式（chat/work/code/learn）
+- `since` / `until` — 时间范围过滤（epoch ms）
+- `sanitize` — 是否脱敏（默认 true）
+- `outputPath` — 输出文件路径；不传则返回记录数组
+
+**验收标准**：
+- [x] JSONL 格式导出，每行一个 turn
+- [x] 包含 session 元数据 + turn 内容 + 工具调用/结果 + token 用量
+- [x] 敏感信息脱敏（API Key/Token/密码）
+- [x] 按会话/模式/时间范围筛选
+- [x] 纯函数转换 + 文件写入分离，易于测试
+- [x] 19/19 单测通过
+- [x] 全量 1171/1172 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
+
+**后续增强（P3+）**：
+- IPC 接口：前端 UI 触发导出（选择会话/时间范围）
+- 导出格式扩展：支持 OpenAI JSONL / ShareGPT 格式
+- 增量导出：只导出上次导出之后的新消息
+- 导出压缩：大会话自动 gzip 压缩
 
 ---
 
@@ -354,3 +399,4 @@ type ScheduledTaskDelivery = "local" | "desktop";
 | 2026-09-05 | P1-3 凭据全量加密实施完成 | 新增 CredentialVault（safeStorage 封装，移植自 TokenVault 模式）；model-settings 读写路径加解密；旧明文自动兼容；18 单测 + 全量 1098/1099 通过 |
 | 2026-09-05 | P2-1 定时任务渠道投递实施完成 | ScheduledTask 新增 deliver 字段（local/desktop）；scheduler-runner 完成后触发 deliverResult 回调；bootstrap 接入 Electron 桌面通知；store 层规范化；scheduler 28/28 + 全量 1168/1169 通过 |
 | 2026-09-05 | P2-2 成本核算实施完成 | 新增 model-pricing（30+ 常见模型默认价 + 自定义覆盖）和 cost-calculator（input/output/cacheHit/cacheCreation 四档成本 + 按天/按模型汇总 + 格式化）；30 单测 + 全量 1128/1129 通过 |
+| 2026-09-05 | P2-3 Trajectory 导出实施完成 | 新增 trajectory-exporter（JSONL 格式 + 敏感信息脱敏 + 按会话/模式/时间范围筛选 + 纯函数转换与文件写入分离）；19 单测 + 全量 1171/1172 通过；**P0-P2 全部 7 项路线图完成** |
