@@ -22,6 +22,7 @@ export {
 } from "./harness/adapter/prompt-builder";
 import { app } from "electron";
 import { getRunReviewTracker } from "./review/run-review-tracker";
+import { runLLMReview, saveLLMReview, hasLLMReview, type LLMCallFn } from "./review/llm-reviewer";
 import type { ReviewRunStatus } from "../../shared/review-types";
 import { sendHarnessEventAsAgui } from "./harness/adapter/event-mapper";
 export { sendHarnessEventAsAgui, sendTaskLifecycleAsAgui } from "./harness/adapter/event-mapper";
@@ -31,6 +32,48 @@ import { prepareToolRuntime } from "./harness/adapter/tool-runtime";
 
 const LOG_PREFIX = "[HarnessAdapter]";
 export { filterToolsForConversationMode } from "./harness/adapter/run-preparation";
+
+// ── LLM 审查回调（可注入，默认不启用） ─────────────────────
+// 设计：模块级可注入回调，不修改 runHarnessWithAdapter 函数签名。
+// 调用方（如 bootstrap）通过 setLLMReviewCallback 注入真实的 LLM 调用函数后启用。
+// 未注入时，finalizeReview 之后不会触发 LLM 审查，保持原有行为。
+type LLMReviewCallback = (snapshot: import("../../shared/review-types").ReviewSnapshot) => Promise<void>;
+let llmReviewCallback: LLMReviewCallback | null = null;
+
+/**
+ * 注入 LLM 审查回调。传入 null 可禁用审查。
+ * 回调应在后台异步执行审查并持久化结果，不应阻塞 Run 结果返回。
+ */
+export function setLLMReviewCallback(callback: LLMReviewCallback | null): void {
+  llmReviewCallback = callback;
+  console.log(`${LOG_PREFIX} LLM review callback ${callback ? "enabled" : "disabled"}`);
+}
+
+/**
+ * 构建默认的 LLM 审查回调（使用给定的 LLM 调用函数）。
+ * 方便调用方直接使用，不需要自己实现回调逻辑。
+ */
+export function buildDefaultLLMReviewCallback(
+  llmCall: LLMCallFn,
+  model?: string,
+): LLMReviewCallback {
+  return async (snapshot) => {
+    const userDataRoot = app.getPath("userData");
+    // 幂等：已有审查结果则跳过
+    if (hasLLMReview(userDataRoot, snapshot.runId)) {
+      console.log(`${LOG_PREFIX} LLM review already exists for runId=${snapshot.runId}, skipping`);
+      return;
+    }
+    try {
+      const result = await runLLMReview(snapshot, llmCall, model);
+      saveLLMReview(userDataRoot, result);
+      console.log(`${LOG_PREFIX} LLM review completed for runId=${snapshot.runId}, status=${result.status}, avgScore=${result.overallQualityScore}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`${LOG_PREFIX} LLM review failed for runId=${snapshot.runId}: ${msg}`);
+    }
+  };
+}
 
 // 兼容门面（facade）：旧调用方继续从本文件导入；具体职责下沉到 adapter/ 下的叶子模块。
 // 门面只保留公共导出和编排顺序，不重新维护 Map、缓存或控制器等运行状态。
@@ -146,13 +189,24 @@ export async function runHarnessWithAdapter(
   // ── Review 快照：Run 终止时生成不可变 ReviewSnapshot ──
   // 正常终止时主动 finalize；崩溃恢复（interrupted）的 Run 由前端打开 Review 时
   // 通过 finalizeIfPending 按需补生成。
+  let reviewSnapshot: import("../../shared/review-types").ReviewSnapshot | null = null;
   try {
     const tracker = getRunReviewTracker(app.getPath("userData"));
     const reviewStatus: ReviewRunStatus = terminalRunStatus;
-    tracker.finalizeReview(runId, finalSession.createdAt, reviewStatus);
+    reviewSnapshot = tracker.finalizeReview(runId, finalSession.createdAt, reviewStatus);
   } catch (err) {
     // Review 生成失败不应阻塞 Run 结果返回
     console.error(`${LOG_PREFIX} finalizeReview failed:`, err);
+  }
+
+  // ── 后台 LLM 审查（可选，需通过 setLLMReviewCallback 注入） ──
+  // 异步触发，不阻塞 Run 结果返回。未注入回调时跳过。
+  if (reviewSnapshot && llmReviewCallback) {
+    // 不 await：后台执行，不阻塞
+    llmReviewCallback(reviewSnapshot).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`${LOG_PREFIX} LLM review callback threw: ${msg}`);
+    });
   }
 
   // ── 计划模式 run 尾钩──

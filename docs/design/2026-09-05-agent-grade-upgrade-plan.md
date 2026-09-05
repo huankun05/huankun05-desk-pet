@@ -50,7 +50,7 @@
 | P2 | Trajectory 导出（训练/评测） | ✅ 已完成 | trajectory-exporter（JSONL + 脱敏 + 筛选） |
 | P3 | 工具重复失败检测（护栏） | ✅ 已完成 | tool-guardrail（移植 Hermes tool_guardrails） |
 | P3 | execute_code 独立代码执行工具 | ✅ 已完成 | execute-code-tool（复用 run_shell 安全逻辑，Python/Node/Shell） |
-| P3 | 后台 LLM 审查 | 📋 待开始 | 基于 run-review-tracker 新增 LLM 审查线程 |
+| P3 | 后台 LLM 审查 | ✅ 已完成 | llm-reviewer（prompt 构建 + 结果解析 + 审查执行 + 持久化）+ harness-adapter 可注入回调 |
 
 ---
 
@@ -538,22 +538,124 @@ Hermes 的 `code_execution_tool.py` 有 1700+ 行，核心是子进程隔离 + R
 - [x] `tsc --noEmit` 类型检查通过
 - [x] snapshot test 通过（注册顺序未破坏）
 
-### 4.3 P3-3 后台 LLM 审查（待开始）
+### 4.3 P3-3 后台 LLM 审查（已完成）
 
-**移植来源**：Hermes `agent/background_review.py`
+**移植来源**：Hermes `agent/background_review.py` 的设计思路
 
-**目标**：在 Run 结束后，后台启动 LLM 审查线程，对本次 Run 的工具调用和文件变更进行质量评估：
-- 基于现有 `run-review-tracker.ts` 的文件变更快照数据
-- LLM 审查：代码质量、安全性、是否遗漏、是否有更好的方案
+**目标**：在 Run 结束后，后台启动 LLM 审查，对本次 Run 的文件变更进行质量评估：
+- 基于现有 `run-review-tracker.ts` 的文件变更快照数据（before/after/diff）
+- LLM 审查：代码质量、安全性、潜在 bug、改进建议
 - 审查结果持久化，供用户后续查看
 
-**设计要点**：
-- 复用现有 `run-review-tracker.ts` 的快照（before/after/diff）
-- 后台线程不阻塞主流程
-- 审查结果存储在 `cyrene-runs/reviews/<runId>/review.json`
-- 前端可展示审查结果卡片
+**设计决策：核心模块 + 可注入回调**
 
-**待实施**。
+考虑到可逆性和最小改动，采用"核心模块 + 可注入回调"的设计：
+1. **核心模块** `llm-reviewer.ts`：纯函数逻辑（prompt 构建、结果解析、审查执行、持久化），不依赖具体 model client
+2. **可注入回调**：`harness-adapter.ts` 导出 `setLLMReviewCallback(callback)`，调用方注入真实的 LLM 调用函数后启用
+3. **默认不启用**：未注入回调时，finalizeReview 之后不会触发 LLM 审查，保持原有行为
+
+这样设计的好处：
+- 核心逻辑是纯函数，易于测试（33 个单测）
+- LLM 调用接口抽象为 `LLMCallFn = (prompt, systemPrompt?) => Promise<string>`，不依赖具体 model client
+- 集成点已就位（harness-adapter.ts 中 finalizeReview 之后异步触发），后续只需要调用 `setLLMReviewCallback` 即可启用
+- 可逆性高：禁用只需要 `setLLMReviewCallback(null)`
+
+**新增模块**：
+| 文件 | 说明 |
+| --- | --- |
+| `review/llm-reviewer.ts` | LLM 审查核心模块（prompt 构建 + 结果解析 + 审查执行 + 持久化） |
+| `review/llm-reviewer.test.ts` | 33 个单测 |
+
+**修改文件**：
+| 文件 | 改动 |
+| --- | --- |
+| `harness-adapter.ts` | 导入 llm-reviewer；新增 `setLLMReviewCallback` 和 `buildDefaultLLMReviewCallback`；finalizeReview 之后异步触发审查（回调存在时） |
+
+**核心类型**：
+```typescript
+interface FileReview {
+  filePath: string;           // 文件路径
+  changeKind: string;         // 变更类型
+  qualityScore: number;       // 质量评分 1-5
+  qualityComment: string;     // 质量评价
+  securityIssues: string[];   // 安全问题
+  improvements: string[];     // 改进建议
+  hasPotentialBug: boolean;   // 是否有潜在 bug
+  bugDescription?: string;    // bug 描述
+}
+
+interface LLMReviewResult {
+  runId: string;
+  reviewedAt: number;
+  summary: string;            // 总体评价
+  overallQualityScore: number; // 平均质量评分
+  securityConcerns: string[];  // 安全问题汇总
+  improvementSuggestions: string[]; // 改进建议汇总
+  fileReviews: FileReview[];  // 每个文件的审查结果
+  status: "completed" | "failed" | "skipped";
+  model?: string;
+}
+```
+
+**审查流程**：
+1. Run 结束后，`finalizeReview` 生成 ReviewSnapshot
+2. 如果 `llmReviewCallback` 存在，异步调用（不 await，不阻塞 Run 结果返回）
+3. 回调中：加载 snapshot → 按变更大小排序选择前 20 个文件 → 逐个文件调用 LLM 审查 → 汇总结果 → 持久化到 `llm-review.json`
+4. 幂等：已有审查结果则跳过
+
+**Prompt 设计**：
+- System prompt：资深代码审查专家角色，审查维度（质量/安全/正确/完整）
+- 每个文件的 prompt：文件路径 + 变更类型 + 新增/删除行数 + diff 内容 + 要求返回 JSON
+- diff 截断：单个文件超过 8000 字符则截断
+- 文件数限制：最多审查 20 个文件（按变更大小排序）
+
+**持久化**：
+- 存储位置：`<userData>/cyrene-runs/reviews/<runId>/llm-review.json`
+- 原子写：`.tmp + rename`
+- 提供 `saveLLMReview` / `loadLLMReview` / `hasLLMReview` 函数
+
+**启用方式**（后续集成）：
+```typescript
+import { setLLMReviewCallback, buildDefaultLLMReviewCallback } from "./harness-adapter";
+
+// 构建 LLM 调用函数（对接具体 model client）
+const llmCall: LLMCallFn = async (prompt, systemPrompt) => {
+  // 调用具体的 model client，返回文本结果
+  const response = await callModel({ prompt, systemPrompt });
+  return response.text;
+};
+
+// 启用审查
+setLLMReviewCallback(buildDefaultLLMReviewCallback(llmCall, "gpt-4o"));
+```
+
+**验收标准**：
+- [x] llm-reviewer 33 个单测全部通过
+- [x] prompt 构建包含文件路径、变更类型、diff 内容
+- [x] 结果解析支持纯 JSON 和 markdown 包裹的 JSON
+- [x] 无效 JSON 返回默认值，不崩溃
+- [x] 评分限制在 1-5 之间
+- [x] 按变更大小排序选择文件
+- [x] 限制最多审查 20 个文件
+- [x] diff 超过 8000 字符截断
+- [x] 没有文件变更时返回 skipped
+- [x] LLM 调用失败时记录错误但继续
+- [x] 计算平均质量评分
+- [x] 汇总安全问题和改进建议
+- [x] 生成总体评价
+- [x] 保存和加载审查结果（原子写）
+- [x] hasLLMReview 正确检测
+- [x] 损坏的 JSON 返回 null
+- [x] harness-adapter 集成点就位（可注入回调，默认不启用）
+- [x] 全量 orchestrator 测试 1215/1216 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
+
+**后续增强（P4+）**：
+- 在 bootstrap 中对接具体 model client，默认启用 LLM 审查
+- 添加 IPC 接口供前端展示审查结果
+- 审查结果卡片 UI（质量评分、安全问题、改进建议）
+- 审查结果触发自动修复（高质量建议自动应用）
+- 批量审查历史 Run
 
 ---
 
@@ -571,3 +673,4 @@ Hermes 的 `code_execution_tool.py` 有 1700+ 行，核心是子进程隔离 + R
 | 2026-09-05 | P3 深度对标 Hermes 差距重审 | 深度通读 Hermes 源码（agent/ 150+ 文件）并逐项对照 Cyrene，发现 Cyrene 实际已具备上下文压缩/沙箱/记忆系统/错误分类/重试策略/不确定效果守卫/文件变更审查/权限策略等能力（此前被低估）；真正缺失仅 3 项：工具重复失败检测、execute_code 工具、后台 LLM 审查；新增 P3 章节 |
 | 2026-09-05 | P3-1 工具重复失败检测实施完成 | 移植 Hermes tool_guardrails.py，新增 ToolCallGuardrailController（exact_failure_block + same_tool_failure_halt + idempotent_no_progress_block）；接入 tool-round.ts before_call/after_call；31 单测 + 全量 1159/1160 通过 |
 | 2026-09-05 | P3-2 execute_code 独立代码执行工具实施完成 | 新增 execute-code-tool（薄封装 run_shell：写入临时文件 → 构建运行时命令 → 调用 run_shell → 清理临时文件）；支持 Python/Node.js/Shell 三种语言；运行时不存在时返回 RUNTIME_NOT_FOUND + 友好提示；23 单测 + 全量 1182/1183 通过 |
+| 2026-09-05 | P3-3 后台 LLM 审查实施完成 | 新增 llm-reviewer（prompt 构建 + 结果解析 + 审查执行 + 持久化，LLM 调用抽象为 LLMCallFn 不依赖具体 model client）；harness-adapter 新增 setLLMReviewCallback 可注入回调，finalizeReview 之后异步触发审查（默认不启用，保持可逆性）；33 单测 + 全量 1215/1216 通过；**P0-P3 全部 10 项路线图完成** |
