@@ -44,7 +44,7 @@
 | P0 | AGENTS.md 项目上下文注入 | ✅ 已完成 | workspace-context / run-preparation / tests |
 | P1 | 验证闭环自迭代（改 → 验 → 修） | ✅ 已完成 | IterationBudget 移植 + 预算耗尽总结 + 文件变更页脚 |
 | P1 | 跨会话搜索（FTS/向量 + LLM 摘要） | ✅ 已完成 | recall_history 工具增强（limit + sessionId 过滤 + 来源会话） |
-| P1 | 凭据全量加密（safeStorage） | ⏳ 待做 | settings 层迁移 |
+| P1 | 凭据全量加密（safeStorage） | ✅ 已完成 | CredentialVault + model-settings 读写路径加解密 |
 | P2 | 定时任务渠道投递 | ⏳ 待做 | scheduler 增加 deliver 目标 |
 | P2 | 成本核算（token × 单价） | ⏳ 待做 | 用量统计扩展 |
 | P2 | Trajectory 导出（训练/评测） | ⏳ 待做 | run-store 轨迹导出 |
@@ -208,7 +208,45 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 
 ### 4.3 凭据全量加密
 
-将 `model-settings.json` / `app-settings.json` / `mcp-servers.json` 中的明文凭据迁移到 Electron `safeStorage`（Windows DPAPI），迁移需向后兼容旧明文读取（首次读入后落盘加密）。
+**设计原则**（移植自 music/token-vault.ts 的 TokenVault 模式）：
+- 内存中始终明文（调用方无感知）
+- 落盘时加密（JSON 文件中不可见明文 API Key）
+- 向后兼容：旧明文自动识别并迁移（首次保存时加密）
+- safeStorage 不可用时回退明文（dev 环境，打 warning）
+- 加密值带 `enc:v1:` 前缀，便于识别和未来版本升级
+
+**新增模块**：
+| 文件 | 说明 |
+| --- | --- |
+| `settings/credential-vault.ts` | 通用凭据加密保险箱，封装 Electron safeStorage（Windows DPAPI / macOS Keychain / Linux libsecret） |
+| `settings/credential-vault.test.ts` | 18 个单测：加密/解密/回退/轮询/边界 |
+
+**CredentialVault API**：
+- `encrypt(plaintext: string): string` — 加密返回 `enc:v1:<base64>`；空值透传；已加密不重复加密；safeStorage 不可用回退明文
+- `decrypt(value: string): string` — `enc:v1:` 前缀解密；无前缀视为旧明文透传（向后兼容）
+- `isEncrypted(value: string): boolean` — 判断是否为已加密值
+- `isAvailable(): boolean` — safeStorage 是否可用
+- `getCredentialVault()` — 全局单例
+
+**model-settings.ts 接入**：
+- `applyVaultToSettings(settings, action)` — 递归对所有 apiKey 字段加解密
+- 覆盖字段：顶层 `apiKey`、`perProvider[*].apiKey`（真值）、`vision.apiKey`、`auxiliary.apiKey`、`modelProfiles[*].apiKey`
+- `loadModelSettings0()`：JSON parse → decrypt → normalize（内存中始终明文）
+- `saveModelSettings()`：normalize → encrypt → writeFileSync（落盘加密）
+
+**验收标准**：
+- [x] CredentialVault 18 个单测全部通过
+- [x] model-settings 读写路径加解密正确
+- [x] 旧明文配置自动兼容（decrypt 对无前缀值透传）
+- [x] safeStorage 不可用时优雅回退明文
+- [x] 全量 orchestrator 测试 1098/1099 通过（唯一失败为环境缺 Git Bash）
+- [x] settings 目录 42/42 测试通过
+- [x] `tsc --noEmit` 类型检查通过
+
+**后续增强（P2+）**：
+- MCP server env 凭据加密（API_KEY/TOKEN/SECRET 等环境变量）
+- 凭据导出/导入工具（换机时迁移加密凭据）
+- 凭据变更审计日志
 
 ### 4.4 定时任务渠道投递
 
@@ -223,3 +261,4 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 | 2026-09-05 | 规划落盘；P0-1 / P0-2 实施完成 | 并行子 Agent + AGENTS.md 注入已落地，新增 20 个单测用例，全部通过 |
 | 2026-09-05 | P1-1 验证闭环自迭代实施完成 | 移植 Hermes IterationBudget + 预算耗尽总结 + 文件变更失败页脚 + 回合退出诊断；新增 iteration-budget.ts（13 单测），修改 5 个核心文件；全量测试 1098/1099 通过 |
 | 2026-09-05 | P1-2 跨会话搜索实施完成 | 核心能力已存在（recall_history + 自动索引 + 混合检索）；增强 limit/sessionId 过滤/来源会话展示；修改 history-tools.ts；全量测试 1098/1099 通过 |
+| 2026-09-05 | P1-3 凭据全量加密实施完成 | 新增 CredentialVault（safeStorage 封装，移植自 TokenVault 模式）；model-settings 读写路径加解密；旧明文自动兼容；18 单测 + 全量 1098/1099 通过 |

@@ -9,6 +9,7 @@ import type { VisionConfig } from "../orchestrator/vision-captioner";
 import { migrateLegacyMinimaxDefaults } from "../orchestrator/vendors/minimax-defaults";
 import { getCapabilityOrOpenAI } from "../orchestrator/vendors/capabilities";
 import { addModelProfile, resolveDefaultModelProfile, updateModelProfile, type SavedModelProfile } from "./model-catalog";
+import { getCredentialVault } from "./credential-vault";
 
 /**
  * 统一模型配置入口：所有模块（包括 Code 模式）必须通过此函数读取。
@@ -181,6 +182,66 @@ export interface AuxiliaryModelConfig {
   model?: string;
   /** 独立配置时的协议。 */
   explicitTransport?: "openai" | "anthropic" | "responses" | "auto";
+}
+
+/**
+ * 凭据加解密辅助：在 ModelSettings 的所有 apiKey 字段上递归应用 vault 操作。
+ *
+ * 覆盖字段：
+ * - 顶层 apiKey（当前厂商镜像）
+ * - perProvider[*].apiKey（各厂商档案，真值）
+ * - vision.apiKey（独立视觉模型）
+ * - auxiliary.apiKey（辅助模型）
+ * - modelProfiles[*].apiKey（已保存模型档案）
+ *
+ * 设计：内存中始终明文，落盘时加密；旧明文自动识别（decrypt 对无前缀值透传）。
+ */
+function applyVaultToSettings<T extends Partial<ModelSettings>>(
+  settings: T,
+  action: "encrypt" | "decrypt",
+): T {
+  const vault = getCredentialVault();
+  // 只对非空字符串做加解密；调用方已确保 value 是 string
+  const apply = (value: string): string => {
+    if (!value) return value;
+    return action === "encrypt" ? vault.encrypt(value) : vault.decrypt(value);
+  };
+
+  const result = { ...settings };
+
+  if (typeof result.apiKey === "string") {
+    result.apiKey = apply(result.apiKey);
+  }
+
+  if (result.perProvider && typeof result.perProvider === "object") {
+    const perProvider: Record<string, ProviderProfile> = {};
+    for (const [key, profile] of Object.entries(result.perProvider)) {
+      if (profile && typeof profile === "object" && typeof profile.apiKey === "string") {
+        perProvider[key] = { ...profile, apiKey: apply(profile.apiKey) };
+      } else {
+        perProvider[key] = profile;
+      }
+    }
+    result.perProvider = perProvider;
+  }
+
+  if (result.vision && typeof result.vision === "object" && typeof result.vision.apiKey === "string") {
+    result.vision = { ...result.vision, apiKey: apply(result.vision.apiKey) };
+  }
+
+  if (result.auxiliary && typeof result.auxiliary === "object" && typeof result.auxiliary.apiKey === "string") {
+    result.auxiliary = { ...result.auxiliary, apiKey: apply(result.auxiliary.apiKey) };
+  }
+
+  if (Array.isArray(result.modelProfiles)) {
+    result.modelProfiles = result.modelProfiles.map((profile) =>
+      profile && typeof profile === "object" && typeof profile.apiKey === "string"
+        ? { ...profile, apiKey: apply(profile.apiKey) }
+        : profile,
+    );
+  }
+
+  return result;
 }
 
 const DEFAULT_MODEL_SETTINGS: ModelSettings = {
@@ -475,7 +536,10 @@ function loadModelSettings0(): ModelSettings {
     const filePath = getSettingsPath();
     if (!fs.existsSync(filePath)) return { ...DEFAULT_MODEL_SETTINGS };
     const raw = fs.readFileSync(filePath, "utf8");
-    return normalizeModelSettings(JSON.parse(raw) as Partial<ModelSettings>);
+    const parsed = JSON.parse(raw) as Partial<ModelSettings>;
+    // 落盘时 apiKey 已加密，读取时先解密再 normalize（内存中始终明文）
+    const decrypted = applyVaultToSettings(parsed, "decrypt");
+    return normalizeModelSettings(decrypted);
   } catch (err) {
     console.error("[Cyrene] load settings failed:", err);
     return { ...DEFAULT_MODEL_SETTINGS };
@@ -625,7 +689,9 @@ export function saveModelSettings(settings: Partial<ModelSettings>): ModelSettin
   const final = normalizeModelSettings(merged);
   const filePath = getSettingsPath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(final, null, 2), "utf8");
+  // 落盘前加密所有 apiKey（内存中始终明文，JSON 文件中不可见明文）
+  const encrypted = applyVaultToSettings(final, "encrypt");
+  fs.writeFileSync(filePath, JSON.stringify(encrypted, null, 2), "utf8");
   Object.assign(existing, final);
   return final;
 }
