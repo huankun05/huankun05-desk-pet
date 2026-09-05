@@ -951,6 +951,125 @@ Cyrene 原有的 `trajectory-exporter.ts` 中只有简单的 `sanitizeText` 函�
 - [x] trajectory 导出集成完成，19 个测试通过
 - [x] 全量测试 1460/1461 通过（唯一失败为环境缺 Git Bash，历史既有）
 
+### 6.2 P6-2 日志系统集成脱敏
+
+#### 6.2.1 背景
+
+message-redactor 模块完成后，需要集成到日志系统，自动脱敏所有日志输出中的敏感信息（API key、token、密码等），避免日志文件泄露敏感信息。
+
+#### 6.2.2 实现
+
+在 logger 中添加可选的脱敏钩子机制：
+
+1. **shared/logger.ts 新增脱敏钩子**：
+   - `setLogRedactor(redactor)`：注册可选的消息脱敏函数
+   - `getLogRedactor()`：获取当前脱敏函数（主要用于测试）
+   - `emit` 函数在拼接 message 后、写入 stdout/stderr 前应用脱敏（如果注册了）
+   - 脱敏函数异常时静默忽略，保持原消息，不影响日志主链路
+
+2. **main/logger.ts 注册脱敏函数**：
+   - 在模块初始化时调用 `setLogRedactor(redactSensitiveText)` 注册脱敏函数
+   - 安全默认：启用脱敏
+   - 可通过环境变量 `CYRENE_LOG_REDACT=false` 关闭（仅用于调试脱敏本身）
+
+3. **设计决策**：
+   - shared/logger.ts 保持纯模块，不依赖 message-redactor，通过依赖注入的钩子机制解耦
+   - 保留函数名和接口，完全向后兼容
+   - 脱敏同时应用到 stdout/stderr 和 sink（文件落盘），确保所有日志出口都脱敏
+
+#### 6.2.3 验收标准
+
+- [x] setLogRedactor/getLogRedactor 函数实现
+- [x] emit 函数应用脱敏到 message
+- [x] 脱敏同时应用到 stdout/stderr 和 sink
+- [x] 脱敏函数异常时不影响日志主链路
+- [x] main/logger.ts 注册 redactSensitiveText
+- [x] 环境变量 CYRENE_LOG_REDACT=false 可关闭
+- [x] 23 个单测全部通过（原有 17 + 新增 6）
+- [x] `tsc --noEmit` 类型检查通过
+
+### 6.3 P6-3 技能推荐器
+
+#### 6.3.1 背景
+
+Cyrene 已有完善的技能系统（skill-scanner/registry/catalog/commands/tools），但缺少显式的技能推荐功能。用户输入时，系统应该能根据用户需求推荐相关技能，提升用户体验。
+
+#### 6.3.2 实现
+
+新增 `skill-recommender.ts`，基于关键词匹配的技能推荐：
+
+1. **关键词提取**：
+   - 支持中英文混合分词
+   - 200+ 中英文停用词过滤
+   - 英文单词（2个字符以上）+ 中文词组（2-4个汉字连续）
+
+2. **评分算法（4维度加权）**：
+   - 描述关键词匹配（40%）
+   - 技能 id 匹配（20%）
+   - 技能名称匹配（20%）
+   - 关联工具匹配（20%）
+
+3. **推荐函数**：
+   - `recommendSkills(userInput, skills, options)`：返回推荐列表，按分数降序
+   - `recommendTopSkill(userInput, skills, options)`：返回最推荐的单个技能
+   - 选项支持：limit（默认5）、minScore（默认10）、mode（按模式过滤）、onlyEnabled（默认true）
+
+4. **推荐结果**：
+   - skill：技能对象
+   - score：匹配分数（0-100）
+   - matchedKeywords：匹配的关键词列表
+   - reason：人类可读的匹配原因
+
+#### 6.3.3 验收标准
+
+- [x] 关键词提取支持中英文混合
+- [x] 4维度加权评分算法
+- [x] recommendSkills/recommendTopSkill 函数实现
+- [x] limit/minScore/mode/onlyEnabled 选项支持
+- [x] 推荐结果包含 score/matchedKeywords/reason
+- [x] 19 个单测全部通过
+- [x] `tsc --noEmit` 类型检查通过
+
+### 6.4 P6-4 LSP 集成基础框架
+
+#### 6.4.1 背景
+
+为 execute_code 提供代码诊断/补全能力，需要集成 LSP（Language Server Protocol）。Hermes 有完整的 LSP 实现（11个文件），但过于复杂。Cyrene 实现一个简化版的基础框架，包括协议层、客户端和诊断功能。
+
+#### 6.4.2 实现
+
+1. **lsp-protocol.ts（纯函数协议层）**：
+   - JSON-RPC 消息编码/解码（Content-Length header + JSON body）
+   - 请求/响应/通知消息类型
+   - 标准错误码（ParseError/MethodNotFound/ContentModified/RequestCancelled 等）
+   - 消息分类函数（isRequest/isResponse/isNotification）
+   - 常用 LSP 方法名常量
+   - 诊断类型（DiagnosticSeverity/Position/Range/Diagnostic）
+   - Unicode 字符正确计算 Content-Length
+
+2. **lsp-client.ts（LSP 客户端框架）**：
+   - 依赖注入的进程抽象（LSPProcess 接口），便于单元测试
+   - 连接管理（initialize/initialized/shutdown/exit）
+   - 请求/响应匹配（通过 id，支持超时）
+   - 通知发送（不需要响应）
+   - 文本文档同步（didOpen/didChange/didClose，全量替换）
+   - 诊断存储（push diagnostics，按 URI 存储）
+   - 优雅关闭（shutdown 请求 + exit 通知 + kill 进程）
+   - 进程退出处理（拒绝所有 pending 请求）
+
+#### 6.4.3 设计决策
+
+- **依赖注入的进程抽象**：LSPProcess 接口抽象进程，测试时用 MockLSPProcess，不依赖真实语言服务器
+- **全量文档同步**：即使服务器支持增量同步，也发送全量替换，简化实现，参考 OpenCode 的做法
+- **纯函数协议层**：协议层完全独立，不依赖客户端，易于测试和复用
+
+#### 6.4.4 验收标准
+
+- [x] lsp-protocol：23 单测全部通过（编码/解码/多消息/分类/常量/Unicode）
+- [x] lsp-client：25 单测全部通过（初始状态/连接/请求/通知/文档同步/诊断/关闭/进程退出）
+- [x] 使用 MockLSPProcess 进行测试，不依赖真实语言服务器
+- [x] `tsc --noEmit` 类型检查通过
+
 ---
 
 ## 7. 执行记录
@@ -975,3 +1094,6 @@ Cyrene 原有的 `trajectory-exporter.ts` 中只有简单的 `sanitizeText` 函�
 | 2026-09-05 | P5-2 execute_code 增强实施完成 | LanguageRuntime 新增 fallbackCommand 字段，Python 配置 fallback 到 py（Windows Python Launcher）；自动 fallback 机制（执行异常或运行时不存在错误时自动尝试 fallback）；fallback 成功提示；23 单测通过 + tsc 类型检查通过 |
 | 2026-09-05 | P5-3 LLM 审查增强实施完成 | 新增 ReviewStats 类型（总审查数/状态分布/平均质量分/安全问题数/潜在bug数/文件数/时间范围）；新增 listLLMReviews（按时间倒序列出，支持 limit）；新增 getReviewStats（遍历所有审查计算统计指标，平均质量分仅统计 completed）；35 单测（原有33+新增2）通过 + tsc 类型检查通过 |
 | 2026-09-05 | P6-1 消息脱敏模块实施完成 | 移植 Hermes redact.py，新增 message-redactor.ts（30+ API key 前缀 + 15 种脱敏模式 + 性能预检查 + force/codeFile/enabled 配置 + redactObject 递归脱敏）；ENV 赋值正则用负向回顾断言 (?<![?&]) 避免匹配 URL 参数，值用 [^\s&]+ 避免贪婪匹配；集成到 trajectory 导出（sanitizeText 增强，保留函数名兼容）；50 单测 + trajectory 19 单测 + 全量 1460/1461 通过 |
+| 2026-09-05 | P6-2 日志系统集成脱敏实施完成 | shared/logger.ts 新增 setLogRedactor/getLogRedactor 脱敏钩子；emit 函数应用脱敏到 message（stdout/stderr + sink）；脱敏函数异常时静默忽略；main/logger.ts 注册 redactSensitiveText，安全默认启用，环境变量 CYRENE_LOG_REDACT=false 可关闭；23 单测（原有17+新增6）通过 + tsc 通过 |
+| 2026-09-05 | P6-3 技能推荐器实施完成 | 新增 skill-recommender.ts，基于关键词匹配的技能推荐；中英文混合分词 + 200+ 停用词过滤；4维度加权评分（描述40%/id20%/名称20%/工具20%）；recommendSkills/recommendTopSkill 函数；支持 limit/minScore/mode/onlyEnabled 选项；推荐结果包含 score/matchedKeywords/reason；19 单测通过 + tsc 通过 |
+| 2026-09-05 | P6-4 LSP 集成基础框架实施完成 | 新增 lsp/ 目录；lsp-protocol.ts 纯函数协议层（JSON-RPC 编码/解码 + 错误码 + 消息分类 + 诊断类型 + Unicode Content-Length）；lsp-client.ts 客户端框架（依赖注入 LSPProcess + 连接管理 + 请求/响应匹配 + 通知 + 文档同步 + 诊断存储 + 优雅关闭 + 进程退出处理）；protocol 23 单测 + client 25 单测通过 + tsc 通过 |
