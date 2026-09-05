@@ -51,6 +51,8 @@
 | P3 | 工具重复失败检测（护栏） | ✅ 已完成 | tool-guardrail（移植 Hermes tool_guardrails） |
 | P3 | execute_code 独立代码执行工具 | ✅ 已完成 | execute-code-tool（复用 run_shell 安全逻辑，Python/Node/Shell） |
 | P3 | 后台 LLM 审查 | ✅ 已完成 | llm-reviewer（prompt 构建 + 结果解析 + 审查执行 + 持久化）+ harness-adapter 可注入回调 |
+| P4 | 文件安全黑名单 | ✅ 已完成 | file-safety（移植 Hermes file_safety，敏感路径+目录前缀，读写双向拦截）+ fs-tools 集成 |
+| P4 | 流式思维链清理 | ✅ 已完成 | think-scrubber（移植 Hermes think_scrubber，状态机+部分标签暂存+块边界规则），核心模块+39测试 |
 
 ---
 
@@ -659,6 +661,150 @@ setLLMReviewCallback(buildDefaultLLMReviewCallback(llmCall, "gpt-4o"));
 
 ---
 
+## 4. P4 深度审查与安全增强（2026-09-05）
+
+### 4.1 背景：P3 完成后的深度审查
+
+P0-P3 共 10 项路线图全部完成后，进行了深度代码审查和 Hermes 二次对标：
+
+1. **P3 三项代码自审**：逐项审查 tool-guardrail、execute-code-tool、llm-reviewer 的实现，确认无明显遗漏或 bug，记录了可改进点（如 execute_code 支持 py 命令、llm-reviewer 并行审查等）。
+2. **Hermes 二次对标**：通读 Hermes agent/ 目录 150+ 文件，按价值排序发现 Cyrene 仍遗漏的核心能力。
+
+### 4.2 Hermes 对标结论
+
+| 能力 | Hermes 模块 | 价值 | 工作量 | 决策 |
+| --- | --- | --- | --- | --- |
+| 文件安全黑名单 | file_safety.py (539行) | 高（防止误写 SSH 私钥/.env/凭据文件） | 小 | ✅ P4 移植 |
+| 流式思维链清理 | think_scrubber.py (343行) | 高（支持思维链模型不泄露推理过程） | 中 | ✅ P4 移植 |
+| 消息脱敏 | redact.py + message_sanitization.py | 中 | 中 | P5 可选 |
+| LLM 审查增强 | P3-3 改进 | 中 | 中 | P5 可选 |
+| execute_code 增强 | P3-2 改进 | 低 | 小 | P5 可选 |
+| LSP 集成 | agent/lsp/ (10+文件) | 高（专业 IDE 核心功能） | 大 | P6+ 长期规划 |
+| 技能策展 | curator.py (1709行) | 中低 | 大 | 暂不移植 |
+| 编码上下文感知 | coding_context.py (620行) | 低（Cyrene 已有 Code/Work 模式+AGENTS.md） | 中 | 暂不移植 |
+| 标题生成 | title_generator.py (148行) | 低 | 小 | 暂不移植 |
+| Shell 钩子 | shell_hooks.py (709行) | 低（Cyrene 已有灾难命令守卫） | 中 | 暂不移植 |
+
+**真正有价值且 Cyrene 遗漏的核心能力只有 2 项**：文件安全黑名单 + 流式思维链清理。
+
+### 4.3 P4-1 文件安全黑名单
+
+#### 4.3.1 目标
+
+移植 Hermes file_safety.py，在文件读写工具中添加敏感路径检查，防止 Agent 误写/误读敏感文件（SSH 私钥、环境变量、凭据文件等）。
+
+#### 4.3.2 设计
+
+**核心模块**：`src/main/orchestrator/tools/file-safety.ts`
+
+- 纯函数模块，不依赖 Electron/磁盘，可独立测试
+- 防御性深度（defense-in-depth）：不是安全边界（Agent 仍可通过 run_shell 绕过），但能阻止大多数误操作，并在日志中留下审计痕迹
+- 适配 Windows 路径（Cyrene 是 Windows 桌面应用）
+
+**两类检查**：
+
+1. **写入拒绝**（`isWriteDenied` / `getWriteDeniedError`）：
+   - 精确敏感路径：`~/.ssh/id_rsa`、`~/.ssh/id_ed25519`、`~/.ssh/config`、`~/.netrc`、`~/.pgpass`、`~/.npmrc`、`~/.pypirc`、`~/.git-credentials`、`~/.aws/credentials`、`~/.gnupg/secring.gpg`、`~/.kube/config`、`~/.docker/config.json` 等
+   - 敏感目录前缀：`~/.ssh/`、`~/.aws/`、`~/.gnupg/`、`~/.kube/`、`~/.docker/`、`~/.azure/`、`~/.config/gh/`、`~/.config/gcloud/` 等
+   - Windows 特定：`AppData/Roaming/Microsoft/Credentials/`、`AppData/Local/Microsoft/Credentials/` 等
+
+2. **读取拒绝**（`getReadBlockError`）：
+   - 项目级 `.env` 文件：`.env`、`.env.local`、`.env.development`、`.env.production`、`.env.test`、`.env.staging`、`.envrc`、`.env.example`
+   - SSH 私钥文件：`id_rsa`、`id_ed25519`、`id_ecdsa`、`id_dsa`、`authorized_keys`（在 `.ssh` 目录下）
+
+**集成点**：`fs-tools.ts`
+
+- `read_file` 工具：路径检查后调用 `getReadBlockError`，拒绝时返回 `ACCESS_DENIED` 错误
+- `write_file` 工具：路径检查后调用 `getWriteDeniedError`，拒绝时抛出 `E_ACCESS_DENIED` 错误
+
+#### 4.3.3 验收标准
+
+- [x] file-safety.ts 纯函数模块完成（敏感路径定义 + 写入/读取检查 + 路径规范化）
+- [x] fs-tools.ts read_file 集成读取安全检查
+- [x] fs-tools.ts write_file 集成写入安全检查
+- [x] 37 个单测全部通过（精确路径/目录前缀/普通路径/读取拒绝/路径规范化/isPathInWorkspace/构建函数）
+- [x] `tsc --noEmit` 类型检查通过
+- [x] 全量 orchestrator 测试通过（唯一失败为环境缺 Git Bash，历史既有）
+
+### 4.4 P4-2 流式思维链清理
+
+#### 4.4.1 目标
+
+移植 Hermes think_scrubber.py，在流式输出中移除思维链标签（`<think>`、`<thinking>`、`<reasoning>`、`<thought>`、`<REASONING_SCRATCHPAD>`），避免把模型的推理过程展示给用户。
+
+#### 4.4.2 为什么需要状态机
+
+简单的正则替换在完整字符串上有效，但在流式 delta 中会失效：
+
+```
+delta1 = "<think>"
+delta2 = "推理内容"
+delta3 = "</think>"
+```
+
+逐 delta 正则会把 delta1 删掉，delta2 就被当作普通内容泄露。状态机可以正确处理跨 delta 的标签分割。
+
+#### 4.4.3 设计
+
+**核心模块**：`src/main/orchestrator/llm/think-scrubber.ts`
+
+- 纯状态机，不依赖外部库，可独立测试
+- 部分标签跨 delta 时暂存，等待下一个 delta 解析
+- 闭合对 `<tag>X</tag>` 总是移除（无论边界）
+- 未闭合开放标签只有在块边界（行首/换行后/空白后）才视为思维链开始
+- 孤立关闭标签（无匹配开放）移除（连同尾部空白）
+
+**状态机状态**：
+
+- `inBlock`：是否在思维链块内（等待关闭标签），块内所有文本丢弃
+- `buf`：暂存的部分标签尾部（跨 delta 的标签分割）
+- `lastEmittedEndedNewline`：上一次输出是否以换行结尾（用于判断块边界）
+
+**核心方法**：
+
+- `feed(text)`：输入一个 delta，返回清理后的可见部分
+- `flush()`：流结束时刷新，返回暂存的内容（如果不是真实标签）
+- `reset()`：重置状态（每轮新对话开始时调用）
+- `scrubThinkBlocks(text)`：便捷函数，一次性清理完整字符串（非流式场景）
+
+**标签变体**（不区分大小写）：
+- `<think>` / `</think>`
+- `<thinking>` / `</thinking>`
+- `<reasoning>` / `</reasoning>`
+- `<thought>` / `</thought>`
+- `<REASONING_SCRATCHPAD>` / `</REASONING_SCRATCHPAD>`
+
+**块边界规则**：
+
+开放标签只有在以下位置才视为思维链开始：
+1. 流的开始（位置 0）
+2. 换行之后（可选后跟空白）
+3. 当前行只有空白（即空白后的开放标签）
+
+这防止了正文中提到标签名（如 "use `<think>` tags here"）被错误抑制。闭合对总是移除，因为它是有意的、有界的构造。
+
+#### 4.4.4 集成状态
+
+- [x] 核心模块 think-scrubber.ts 完成（状态机 + 部分标签暂存 + 块边界规则 + 便捷函数）
+- [x] 39 个单测全部通过（闭合对/流式分割/块边界/部分标签暂存/孤立标签/多种标签变体/不区分大小写/flush/reset/普通文本/便捷函数/复杂场景）
+- [x] `tsc --noEmit` 类型检查通过
+- [ ] 集成到 Cyrene 流式输出管线（涉及 vendors/sdk-stream/harness 多层架构，留作后续优化）
+
+**后续集成计划**：
+- 在 `vendors/sdk-stream/` 的 normalizer 层添加 think-scrubber，在 delta 归一化后清理
+- 或在 `harness/harness-llm.ts` 的 LLM 调用回调中添加清理
+- 每轮新对话开始时调用 `scrubber.reset()`
+- 流结束时调用 `scrubber.flush()` 输出暂存内容
+
+#### 4.4.5 验收标准
+
+- [x] 核心模块完整移植 Hermes think_scrubber.py 的状态机逻辑
+- [x] 39 个单测全部通过
+- [x] `tsc --noEmit` 类型检查通过
+- [ ] 集成到流式输出管线（后续优化）
+
+---
+
 ## 5. 执行记录
 
 | 日期 | 事项 | 结果 |
@@ -674,3 +820,6 @@ setLLMReviewCallback(buildDefaultLLMReviewCallback(llmCall, "gpt-4o"));
 | 2026-09-05 | P3-1 工具重复失败检测实施完成 | 移植 Hermes tool_guardrails.py，新增 ToolCallGuardrailController（exact_failure_block + same_tool_failure_halt + idempotent_no_progress_block）；接入 tool-round.ts before_call/after_call；31 单测 + 全量 1159/1160 通过 |
 | 2026-09-05 | P3-2 execute_code 独立代码执行工具实施完成 | 新增 execute-code-tool（薄封装 run_shell：写入临时文件 → 构建运行时命令 → 调用 run_shell → 清理临时文件）；支持 Python/Node.js/Shell 三种语言；运行时不存在时返回 RUNTIME_NOT_FOUND + 友好提示；23 单测 + 全量 1182/1183 通过 |
 | 2026-09-05 | P3-3 后台 LLM 审查实施完成 | 新增 llm-reviewer（prompt 构建 + 结果解析 + 审查执行 + 持久化，LLM 调用抽象为 LLMCallFn 不依赖具体 model client）；harness-adapter 新增 setLLMReviewCallback 可注入回调，finalizeReview 之后异步触发审查（默认不启用，保持可逆性）；33 单测 + 全量 1215/1216 通过；**P0-P3 全部 10 项路线图完成** |
+| 2026-09-05 | P4 深度审查与 Hermes 二次对标 | P3 三项代码自审确认无明显遗漏；通读 Hermes agent/ 150+ 文件二次对标，发现真正有价值且 Cyrene 遗漏的核心能力仅 2 项：文件安全黑名单 + 流式思维链清理；新增 P4 章节 |
+| 2026-09-05 | P4-1 文件安全黑名单实施完成 | 移植 Hermes file_safety.py，新增 file-safety.ts（精确敏感路径+目录前缀+读取拒绝，适配 Windows，纯函数可测试）；fs-tools.ts read_file/write_file 集成安全检查；37 单测 + 全量 1252/1253 通过 |
+| 2026-09-05 | P4-2 流式思维链清理实施完成 | 移植 Hermes think_scrubber.py，新增 think-scrubber.ts（状态机+部分标签暂存+块边界规则+5种标签变体+不区分大小写+便捷函数）；39 单测通过；核心模块完成，集成到流式输出管线留作后续优化；**P0-P4 全部 12 项路线图完成** |

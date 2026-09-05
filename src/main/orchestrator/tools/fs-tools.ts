@@ -1,4 +1,4 @@
-// 文件系统工具组 — 给 agent 装上"读文件 / 列目录 / 写文件 / 读图片"四件武器
+﻿// 文件系统工具组 — 给 agent 装上"读文件 / 列目录 / 写文件 / 读图片"四件武器
 // 不绕 run_shell，直接用 fs API。每个工具都有 risk 字段交给权限网关判定。
 
 import * as fs from "fs";
@@ -13,6 +13,7 @@ import { logger, LogTag } from "../../logger";
 import { ToolExecutionError } from "./registry/tool-execution-error";
 import { app } from "electron";
 import { getRunReviewTracker } from "../review/run-review-tracker";
+import { getReadBlockError, getWriteDeniedError } from "./file-safety";
 
 const LOG_PREFIX = "[FsTools]";
 
@@ -48,6 +49,13 @@ async function executeReadFile(args: Record<string, unknown>): Promise<string> {
   if (!filePath) {
     console.log(LOG_PREFIX, "read_file 非绝对路径:", raw, "cwd=", process.cwd());
     return JSON.stringify({ success: false, errorCode: "INVALID_PATH", error: "path 必须是绝对路径: " + raw, retryable: false });
+  }
+
+  // 文件安全检查：阻止读取敏感文件（.env、SSH 私钥等）
+  const readBlockError = getReadBlockError(filePath);
+  if (readBlockError) {
+    console.log(LOG_PREFIX, "read_file 被安全策略阻止:", filePath);
+    return JSON.stringify({ success: false, errorCode: "ACCESS_DENIED", error: readBlockError, retryable: false });
   }
 
   const stat = safeStat(filePath);
@@ -262,6 +270,19 @@ async function executeWriteFile(args: Record<string, unknown>, ctx?: ToolContext
       "E_PATH_NOT_ABSOLUTE",
       "path 必须是绝对路径",
       "invalid_arguments",
+    );
+  }
+
+  // 文件安全检查：阻止写入敏感文件/目录（SSH 私钥、.env、凭据文件等）
+  const writeDeniedError = getWriteDeniedError(filePath);
+  if (writeDeniedError) {
+    console.log(LOG_PREFIX, "write_file 被安全策略阻止:", filePath);
+    throw new ToolExecutionError(
+      "E_ACCESS_DENIED",
+      writeDeniedError,
+      "permission_denied",
+      false,
+      "unknown",
     );
   }
 
