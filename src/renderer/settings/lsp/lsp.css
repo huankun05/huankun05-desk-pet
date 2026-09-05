@@ -1,0 +1,95 @@
+/* LSP 设置面板样式 */
+
+.lsp-server-card {
+  border: 1px solid var(--border-color, #e4e3dd);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--card-color, #ffffff);
+}
+
+.lsp-server-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lsp-server-name {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #e4e3dd);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--background-color, #f4f3ee);
+}
+
+.lsp-server-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lsp-server-command,
+.lsp-server-workspace {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #e4e3dd);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: "Consolas", "Monaco", monospace;
+  background: var(--background-color, #f4f3ee);
+}
+
+.lsp-server-status {
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.lsp-server-status--testing {
+  color: var(--text-secondary, #6b7280);
+}
+
+.lsp-server-status--success {
+  color: #52c41a;
+}
+
+.lsp-server-status--error {
+  color: #ea6668;
+}
+
+.lsp-quick-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lsp-quick-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: #ea6668;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #d45557;
+}
+
+.save-status--success {
+  color: #52c41a;
+}
+
+.save-status--error {
+  color: #ea6668;
+}

@@ -176,6 +176,16 @@ const skillServiceApi = {
 
 contextBridge.exposeInMainWorld("skillService", skillServiceApi);
 
+// LSP 配置 API（P7-UI LSP 设置面板）
+const lspApi = {
+  getConfig: () => ipcRenderer.invoke(IPC.LSP_GET_CONFIG),
+  saveConfig: (config: unknown) => ipcRenderer.invoke(IPC.LSP_SAVE_CONFIG, config),
+  testConnection: (command: string) => ipcRenderer.invoke(IPC.LSP_TEST_CONNECTION, command),
+  getStatus: () => ipcRenderer.invoke(IPC.LSP_GET_STATUS),
+};
+
+contextBridge.exposeInMainWorld("lsp", lspApi);
+
 // System utilities exposed to renderer
 const systemApi = {
   openExternal: (url: string) => ipcRenderer.invoke(IPC.OPEN_EXTERNAL, url),

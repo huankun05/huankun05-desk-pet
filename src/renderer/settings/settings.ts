@@ -85,6 +85,7 @@ import { characterStyleForm } from "./character-style/dom";
 import { initCharacterStylePanel } from "./character-style/panel";
 import { initBackupPanel } from "./backup/backup-panel";
 import { initSkillsPanel } from "./skills-panel";
+import { initLspPanel } from "./lsp/panel";
 import { pluginsState } from "./plugins/state";
 import type {
   GeneralSettings,
@@ -2033,6 +2034,7 @@ function switchSection(section: string): void {
   const isAsr = section === "asr";
   const isMusic = section === "music";
   const isSkills = section === "skills";
+  const isLsp = section === "lsp";
   const isBackup = section === "backup";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -2066,6 +2068,9 @@ function switchSection(section: string): void {
   const skillsPanel = document.getElementById("skills-panel");
   if (skillsPanel) skillsPanel.classList.toggle("is-hidden", !isSkills);
   if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
+  const lspPanel = document.getElementById("lsp-panel");
+  if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
+  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }

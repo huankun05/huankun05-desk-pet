@@ -262,6 +262,12 @@ export const IPC = {
   SKILL_UNINSTALL: "skill:uninstall",
   SKILL_INSTALL_PROMPT: "skill:install-prompt",
 
+  // LSP 配置（P7-UI LSP 设置面板）
+  LSP_GET_CONFIG: "lsp:get-config",
+  LSP_SAVE_CONFIG: "lsp:save-config",
+  LSP_TEST_CONNECTION: "lsp:test-connection",
+  LSP_GET_STATUS: "lsp:get-status",
+
   // scheduled tasks
   SCHEDULER_LIST: "scheduler:list",
   SCHEDULER_ADD: "scheduler:add",
