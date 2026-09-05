@@ -44,6 +44,7 @@ import { emitContextUsage, emitCacheDiagnostic } from "./harness-observability";
 import { StreamController } from "./stream-controller";
 import { TimeoutClock } from "./timeout-clock";
 import { IterationBudget, DEFAULT_PARENT_ITERATIONS } from "./iteration-budget";
+import { ToolCallGuardrailController } from "./tool-guardrail";
 import { buildCurrentTodoNotebookContext } from "./todo-working-notebook";
 import { appendInternalTranscriptMessage, createInternalTranscriptMessage } from "./internal-transcript";
 import { callLLM, summarizeHistory } from "./harness-llm";
@@ -84,6 +85,8 @@ export interface HarnessRun {
    * 用于在最终回复尾部追加警告页脚，防止模型虚报"全部修改成功"。
    */
   failedFileMutations: Map<string, { toolName: string; message: string }>;
+  /** 工具调用护栏（移植自 Hermes tool_guardrails）：检测重复失败/无进展循环，每轮重置。 */
+  toolGuardrail: ToolCallGuardrailController;
   checkpointFailure?: string;
   /** ask_user 等交互内置工具的 dispatch 上下文。 */
   askDispatchContext: ToolDispatchContext;
@@ -113,6 +116,10 @@ export async function runCyreneHarness(input: HarnessInput): Promise<HarnessResu
     const promptLayers = buildRoundPromptLayers(input);
     const roundId = `round-${run.rounds}`;
     input.onEvent?.({ type: "round_start", roundId });
+
+    // ── 工具护栏每轮重置（移植自 Hermes ToolCallGuardrailController.reset_for_turn）──
+    // 护栏计数按轮累积，避免跨轮误杀；每轮模型重新决策后清零。
+    run.toolGuardrail.resetForTurn();
 
     // ── Mid-loop compaction（循环中途压缩）──
     // 注意：从 run 启动到首次 LLM fetch 之间不得引入 await 挂起点
@@ -261,6 +268,7 @@ function createRun(input: HarnessInput): HarnessRun {
     iterationBudget: new IterationBudget(config.maxIterations ?? DEFAULT_PARENT_ITERATIONS),
     turnExitReason: "unknown",
     failedFileMutations: new Map(),
+    toolGuardrail: new ToolCallGuardrailController(),
     askDispatchContext,
     toolDispatchContext: {
       ...askDispatchContext,

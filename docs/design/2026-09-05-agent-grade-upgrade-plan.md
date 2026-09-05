@@ -48,6 +48,9 @@
 | P2 | 定时任务渠道投递 | ✅ 已完成 | ScheduledTask.deliver + 桌面通知投递 |
 | P2 | 成本核算（token × 单价） | ✅ 已完成 | model-pricing + cost-calculator（30+ 常见模型默认价） |
 | P2 | Trajectory 导出（训练/评测） | ✅ 已完成 | trajectory-exporter（JSONL + 脱敏 + 筛选） |
+| P3 | 工具重复失败检测（护栏） | ✅ 已完成 | tool-guardrail（移植 Hermes tool_guardrails） |
+| P3 | execute_code 独立代码执行工具 | ⏳ 进行中 | 基于 sandbox-exec 新增 execute_code 内置工具 |
+| P3 | 后台 LLM 审查 | 📋 待开始 | 基于 run-review-tracker 新增 LLM 审查线程 |
 
 ---
 
@@ -389,6 +392,112 @@ type ScheduledTaskDelivery = "local" | "desktop";
 
 ---
 
+## 4. P3 深度对标 Hermes（2026-09-05 新增）
+
+### 4.0 背景：真实差距重审
+
+P0-P2 完成后，用户质疑"对比 Hermes 我们这些都已经补齐了吗？"。经深度通读 Hermes 源码（agent/ 150+ 文件、tools/ 100+ 文件）并逐项对照 Cyrene 现有实现，发现：
+
+**Cyrene 实际已具备的能力（此前被低估）**：
+- 上下文压缩：`compaction.ts`（循环内压缩 + 配对安全切点 + Agent 导向摘要）
+- 沙箱执行：`sandbox-exec.ts`（基于 Anthropic SRT 的 Windows 沙箱 + 5 档权限）
+- 记忆系统：`memory/` 30+ 文件（L0/L1/L2 三层 + 冲突检测 + RAG + DMAE 集成 + Obsidian 导入导出）— **比 Hermes 更复杂**
+- 错误分类：`error-classifier.ts`（9 种错误分类）
+- 重试策略：`retry-policy.ts`（按错误 + 副作用分类 + 退避抖动）
+- 不确定效果守卫：`uncertain-effect-guard.ts`（副作用指纹拦截）
+- 文件变更审查：`run-review-tracker.ts`（快照 + diff + 原子落盘）
+- 权限策略：`permission-policy.ts`（5 档 6 级）
+
+**真正缺失的 3 项（P3 目标）**：
+1. 工具重复失败检测（Hermes `tool_guardrails.py`：exact_failure_block + same_tool_failure_halt + idempotent_no_progress_block）
+2. execute_code 独立代码执行工具（Hermes `code_execution_tool.py`：子进程隔离 + RPC + 工具白名单 + 环境清洗）
+3. 后台 LLM 审查（Hermes `background_review.py`：LLM 驱动的后台审查线程）
+
+### 4.1 P3-1 工具重复失败检测（护栏）
+
+**移植来源**：Hermes `agent/tool_guardrails.py`（ToolCallGuardrailController）
+
+**核心设计**：
+- 每轮（turn）重置计数，避免跨轮误杀
+- `before_call`：执行前检查，返回 allow/warn/block/halt
+- `after_call`：执行后记录失败/成功，用于下一轮检测
+- 三类检测：
+  1. **exact_failure_block**：相同工具 + 相同参数失败 N 次（默认 3）→ block 该次调用
+  2. **same_tool_failure_halt**：同一工具（任意参数）失败 N 次（默认 5）→ halt 本轮
+  3. **idempotent_no_progress_block**：只读工具相同参数返回相同结果 N 次（默认 3）→ block
+
+**新增模块**：
+| 文件 | 说明 |
+| --- | --- |
+| `harness/tool-guardrail.ts` | ToolCallGuardrailController + 纯函数（normalizeToolArgs / classifyToolFailure / isIdempotentTool） |
+| `harness/tool-guardrail.test.ts` | 31 个单测：规范化 / 失败分类 / 幂等判断 / 精确失败 block / 同工具失败 halt / 无进展 block / 成功清除 / 每轮重置 / warn 去重 / snapshot |
+
+**接入点**：
+| 文件 | 改动 |
+| --- | --- |
+| `harness/cyrene-harness.ts` | HarnessRun 新增 `toolGuardrail` 字段；每轮 round_start 后调用 `resetForTurn()` |
+| `harness/tool-round.ts` | `executeToolCallWithRetry` 中 dispatch 前调用 `beforeCall()`，block/halt 直接返回 not_executed；执行后调用 `afterCall()` 记录结果 |
+| `harness/tool-dispatcher.ts` | ToolDispatchResult 新增可选 `guardrailHalt` 字段 |
+| `harness/tool-round.ts` | `commitToolResult` 中检查 `guardrailHalt`，为 true 则返回 "halt" |
+
+**配置默认值**（移植自 Hermes）：
+- exactFailureBlockAfter: 3
+- exactFailureWarnAfter: 2
+- sameToolFailureHaltAfter: 5
+- sameToolFailureWarnAfter: 3
+- noProgressBlockAfter: 3
+- noProgressWarnAfter: 2
+
+**验收标准**：
+- [x] tool-guardrail 31 个单测全部通过
+- [x] 精确失败 3 次后 block，不同参数不触发
+- [x] 同工具失败 5 次后 halt，不同工具不触发
+- [x] 只读工具相同结果 3 次后 block，不同结果不触发
+- [x] 成功后清除失败记录
+- [x] 每轮重置计数
+- [x] warn 去重（相同 key 只 warn 一次）
+- [x] 全量 orchestrator 测试 1159/1160 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
+
+### 4.2 P3-2 execute_code 独立代码执行工具（进行中）
+
+**移植来源**：Hermes `tools/code_execution_tool.py`（1700+ 行）
+
+**目标**：在现有 `run_shell`（通用 shell 执行）之外，新增独立的 `execute_code` 工具，专为代码执行场景优化：
+- 子进程隔离（基于现有 sandbox-exec.ts 的 Anthropic SRT 沙箱）
+- 多语言支持（Python / Node.js / Shell）
+- 工具白名单（限制可调用的系统命令）
+- 环境清洗（清除敏感环境变量）
+- 超时 + 中断 + 输出截断
+- 密钥脱敏（输出中自动隐藏 API Key / Token）
+
+**设计要点**：
+- 复用现有 `sandbox-exec.ts` 的沙箱基础设施，不重复造轮子
+- 工具参数：`{ language: "python" | "node" | "shell", code: string, timeout_ms?: number }`
+- 结果：`{ stdout, stderr, exit_code, timed_out }`
+- 与 `run_shell` 的区别：`execute_code` 是代码执行（有明确的语言运行时），`run_shell` 是通用 shell 命令
+
+**待实施**。
+
+### 4.3 P3-3 后台 LLM 审查（待开始）
+
+**移植来源**：Hermes `agent/background_review.py`
+
+**目标**：在 Run 结束后，后台启动 LLM 审查线程，对本次 Run 的工具调用和文件变更进行质量评估：
+- 基于现有 `run-review-tracker.ts` 的文件变更快照数据
+- LLM 审查：代码质量、安全性、是否遗漏、是否有更好的方案
+- 审查结果持久化，供用户后续查看
+
+**设计要点**：
+- 复用现有 `run-review-tracker.ts` 的快照（before/after/diff）
+- 后台线程不阻塞主流程
+- 审查结果存储在 `cyrene-runs/reviews/<runId>/review.json`
+- 前端可展示审查结果卡片
+
+**待实施**。
+
+---
+
 ## 5. 执行记录
 
 | 日期 | 事项 | 结果 |
@@ -400,3 +509,5 @@ type ScheduledTaskDelivery = "local" | "desktop";
 | 2026-09-05 | P2-1 定时任务渠道投递实施完成 | ScheduledTask 新增 deliver 字段（local/desktop）；scheduler-runner 完成后触发 deliverResult 回调；bootstrap 接入 Electron 桌面通知；store 层规范化；scheduler 28/28 + 全量 1168/1169 通过 |
 | 2026-09-05 | P2-2 成本核算实施完成 | 新增 model-pricing（30+ 常见模型默认价 + 自定义覆盖）和 cost-calculator（input/output/cacheHit/cacheCreation 四档成本 + 按天/按模型汇总 + 格式化）；30 单测 + 全量 1128/1129 通过 |
 | 2026-09-05 | P2-3 Trajectory 导出实施完成 | 新增 trajectory-exporter（JSONL 格式 + 敏感信息脱敏 + 按会话/模式/时间范围筛选 + 纯函数转换与文件写入分离）；19 单测 + 全量 1171/1172 通过；**P0-P2 全部 7 项路线图完成** |
+| 2026-09-05 | P3 深度对标 Hermes 差距重审 | 深度通读 Hermes 源码（agent/ 150+ 文件）并逐项对照 Cyrene，发现 Cyrene 实际已具备上下文压缩/沙箱/记忆系统/错误分类/重试策略/不确定效果守卫/文件变更审查/权限策略等能力（此前被低估）；真正缺失仅 3 项：工具重复失败检测、execute_code 工具、后台 LLM 审查；新增 P3 章节 |
+| 2026-09-05 | P3-1 工具重复失败检测实施完成 | 移植 Hermes tool_guardrails.py，新增 ToolCallGuardrailController（exact_failure_block + same_tool_failure_halt + idempotent_no_progress_block）；接入 tool-round.ts before_call/after_call；31 单测 + 全量 1159/1160 通过 |

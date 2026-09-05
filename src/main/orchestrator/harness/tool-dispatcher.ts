@@ -89,6 +89,8 @@ export interface ToolDispatchContext {
 export interface ToolDispatchResult extends ToolObservation {
   /** 原始工具执行结果（如果有） */
   rawResult?: ToolCallResult;
+  /** 护栏请求 halt（移植自 Hermes tool_guardrails same_tool_failure_halt）：commit 时应终止本轮。 */
+  guardrailHalt?: boolean;
 }
 
 /**

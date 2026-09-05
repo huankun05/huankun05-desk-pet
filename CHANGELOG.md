@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - **定时任务桌面通知**：ScheduledTask 新增 deliver 字段（local/desktop），deliver=desktop 时任务完成/失败后自动弹桌面通知（成功显示结果预览，失败显示错误信息）
 - **成本核算**：新增 model-pricing（30+ 常见模型默认单价，支持自定义覆盖）和 cost-calculator（input/output/cacheHit/cacheCreation 四档成本计算，按天/按模型汇总，智能格式化输出）
 - **Trajectory 导出**：新增 trajectory-exporter，将聊天会话导出为 JSONL 格式（含 session 元数据/turn 内容/工具调用与结果/token 用量），支持敏感信息脱敏和按会话/模式/时间范围筛选
+- **工具重复失败检测（护栏）**：移植自 Hermes tool_guardrails，新增 ToolCallGuardrailController，每轮重置计数；三类检测：相同工具+相同参数失败 3 次后 block、同一工具失败 5 次后 halt、只读工具相同结果 3 次后 block（无进展）；warn 去重，成功后清除失败记录
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置

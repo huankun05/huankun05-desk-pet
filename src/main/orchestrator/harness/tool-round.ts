@@ -24,6 +24,7 @@ import { resolveSideEffect } from "./side-effect-resolver";
 import { extractFileChangesFromOutput } from "../tools/registry/tool-evidence";
 import { classifyToolResultError } from "./error-classifier";
 import { decideRetry, getRetryParams, sleepWithJitter } from "./retry-policy";
+import { classifyToolFailure } from "./tool-guardrail";
 import { isCancellationError, raceWithSignal } from "../../abort-utils";
 import type { HarnessRun } from "./cyrene-harness";
 
@@ -166,8 +167,30 @@ async function runAskUserRound(
  */
 async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promise<ToolDispatchResult> {
   const { input } = run;
-  const toolSideEffect = resolveSideEffect(input.tools.find((tool) => tool.id === call.name), parseToolCallArgs(call));
+  const args = parseToolCallArgs(call);
+  const toolSideEffect = resolveSideEffect(input.tools.find((tool) => tool.id === call.name), args);
   input.onToolLifecycle?.({ toolCallId: call.id, toolName: call.name, toolSideEffect, status: "started" });
+
+  // ── 工具护栏 before_call（移植自 Hermes ToolCallGuardrailController.before_call）──
+  // 检测重复失败/无进展循环：block 拦截该次调用，halt 终止本轮。
+  const guardrailDecision = run.toolGuardrail.beforeCall(call.name, args, toolSideEffect);
+  if (guardrailDecision.kind === "block" || guardrailDecision.kind === "halt") {
+    const result: ToolDispatchResult = {
+      outcome: "not_executed",
+      category: "runtime_safety",
+      tool: call.name,
+      toolSideEffect,
+      message: guardrailDecision.reason,
+    };
+    if (guardrailDecision.kind === "halt") {
+      result.guardrailHalt = true;
+    }
+    console.warn(`[ToolGuardrail] ${guardrailDecision.kind}: ${call.name} — ${guardrailDecision.reason}`);
+    return persistToolDispatchResult(call, result, run.toolDispatchContext);
+  }
+  if (guardrailDecision.kind === "warn") {
+    console.warn(`[ToolGuardrail] warn: ${call.name} — ${guardrailDecision.reason}`);
+  }
 
   let result = await raceWithSignal(dispatchToolCall(call, run.toolDispatchContext), input.signal);
   if (result.outcome === "failure") {
@@ -183,6 +206,12 @@ async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promis
       }
     }
   }
+
+  // ── 工具护栏 after_call（移植自 Hermes ToolCallGuardrailController.after_call）──
+  // 记录失败/成功，用于下一轮 before_call 的重复失败检测。
+  const failed = classifyToolFailure(result.outcome, result.output ?? result.message);
+  run.toolGuardrail.afterCall(call.name, args, toolSideEffect, failed, result.output ?? result.message);
+
   return persistToolDispatchResult(call, result, run.toolDispatchContext);
 }
 
@@ -247,6 +276,13 @@ async function commitToolResult(
     }
     return "halt";
   }
+
+  // ── 护栏 halt（移植自 Hermes same_tool_failure_halt）──
+  // before_call 检测到同一工具失败次数达阈值，请求终止本轮。
+  if (result.guardrailHalt) {
+    return "halt";
+  }
+
   return result.category === "fatal" ? "halt" : "continue";
 }
 
