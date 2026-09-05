@@ -147,6 +147,10 @@ export class LSPClient {
       this.sendNotification(LSP_METHODS.Initialized, {});
     } catch (error) {
       this.state = "error";
+      // 终止进程，避免进程泄漏
+      if (this.process && !this.process.isExited()) {
+        this.process.kill();
+      }
       throw error;
     }
   }
