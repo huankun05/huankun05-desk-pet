@@ -49,7 +49,7 @@
 | P2 | 成本核算（token × 单价） | ✅ 已完成 | model-pricing + cost-calculator（30+ 常见模型默认价） |
 | P2 | Trajectory 导出（训练/评测） | ✅ 已完成 | trajectory-exporter（JSONL + 脱敏 + 筛选） |
 | P3 | 工具重复失败检测（护栏） | ✅ 已完成 | tool-guardrail（移植 Hermes tool_guardrails） |
-| P3 | execute_code 独立代码执行工具 | ⏳ 进行中 | 基于 sandbox-exec 新增 execute_code 内置工具 |
+| P3 | execute_code 独立代码执行工具 | ✅ 已完成 | execute-code-tool（复用 run_shell 安全逻辑，Python/Node/Shell） |
 | P3 | 后台 LLM 审查 | 📋 待开始 | 基于 run-review-tracker 新增 LLM 审查线程 |
 
 ---
@@ -459,25 +459,84 @@ P0-P2 完成后，用户质疑"对比 Hermes 我们这些都已经补齐了吗�
 - [x] 全量 orchestrator 测试 1159/1160 通过（唯一失败为环境缺 Git Bash）
 - [x] `tsc --noEmit` 类型检查通过
 
-### 4.2 P3-2 execute_code 独立代码执行工具（进行中）
+### 4.2 P3-2 execute_code 独立代码执行工具（已完成）
 
-**移植来源**：Hermes `tools/code_execution_tool.py`（1700+ 行）
+**移植来源**：Hermes `tools/code_execution_tool.py`（1700+ 行）的设计思路；实现上复用 Cyrene 现有 `run_shell` 的全部安全执行逻辑。
 
 **目标**：在现有 `run_shell`（通用 shell 执行）之外，新增独立的 `execute_code` 工具，专为代码执行场景优化：
-- 子进程隔离（基于现有 sandbox-exec.ts 的 Anthropic SRT 沙箱）
+- 子进程隔离（复用 run_shell 的 Anthropic SRT 沙箱）
 - 多语言支持（Python / Node.js / Shell）
-- 工具白名单（限制可调用的系统命令）
-- 环境清洗（清除敏感环境变量）
-- 超时 + 中断 + 输出截断
-- 密钥脱敏（输出中自动隐藏 API Key / Token）
+- 超时 + 中断 + 输出截断（复用 run_shell 的双计时器）
+- 运行时不存在时的友好错误提示
 
-**设计要点**：
-- 复用现有 `sandbox-exec.ts` 的沙箱基础设施，不重复造轮子
-- 工具参数：`{ language: "python" | "node" | "shell", code: string, timeout_ms?: number }`
-- 结果：`{ stdout, stderr, exit_code, timed_out }`
-- 与 `run_shell` 的区别：`execute_code` 是代码执行（有明确的语言运行时），`run_shell` 是通用 shell 命令
+**设计决策：复用 run_shell 而非独立实现**
 
-**待实施**。
+Hermes 的 `code_execution_tool.py` 有 1700+ 行，核心是子进程隔离 + RPC + 工具白名单 + 环境清洗。但 Cyrene 已经有 `run_shell` 工具，它已经实现了：
+- 沙箱包装（wrapWithSandbox，基于 Anthropic SRT）
+- 双计时器（idle 2 分钟 + total 30 分钟）
+- 进程树终止（killTree，Windows taskkill /T /F）
+- 输出解码（UTF-8 → GBK 自动检测）
+- 输出截断（16KB）
+- 灾难命令守卫
+- 权限档位集成（full / per-action / scoped / read-only / project-read-only）
+
+因此 `execute_code` 采用**薄封装**策略：把代码写入临时文件 → 构建运行时命令 → 调用 `run_shell.execute()` → 清理临时文件。这样：
+- 完全复用 run_shell 的安全逻辑，不重复造轮子
+- 代码量小（~250 行），可逆性高
+- 沙箱、权限、计时器等安全特性自动继承
+- 临时文件放在 cwd 下的 `.cyrene-temp/` 目录，确保沙箱能访问
+
+**新增模块**：
+| 文件 | 说明 |
+| --- | --- |
+| `tools/builtin-tools/execute-code-tool.ts` | execute_code 工具实现（写入临时文件 → 调用 run_shell → 清理） |
+| `tools/builtin-tools/execute-code-tool.test.ts` | 23 个单测 |
+
+**修改文件**：
+| 文件 | 改动 |
+| --- | --- |
+| `tools/built-in-tools.ts` | 导入 executeCodeTool，在 run_shell 之后注册 |
+
+**工具参数**：
+- `language`：`"python" | "node" | "shell"`，默认 `"python"`
+- `code`：代码内容（必填）
+- `cwd`：工作目录绝对路径（可选）
+
+**工具返回**：
+```json
+{
+  "language": "python",
+  "exitCode": 0,
+  "stdout": "hello",
+  "stderr": "",
+  "timedOut": false,
+  "truncated": false,
+  "sandboxed": true,
+  "errorCode": "RUNTIME_NOT_FOUND"  // 可选，运行时不存在时
+}
+```
+
+**运行时检测策略**：不预检测（避免额外开销），直接执行；运行时不存在时命令自然失败，stderr 会包含"不是内部或外部命令"等信息，execute_code 检测到这些关键词后补充友好提示并设置 `errorCode: "RUNTIME_NOT_FOUND"`。
+
+**与 run_shell 的区别**：
+| 维度 | run_shell | execute_code |
+| --- | --- | --- |
+| 输入 | 命令字符串（cmd/bash 语法） | 代码片段（有明确语言运行时） |
+| 适用场景 | git/npm/pip 等命令行操作 | 跑脚本/数据处理/快速验证代码逻辑 |
+| 临时文件 | 无 | 写入 .cyrene-temp/ 临时文件，执行后自动清理 |
+| 语言支持 | cmd / bash | python / node / shell |
+
+**验收标准**：
+- [x] execute-code-tool 23 个单测全部通过
+- [x] 空 code / 不支持语言返回明确错误
+- [x] Python / Node / Shell 三种语言都能正确构建命令并调用 run_shell
+- [x] 运行时不存在时返回 RUNTIME_NOT_FOUND + 友好提示
+- [x] 超时 / 截断 / 沙箱字段正确传递
+- [x] 执行后临时文件自动清理（成功和失败都清理）
+- [x] run_shell 抛异常时返回错误并清理临时文件
+- [x] 全量 orchestrator 测试 1182/1183 通过（唯一失败为环境缺 Git Bash）
+- [x] `tsc --noEmit` 类型检查通过
+- [x] snapshot test 通过（注册顺序未破坏）
 
 ### 4.3 P3-3 后台 LLM 审查（待开始）
 
@@ -511,3 +570,4 @@ P0-P2 完成后，用户质疑"对比 Hermes 我们这些都已经补齐了吗�
 | 2026-09-05 | P2-3 Trajectory 导出实施完成 | 新增 trajectory-exporter（JSONL 格式 + 敏感信息脱敏 + 按会话/模式/时间范围筛选 + 纯函数转换与文件写入分离）；19 单测 + 全量 1171/1172 通过；**P0-P2 全部 7 项路线图完成** |
 | 2026-09-05 | P3 深度对标 Hermes 差距重审 | 深度通读 Hermes 源码（agent/ 150+ 文件）并逐项对照 Cyrene，发现 Cyrene 实际已具备上下文压缩/沙箱/记忆系统/错误分类/重试策略/不确定效果守卫/文件变更审查/权限策略等能力（此前被低估）；真正缺失仅 3 项：工具重复失败检测、execute_code 工具、后台 LLM 审查；新增 P3 章节 |
 | 2026-09-05 | P3-1 工具重复失败检测实施完成 | 移植 Hermes tool_guardrails.py，新增 ToolCallGuardrailController（exact_failure_block + same_tool_failure_halt + idempotent_no_progress_block）；接入 tool-round.ts before_call/after_call；31 单测 + 全量 1159/1160 通过 |
+| 2026-09-05 | P3-2 execute_code 独立代码执行工具实施完成 | 新增 execute-code-tool（薄封装 run_shell：写入临时文件 → 构建运行时命令 → 调用 run_shell → 清理临时文件）；支持 Python/Node.js/Shell 三种语言；运行时不存在时返回 RUNTIME_NOT_FOUND + 友好提示；23 单测 + 全量 1182/1183 通过 |

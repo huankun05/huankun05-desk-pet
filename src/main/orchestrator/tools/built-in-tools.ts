@@ -20,6 +20,7 @@ import { fetchUrlTool } from "./builtin-tools/fetch-url-tool";
 import { installMcpServerTool } from "./builtin-tools/install-mcp-tool";
 import { runVerificationTool } from "./builtin-tools/run-verification-tool";
 import { runShellTool } from "./builtin-tools/run-shell-tool";
+import { executeCodeTool } from "./builtin-tools/execute-code-tool";
 
 let sendToLive2DWindow: (channel: string, payload?: unknown) => void = () => {};
 export function setLive2dWindowSender(sender: typeof sendToLive2DWindow): void {
@@ -29,9 +30,10 @@ export function setLive2dWindowSender(sender: typeof sendToLive2DWindow): void {
 // ── 注册（顺序 = 原 built-in-tools.ts 的字面顺序，勿重排）─────────────
 toolRegistry.register(fetchUrlTool);
 toolRegistry.register(runShellTool);
+toolRegistry.register(executeCodeTool);
 toolRegistry.register(runVerificationTool);
 toolRegistry.register(installMcpServerTool);
-logger.info(LogTag.BuiltinTools, "registered: fetch_url / run_shell / install_mcp_server");
+logger.info(LogTag.BuiltinTools, "registered: fetch_url / run_shell / execute_code / install_mcp_server");
 toolRegistry.register(weatherTool);
 toolRegistry.register(webSearchTool);
 toolRegistry.register(createPlayLive2DActionTool({ sendToLive2DWindow }));
