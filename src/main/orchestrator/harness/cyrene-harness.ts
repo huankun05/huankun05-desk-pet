@@ -43,6 +43,7 @@ import { computeTokenBudget, compressForAgentLoop, type TokenBudget } from "./co
 import { emitContextUsage, emitCacheDiagnostic } from "./harness-observability";
 import { StreamController } from "./stream-controller";
 import { TimeoutClock } from "./timeout-clock";
+import { IterationBudget, DEFAULT_PARENT_ITERATIONS } from "./iteration-budget";
 import { buildCurrentTodoNotebookContext } from "./todo-working-notebook";
 import { appendInternalTranscriptMessage, createInternalTranscriptMessage } from "./internal-transcript";
 import { callLLM, summarizeHistory } from "./harness-llm";
@@ -73,6 +74,16 @@ export interface HarnessRun {
   cache: HarnessCacheState;
   /** 已完成的工具执行轮数（最终无工具的回复轮不计入；LLM 请求轮数 = rounds + 最终回复轮）。 */
   rounds: number;
+  /** 迭代预算（移植自 Hermes IterationBudget）：每次模型调用 consume，程序化工具成功后 refund。 */
+  iterationBudget: IterationBudget;
+  /** 回合退出原因诊断（移植自 Hermes _turn_exit_reason）。 */
+  turnExitReason: string;
+  /**
+   * 本回合失败的文件变更记录（移植自 Hermes _turn_failed_file_mutations）。
+   * key = 文件路径，value = 失败详情。若后续同路径成功写入则清除。
+   * 用于在最终回复尾部追加警告页脚，防止模型虚报"全部修改成功"。
+   */
+  failedFileMutations: Map<string, { toolName: string; message: string }>;
   checkpointFailure?: string;
   /** ask_user 等交互内置工具的 dispatch 上下文。 */
   askDispatchContext: ToolDispatchContext;
@@ -119,6 +130,18 @@ export async function runCyreneHarness(input: HarnessInput): Promise<HarnessResu
     // ── 上下文容量快照 + 缓存诊断（压缩后、请求前）──
     emitContextUsage(run, "preRequest");
     emitCacheDiagnostic(run, promptLayers);
+
+    // ── 迭代预算检查（移植自 Hermes IterationBudget）──
+    // 每次模型调用前 consume；耗尽则做一次无工具总结调用，不再继续工具循环。
+    if (!run.iterationBudget.consume()) {
+      run.turnExitReason = `budget_exhausted(${run.iterationBudget.used}/${run.iterationBudget.maxTotal})`;
+      console.warn(`${LOG_PREFIX} iteration budget exhausted (${run.iterationBudget.used}/${run.iterationBudget.maxTotal}) — requesting summary`);
+      input.onEvent?.({ type: "runtime_feedback", message: `迭代预算已耗尽（${run.iterationBudget.used}/${run.iterationBudget.maxTotal}），正在生成总结…` });
+      const summary = await budgetExhaustedSummary(run, promptLayers);
+      input.onEvent?.({ type: "round_end", roundId });
+      input.onEvent?.({ type: "final_answer", content: summary });
+      return finishRun(run, summary, true, "timeout");
+    }
 
     // ── callLLM ──
     let response: ChatResponse;
@@ -170,6 +193,7 @@ export async function runCyreneHarness(input: HarnessInput): Promise<HarnessResu
     // uncertainEffects 仍作为执行期安全状态保留（阻止相同危险副作用自动重放），
     // 但不参与 final settlement。
     // 截断可见化：最终轮命中长度上限时在回复尾部追加提示，不再静默。
+    run.turnExitReason = response.finishReason === "length" ? "truncated_length" : "text_response";
     const truncatedSuffix = response.finishReason === "length"
       ? "\n\n⚠️ 模型输出达到长度上限，以上回复可能不完整。"
       : "";
@@ -180,6 +204,7 @@ export async function runCyreneHarness(input: HarnessInput): Promise<HarnessResu
   }
 
   // ── 兜底：显式配置的总超时 ──
+  run.turnExitReason = "execution_timeout";
   const finalAnswer = run.streamController.getBuffered() || buildTimeoutReply(run.state);
   input.onEvent?.({ type: "final_answer", content: finalAnswer });
   return finishRun(run, finalAnswer, true, "timeout");
@@ -233,6 +258,9 @@ function createRun(input: HarnessInput): HarnessRun {
     toolOutputs: [],
     cache: input.initialCache ? { ...input.initialCache } : { ...INITIAL_HARNESS_CACHE_STATE },
     rounds: 0,
+    iterationBudget: new IterationBudget(config.maxIterations ?? DEFAULT_PARENT_ITERATIONS),
+    turnExitReason: "unknown",
+    failedFileMutations: new Map(),
     askDispatchContext,
     toolDispatchContext: {
       ...askDispatchContext,
@@ -364,6 +392,55 @@ async function callRoundLLM(run: HarnessRun, promptLayers: PromptLayers): Promis
   }
 }
 
+/**
+ * 预算耗尽后的无工具总结调用（移植自 Hermes _handle_max_iterations）。
+ * 剥离所有工具，注入一条系统消息要求模型总结当前进度与已完成工作，
+ * 做最后一次 LLM 调用。失败时返回兜底总结文本。
+ */
+async function budgetExhaustedSummary(run: HarnessRun, promptLayers: PromptLayers): Promise<string> {
+  const summaryPrompt =
+    "[System: 迭代预算已耗尽。请用简洁的中文总结你目前已完成的工作、当前进度，以及如果继续执行还需要做什么。不要调用任何工具，直接给出总结。]";
+  const messagesWithPrompt: ChatMessage[] = [
+    ...run.messages,
+    { role: "user", content: summaryPrompt },
+  ];
+  try {
+    const response = await callLLM(
+      run.input.vendorConfig,
+      promptLayers,
+      messagesWithPrompt,
+      [], // 无工具
+      run.config,
+      run.input.signal,
+      undefined,
+    );
+    const text = response.text?.trim();
+    if (text) {
+      return text + "\n\n⚠️ 迭代预算已耗尽，以上为自动生成的进度总结。如需继续，请重新发起任务。";
+    }
+  } catch (err) {
+    console.error(`${LOG_PREFIX} budget exhausted summary call failed:`, err);
+  }
+  return buildBudgetExhaustedFallback(run);
+}
+
+/** 预算耗尽总结调用失败时的兜底文本（带待办状态，方便用户续跑）。 */
+function buildBudgetExhaustedFallback(run: HarnessRun): string {
+  const parts: string[] = [
+    "⚠️ 迭代预算已耗尽，无法继续执行。",
+    "",
+    `已使用迭代次数：${run.iterationBudget.used}/${run.iterationBudget.maxTotal}`,
+  ];
+  if (run.state.todoItems.length > 0) {
+    parts.push("", "当前待办状态：");
+    for (const t of run.state.todoItems) {
+      parts.push(`  [${t.status}] ${t.content}`);
+    }
+  }
+  parts.push("", "如需继续执行，请重新发起任务。");
+  return parts.join("\n");
+}
+
 // ═══ 结算出口 ═════════════════════════════════════════════
 
 /** 持久化可恢复子运行状态；失败记入 checkpointFailure，由主循环统一降级为 error。
@@ -410,7 +487,7 @@ function cancelledResult(run: HarnessRun): HarnessResult {
   };
 }
 
-/** 终态统一出口：settleRun → checkpointFailure 降级 error → 构造结果。 */
+/** 终态统一出口：settleRun → checkpointFailure 降级 error → 文件变更页脚 → 构造结果。 */
 function finishRun(
   run: HarnessRun,
   finalAnswer: string,
@@ -421,7 +498,35 @@ function finishRun(
   if (run.checkpointFailure) {
     return buildResult(`执行状态保存失败：${run.checkpointFailure}`, run.state, true, "error", run.rounds);
   }
-  return buildResult(finalAnswer, run.state, terminated, terminateReason, run.rounds);
+  // ── 文件变更失败页脚（移植自 Hermes file-mutation verifier footer）──
+  // 若本回合有 write_file / patch 等文件变更工具失败且未被后续成功覆盖，
+  // 在最终回复尾部追加警告，防止模型虚报"全部修改成功"。
+  const answerWithFooter = appendFileMutationFooter(finalAnswer, run);
+  // ── 回合退出诊断日志（移植自 Hermes turn-exit diagnostic）──
+  const budget = run.iterationBudget.snapshot();
+  const toolTurns = run.messages.filter(
+    (m) => m.role === "assistant" && Array.isArray(m.toolCalls) && m.toolCalls.length > 0,
+  ).length;
+  console.log(
+    `${LOG_PREFIX} turn ended: reason=${run.turnExitReason} ` +
+    `api_calls=${budget.used}/${budget.maxTotal} ` +
+    `tool_turns=${toolTurns} response_len=${answerWithFooter.length} rounds=${run.rounds}`,
+  );
+  return buildResult(answerWithFooter, run.state, terminated, terminateReason, run.rounds);
+}
+
+/**
+ * 追加文件变更失败页脚（移植自 Hermes _format_file_mutation_failure_footer）。
+ * 只有当存在未被覆盖的失败文件变更时才追加；正常回复保持原样。
+ */
+function appendFileMutationFooter(finalAnswer: string, run: HarnessRun): string {
+  if (run.failedFileMutations.size === 0) return finalAnswer;
+  const lines: string[] = ["", "---", "⚠️ **文件变更警告**：以下文件修改失败，可能未实际写入："];
+  for (const [path, info] of run.failedFileMutations) {
+    lines.push(`  - \`${path}\`（${info.toolName}）：${info.message}`);
+  }
+  lines.push("请手动检查上述文件状态，必要时重新执行修改。");
+  return finalAnswer.replace(/\s+$/, "") + "\n" + lines.join("\n");
 }
 
 /** 总超时的兜底回复：带上待办与未知副作用清单，方便用户续跑。 */

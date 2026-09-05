@@ -144,7 +144,7 @@ async function runSingleTask(deps: TaskRuntimeDeps, request: TaskExecuteRequest)
       messages: session.messages as ChatMessage[],
       tools: resolveTaskTools(profile, parent.tools),
       vendorConfig: parent.vendorConfig,
-      config: { totalTimeoutMs: profile.timeoutMs },
+      config: { totalTimeoutMs: profile.timeoutMs, maxIterations: 50 },
       initialState: {
         todoItems: session.todoItems,
         uncertainEffects: [],

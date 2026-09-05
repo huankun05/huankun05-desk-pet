@@ -190,6 +190,10 @@ async function executeToolCallWithRetry(run: HarnessRun, call: ToolCall): Promis
  * 按原始 tool-call 顺序提交模型可见结果。
  * result 不确定且副作用不可重放 → 记入 uncertainEffects 并 halt（防止"假装完成"与被重复执行）；
  * fatal 错误 → halt；其余 → continue。
+ *
+ * 额外职责（P1-1 移植自 Hermes）：
+ * - 程序化工具（run_verification）成功后 refund 迭代预算
+ * - 文件变更工具失败时记录到 run.failedFileMutations，成功时清除同路径记录
  */
 async function commitToolResult(
   run: HarnessRun,
@@ -220,6 +224,15 @@ async function commitToolResult(
       : result.outcome === "not_executed" ? "not_executed" : "committed",
   });
 
+  // ── 程序化工具 refund（移植自 Hermes IterationBudget.refund）──
+  // run_verification 是纯程序化验证工具，推理成本极低，成功后退还一次迭代预算。
+  if (call.name === "run_verification" && result.outcome === "success") {
+    run.iterationBudget.refund();
+  }
+
+  // ── 文件变更失败追踪（移植自 Hermes _turn_failed_file_mutations）──
+  trackFileMutation(run, call, result);
+
   if (result.outcome === "unknown" && toolSideEffect === "non_idempotent_side_effect") {
     const fingerprint = toolCallFingerprint(call.name, parseToolCallArgs(call));
     const effectId = `${input.toolContext?.runId ?? "unknown-run"}:${call.id}`;
@@ -235,6 +248,46 @@ async function commitToolResult(
     return "halt";
   }
   return result.category === "fatal" ? "halt" : "continue";
+}
+
+/** 文件变更工具的名称匹配模式（写/改/补丁/创建文件）。 */
+const FILE_MUTATION_TOOL_PATTERN = /(write|patch|edit|create|save|replace).*(file|path)|file.*(write|patch|edit|create|save)|^write_file$|^patch$|^edit_file$|^create_file$/i;
+
+/**
+ * 追踪文件变更工具的成功/失败（移植自 Hermes file-mutation verifier）。
+ * 失败时记录到 run.failedFileMutations；同路径后续成功时清除。
+ * 仅追踪名称匹配文件变更模式的工具，且能从参数中提取出文件路径。
+ */
+function trackFileMutation(run: HarnessRun, call: ToolCall, result: ToolDispatchResult): void {
+  if (!FILE_MUTATION_TOOL_PATTERN.test(call.name)) return;
+  const args = parseToolCallArgs(call);
+  const filePath = extractFilePath(args);
+  if (!filePath) return;
+
+  if (result.outcome === "success") {
+    // 同路径成功写入 → 清除之前的失败记录（被覆盖）
+    run.failedFileMutations.delete(filePath);
+  } else if (result.outcome === "failure" || result.outcome === "unknown") {
+    // 失败 → 记录（若已有同路径记录则保留最早的，不覆盖）
+    if (!run.failedFileMutations.has(filePath)) {
+      run.failedFileMutations.set(filePath, {
+        toolName: call.name,
+        message: result.message || "工具执行失败",
+      });
+    }
+  }
+}
+
+/** 从工具参数中提取文件路径（兼容 path/filePath/file/filename 等常见字段名）。 */
+function extractFilePath(args: Record<string, unknown>): string | undefined {
+  const candidates = ["path", "filePath", "file_path", "file", "filename", "file_name", "target", "targetPath"];
+  for (const key of candidates) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
 }
 
 // ── 内部工具 ─────────────────────────────────────────────

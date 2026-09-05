@@ -42,7 +42,7 @@
 | --- | --- | --- | --- |
 | P0 | 并行子 Agent（task_group + 并行执行器 + 结果聚合） | ✅ 已完成 | task-runtime / builtin-tools / dispatcher / tests |
 | P0 | AGENTS.md 项目上下文注入 | ✅ 已完成 | workspace-context / run-preparation / tests |
-| P1 | 验证闭环自迭代（改 → 验 → 修） | ⏳ 待做 | verification-runner 强化 + 工具 |
+| P1 | 验证闭环自迭代（改 → 验 → 修） | ✅ 已完成 | IterationBudget 移植 + 预算耗尽总结 + 文件变更页脚 |
 | P1 | 跨会话搜索（FTS/向量 + LLM 摘要） | ⏳ 待做 | 复用 embedding + RAG 管线 |
 | P1 | 凭据全量加密（safeStorage） | ⏳ 待做 | settings 层迁移 |
 | P2 | 定时任务渠道投递 | ⏳ 待做 | scheduler 增加 deliver 目标 |
@@ -151,7 +151,34 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 
 ### 4.1 验证闭环自迭代
 
-现状：已有 `verification-runner.ts` + `run-verification-tool.ts`。升级方向：模型改动文件后自动触发验证（测试/构建/LSP 诊断），失败结果回流后自动进入"修复 → 再验证"子循环，设置最大迭代次数防死循环。
+**移植来源**：Hermes `agent/iteration_budget.py` + `agent/conversation_loop.py`（主循环预算消费）+ `agent/turn_finalizer.py`（预算耗尽总结 + 文件变更失败页脚）。
+
+**核心发现**：Hermes 没有独立的 `verify_and_fix` 工具。它的"自迭代验证闭环"由四部分组成：
+1. **IterationBudget** — 每次模型调用 consume，程序化工具调用成功后 refund，防死循环
+2. **预算耗尽 → 无工具总结调用** — `_handle_max_iterations` 做最后一次总结
+3. **文件变更失败追踪 + 响应页脚** — 防止模型虚报"全部修改成功"
+4. **回合退出诊断** — 记录为什么结束（budget_exhausted / timeout / text_response 等）
+
+**已落地实现**：
+
+| 组件 | 文件 | 说明 |
+| --- | --- | --- |
+| IterationBudget | `harness/iteration-budget.ts` | 移植自 Hermes：consume/refund/used/remaining/exhausted/snapshot；父 agent 默认 90，子 agent 默认 50 |
+| 配置接入 | `harness/types.ts` | `HarnessConfig.maxIterations`，默认 90；`task-runtime.ts` 子 agent 传 50 |
+| 主循环消费 | `harness/cyrene-harness.ts` | 每轮 callLLM 前 `consume()`；耗尽则 `budgetExhaustedSummary()` 做无工具总结调用 |
+| 程序化工具 refund | `harness/tool-round.ts` | `run_verification` 成功后 `refund()`（推理成本极低，不消耗迭代预算） |
+| 文件变更失败追踪 | `harness/tool-round.ts` | `trackFileMutation()`：write_file/patch/edit_file 等失败时记录，同路径成功时清除 |
+| 响应页脚 | `harness/cyrene-harness.ts` | `appendFileMutationFooter()`：终态时若存在未覆盖的失败文件变更，在回复尾部追加警告 |
+| 回合退出诊断 | `harness/cyrene-harness.ts` | `turnExitReason` 字段 + `settleRun` 后日志输出（reason/api_calls/tool_turns/response_len） |
+
+**验收标准**：
+- [x] IterationBudget 单测 13 个全部通过
+- [x] 主循环每轮 consume，耗尽后触发无工具总结调用
+- [x] run_verification 成功后 refund，预算不被程序化工具消耗
+- [x] 文件变更失败时记录，同路径后续成功时清除
+- [x] 终态回复包含文件变更失败页脚（如有）
+- [x] 全量 orchestrator 测试 1098/1099 通过（唯一失败为环境缺 Git Bash 的既有问题）
+- [x] `tsc --noEmit` 类型检查通过
 
 ### 4.2 跨会话搜索
 
@@ -172,3 +199,4 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 | 日期 | 事项 | 结果 |
 | --- | --- | --- |
 | 2026-09-05 | 规划落盘；P0-1 / P0-2 实施完成 | 并行子 Agent + AGENTS.md 注入已落地，新增 20 个单测用例，全部通过 |
+| 2026-09-05 | P1-1 验证闭环自迭代实施完成 | 移植 Hermes IterationBudget + 预算耗尽总结 + 文件变更失败页脚 + 回合退出诊断；新增 iteration-budget.ts（13 单测），修改 5 个核心文件；全量测试 1098/1099 通过 |

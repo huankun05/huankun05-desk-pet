@@ -112,6 +112,12 @@ export const INITIAL_HARNESS_CACHE_STATE: HarnessCacheState = {
 export interface HarnessConfig {
   /** 已声明为安全的工具最多可同时执行几个；1 表示串行。 */
   maxParallelToolCalls: number;
+  /**
+   * 迭代预算上限（次模型调用）。移植自 Hermes IterationBudget。
+   * 防止主循环死循环；程序化工具调用（run_verification 等）成功后 refund。
+   * 默认 90（父 agent）；子 agent 由 task-runtime 传入 50。
+   */
+  maxIterations: number;
   /** 总超时（毫秒） */
   totalTimeoutMs: number;
   /** 用户等待超时（毫秒，ask_user 等待期间不计入执行超时） */
@@ -133,6 +139,7 @@ export interface HarnessConfig {
 
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   maxParallelToolCalls: 4,
+  maxIterations: 90,
   totalTimeoutMs: 0,
   userWaitTimeoutMs: 120_000,
   contextWindowTokens: 256_000,
