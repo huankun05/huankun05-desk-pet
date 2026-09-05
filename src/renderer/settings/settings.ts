@@ -2077,7 +2077,7 @@ function switchSection(section: string): void {
 
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isBackup,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isLsp || isBackup,
   );
 
   if (
@@ -2098,7 +2098,8 @@ function switchSection(section: string): void {
     !isTts &&
     !isAsr &&
     !isMusic &&
-    !isFeaturePlugins
+    !isFeaturePlugins &&
+    !isLsp
   ) {
 	    placeholderIcon.innerHTML = label.emoji;
     placeholderTitle.textContent = label.title;
