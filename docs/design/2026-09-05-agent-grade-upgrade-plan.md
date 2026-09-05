@@ -1072,7 +1072,142 @@ Cyrene 已有完善的技能系统（skill-scanner/registry/catalog/commands/too
 
 ---
 
-## 7. 执行记录
+## 7. P7 持续优化与技能服务集成（2026-09-05）
+
+### 7.1 P7-1 message-redactor YAML 格式支持
+
+#### 7.1.1 背景
+旧的 sanitizeText 支持 `apiKey: value`（YAML 风格冒号分隔）格式，新的 redactSensitiveText 暂不支持，属于功能回退。需要添加 YAML 格式支持。
+
+#### 7.1.2 实现
+- 新增 `YAML_FIELD_RE` 正则，匹配 `apiKey: value`（冒号分隔，不带引号）格式
+- 支持驼峰（apiKey）和下划线（api_key）命名
+- 排除 authorization/auth（由 AUTH_HEADER_RE 专门处理，避免误匹配 Authorization header）
+- 使用负向前瞻 `(?!.*\.\.\.)` 排除已脱敏的值（包含 `...`），避免二次脱敏
+- key 名支持：apiKey/api_key/token/secret/password/passwd/access_token/refresh_token/auth_token/bearer/credential/private_key
+
+#### 7.1.3 验收标准
+- [x] YAML 格式 `apiKey: value` 正确脱敏
+- [x] 驼峰和下划线命名都支持
+- [x] 不误匹配 Authorization header
+- [x] 不对已脱敏的值进行二次脱敏
+- [x] 58 个单测全部通过（原有 50 + 新增 8）
+
+### 7.2 P7-2 日志脱敏性能优化
+
+#### 7.2.1 背景
+每条日志都运行 15 种脱敏正则，debug 级别日志量大时可能有性能影响。需要优化。
+
+#### 7.2.2 实现
+- `LogRedactor` 函数签名添加 `level: LogLevel` 参数，可根据日志级别决定是否脱敏
+- main 进程默认只对 info 及以上级别脱敏，debug 级别跳过以提升性能
+- 可通过环境变量 `CYRENE_LOG_REDACT=false` 完全关闭脱敏
+- 保持接口向后兼容（只接收一个参数的函数仍可赋值）
+
+#### 7.2.3 验收标准
+- [x] LogRedactor 函数签名添加 level 参数
+- [x] debug 级别默认跳过脱敏
+- [x] info 及以上级别默认脱敏
+- [x] 环境变量可完全关闭
+- [x] 24 个单测全部通过（原有 23 + 新增 1）
+
+### 7.3 P7-3 技能推荐器语义匹配增强
+
+#### 7.3.1 背景
+基于关键词匹配的推荐器对同义词、相关词的匹配能力有限。如用户说"写代码"，技能描述是"programming"，无法匹配。需要添加同义词词典。
+
+#### 7.3.2 实现
+- 新增同义词词典（40+ 同义词组，覆盖编程/音乐/天气/翻译/搜索/文件/邮件/日历/系统/学习/写作/图像/视频/数学/数据/安全/网络/购物/导航/健康/财务/旅行等 20+ 领域）
+- `expandKeywords` 函数将用户关键词扩展为同义词
+- 中英文同义词互译（如"写代码"→"programming"，"music"→"音乐"）
+- 同义词映射在模块加载时构建，运行时 O(1) 查找
+
+#### 7.3.3 验收标准
+- [x] 40+ 同义词组
+- [x] 中英文同义词互译
+- [x] 同义词扩展不影响原有匹配
+- [x] 22 个单测全部通过（原有 19 + 新增 3）
+
+### 7.4 P7-4 LSP 真实进程集成
+
+#### 7.4.1 背景
+LSP 客户端使用依赖注入的 `LSPProcess` 抽象，还没有实现真实的 `child_process.spawn` 包装。需要添加真实进程集成，才能真正启动语言服务器。
+
+#### 7.4.2 实现
+- 新增 `lsp-process.ts`，实现 `createLSPProcess` 函数
+- 使用 `child_process.spawn` 启动语言服务器，stdio 设置为 pipe
+- 支持 Windows shell 兼容（处理 .cmd 文件）
+- stdout/stderr/exit 事件回调，数据自动转换为 UTF-8 字符串
+- 优雅终止：先关闭 stdin，再发送 SIGTERM
+- `isLSPCommandAvailable` 函数检查命令是否可用（Windows 使用 where，其他系统使用 command -v）
+
+#### 7.4.3 验收标准
+- [x] createLSPProcess 实现完整
+- [x] Windows 兼容
+- [x] 优雅终止
+- [x] isLSPCommandAvailable 实现
+- [x] 14 个单测全部通过
+
+### 7.5 P7-5 LSP 代码智能功能
+
+#### 7.5.1 背景
+LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转到定义等智能功能。需要添加这些功能。
+
+#### 7.5.2 实现
+- `getCompletions(uri, position)`：发送 `textDocument/completion` 请求，返回补全项列表
+  - 支持 CompletionList 和 CompletionItem[] 两种返回格式
+  - 错误时抛出异常
+- `getHover(uri, position)`：发送 `textDocument/hover` 请求，返回悬停内容（文档字符串、类型信息等）
+- `getDefinition(uri, position)`：发送 `textDocument/definition` 请求，返回定义位置
+- lsp-protocol.ts 新增 CompletionItem/CompletionItemKind/CompletionList/Hover/Location 类型定义
+
+#### 7.5.3 验收标准
+- [x] getCompletions 实现
+- [x] getHover 实现
+- [x] getDefinition 实现
+- [x] 相关类型定义
+- [x] 32 个单测全部通过（原有 25 + 新增 7）
+
+### 7.6 P7-6 技能服务集成
+
+#### 7.6.1 背景
+用户要求：大模型在执行任务时判断有没有适合的技能，如果没有的技能，推荐并弹出提示框询问是否安装，用户点击允许则安装。需要实现完整的技能服务。
+
+#### 7.6.2 实现
+1. **skill-catalog-store.ts**（技能目录）：
+   - 内置 17 个可用技能模板，覆盖开发/数据/写作/教育/生活/办公 6 大分类
+   - 每个技能包含 id/名称/描述/分类/版本/模式/工具/标签
+   - 工具函数：getSkillsByCategory/getSkillCategories/findSkillInCatalog/searchSkillCatalog
+
+2. **skill-installer.ts**（技能安装器）：
+   - 从技能目录安装技能到用户技能目录
+   - 自动生成 SKILL.md 模板（基于技能目录元数据）
+   - 支持安装/卸载/重复检查
+   - 创建 references 目录
+
+3. **skill-service.ts**（统一技能服务）：
+   - 整合推荐/查询/安装功能
+   - `listSkills`：列出已安装的技能
+   - `recommendSkills`：同时推荐已安装和未安装的技能，未安装技能分数稍低（×0.8）
+   - `getSkillCatalog`/`searchCatalog`：查询可安装的技能目录
+   - `installSkill`/`uninstallSkill`：安装/卸载技能
+   - `isInstalled`/`isAvailable`：检查技能状态
+
+#### 7.6.3 UI 集成（后续迭代）
+- 大模型调用 `recommendSkills` 发现未安装技能后，通过 IPC 触发渲染进程弹出确认对话框
+- 用户点击"安装"后调用 `installSkill`
+- 使用项目现有的 cy-modal 组件风格，保持 UI 统一
+
+#### 7.6.4 验收标准
+- [x] 17 个内置技能模板
+- [x] 技能安装器实现
+- [x] 统一技能服务实现
+- [x] 同时推荐已安装和未安装技能
+- [x] 25 个单测全部通过
+
+---
+
+## 8. 执行记录
 
 | 日期 | 事项 | 结果 |
 | --- | --- | --- |
@@ -1097,3 +1232,10 @@ Cyrene 已有完善的技能系统（skill-scanner/registry/catalog/commands/too
 | 2026-09-05 | P6-2 日志系统集成脱敏实施完成 | shared/logger.ts 新增 setLogRedactor/getLogRedactor 脱敏钩子；emit 函数应用脱敏到 message（stdout/stderr + sink）；脱敏函数异常时静默忽略；main/logger.ts 注册 redactSensitiveText，安全默认启用，环境变量 CYRENE_LOG_REDACT=false 可关闭；23 单测（原有17+新增6）通过 + tsc 通过 |
 | 2026-09-05 | P6-3 技能推荐器实施完成 | 新增 skill-recommender.ts，基于关键词匹配的技能推荐；中英文混合分词 + 200+ 停用词过滤；4维度加权评分（描述40%/id20%/名称20%/工具20%）；recommendSkills/recommendTopSkill 函数；支持 limit/minScore/mode/onlyEnabled 选项；推荐结果包含 score/matchedKeywords/reason；19 单测通过 + tsc 通过 |
 | 2026-09-05 | P6-4 LSP 集成基础框架实施完成 | 新增 lsp/ 目录；lsp-protocol.ts 纯函数协议层（JSON-RPC 编码/解码 + 错误码 + 消息分类 + 诊断类型 + Unicode Content-Length）；lsp-client.ts 客户端框架（依赖注入 LSPProcess + 连接管理 + 请求/响应匹配 + 通知 + 文档同步 + 诊断存储 + 优雅关闭 + 进程退出处理）；protocol 23 单测 + client 25 单测通过 + tsc 通过 |
+| 2026-09-05 | P7-1 message-redactor YAML 格式支持实施完成 | 新增 YAML_FIELD_RE 正则，支持 apiKey: value（冒号分隔）格式；支持驼峰和下划线命名；排除 authorization/auth（由 AUTH_HEADER_RE 处理）；负向前瞻排除已脱敏的值避免二次脱敏；58 单测（原有50+新增8）通过 + tsc 通过 |
+| 2026-09-05 | P7-2 日志脱敏性能优化实施完成 | LogRedactor 函数签名添加 level 参数；main 进程默认只对 info 及以上级别脱敏，debug 级别跳过；环境变量 CYRENE_LOG_REDACT=false 可完全关闭；24 单测（原有23+新增1）通过 + tsc 通过 |
+| 2026-09-05 | P7-3 技能推荐器语义匹配增强实施完成 | 新增同义词词典（40+ 同义词组，覆盖 20+ 领域）；expandKeywords 函数扩展用户关键词；中英文同义词互译（如"写代码"→"programming"，"music"→"音乐"）；22 单测（原有19+新增3）通过 + tsc 通过 |
+| 2026-09-05 | P7-4 LSP 真实进程集成实施完成 | 新增 lsp-process.ts，createLSPProcess 使用 child_process.spawn；支持 Windows shell 兼容；stdout/stderr/exit 事件回调；优雅终止（SIGTERM + stdin end）；isLSPCommandAvailable 检查命令可用性；14 单测通过 + tsc 通过 |
+| 2026-09-05 | P7-5 LSP 代码智能功能实施完成 | lsp-client.ts 新增 getCompletions（textDocument/completion，支持 CompletionList 和 CompletionItem[] 两种格式）、getHover（textDocument/hover）、getDefinition（textDocument/definition）；lsp-protocol.ts 新增 CompletionItem/CompletionList/Hover/Location 类型；32 单测（原有25+新增7）通过 + tsc 通过 |
+| 2026-09-05 | P7-6 技能服务集成实施完成 | 新增 skill-catalog-store.ts（17 个内置技能模板，6 大分类）；新增 skill-installer.ts（技能安装器，自动生成 SKILL.md 模板，支持安装/卸载）；新增 skill-service.ts（统一技能服务，listSkills/recommendSkills/getSkillCatalog/searchCatalog/installSkill/uninstallSkill，同时推荐已安装和未安装技能）；25 单测通过 + tsc 通过 |
+| 2026-09-05 | LSP 进程泄漏修复 | 发现 lsp-client.ts 中 initialize 失败时进程未终止，且 shutdown 在 error 状态下直接返回，导致进程泄漏；修复：initialize 失败时主动调用 process.kill()；提交 353b04b |

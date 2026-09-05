@@ -1,4 +1,4 @@
-// IPC channel names shared between main and renderer
+﻿// IPC channel names shared between main and renderer
 export interface ScreenshotInsertPayload {
   mime: "image/png";
   width: number;
@@ -254,6 +254,13 @@ export const IPC = {
   SKILL_GET_CATALOG: "skill:get-catalog",
   // 重新扫描 user skills 目录，安装/删除 skill 后无需重启即可刷新 UI
   SKILL_RESCAN: "skill:rescan",
+  // skill service（P7-6 技能服务集成）
+  SKILL_GET_AVAILABLE_CATALOG: "skill:get-available-catalog",
+  SKILL_SEARCH_CATALOG: "skill:search-catalog",
+  SKILL_RECOMMEND: "skill:recommend",
+  SKILL_INSTALL: "skill:install",
+  SKILL_UNINSTALL: "skill:uninstall",
+  SKILL_INSTALL_PROMPT: "skill:install-prompt",
 
   // scheduled tasks
   SCHEDULER_LIST: "scheduler:list",

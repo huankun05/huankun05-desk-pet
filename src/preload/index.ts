@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron";
+﻿import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC } from "../shared/ipc-channels";
 import type { StartTtsRequest, TtsSessionEvent, TtsStartResult } from "../shared/tts-session";
 import type { ScreenshotInsertPayload } from "../shared/ipc-channels";
@@ -147,6 +147,34 @@ const aguiApi = {
 };
 
 contextBridge.exposeInMainWorld("agui", aguiApi);
+
+// 技能服务 API（P7-6 技能服务集成）
+const skillServiceApi = {
+  getAvailableCatalog: (category?: string) =>
+    ipcRenderer.invoke(IPC.SKILL_GET_AVAILABLE_CATALOG, category),
+  searchCatalog: (query: string) =>
+    ipcRenderer.invoke(IPC.SKILL_SEARCH_CATALOG, query),
+  recommend: (userInput: string, options?: { limit?: number; mode?: string; includeNotInstalled?: boolean }) =>
+    ipcRenderer.invoke(IPC.SKILL_RECOMMEND, userInput, options),
+  install: (skillId: string) =>
+    ipcRenderer.invoke(IPC.SKILL_INSTALL, skillId),
+  uninstall: (skillId: string) =>
+    ipcRenderer.invoke(IPC.SKILL_UNINSTALL, skillId),
+  onInstallPrompt: (callback: (data: { skillId: string; skillName: string; description: string; category: string; reason?: string }) => void) => {
+    const listener = (_e: unknown, data: unknown) => {
+      try {
+        callback(data as { skillId: string; skillName: string; description: string; category: string; reason?: string });
+      } catch (err) {
+        console.error("[Preload] skill install prompt listener error:", err);
+      }
+    };
+    ipcRenderer.on(IPC.SKILL_INSTALL_PROMPT, listener);
+    return () => ipcRenderer.removeListener(IPC.SKILL_INSTALL_PROMPT, listener);
+  },
+  rescan: () => ipcRenderer.send(IPC.SKILL_RESCAN),
+};
+
+contextBridge.exposeInMainWorld("skillService", skillServiceApi);
 
 // System utilities exposed to renderer
 const systemApi = {
