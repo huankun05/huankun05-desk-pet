@@ -44,18 +44,19 @@ let currentLevel: LogLevel = readEnvLevel() ?? "info";
  * 日志脱敏钩子。
  *
  * 可选的消息脱敏函数，注册后会在 emit 时对拼接后的 message 进行脱敏。
+ * 函数接收 message 和当前日志级别，可根据级别决定是否脱敏（如 debug 级别跳过以提升性能）。
  * 由 main 进程注册（使用 message-redactor 模块），shared 层保持纯模块不依赖具体实现。
  * 默认未注册（不脱敏），保持原有行为。
  */
-let logRedactor: ((text: string) => string) | null = null;
+let logRedactor: ((text: string, level: LogLevel) => string) | null = null;
 
 /** 注册日志脱敏函数，传入 null 可取消。 */
-export function setLogRedactor(redactor: ((text: string) => string) | null): void {
+export function setLogRedactor(redactor: ((text: string, level: LogLevel) => string) | null): void {
   logRedactor = redactor;
 }
 
 /** 获取当前日志脱敏函数（主要用于测试）。 */
-export function getLogRedactor(): ((text: string) => string) | null {
+export function getLogRedactor(): ((text: string, level: LogLevel) => string) | null {
   return logRedactor;
 }
 
@@ -133,7 +134,7 @@ function emit(level: LogLevel, tag: string, args: unknown[]): void {
   // 应用日志脱敏（如果注册了脱敏函数）
   if (logRedactor) {
     try {
-      message = logRedactor(message);
+      message = logRedactor(message, level);
     } catch {
       // 脱敏函数异常时忽略，保持原消息
     }

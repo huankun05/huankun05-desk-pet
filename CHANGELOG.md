@@ -28,6 +28,12 @@ All notable changes to this project will be documented in this file.
 - **日志系统集成脱敏**：logger 新增 setLogRedactor/getLogRedactor 脱敏钩子；emit 函数自动脱敏所有日志输出（stdout/stderr + 文件落盘）；脱敏函数异常时静默忽略不影响主链路；main 进程默认注册 redactSensitiveText，环境变量 CYRENE_LOG_REDACT=false 可关闭
 - **技能推荐器**：新增 skill-recommender.ts，基于关键词匹配的技能推荐；中英文混合分词 + 200+ 停用词过滤；4维度加权评分（描述40%/id20%/名称20%/工具20%）；recommendSkills/recommendTopSkill 函数；支持 limit/minScore/mode/onlyEnabled 选项；推荐结果包含 score/matchedKeywords/reason
 - **LSP 集成基础框架**：新增 lsp/ 目录；lsp-protocol.ts 纯函数协议层（JSON-RPC 编码/解码 + 标准错误码 + 消息分类 + 诊断类型 + Unicode Content-Length 正确计算）；lsp-client.ts 客户端框架（依赖注入 LSPProcess 接口 + 连接管理 + 请求/响应匹配 + 通知发送 + 文本文档同步 + 诊断存储 + 优雅关闭 + 进程退出处理）
+- **message-redactor YAML 格式支持**：新增 YAML_FIELD_RE 正则，支持 `apiKey: value`（冒号分隔，不带引号）格式的敏感字段脱敏；支持驼峰（apiKey）和下划线（api_key）命名；排除 authorization/auth（由 AUTH_HEADER_RE 专门处理）；使用负向前瞻排除已脱敏的值（包含 `...`），避免二次脱敏
+- **日志脱敏性能优化**：LogRedactor 函数签名添加 level 参数，可根据日志级别决定是否脱敏；main 进程默认只对 info 及以上级别脱敏，debug 级别跳过以提升性能；可通过环境变量 CYRENE_LOG_REDACT=false 完全关闭
+- **技能推荐器语义匹配增强**：新增同义词词典（40+ 同义词组，覆盖编程/音乐/天气/翻译/搜索/文件/邮件/日历/系统/学习/写作/图像/视频/数学/数据/安全/网络/购物/导航/健康/财务/旅行等领域）；expandKeywords 函数将用户关键词扩展为同义词；中英文同义词互译（如"写代码"→"programming"，"music"→"音乐"）
+- **LSP 真实进程集成**：新增 lsp-process.ts，实现 createLSPProcess 函数，使用 child_process.spawn 启动真实语言服务器；支持 Windows shell 兼容；stdout/stderr/exit 事件回调；优雅终止（SIGTERM + stdin end）；新增 isLSPCommandAvailable 函数检查命令是否可用（Windows 使用 where，其他系统使用 command -v）
+- **LSP 代码智能功能**：lsp-client.ts 新增 getCompletions（发送 textDocument/completion 请求，返回补全项列表，支持 CompletionList 和 CompletionItem[] 两种返回格式）、getHover（发送 textDocument/hover 请求，返回悬停内容）、getDefinition（发送 textDocument/definition 请求，返回定义位置）；lsp-protocol.ts 新增 CompletionItem/CompletionList/Hover/Location 类型定义
+- **技能服务集成**：新增 skill-catalog-store.ts（内置 17 个可用技能模板，覆盖开发/数据/写作/教育/生活/办公 6 大分类，每个技能包含 id/名称/描述/分类/版本/模式/工具/标签）；新增 skill-installer.ts（技能安装器，从目录安装技能到用户目录，自动生成 SKILL.md 模板，支持安装/卸载/重复检查）；新增 skill-service.ts（统一技能服务，整合推荐/查询/安装，listSkills/recommendSkills/getSkillCatalog/searchCatalog/installSkill/uninstallSkill 方法，同时推荐已安装和未安装技能）
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置

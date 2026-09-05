@@ -21,6 +21,139 @@ export interface SkillRecommendation {
   reason: string;
 }
 
+// ── 同义词词典 ──────────────────────────────────────────────
+
+/**
+ * 同义词词典：将用户输入的关键词扩展为同义词，提升推荐的准确性。
+ * 每个数组是一组同义词，匹配其中任意一个都算匹配。
+ * 包含中英文常见同义词。
+ */
+const SYNONYM_GROUPS: string[][] = [
+  // 编程/代码
+  ["写代码", "编程", "代码", "程序", "开发", "code", "coding", "programming", "develop", "script"],
+  ["python", "py", "蟒蛇"],
+  ["javascript", "js", "node", "nodejs"],
+  ["typescript", "ts"],
+
+  // 音乐/音频
+  ["音乐", "听歌", "歌曲", "播放音乐", "music", "song", "audio", "play", "播放"],
+  ["播放器", "player"],
+
+  // 天气/环境
+  ["天气", "气温", "weather", "temperature", "forecast", "预报"],
+
+  // 翻译/语言
+  ["翻译", "translate", "translation", "language", "语言"],
+  ["英语", "英文", "english"],
+  ["中文", "汉语", "chinese"],
+
+  // 搜索/查询
+  ["搜索", "查找", "查询", "search", "find", "query", "google", "百度"],
+  ["网页", "网站", "web", "website", "browser", "浏览器"],
+
+  // 文件/文档
+  ["文件", "文档", "file", "document", "doc", "pdf", "excel", "表格", "word"],
+  ["读取", "打开", "read", "open", "load"],
+  ["写入", "保存", "write", "save", "store"],
+
+  // 邮件/消息
+  ["邮件", "email", "mail", "gmail"],
+  ["消息", "聊天", "message", "chat", "im"],
+
+  // 日历/时间
+  ["日历", "日程", "calendar", "schedule", "event", "事件", "约会"],
+  ["提醒", "闹钟", "reminder", "alarm", "notify", "通知"],
+  ["时间", "日期", "time", "date"],
+
+  // 系统/工具
+  ["终端", "命令行", "shell", "terminal", "cmd", "powershell", "bash"],
+  ["系统", "system", "os", "操作系统"],
+  ["进程", "process", "task", "任务"],
+
+  // 学习/教育
+  ["学习", "教程", "learn", "study", "tutorial", "course", "课程"],
+  ["笔记", "note", "notes", "markdown"],
+
+  // 写作/创作
+  ["写作", "写文章", "write", "writing", "article", "文章", "essay", "论文"],
+  ["总结", "摘要", "summary", "summarize", "abstract"],
+  ["翻译", "translate", "translation"],
+
+  // 图像/视觉
+  ["图片", "图像", "image", "picture", "photo", "照片"],
+  ["画图", "绘图", "draw", "painting", "绘画"],
+
+  // 视频/媒体
+  ["视频", "video", "movie", "电影", "影片"],
+  ["播放", "play", "player", "播放器"],
+
+  // 数学/计算
+  ["数学", "计算", "math", "calculate", "calculation", "compute"],
+  ["公式", "formula", "equation", "方程"],
+
+  // 数据/分析
+  ["数据", "data", "分析", "analysis", "analyze", "statistics", "统计"],
+  ["图表", "chart", "graph", "plot", "可视化", "visualization"],
+
+  // 安全/隐私
+  ["安全", "security", "safe", "privacy", "隐私"],
+  ["密码", "password", "加密", "encrypt", "encryption"],
+
+  // 网络/连接
+  ["网络", "network", "internet", "互联网", "wifi", "蓝牙", "bluetooth"],
+  ["下载", "download", "上传", "upload"],
+
+  // 购物/电商
+  ["购物", "shopping", "buy", "购买", "商品", "product", "价格", "price"],
+
+  // 导航/地图
+  ["导航", "navigation", "地图", "map", "路线", "route", "direction", "方向"],
+
+  // 健康/医疗
+  ["健康", "health", "医疗", "medical", "medicine", "药物", "doctor", "医生"],
+  ["运动", "exercise", "fitness", "健身", "跑步", "run"],
+
+  // 财务/理财
+  ["财务", "finance", "理财", "money", "钱", "银行", "bank", "账单", "bill"],
+
+  // 旅行/出行
+  ["旅行", "旅游", "travel", "trip", "机票", "flight", "酒店", "hotel"],
+];
+
+/** 构建同义词映射：每个词 -> 其所在同义词组的所有词 */
+function buildSynonymMap(): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const group of SYNONYM_GROUPS) {
+    const lowerGroup = group.map((w) => w.toLowerCase());
+    for (const word of lowerGroup) {
+      if (!map.has(word)) {
+        map.set(word, lowerGroup);
+      }
+    }
+  }
+  return map;
+}
+
+const SYNONYM_MAP = buildSynonymMap();
+
+/**
+ * 扩展关键词：将每个关键词扩展为其同义词组的所有词。
+ * 去重后返回。
+ */
+function expandKeywords(keywords: string[]): string[] {
+  const expanded = new Set<string>();
+  for (const kw of keywords) {
+    expanded.add(kw);
+    const synonyms = SYNONYM_MAP.get(kw.toLowerCase());
+    if (synonyms) {
+      for (const syn of synonyms) {
+        expanded.add(syn);
+      }
+    }
+  }
+  return Array.from(expanded);
+}
+
 // ── 关键词提取 ──────────────────────────────────────────────
 
 /**
@@ -206,6 +339,9 @@ export function recommendSkills(
     return [];
   }
 
+  // 同义词扩展：将用户关键词扩展为同义词，提升推荐准确性
+  const expandedKeywords = expandKeywords(userKeywords);
+
   // 过滤技能
   let filteredSkills = skills;
   if (onlyEnabled) {
@@ -220,7 +356,7 @@ export function recommendSkills(
   // 计算每个技能的匹配分数
   const recommendations: SkillRecommendation[] = [];
   for (const skill of filteredSkills) {
-    const { score, matchedKeywords } = calculateScore(userKeywords, skill);
+    const { score, matchedKeywords } = calculateScore(expandedKeywords, skill);
     if (score >= minScore) {
       const reason = matchedKeywords.length > 0
         ? `匹配关键词: ${matchedKeywords.slice(0, 5).join(", ")}`

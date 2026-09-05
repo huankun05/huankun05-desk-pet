@@ -399,6 +399,108 @@ describe("LSPClient", () => {
     });
   });
 
+  describe("code intelligence", () => {
+    beforeEach(async () => {
+      setTimeout(() => {
+        const response = encodeResponse(1, { capabilities: {} });
+        mockProcess.emitStdout(response);
+      }, 10);
+      await client.connect(createMockProcessFactory(mockProcess));
+    });
+
+    it("getCompletions returns completion items", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, {
+          isIncomplete: false,
+          items: [
+            { label: "console", kind: 5 },
+            { label: "const", kind: 14 },
+          ],
+        });
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const completions = await client.getCompletions("file:///test.ts", { line: 0, character: 5 });
+      expect(completions).toHaveLength(2);
+      expect(completions[0].label).toBe("console");
+      expect(completions[1].label).toBe("const");
+    });
+
+    it("getCompletions handles array result", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, [
+          { label: "item1" },
+          { label: "item2" },
+        ]);
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const completions = await client.getCompletions("file:///test.ts", { line: 0, character: 0 });
+      expect(completions).toHaveLength(2);
+    });
+
+    it("getCompletions returns empty array for null result", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, null);
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const completions = await client.getCompletions("file:///test.ts", { line: 0, character: 0 });
+      expect(completions).toEqual([]);
+    });
+
+    it("getCompletions throws on error response", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, undefined, {
+          code: -32601,
+          message: "Method not found",
+        });
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      await expect(
+        client.getCompletions("file:///test.ts", { line: 0, character: 0 }),
+      ).rejects.toThrow("Completion failed");
+    });
+
+    it("getHover returns hover content", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, {
+          contents: "const x: number = 1",
+        });
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const hover = await client.getHover("file:///test.ts", { line: 0, character: 5 });
+      expect(hover).not.toBeNull();
+      expect(hover?.contents).toBe("const x: number = 1");
+    });
+
+    it("getHover returns null for no hover", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, null);
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const hover = await client.getHover("file:///test.ts", { line: 0, character: 0 });
+      expect(hover).toBeNull();
+    });
+
+    it("getDefinition returns location", async () => {
+      setTimeout(() => {
+        const response = encodeResponse(2, {
+          uri: "file:///definition.ts",
+          range: { start: { line: 10, character: 0 }, end: { line: 10, character: 5 } },
+        });
+        mockProcess.emitStdout(response);
+      }, 10);
+
+      const definition = await client.getDefinition("file:///test.ts", { line: 0, character: 5 });
+      expect(definition).not.toBeNull();
+      expect((definition as { uri: string }).uri).toBe("file:///definition.ts");
+    });
+  });
+
   describe("process exit handling", () => {
     it("rejects pending requests when process exits", async () => {
       setTimeout(() => {

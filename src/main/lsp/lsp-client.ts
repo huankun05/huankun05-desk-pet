@@ -18,6 +18,11 @@ import {
   type LSPResponse,
   type Diagnostic,
   type PublishDiagnosticsParams,
+  type Position,
+  type CompletionList,
+  type CompletionItem,
+  type Hover,
+  type Location,
 } from "./lsp-protocol";
 
 // ── 进程抽象 ─────────────────────────────────────────────────
@@ -243,6 +248,81 @@ export class LSPClient {
    */
   clearDiagnostics(uri: string): void {
     this.diagnostics.delete(uri);
+  }
+
+  // ── 代码智能功能 ──────────────────────────────────────────
+
+  /**
+   * 获取代码补全列表。
+   *
+   * 发送 textDocument/completion 请求，返回补全项列表。
+   *
+   * @param uri 文件 URI
+   * @param position 光标位置（line 和 character，0-based）
+   * @returns Promise<CompletionItem[]> 补全项列表
+   */
+  async getCompletions(uri: string, position: Position): Promise<CompletionItem[]> {
+    const response = await this.sendRequest(LSP_METHODS.TextDocumentCompletion, {
+      textDocument: { uri },
+      position,
+    });
+
+    if (response.error) {
+      throw new Error(`Completion failed: ${response.error.message}`);
+    }
+
+    const result = response.result as CompletionList | CompletionItem[] | null;
+    if (!result) return [];
+
+    // 结果可能是 CompletionList 或 CompletionItem[]
+    if (Array.isArray(result)) {
+      return result;
+    }
+    return result.items ?? [];
+  }
+
+  /**
+   * 获取悬停信息。
+   *
+   * 发送 textDocument/hover 请求，返回悬停内容（文档字符串、类型信息等）。
+   *
+   * @param uri 文件 URI
+   * @param position 光标位置（line 和 character，0-based）
+   * @returns Promise<Hover | null> 悬停内容，无悬停信息时返回 null
+   */
+  async getHover(uri: string, position: Position): Promise<Hover | null> {
+    const response = await this.sendRequest(LSP_METHODS.TextDocumentHover, {
+      textDocument: { uri },
+      position,
+    });
+
+    if (response.error) {
+      throw new Error(`Hover failed: ${response.error.message}`);
+    }
+
+    return (response.result as Hover | null) ?? null;
+  }
+
+  /**
+   * 跳转到定义。
+   *
+   * 发送 textDocument/definition 请求，返回定义位置。
+   *
+   * @param uri 文件 URI
+   * @param position 光标位置（line 和 character，0-based）
+   * @returns Promise<Location | Location[] | null> 定义位置，无定义时返回 null
+   */
+  async getDefinition(uri: string, position: Position): Promise<Location | Location[] | null> {
+    const response = await this.sendRequest(LSP_METHODS.TextDocumentDefinition, {
+      textDocument: { uri },
+      position,
+    });
+
+    if (response.error) {
+      throw new Error(`Definition failed: ${response.error.message}`);
+    }
+
+    return (response.result as Location | Location[] | null) ?? null;
   }
 
   /**

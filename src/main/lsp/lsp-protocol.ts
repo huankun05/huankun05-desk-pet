@@ -294,3 +294,95 @@ export interface PublishDiagnosticsParams {
   diagnostics: Diagnostic[];
   version?: number;
 }
+
+// ── 补全类型 ────────────────────────────────────────────────
+
+/** 补全项类型 */
+export enum CompletionItemKind {
+  Text = 1,
+  Method = 2,
+  Function = 3,
+  Constructor = 4,
+  Field = 5,
+  Variable = 6,
+  Class = 7,
+  Interface = 8,
+  Module = 9,
+  Property = 10,
+  Unit = 11,
+  Value = 12,
+  Enum = 13,
+  Keyword = 14,
+  Snippet = 15,
+  Color = 16,
+  File = 17,
+  Reference = 18,
+  Folder = 19,
+  EnumMember = 20,
+  Constant = 21,
+  Struct = 22,
+  Event = 23,
+  Operator = 24,
+  TypeParameter = 25,
+}
+
+/** 补全项 */
+export interface CompletionItem {
+  label: string;
+  kind?: CompletionItemKind;
+  detail?: string;
+  documentation?: string | { kind: string; value: string };
+  sortText?: string;
+  filterText?: string;
+  insertText?: string;
+  insertTextFormat?: number;
+  textEdit?: unknown;
+  additionalTextEdits?: unknown[];
+  commitCharacters?: string[];
+  command?: unknown;
+  data?: unknown;
+}
+
+/** 补全列表 */
+export interface CompletionList {
+  isIncomplete: boolean;
+  items: CompletionItem[];
+}
+
+/** 补全请求参数 */
+export interface CompletionParams {
+  textDocument: { uri: string };
+  position: Position;
+  context?: {
+    triggerKind: number;
+    triggerCharacter?: string;
+  };
+}
+
+// ── 悬停类型 ────────────────────────────────────────────────
+
+/** 悬停内容 */
+export interface Hover {
+  contents: string | { kind: string; value: string } | Array<string | { kind: string; value: string }>;
+  range?: Range;
+}
+
+/** 悬停请求参数 */
+export interface HoverParams {
+  textDocument: { uri: string };
+  position: Position;
+}
+
+// ── 定义类型 ────────────────────────────────────────────────
+
+/** 定义位置 */
+export interface Location {
+  uri: string;
+  range: Range;
+}
+
+/** 定义请求参数 */
+export interface DefinitionParams {
+  textDocument: { uri: string };
+  position: Position;
+}

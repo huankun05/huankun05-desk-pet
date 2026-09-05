@@ -197,6 +197,41 @@ describe("skill-recommender", () => {
       const results = recommendSkills("play 音乐", skills);
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it("matches by synonyms (Chinese to English)", () => {
+      // 用户输入"写代码"，技能描述包含"programming"，应该通过同义词匹配
+      const skills = [
+        makeSkill({ id: "code", name: "Code Executor", description: "Execute programming code" }),
+        makeSkill({ id: "music", name: "Music Player", description: "Play music" }),
+      ];
+
+      const results = recommendSkills("写代码", skills);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].skill.id).toBe("code");
+    });
+
+    it("matches by synonyms (English to Chinese)", () => {
+      // 用户输入"music"，技能描述包含"音乐"，应该通过同义词匹配
+      const skills = [
+        makeSkill({ id: "music", name: "音乐播放器", description: "播放音乐和管理播放列表" }),
+        makeSkill({ id: "code", name: "代码执行", description: "执行代码" }),
+      ];
+
+      const results = recommendSkills("music", skills);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].skill.id).toBe("music");
+    });
+
+    it("matches by synonyms (weather)", () => {
+      const skills = [
+        makeSkill({ id: "weather", name: "Weather", description: "Check weather forecast and temperature" }),
+        makeSkill({ id: "news", name: "News", description: "Read news" }),
+      ];
+
+      const results = recommendSkills("天气", skills);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].skill.id).toBe("weather");
+    });
   });
 
   describe("recommendTopSkill", () => {

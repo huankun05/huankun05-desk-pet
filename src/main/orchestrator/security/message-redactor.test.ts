@@ -139,6 +139,52 @@ describe("JSON 字段脱敏", () => {
   });
 });
 
+// ── YAML 字段脱敏 ───────────────────────────────────────────
+
+describe("YAML 字段脱敏", () => {
+  it("apiKey: value（驼峰命名）", () => {
+    const result = redactSensitiveText("apiKey: abcdefghijklmnop1234567890");
+    expect(result).toContain("apiKey: abcdef...7890");
+  });
+
+  it("api_key: value（下划线命名）", () => {
+    const result = redactSensitiveText("api_key: abcdefghijklmnop1234567890");
+    expect(result).toContain("api_key: abcdef...7890");
+  });
+
+  it("token: value", () => {
+    const result = redactSensitiveText("token: abcdefghijklmnop1234567890");
+    expect(result).toContain("token: abcdef...7890");
+  });
+
+  it("password: value（短于18字符完全脱敏）", () => {
+    const result = redactSensitiveText("password: mysecret123");
+    expect(result).toContain("password: ***");
+  });
+
+  it("secret: value（带引号）", () => {
+    const result = redactSensitiveText('secret: "abcdefghijklmnop1234567890"');
+    expect(result).toContain('secret: "abcdef...7890"');
+  });
+
+  it("不影响普通 YAML 字段", () => {
+    const result = redactSensitiveText("name: John\nage: 30");
+    expect(result).toBe("name: John\nage: 30");
+  });
+
+  it("不对已脱敏的值进行二次脱敏", () => {
+    // 已知前缀先脱敏为 ghp_ab...7890，YAML 字段不应再二次脱敏
+    const result = redactSensitiveText("token: ghp_abcdefghijklmnop1234567890");
+    expect(result).toContain("ghp_ab...7890");
+    expect(result).not.toContain("***");
+  });
+
+  it("不匹配 Authorization header（由 AUTH_HEADER_RE 处理）", () => {
+    const result = redactSensitiveText("Authorization: Bearer abcdefghijklmnop1234567890");
+    expect(result).toContain("Authorization: Bearer abcdef...7890");
+  });
+});
+
 // ── Authorization header 脱敏 ───────────────────────────────
 
 describe("Authorization header 脱敏", () => {

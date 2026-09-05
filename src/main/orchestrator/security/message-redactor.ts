@@ -111,6 +111,17 @@ const JSON_FIELD_RE = new RegExp(
   "gi",
 );
 
+/** YAML 字段模式：apiKey: value（冒号分隔，不带引号）
+ *  注意：只匹配敏感 key 名，避免误匹配正常文本
+ *  key 名支持驼峰（apiKey）和下划线（api_key）命名
+ *  不包含 authorization/auth，因为它们由 AUTH_HEADER_RE 专门处理
+ */
+const YAML_KEY_NAMES = "(?:api[Kk]ey|api_key|token|secret|password|passwd|access_token|refresh_token|auth_token|bearer|credential|private_key)";
+const YAML_FIELD_RE = new RegExp(
+  `(?<![A-Za-z0-9_-])(${YAML_KEY_NAMES})\\s*:\\s+(['"]?)(?!.*\\.\\.\\.)([^\\s'"\r\n]+)\\2`,
+  "gi",
+);
+
 /** Authorization header */
 const AUTH_HEADER_RE = /(Authorization:\s*Bearer\s+)(\S+)/gi;
 
@@ -273,6 +284,13 @@ export function redactSensitiveText(text: string, options: RedactOptions = {}): 
     if (text.includes(":") && text.includes('"')) {
       text = text.replace(JSON_FIELD_RE, (match, key, value) => {
         return `${key}: "${maskToken(value)}"`;
+      });
+    }
+
+    // YAML 字段：apiKey: value（冒号分隔，不带引号）
+    if (text.includes(":")) {
+      text = text.replace(YAML_FIELD_RE, (match, key, quote, value) => {
+        return `${key}: ${quote}${maskToken(value)}${quote}`;
       });
     }
   }

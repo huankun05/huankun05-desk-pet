@@ -29,9 +29,14 @@ setLogLevel(resolveDefaultLevel());
 
 // 注册日志脱敏：自动脱敏所有日志输出中的 API key、token、密码等敏感信息。
 // 安全默认：启用。可通过环境变量 CYRENE_LOG_REDACT=false 关闭（仅用于调试脱敏本身）。
+// 性能优化：debug 级别跳过脱敏（debug 日志量大且通常仅开发时使用），info 及以上级别脱敏。
 const logRedactEnabled = process.env.CYRENE_LOG_REDACT?.toLowerCase() !== "false";
 if (logRedactEnabled) {
-  setLogRedactor(redactSensitiveText);
+  setLogRedactor((text, level) => {
+    // debug 级别跳过脱敏以提升性能
+    if (level === "debug") return text;
+    return redactSensitiveText(text);
+  });
 }
 
 // 打包版 stdout 不可见：把日志同步落盘到 userData/logs/cyrene.log（滚动 3 份×5MB），

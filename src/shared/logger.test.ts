@@ -224,6 +224,20 @@ describe("log redactor", () => {
     expect(stdoutBuf).not.toContain("sk-abc123def456");
   });
 
+  it("redactor receives the log level", () => {
+    setLogLevel("debug");
+    const receivedLevels: string[] = [];
+    setLogRedactor((text: string, level) => {
+      receivedLevels.push(level);
+      return text;
+    });
+    logger.debug(LogTag.Cyrene, "debug message");
+    logger.info(LogTag.Cyrene, "info message");
+    logger.warn(LogTag.Cyrene, "warn message");
+    logger.error(LogTag.Cyrene, "error message");
+    expect(receivedLevels).toEqual(["debug", "info", "warn", "error"]);
+  });
+
   it("redactor is applied to sink entries", () => {
     setLogRedactor((text: string) => text.replace(/secret/g, "***"));
     const unsub = addLogSink(collect);
