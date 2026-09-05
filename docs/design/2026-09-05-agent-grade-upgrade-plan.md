@@ -805,7 +805,70 @@ delta3 = "</think>"
 
 ---
 
-## 5. 执行记录
+## 5. P5 持续优化（2026-09-05）
+
+### 5.1 P5-1 think-filter 增强（多标签变体 + 孤立关闭标签）
+
+#### 5.1.1 背景
+
+P4-2 移植了 Hermes think_scrubber 后，发现 Cyrene 已有 `think-filter` 模块（`src/main/chat/think-filter.ts`），且已集成到 `runtime.ts` 流式管线中（leading-only 模式，把思维链分离为 reasoning_delta）。
+
+对比两者差异：
+- think-filter：只支持 `<think>` 标签，strict 模式不过滤块边界，不处理孤立关闭标签
+- think-scrubber：支持 5 种标签变体（think/thinking/reasoning/thought/REASONING_SCRATCHPAD），块边界规则，孤立关闭标签处理
+
+#### 5.1.2 决策
+
+**增强 think-filter，吸收 think-scrubber 的额外能力**，而非替换。理由：
+- think-filter 已集成到 runtime.ts 流式管线，替换成本高
+- think-filter 有 leading-only 模式（think-scrubber 没有），是很好的设计
+- think-scrubber 作为独立模块保留，用于其他场景（如非流式清理）
+
+#### 5.1.3 增强内容
+
+1. **5 种标签变体支持**：think / thinking / reasoning / thought / REASONING_SCRATCHPAD，不区分大小写
+2. **孤立关闭标签移除**：无匹配开放标签的 `</think>` 等自动移除，连同尾部空白
+3. **精确部分标签暂存**：用 `maxPartialSuffix` 代替固定长度暂存，只暂存真正可能是标签前缀的尾部，避免逐字符 feed 时过度缓冲
+4. **保持接口不变**：`createThinkFilter` / `stripThinkBlocks` / `ThinkStreamFilter` 接口完全兼容
+
+#### 5.1.4 验收标准
+
+- [x] 5 种标签变体全部支持（strict + leading-only 模式）
+- [x] 不区分大小写
+- [x] 孤立关闭标签移除（strict + leading-only passthrough 状态）
+- [x] 跨 chunk 标签分割正确处理
+- [x] 47 个单测全部通过（原有 28 + 新增 19）
+- [x] `tsc --noEmit` 类型检查通过
+- [x] 全量测试 1408/1409 通过（唯一失败为环境缺 Git Bash，历史既有）
+
+### 5.2 P5-2 execute_code 增强（Python fallback 到 py）
+
+#### 5.2.1 背景
+
+P3-2 实现的 execute_code 工具使用 `python` 命令执行 Python 代码。但在 Windows 上，Python 安装时可能只注册了 `py` 命令（Python Launcher），没有 `python` 命令。这会导致 execute_code 在这些系统上失败。
+
+#### 5.2.2 增强内容
+
+1. **LanguageRuntime 新增 fallbackCommand 字段**：Python 配置 `fallbackCommand: "py"`
+2. **自动 fallback 机制**：
+   - 构建要尝试的命令列表（主命令 + fallback）
+   - 依次尝试，直到成功或所有命令都失败
+   - 触发 fallback 的条件：执行异常 或 运行时不存在错误（"不是内部或外部命令" / "not recognized" / "command not found" / "no such file or directory"）
+3. **fallback 成功提示**：使用 fallback 命令成功时，在 stderr 中添加提示
+4. **更新工具描述**：提到 Python 自动 fallback 到 py
+
+#### 5.2.3 验收标准
+
+- [x] Python 主命令失败时自动 fallback 到 py
+- [x] fallback 成功时添加提示
+- [x] 所有命令都失败时返回 RUNTIME_NOT_FOUND 错误
+- [x] 23 个单测全部通过
+- [x] `tsc --noEmit` 类型检查通过
+- [x] 不影响 Node.js 和 Shell 语言（无 fallback）
+
+---
+
+## 6. 执行记录
 
 | 日期 | 事项 | 结果 |
 | --- | --- | --- |
@@ -823,3 +886,5 @@ delta3 = "</think>"
 | 2026-09-05 | P4 深度审查与 Hermes 二次对标 | P3 三项代码自审确认无明显遗漏；通读 Hermes agent/ 150+ 文件二次对标，发现真正有价值且 Cyrene 遗漏的核心能力仅 2 项：文件安全黑名单 + 流式思维链清理；新增 P4 章节 |
 | 2026-09-05 | P4-1 文件安全黑名单实施完成 | 移植 Hermes file_safety.py，新增 file-safety.ts（精确敏感路径+目录前缀+读取拒绝，适配 Windows，纯函数可测试）；fs-tools.ts read_file/write_file 集成安全检查；37 单测 + 全量 1252/1253 通过 |
 | 2026-09-05 | P4-2 流式思维链清理实施完成 | 移植 Hermes think_scrubber.py，新增 think-scrubber.ts（状态机+部分标签暂存+块边界规则+5种标签变体+不区分大小写+便捷函数）；39 单测通过；核心模块完成，集成到流式输出管线留作后续优化；**P0-P4 全部 12 项路线图完成** |
+| 2026-09-05 | P5-1 think-filter 增强实施完成 | 发现 Cyrene 已有 think-filter 且已集成 runtime.ts 流式管线，决定增强而非替换；新增 5 种标签变体支持（think/thinking/reasoning/thought/REASONING_SCRATCHPAD）+ 孤立关闭标签移除 + 精确部分标签暂存（maxPartialSuffix）；保持接口完全兼容；47 单测（原有28+新增19）+ 全量 1408/1409 通过 |
+| 2026-09-05 | P5-2 execute_code 增强实施完成 | LanguageRuntime 新增 fallbackCommand 字段，Python 配置 fallback 到 py（Windows Python Launcher）；自动 fallback 机制（执行异常或运行时不存在错误时自动尝试 fallback）；fallback 成功提示；23 单测通过 + tsc 类型检查通过 |

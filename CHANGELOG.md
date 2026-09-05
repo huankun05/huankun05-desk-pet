@@ -21,6 +21,8 @@ All notable changes to this project will be documented in this file.
 - **后台 LLM 审查**：新增 llm-reviewer 模块（prompt 构建 + 结果解析 + 审查执行 + 持久化，LLM 调用抽象为 LLMCallFn 不依赖具体 model client）；harness-adapter 新增 setLLMReviewCallback 可注入回调，Run 结束后异步触发 LLM 审查（默认不启用，保持可逆性）；审查结果包含质量评分/安全问题/潜在 bug/改进建议，持久化到 llm-review.json
 - **文件安全黑名单**：移植自 Hermes file_safety，新增 file-safety 模块（精确敏感路径+目录前缀+读取拒绝，适配 Windows，纯函数可测试）；fs-tools read_file/write_file 集成安全检查，阻止 Agent 误写/误读 SSH 私钥、.env、凭据文件等敏感文件（防御性深度，非安全边界）
 - **流式思维链清理**：移植自 Hermes think_scrubber，新增 StreamingThinkScrubber 状态机（部分标签跨 delta 暂存+块边界规则+5种标签变体+不区分大小写+孤立标签移除）；支持 feed/flush/reset 流式接口和 scrubThinkBlocks 一次性清理便捷函数；核心模块完成，集成到流式输出管线留作后续优化
+- **think-filter 增强**：增强已有 think-filter 模块（已集成 runtime.ts 流式管线），新增 5 种标签变体支持（think/thinking/reasoning/thought/REASONING_SCRATCHPAD）+ 孤立关闭标签移除 + 精确部分标签暂存（maxPartialSuffix）；保持 createThinkFilter/stripThinkBlocks/ThinkStreamFilter 接口完全兼容
+- **execute_code Python fallback**：execute_code 工具新增 Python 运行时自动 fallback 机制，主命令 python 失败时自动尝试 py（Windows Python Launcher）；LanguageRuntime 新增 fallbackCommand 字段；fallback 成功时添加提示；不影响 Node.js 和 Shell 语言
 - **商汤 SenseAudio TTS 支持**：新增商汤 SenseAudio 语音合成引擎，支持 34 种系统音色，1.5/2.0 模型选择，语速调节
 - **技能管理面板**：新增独立的技能管理设置页面，支持技能列表查看、启用/禁用、按来源筛选、重新扫描技能目录
 - **备份管理系统**：新增独立的备份管理模块，支持手动备份、自动备份（人设/风格修改时）、备份恢复、备份删除、保留数量设置

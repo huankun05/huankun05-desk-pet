@@ -25,6 +25,8 @@ const LOG_PREFIX = "[BuiltinTools]";
 interface LanguageRuntime {
   /** 运行时命令（Windows 上 python/node 都在 PATH 里） */
   command: string;
+  /** 备用命令（主命令失败时尝试，如 Python Launcher 的 py） */
+  fallbackCommand?: string;
   /** 临时文件扩展名 */
   extension: string;
   /** 运行时不存在时的错误提示 */
@@ -34,8 +36,9 @@ interface LanguageRuntime {
 const LANGUAGE_RUNTIMES: Record<string, LanguageRuntime> = {
   python: {
     command: "python",
+    fallbackCommand: "py", // Windows Python Launcher
     extension: ".py",
-    notFoundHint: "未找到 Python。请安装 Python 3.x 并确保 python 在 PATH 中。",
+    notFoundHint: "未找到 Python。请安装 Python 3.x 并确保 python（或 py，Windows Python Launcher）在 PATH 中。",
   },
   node: {
     command: "node",
@@ -162,94 +165,142 @@ async function executeCode(
 
   logger.info(LogTag.BuiltinTools, `[execute_code] entry: language=${language} cwd=${cwd || "(undefined)"} tempFile=${tempFilePath} codeLen=${code.length}`);
 
-  // 2. 构建运行时命令
-  // Windows 路径含空格时需要引号
+  // 2. 构建要尝试的命令列表（主命令 + fallback）
   const quotedPath = `"${tempFilePath}"`;
-  let command: string;
+  const commandsToTry: string[] = [];
   if (language === "shell") {
-    // shell 语言：直接执行 .bat 文件
-    command = `cmd /c ${quotedPath}`;
+    commandsToTry.push(`cmd /c ${quotedPath}`);
   } else {
-    command = `${runtime.command} ${quotedPath}`;
+    commandsToTry.push(`${runtime.command} ${quotedPath}`);
+    if (runtime.fallbackCommand) {
+      commandsToTry.push(`${runtime.fallbackCommand} ${quotedPath}`);
+    }
   }
 
-  // 3. 调用 run_shell 执行（复用沙箱、双计时器、进程树终止、输出解码）
-  let shellResult: string;
-  try {
-    shellResult = await runShellTool.execute(
-      { command, cwd, shell: "cmd" },
-      context,
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    cleanupTempFile(tempFilePath);
-    return JSON.stringify({
-      language,
-      exitCode: -1,
-      stdout: "",
-      stderr: `[执行异常] ${msg}`,
-      timedOut: false,
-      truncated: false,
-      sandboxed: false,
-    });
+  // 3. 依次尝试命令，直到成功或所有命令都失败
+  let finalResult: ExecuteCodeResult | null = null;
+  let lastShellResult = "";
+
+  for (let i = 0; i < commandsToTry.length; i++) {
+    const command = commandsToTry[i];
+    const isFallback = i > 0;
+
+    logger.info(LogTag.BuiltinTools, `[execute_code] try command: ${command}${isFallback ? " (fallback)" : ""}`);
+
+    let shellResult: string;
+    try {
+      shellResult = await runShellTool.execute(
+        { command, cwd, shell: "cmd" },
+        context,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // 执行异常时，如果还有 fallback 命令，继续尝试
+      if (i < commandsToTry.length - 1) {
+        logger.warn(LogTag.BuiltinTools, `[execute_code] command failed, trying fallback: ${msg}`);
+        continue;
+      }
+      // 所有命令都失败了
+      cleanupTempFile(tempFilePath);
+      return JSON.stringify({
+        language,
+        exitCode: -1,
+        stdout: "",
+        stderr: `[执行异常] ${msg}`,
+        timedOut: false,
+        truncated: false,
+        sandboxed: false,
+      });
+    }
+
+    lastShellResult = shellResult;
+
+    // 解析 run_shell 返回的 JSON
+    try {
+      const parsed = JSON.parse(shellResult) as {
+        exitCode: number | null;
+        stdout: string;
+        stderr: string;
+        timedOut: boolean;
+        truncated: boolean;
+        sandboxed: boolean;
+        errorCode?: string;
+      };
+
+      const result: ExecuteCodeResult = {
+        language,
+        exitCode: parsed.exitCode,
+        stdout: parsed.stdout,
+        stderr: parsed.stderr,
+        timedOut: parsed.timedOut,
+        truncated: parsed.truncated,
+        sandboxed: parsed.sandboxed,
+      };
+
+      // 检查是否是运行时不存在的错误
+      const isRuntimeNotFound =
+        parsed.exitCode !== 0 &&
+        parsed.exitCode !== null &&
+        (parsed.stderr || "").toLowerCase().match(/不是内部或外部命令|not recognized|command not found|no such file or directory/) !== null;
+
+      if (isRuntimeNotFound && i < commandsToTry.length - 1) {
+        // 运行时不存在，还有 fallback 命令，继续尝试
+        logger.warn(LogTag.BuiltinTools, `[execute_code] runtime not found, trying fallback`);
+        continue;
+      }
+
+      if (isRuntimeNotFound) {
+        // 所有命令都失败，运行时不存在，添加友好提示
+        result.stderr = `${parsed.stderr}\n\n[提示] ${runtime.notFoundHint}`;
+        result.errorCode = "RUNTIME_NOT_FOUND";
+      }
+
+      if (isFallback && !isRuntimeNotFound && parsed.exitCode === 0) {
+        // fallback 命令成功，添加提示
+        result.stderr = (result.stderr || "") + `\n\n[提示] 已使用 fallback 命令 "${runtime.fallbackCommand}" 执行成功。`;
+      }
+
+      finalResult = result;
+      break;
+    } catch (err) {
+      // 解析失败，如果还有 fallback 命令，继续尝试
+      if (i < commandsToTry.length - 1) {
+        continue;
+      }
+      // 所有命令都失败，解析失败时返回原始输出
+      const msg = err instanceof Error ? err.message : String(err);
+      cleanupTempFile(tempFilePath);
+      return JSON.stringify({
+        language,
+        exitCode: -1,
+        stdout: lastShellResult.slice(0, 4000),
+        stderr: `[结果解析失败] ${msg}`,
+        timedOut: false,
+        truncated: true,
+        sandboxed: false,
+      });
+    }
   }
 
   // 4. 清理临时文件（无论成功失败都清理）
   cleanupTempFile(tempFilePath);
 
-  // 5. 解析 run_shell 返回的 JSON，转换为 execute_code 格式
-  try {
-    const parsed = JSON.parse(shellResult) as {
-      exitCode: number | null;
-      stdout: string;
-      stderr: string;
-      timedOut: boolean;
-      truncated: boolean;
-      sandboxed: boolean;
-      errorCode?: string;
-    };
-
-    const result: ExecuteCodeResult = {
-      language,
-      exitCode: parsed.exitCode,
-      stdout: parsed.stdout,
-      stderr: parsed.stderr,
-      timedOut: parsed.timedOut,
-      truncated: parsed.truncated,
-      sandboxed: parsed.sandboxed,
-    };
-
-    // 运行时不存在时，stderr 通常会包含 "'python' 不是内部或外部命令" 或类似信息
-    // 在这里补充更友好的提示
-    if (parsed.exitCode !== 0 && parsed.exitCode !== null) {
-      const stderrLower = (parsed.stderr || "").toLowerCase();
-      if (
-        stderrLower.includes("不是内部或外部命令") ||
-        stderrLower.includes("not recognized") ||
-        stderrLower.includes("command not found") ||
-        stderrLower.includes("no such file or directory")
-      ) {
-        result.stderr = `${parsed.stderr}\n\n[提示] ${runtime.notFoundHint}`;
-        result.errorCode = "RUNTIME_NOT_FOUND";
-      }
-    }
-
-    logger.info(LogTag.BuiltinTools, `[execute_code] done: language=${language} exitCode=${result.exitCode} timedOut=${result.timedOut} stdoutLen=${result.stdout.length} stderrLen=${result.stderr.length} sandboxed=${result.sandboxed}`);
-
-    return JSON.stringify(result);
-  } catch (err) {
-    // 解析失败时返回原始输出
-    const msg = err instanceof Error ? err.message : String(err);
-    return JSON.stringify({
-      language,
-      exitCode: -1,
-      stdout: shellResult.slice(0, 4000),
-      stderr: `[结果解析失败] ${msg}`,
-      timedOut: false,
-      truncated: true,
-      sandboxed: false,
-    });
+  // 5. 返回结果
+  if (finalResult) {
+    logger.info(LogTag.BuiltinTools, `[execute_code] done: language=${language} exitCode=${finalResult.exitCode} timedOut=${finalResult.timedOut} stdoutLen=${finalResult.stdout.length} stderrLen=${finalResult.stderr.length} sandboxed=${finalResult.sandboxed}`);
+    return JSON.stringify(finalResult);
   }
+
+  // 理论上不会到这里（所有命令都尝试过了）
+  return JSON.stringify({
+    language,
+    exitCode: -1,
+    stdout: "",
+    stderr: "[错误] 所有运行时命令都执行失败",
+    timedOut: false,
+    truncated: false,
+    sandboxed: false,
+  });
 }
 
 // ── 工具定义 ───────────────────────────────────────────────
@@ -260,7 +311,7 @@ export const executeCodeTool: ToolDefinition = {
   description:
     "执行代码片段（Python / Node.js / Shell），写入临时文件后用对应运行时执行。返回 exitCode + stdout + stderr。\n\n" +
     "支持语言：\n" +
-    "- python：Python 3.x，需要系统已安装 Python 且 python 在 PATH 中\n" +
+    "- python：Python 3.x，自动 fallback 到 py（Windows Python Launcher），需要 python 或 py 在 PATH 中\n" +
     "- node：Node.js，需要系统已安装 Node.js 且 node 在 PATH 中\n" +
     "- shell：Windows 批处理（.bat），用 cmd.exe 执行\n\n" +
     "何时用：\n" +

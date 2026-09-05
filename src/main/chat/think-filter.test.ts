@@ -222,3 +222,131 @@ describe("stripThinkBlocks (非流式)", () => {
     expect(stripThinkBlocks("<Think>x</Think>y")).toBe("y");
   });
 });
+
+describe("think-filter - 多标签变体支持", () => {
+  test("strict 模式过滤 <thinking> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<thinking>这是思考</thinking>这是回答");
+    expect(result).toBe("这是回答");
+  });
+
+  test("strict 模式过滤 <reasoning> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<reasoning>这是推理</reasoning>这是回答");
+    expect(result).toBe("这是回答");
+  });
+
+  test("strict 模式过滤 <thought> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<thought>这是想法</thought>这是回答");
+    expect(result).toBe("这是回答");
+  });
+
+  test("strict 模式过滤 <REASONING_SCRATCHPAD> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<REASONING_SCRATCHPAD>这是推理</REASONING_SCRATCHPAD>这是回答");
+    expect(result).toBe("这是回答");
+  });
+
+  test("leading-only 模式识别 <thinking> 开头", () => {
+    const filter = createThinkFilter("leading-only");
+    const result = feedByChar(filter, "<thinking>思考</thinking>回答");
+    expect(result).toBe("回答");
+  });
+
+  test("leading-only 模式识别 <reasoning> 开头", () => {
+    const filter = createThinkFilter("leading-only");
+    const result = feedByChar(filter, "<reasoning>推理</reasoning>回答");
+    expect(result).toBe("回答");
+  });
+
+  test("混合标签变体：<think> 和 <thinking> 都被过滤", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<think>A</think>1<thinking>B</thinking>2");
+    expect(result).toBe("12");
+  });
+
+  test("不区分大小写：<THINK> 和 </ThInK>", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<THINK>思考</ThInK>回答");
+    expect(result).toBe("回答");
+  });
+
+  test("不区分大小写：<REASONING> 和 </Reasoning>", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<REASONING>推理</Reasoning>回答");
+    expect(result).toBe("回答");
+  });
+});
+
+describe("think-filter - 孤立关闭标签处理", () => {
+  test("strict 模式移除孤立的 </think> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "前面</think>后面");
+    expect(result).toBe("前面后面");
+  });
+
+  test("strict 模式移除孤立的 </thinking> 标签", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "前面</thinking>后面");
+    expect(result).toBe("前面后面");
+  });
+
+  test("strict 模式移除孤立关闭标签和尾部空白", () => {
+    const filter = createThinkFilter("strict");
+    // 用完整 chunk feed（孤立关闭标签在同一 chunk 内可被正确移除）
+    let visible = filter.push("前面 </think> 后面");
+    visible += filter.flush();
+    expect(visible).toBe("前面 后面");
+  });
+
+  test("leading-only 模式（非开头）移除孤立关闭标签", () => {
+    const filter = createThinkFilter("leading-only");
+    // 用完整 chunk feed
+    let visible = filter.push("普通文本</think>继续");
+    visible += filter.flush();
+    expect(visible).toBe("普通文本继续");
+  });
+
+  test("多个孤立关闭标签都被移除", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "a</think>b</thinking>c</reasoning>d");
+    expect(result).toBe("abcd");
+  });
+
+  test("stripThinkBlocks 移除孤立关闭标签", () => {
+    expect(stripThinkBlocks("前面</think>后面")).toBe("前面后面");
+  });
+
+  test("闭合对后的孤立关闭标签也被移除", () => {
+    const filter = createThinkFilter("strict");
+    const result = feedByChar(filter, "<think>思考</think>回答</think>更多");
+    expect(result).toBe("回答更多");
+  });
+});
+
+describe("think-filter - 跨 chunk 标签分割（多标签变体）", () => {
+  test("<thinking> 标签跨 chunk 分割", () => {
+    const filter = createThinkFilter("strict");
+    let visible = filter.push("<thin");
+    visible += filter.push("king>思考</thinking>回答");
+    visible += filter.flush();
+    expect(visible).toBe("回答");
+  });
+
+  test("<reasoning> 关闭标签跨 chunk 分割", () => {
+    const filter = createThinkFilter("strict");
+    let visible = filter.push("<reasoning>思考</reaso");
+    visible += filter.push("ning>回答");
+    visible += filter.flush();
+    expect(visible).toBe("回答");
+  });
+
+  test("<REASONING_SCRATCHPAD> 长标签跨 chunk 分割", () => {
+    const filter = createThinkFilter("strict");
+    let visible = filter.push("<REASONING_SCRATCH");
+    visible += filter.push("PAD>思考</REASONING_SCRATCHPAD>回答");
+    visible += filter.flush();
+    expect(visible).toBe("回答");
+  });
+});
