@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen } from "electron";
 import * as path from "path";
 import { isDev } from "../env";
+import { getDevServerBaseUrl } from "../dev-server-url";
 import { getCurrentAppIconPath, setMusicPlayerWindow, musicPlayerWindow } from "./window-state";
 
 /**
@@ -47,7 +48,7 @@ export function createMusicPlayerWindow(): void {
 
   if (isDev) {
     void window
-      .loadURL("http://localhost:5173/music/")
+      .loadURL(`${getDevServerBaseUrl()}/music/`)
       .catch((error) => console.error("[MusicPlayerWindow] loadURL failed:", error));
   } else {
     void window

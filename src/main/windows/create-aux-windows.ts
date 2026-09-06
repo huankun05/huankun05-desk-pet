@@ -1,7 +1,8 @@
-﻿import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import * as path from "path";
 import { IPC } from "../../shared/ipc-channels";
 import { isDev } from "../env";
+import { getDevServerBaseUrl } from "../dev-server-url";
 import { computeLayout } from "../window-layout";
 import { stopCall, setCallWindow } from "../call/call-manager";
 import { attachExternalLinkHandler } from "./external-link";
@@ -95,7 +96,7 @@ export function loadReactChatWindowPage(window: BrowserWindow, sessionId?: strin
   const indexPath = path.join(app.getAppPath(), "dist", "renderer", "react", "index.html");
 
   if (isDev) {
-    return window.loadURL(`http://localhost:5173/react/${search ?? ""}`);
+    return window.loadURL(`${getDevServerBaseUrl()}/react/${search ?? ""}`);
   }
   return window.loadFile(indexPath, search ? { search } : undefined);
 }
@@ -156,7 +157,7 @@ export function createSidebarWindow(): void {
   setSidebarWindow(window);
 
   if (isDev) {
-    window.loadURL("http://localhost:5173/sidebar/");
+    window.loadURL(`${getDevServerBaseUrl()}/sidebar/`);
   } else {
     window.loadFile(
       path.join(app.getAppPath(), "dist", "renderer", "sidebar", "index.html")
@@ -207,7 +208,7 @@ export function createTasksWindow(): void {
   setTasksWindow(window);
 
   if (isDev) {
-    window.loadURL("http://localhost:5173/tasks/");
+    window.loadURL(`${getDevServerBaseUrl()}/tasks/`);
   } else {
     window.loadFile(
       path.join(app.getAppPath(), "dist", "renderer", "tasks", "index.html")
@@ -269,7 +270,7 @@ export function createSettingsWindow(section?: string): void {
 
   const hash = section ? `#${section}` : "";
   if (isDev) {
-    window.loadURL("http://localhost:5173/settings/" + hash);
+    window.loadURL(`${getDevServerBaseUrl()}/settings/` + hash);
   } else {
     window.loadFile(
       path.join(app.getAppPath(), "dist", "renderer", "settings", "index.html"),
@@ -332,7 +333,7 @@ export async function createStickerManagerWindow(): Promise<{ ok: boolean; error
 
   try {
     if (isDev) {
-      await window.loadURL("http://localhost:5173/sticker-manager/");
+      await window.loadURL(`${getDevServerBaseUrl()}/sticker-manager/`);
     } else {
       await window.loadFile(
         path.join(app.getAppPath(), "dist", "renderer", "sticker-manager", "index.html")
@@ -400,7 +401,7 @@ export function createCallWindow(): void {
   setCallWindowLocal(window);
 
   if (isDev) {
-    window.loadURL("http://localhost:5173/call/");
+    window.loadURL(`${getDevServerBaseUrl()}/call/`);
   } else {
     window.loadFile(path.join(app.getAppPath(), "dist", "renderer", "call", "index.html"));
   }

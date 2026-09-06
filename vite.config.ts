@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
-import { readFileSync } from "node:fs";
-import { resolve } from "path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { resolve, join } from "path";
 import react from "@vitejs/plugin-react";
 
 /**
@@ -30,8 +30,32 @@ function appVersionPlugin(): Plugin {
   };
 }
 
+/**
+ * 把实际监听的开发端口写入 dist/main/.vite-dev-url.json，
+ * 供主进程 getDevServerBaseUrl() 读取（5173 被占用顺延端口时避免加载错地址）。
+ */
+function devUrlProbePlugin(): Plugin {
+  return {
+    name: "cyrene-vite-dev-url",
+    apply: "serve",
+    configureServer(server) {
+      server.httpServer?.once("listening", () => {
+        const address = server.httpServer?.address();
+        if (!address || typeof address === "string") return;
+        const file = join(__dirname, "dist", "main", ".vite-dev-url.json");
+        try {
+          mkdirSync(join(__dirname, "dist", "main"), { recursive: true });
+          writeFileSync(file, JSON.stringify({ url: `http://localhost:${address.port}` }));
+        } catch {
+          // 写入失败只影响动态端口回退，非致命
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), appVersionPlugin()],
+  plugins: [react(), appVersionPlugin(), devUrlProbePlugin()],
   root: resolve(__dirname, "src/renderer"),
   base: "./",
   build: {

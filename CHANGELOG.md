@@ -61,6 +61,7 @@ All notable changes to this project will be documented in this file.
 - **LLM 审查卡片增强**：审查结果轮询超时（24s）后提供"重新获取"按钮可手动重试；任一文件发现潜在 bug 时审查卡片头部展示红色"⚠ 潜在 bug"徽标，审查结论一眼可见
 - **settings 页面国际化**：实现 settings 页面导航、面板标题、提示与占位文案的国际化（骨架阶段）：新增轻量级 i18n 模块（t()/tOr() 翻译函数、applySettingsI18n 批量替换 data-i18n 静态文案与 data-i18n-aria 可访问性名称、initSettingsI18n 语言跟随通用设置）；新增中英文词典（zh-CN/en-US，覆盖 nav/hint/panel/placeholder 等 40+ 词条）；动态文案（导航标题栏、占位面板）在 switchSection 时按当前语言即时取值，语言切换后自动跟随
 - **QQ 主动投递**：将非官方 QQ（NapCat/OneBot）渠道接入 proactive-delivery：ProactiveDeliveryTarget 与 normalize 新增 `qq`；ProactiveMobileChannel 与 recipient registry 支持 qq（NapCat 会话后记住最近接收人）；设置面板"主动消息发送到"新增「仅QQ（NapCat）」选项，可用性随渠道运行状态自动启停
+- **dev 端口漂移修复**：Vite 默认 5173 被其他进程占用时会自动顺延端口（strictPort=false），而主进程此前硬编码加载 `localhost:5173`，导致开发窗口加载到错误服务而白屏无响应。现在 vite 启动后把实际监听端口写入 `dist/main/.vite-dev-url.json`，主进程统一经 getDevServerBaseUrl() 解析（缺失时回退 5173）；dev 脚本用 wait-on 保证 vite 就绪后再启动 electron；覆盖桌宠/闪屏/聊天/侧栏/日程/设置/表情包/通话/音乐全部窗口与外部链接白名单
 
 ### Changed
 

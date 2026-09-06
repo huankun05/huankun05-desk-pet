@@ -1,13 +1,14 @@
 import { BrowserWindow, shell } from "electron";
 import { isDev } from "../env";
+import { getDevServerBaseUrl } from "../dev-server-url";
 
 /**
- * 处理外部 URL：非 http(s) 拒绝，开发环境 localhost:5173 也拒绝（避免调试时误开）。
+ * 处理外部 URL：非 http(s) 拒绝，开发环境 dev server 地址也拒绝（避免调试时误开）。
  * 返回 true 表示已拦截并转交给系统浏览器。
  */
 export function openExternalUrl(url: string): boolean {
   if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
-  if (isDev && url.startsWith("http://localhost:5173")) return false;
+  if (isDev && url.startsWith(getDevServerBaseUrl())) return false;
   void shell.openExternal(url);
   return true;
 }

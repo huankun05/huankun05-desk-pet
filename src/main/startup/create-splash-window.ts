@@ -1,5 +1,6 @@
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
+import { getDevServerBaseUrl } from "../dev-server-url";
 
 export interface CreateSplashWindowContext {
   isDev: boolean;
@@ -45,7 +46,7 @@ export function createSplashWindow(ctx: CreateSplashWindowContext): BrowserWindo
 
     if (ctx.isDev) {
       // Vite dev server 会把 public 目录下的文件挂在根路径
-      window.loadURL("http://localhost:5173/splash.html").catch((err) => {
+      window.loadURL(`${getDevServerBaseUrl(ctx.isDev)}/splash.html`).catch((err) => {
         console.error("[Splash] Failed to load dev URL:", err);
       });
     } else {
