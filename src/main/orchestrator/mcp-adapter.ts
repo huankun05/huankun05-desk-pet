@@ -2,22 +2,52 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  CreateMessageRequestSchema,
+  type CreateMessageRequest,
+  type CreateMessageResult,
+  type SamplingMessage,
+} from "@modelcontextprotocol/sdk/types.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ToolDefinition, toolRegistry, type ToolEffectKind } from "./tools/registry/tool-registry";
+import { createLlmClient, type LlmClient } from "../services/llm/llm-client";
+import { loadModelSettings, type ModelSettings } from "../settings/model-settings";
 
 const LOG_PREFIX = "[MCP Adapter]";
+
+/** sampling/createMessage 单次调用的 LLM 超时（毫秒）。 */
+const MCP_SAMPLING_TIMEOUT_MS = 60_000;
+
+/**
+ * MCP sampling 配置（挂在 McpServerConfig.sampling 上）。
+ * MCP 协议允许 server 反向请求 client 用本机 LLM 生成文本（sampling/createMessage），
+ * 常见场景：server 内部做工具结果归纳、记忆压缩、文本润色。
+ */
+export interface McpSamplingConfig {
+  /** 总开关（默认 false：不注册 sampling handler，server 请求会收到错误响应） */
+  enabled?: boolean;
+  /** 覆盖采样使用的模型（默认跟随当前活动模型） */
+  model?: string;
+  /** 覆盖最大输出 token（默认跟随厂商默认） */
+  maxTokens?: number;
+}
 
 export interface McpServerConfig {
   id: string;              // 唯一标识
   name: string;            // 展示名
-  transport: "stdio" | "sse";
-  command?: string;         // stdio 必填,sse 不用
+  transport: "stdio" | "sse" | "http";
+  command?: string;         // stdio 必填，sse/http 不用
   args?: string[];         // 命令行参数
   env?: Record<string, string>;
   cwd?: string;
-  url?: string;            // sse 必填,stdio 不用
+  url?: string;            // sse/http 必填，stdio 不用
+  /** http transport 请求头（如 Authorization: Bearer xxx），直接透传给 Streamable HTTP */
+  headers?: Record<string, string>;
   /** 按 toolName 显式覆盖 effectKind（serverId + toolName 作为 key） */
   effectKindOverrides?: Record<string, ToolEffectKind>;
+  /** 允许该 server 通过 sampling/createMessage 请求本机 LLM（默认关闭） */
+  sampling?: McpSamplingConfig;
 }
 
 /** MCP Tool annotations（MCP 协议 2025-03-26 版） */
@@ -78,6 +108,15 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
       throw new Error("sse transport requires url");
     }
     transport = new SSEClientTransport(new URL(config.url));
+  } else if (config.transport === "http") {
+    if (!config.url) {
+      throw new Error("http transport requires url");
+    }
+    // Streamable HTTP（MCP 规范 2025-06-18）：POST 发消息 + GET SSE 收消息。
+    // headers 直接透传（如 Authorization），供需要鉴权的远端 server 使用。
+    transport = new StreamableHTTPClientTransport(new URL(config.url), {
+      ...(config.headers ? { requestInit: { headers: config.headers } } : {}),
+    });
   } else {
     if (!config.command) {
       throw new Error("stdio transport requires command");
@@ -95,10 +134,19 @@ export async function connectMcpServer(config: McpServerConfig): Promise<string[
     console.error(LOG_PREFIX, "transport 错误 [" + config.name + "]:", err.message);
   };
 
+  const samplingEnabled = config.sampling?.enabled === true;
   const client = new Client(
     { name: "cyrene", version: "0.8.0" },
-    { capabilities: {} },
+    // 仅在注册了 sampling handler 时声明 sampling 能力，避免"声而不实"误导 server
+    { capabilities: samplingEnabled ? { sampling: {} } : {} },
   );
+
+  // MCP sampling：server 可反向请求本机 LLM 生成文本（工具结果归纳、记忆压缩等）。
+  // 用当前活动模型非流式生成，失败时抛错 → SDK 转成 JSON-RPC error 响应给 server。
+  if (samplingEnabled) {
+    client.setRequestHandler(CreateMessageRequestSchema, createMcpSamplingHandler(config));
+    console.log(LOG_PREFIX, "sampling 已启用 [" + config.name + "]");
+  }
 
   try {
     await client.connect(transport);
@@ -274,6 +322,84 @@ export function getMcpServerStates(): Array<{
     toolCount: s.toolIds.length,
     toolIds: [...s.toolIds],
   }));
+}
+
+// ── MCP sampling（server → client 反向 LLM 请求） ────────────────
+// 协议：server 发 sampling/createMessage，client 用本机 LLM 生成文本返回。
+// 复用 llm-client 的非流式调用，避免在 adapter 里重复 HTTP/解析逻辑。
+
+/** sampling 处理器依赖（可注入，便于测试与定制）。 */
+export interface McpSamplingDeps {
+  /** 非流式 LLM 调用（默认 createLlmClient().chatNonStream） */
+  chatNonStream?: LlmClient["chatNonStream"];
+  /** 读取当前活动模型设置（默认 loadModelSettings） */
+  loadSettings?: () => ModelSettings;
+}
+
+/**
+ * 构建 MCP sampling/createMessage 请求处理器。
+ *
+ * 把请求里的 SamplingMessage 映射为厂商对话消息（仅文本块，image/audio 跳过），
+ * systemPrompt 前置为 system 消息，用当前活动模型（或 config.sampling.model 覆盖）
+ * 非流式生成一段文本返回给 server。
+ */
+export function createMcpSamplingHandler(
+  config: McpServerConfig,
+  deps: McpSamplingDeps = {},
+): (request: CreateMessageRequest) => Promise<CreateMessageResult> {
+  const chatNonStream = deps.chatNonStream ?? createLlmClient().chatNonStream;
+  const loadSettings = deps.loadSettings ?? loadModelSettings;
+
+  return async (request): Promise<CreateMessageResult> => {
+    const params = request.params;
+    const messages = toVendorMessages(params.messages);
+    if (params.systemPrompt) {
+      messages.unshift({ role: "system", content: params.systemPrompt });
+    }
+
+    const settings = loadSettings();
+    const effectiveModel = config.sampling?.model ?? settings.model;
+    const result = await chatNonStream(
+      { ...settings, model: effectiveModel },
+      messages,
+      params.temperature,
+      MCP_SAMPLING_TIMEOUT_MS,
+      `MCP sampling [${config.name}]`,
+      undefined,
+      { maxTokens: config.sampling?.maxTokens ?? params.maxTokens },
+    );
+    console.log(LOG_PREFIX, `sampling 完成 [${config.name}] resultLen=${result.text.length}`);
+    return {
+      role: "assistant",
+      content: { type: "text", text: result.text },
+      model: effectiveModel,
+    };
+  };
+}
+
+/**
+ * 把 MCP SamplingMessage 列表映射为厂商 ChatMessage 列表。
+ * 仅取 text 内容块（image/audio 块跳过并记日志——厂商消息体是纯文本）。
+ */
+export function toVendorMessages(
+  samplingMessages: SamplingMessage[],
+): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  return samplingMessages.map((m) => {
+    const blocks = Array.isArray(m.content) ? m.content : [m.content];
+    const texts: string[] = [];
+    let skipped = 0;
+    for (const block of blocks) {
+      if (block && block.type === "text") {
+        texts.push(block.text);
+      } else {
+        skipped++;
+      }
+    }
+    if (skipped > 0) {
+      console.warn(LOG_PREFIX, `sampling 跳过 ${skipped} 个非文本内容块（image/audio 暂不支持）`);
+    }
+    return { role: m.role, content: texts.join("\n") };
+  });
 }
 
 // 内部状态存储

@@ -48,6 +48,8 @@ All notable changes to this project will be documented in this file.
 - **技能自动创建闭环**：移植 Hermes skill creation 设计，新增 skill-creation.ts（Run 结束后异步判定是否沉淀技能：确定性门槛检查 → LLM 生成 SKILL.md → 幂等检查 → 安全扫描 → 写入技能库）与 security-scan.ts（静态正则扫描技能内容，拦截 curl 密钥窃取/rm -rf/降权提权等危险命令）；harness-adapter 新增 setSkillCreationCallback 可注入回调，default-dependencies 组合根注入后台执行（复用主模型配置，默认不注入时不启用）
 - **脚本内 RPC 调用工具**：移植 Hermes code_execution_tool RPC 设计，新增 execute-code-rpc.ts（回环 TCP 服务器：工具白名单 + 单次调用上限 + newline-delimited JSON 协议）；execute_code 工具启动脚本时自动注入 stub（rpc_stubs.py / rpc_stubs.js），脚本内可调用 read_file/run_shell/web_search 等白名单工具；Node stub 响应消费后自动关闭连接，脚本可自然退出；修复 Windows 下子进程退出后服务器侧 socket ECONNRESET 未监听导致的崩溃隐患
 - **Git Worktree 隔离**：移植 Hermes `hermes -w` 工作区隔离设计，新增 worktree.ts（在仓库根下创建 `.worktrees/cyrene-<8hex>` 隔离 worktree + 独立分支 `cyrene/<name>`，自动写入 `.gitignore`）；支持 `.worktreeinclude` 白名单文件复制进 worktree（目录优先 symlink，Windows 无权限回退 copytree，拒绝目录穿越/逃逸）；清理时保留含未推送提交的 worktree（相对 refs/remotes/* 判定，无远端基线视为无未推送）；harness-adapter 接入 setupWorktree/cleanupWorktree，cyrene-agent.ts 新增 `useWorktree` 选项（默认关闭）
+- **文件系统快照与 /rollback 回滚**：移植 Hermes checkpoint 设计，新增 checkpoint-manager.ts（基于 Git 的透明文件系统快照：跨项目共享对象库 + 每轮快照去重 + 快照列表/diff/单文件回滚 + 回滚前自动保留 pre-rollback 快照可撤销 + node_modules 排除/超大文件剔除/数量自动修剪）；harness 每轮 newTurn()，文件修改类工具（risk=fs-write/shell）dispatch 前自动 ensureCheckpoint（LLM 不可见，失败静默降级）；worktree 隔离时快照面向用户主项目根；输入框拦截 `/rollback` 命令（list/diff/`<target> [file]`）直接响应，不进入 Agent
+- **MCP sampling + HTTP 传输**：mcp-adapter 新增 http（Streamable HTTP）transport（`transport: "http"` + `headers` 透传鉴权，POST 发消息 + GET SSE 收消息）；支持 MCP sampling 反向请求：`sampling.enabled` 开启后声明 sampling 能力并注册 createMessage handler（复用 llm-client 非流式调用，SamplingMessage 文本块映射 + 非文本块跳过，systemPrompt 前置，支持模型/maxTokens 覆盖）
 
 ### Changed
 

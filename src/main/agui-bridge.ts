@@ -39,6 +39,11 @@ import { cancelPendingApprovalsForRun } from "./permission";
 import { approvePlan, getPlanPath, moveToReview, supplementPlan } from "./orchestrator/plan-mode";
 import { buildPlanReviewCard, buildPlanSupplementCard } from "./orchestrator/harness/plan-tools";
 import type { AskUserAnswer } from "../shared/ask-clarification";
+import {
+  getCheckpointManager,
+  formatCheckpointList,
+  resolveCheckpointTarget,
+} from "./orchestrator/checkpoint/checkpoint-manager";
 /**
  * 从 RUN_FINISHED 事件中提取规范的终态结果（terminal）。
  *
@@ -153,6 +158,111 @@ const activeRuns = new Map<string, {
  */
 export function __hasActiveRunForTest(runId: string): boolean {
   return activeRuns.has(runId);
+}
+
+// ── /rollback 命令处理（文件系统快照回滚，直接响应不经过 Agent）────
+
+/** 从 AguiRunInput.messages 提取最后一条 user 消息文本。 */
+function extractLastUserText(messages: unknown[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i] as { role?: unknown; content?: unknown } | undefined;
+    if (m?.role !== "user") continue;
+    if (typeof m.content === "string") return m.content;
+  }
+  return "";
+}
+
+/** 发送一条纯文本 assistant 回复（TEXT_MESSAGE_* + RUN_FINISHED），复用渲染端现有事件协议。 */
+function sendCommandReply(
+  send: (event: unknown) => void,
+  text: string,
+  opts: { threadId: string; runId: string },
+): void {
+  const messageId = `${opts.runId}-command-reply`;
+  send({ type: "TEXT_MESSAGE_START", messageId, role: "assistant", threadId: opts.threadId, runId: opts.runId });
+  send({ type: "TEXT_MESSAGE_CONTENT", messageId, delta: text, threadId: opts.threadId, runId: opts.runId });
+  send({ type: "TEXT_MESSAGE_END", messageId, threadId: opts.threadId, runId: opts.runId });
+  send({
+    type: "RUN_FINISHED",
+    threadId: opts.threadId,
+    runId: opts.runId,
+    result: { status: "success", externalEffectsMayContinue: false },
+  });
+}
+
+/**
+ * 拦截 /rollback 斜杠命令。返回 true 表示已消费（不进入 Agent 运行）。
+ * 支持：list / diff <N> / <N> [file]（N 为序号或短 hash）。
+ * 不匹配时返回 false。
+ */
+async function tryHandleRollbackCommand(params: {
+  userText: string;
+  mode: ConversationMode;
+  workspaceRoot?: string;
+  send: (event: unknown) => void;
+  threadId: string;
+  runId: string;
+}): Promise<boolean> {
+  const { userText, mode, workspaceRoot, send, threadId, runId } = params;
+  if (!userText.startsWith("/rollback")) return false;
+
+  const manager = getCheckpointManager(app.getPath("userData"));
+  const reply = (text: string) => sendCommandReply(send, text, { threadId, runId });
+
+  // 纯聊天模式没有工作区，快照无意义
+  if (mode === "chat" || !workspaceRoot) {
+    reply("当前会话没有绑定项目工作区，无法使用 /rollback。\n提示：在 Work / Code 模式并绑定项目后，Agent 每次修改文件前会自动打快照。");
+    return true;
+  }
+
+  const rest = userText.replace(/^\/rollback/, "").trim();
+  const checkpoints = await manager.listCheckpoints(workspaceRoot);
+
+  // 列出可用快照：/rollback 或 /rollback list
+  if (!rest || rest === "list" || rest === "ls") {
+    reply(formatCheckpointList(checkpoints, workspaceRoot));
+    return true;
+  }
+
+  // diff 预览：/rollback diff <target>
+  const diffMatch = rest.match(/^diff\s+(\S+)/);
+  if (diffMatch) {
+    const hash = resolveCheckpointTarget(checkpoints, diffMatch[1]);
+    if (!hash) {
+      reply(`找不到快照 "${diffMatch[1]}"。\n${formatCheckpointList(checkpoints, workspaceRoot)}`);
+      return true;
+    }
+    const result = await manager.diff(workspaceRoot, hash);
+    if (!result.success) {
+      reply(`无法生成差异：${result.error ?? "未知错误"}`);
+      return true;
+    }
+    const stat = result.stat ? `变更统计：\n${result.stat}\n\n` : "";
+    reply(`${stat}${result.diff?.trim() ? result.diff : "（无差异）"}`);
+    return true;
+  }
+
+  // 恢复：/rollback <target> [file]
+  const targetMatch = rest.match(/^(\S+)(?:\s+(.+))?$/);
+  if (!targetMatch) {
+    reply(formatCheckpointList(checkpoints, workspaceRoot));
+    return true;
+  }
+  const hash = resolveCheckpointTarget(checkpoints, targetMatch[1]);
+  if (!hash) {
+    reply(`找不到快照 "${targetMatch[1]}"。\n${formatCheckpointList(checkpoints, workspaceRoot)}`);
+    return true;
+  }
+  const file = targetMatch[2]?.trim();
+  const result = await manager.restore(workspaceRoot, hash, file);
+  if (!result.success) {
+    reply(`回滚失败：${result.error ?? "未知错误"}`);
+    return true;
+  }
+  reply(
+    `已回滚到快照 ${result.restoredTo}（${result.reason}）\n目录：${result.directory}${result.file ? `\n文件：${result.file}` : ""}\n\n提示：回滚前已自动保留一张 pre-rollback 快照，可用 /rollback 再撤销这次回滚。`,
+  );
+  return true;
 }
 
 // ── 会话级运行守卫 ────────────────────────────────────────
@@ -372,6 +482,21 @@ export function registerAgUiIpc(
       throw new Error(`${mode} 模式需要先绑定项目工作区`);
     }
 
+    // ── /rollback 命令拦截：直接操作文件系统快照，不进入 Agent 运行 ──
+    const rollbackConsumed = await tryHandleRollbackCommand({
+      userText: extractLastUserText(input.messages),
+      mode,
+      workspaceRoot: session.workspaceBinding?.workspaceRoot,
+      send,
+      threadId: `thread-${Date.now()}`,
+      runId,
+    });
+    if (rollbackConsumed) {
+      lifecycle?.onUserMessage();
+      lifecycle?.onConversationEnded();
+      return { success: true, runId };
+    }
+
     // ── 会话级运行守卫：同一会话同一时刻最多一个 active run ──
     // 检查 + 注册在同一同步代码块内完成（JS 单线程，get 与 set 之间无 await = 原子），
     // 早于下方 buildOptions（async，存在竞态窗口，F5 后立即发消息即命中）。
@@ -444,6 +569,9 @@ export function registerAgUiIpc(
     // 触发 harness 返回 cancelled，CyreneAgent 发出 RUN_FINISHED(result.status="cancelled")，
     // complete 回调自然清理。
     options.signal = runAbortController.signal;
+    // 透明文件系统快照（/rollback 基础设施）：harness 每轮 newTurn()，
+    // 文件修改类工具 dispatch 前自动打快照。LLM 不可见。
+    options.checkpointManager = getCheckpointManager(app.getPath("userData"));
     options.requestUserClarification = (card) => requestUserClarification(card, (cardData) => {
       send({ type: "CUSTOM", name: "cyrene.choice", value: cardData, threadId, runId });
     }, (settlement) => {

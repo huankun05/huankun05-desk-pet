@@ -115,6 +115,8 @@ export async function runCyreneHarness(input: HarnessInput): Promise<HarnessResu
 
     const promptLayers = buildRoundPromptLayers(input);
     const roundId = `round-${run.rounds}`;
+    // 每轮开始重置快照去重（同一 turn 内同一目录最多一张快照）
+    input.checkpointManager?.newTurn();
     input.onEvent?.({ type: "round_start", roundId });
 
     // ── 工具护栏每轮重置（移植自 Hermes ToolCallGuardrailController.reset_for_turn）──
@@ -252,6 +254,8 @@ function createRun(input: HarnessInput): HarnessRun {
     requestUserClarification: input.requestUserClarification,
     includeInteractiveTools: input.includeInteractiveTools,
     toolOutputStore: input.toolOutputStore,
+    checkpointManager: input.checkpointManager,
+    checkpointWorkspaceRoot: input.checkpointWorkspaceRoot,
   };
 
   return {

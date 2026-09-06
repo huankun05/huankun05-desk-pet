@@ -29,6 +29,10 @@ vi.mock("electron", () => ({
       mocks.handlers.set(channel, handler);
     }),
   },
+  app: {
+    // buildOptions 注入 checkpointManager 需要 userData 路径（getCheckpointManager 惰性构造，无副作用）
+    getPath: vi.fn(() => path.join(os.tmpdir(), "cyrene-agui-bridge-test")),
+  },
 }));
 
 vi.mock("./orchestrator/cyrene-agent", () => ({

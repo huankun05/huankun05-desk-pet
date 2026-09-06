@@ -18,6 +18,7 @@ import { executeUpdateTodo, executeAskUser, executeTask, executeTaskGroup } from
 import { ENTER_PLAN_MODE_TOOL_ID, WRITE_PLAN_TOOL_ID, executeEnterPlanMode, executeWritePlan } from "./plan-tools";
 import { executeReadToolResult, READ_TOOL_RESULT_TOOL_ID } from "./tool-output/read-tool-result";
 import { resolveSideEffect } from "./side-effect-resolver";
+import { isFileMutatingTool } from "../checkpoint/checkpoint-manager";
 import { extractFileChangesFromOutput } from "../tools/registry/tool-evidence";
 import { isBlockedByUncertainEffect } from "./uncertain-effect-guard";
 import { ExecutionLedger } from "../execution-ledger";
@@ -75,6 +76,10 @@ export interface ToolDispatchContext {
   includeInteractiveTools?: boolean;
   checkPermission?: (toolId: string, args: Record<string, unknown>) => Promise<boolean>;
   toolContext?: import("../tools/registry/tool-context").ToolContext;
+  /** 透明文件系统快照：文件修改类工具执行前自动打快照（LLM 不可见）。 */
+  checkpointManager?: import("../checkpoint/checkpoint-manager").CheckpointManager;
+  /** 快照目标目录；缺省回退 toolContext.resolvedWorkspaceRoot。 */
+  checkpointWorkspaceRoot?: string;
   truncation?: TruncationConfig;
   /** 完整工具输出持久化；生产 Harness 必须注入。 */
   toolOutputStore?: ToolOutputStore;
@@ -154,6 +159,19 @@ export async function dispatchToolCall(
         tool: call.name,
         message: `工具 "${tool.id}" 被权限系统拒绝`,
       };
+    }
+  }
+
+  // ── 文件修改类工具执行前自动打快照（透明基础设施，LLM 不可见）──
+  // 必须完成于工具执行之前：快照记录的是"改动前"状态，供 /rollback 回滚。
+  // 失败静默降级（ensureCheckpoint 内部不抛异常），不影响 Agent 主链路。
+  if (
+    ctx.checkpointManager
+    && isFileMutatingTool(tool.risk)
+  ) {
+    const checkpointDir = ctx.checkpointWorkspaceRoot ?? ctx.toolContext?.resolvedWorkspaceRoot;
+    if (checkpointDir) {
+      await ctx.checkpointManager.ensureCheckpoint(checkpointDir, `before ${call.name}`);
     }
   }
 

@@ -263,6 +263,17 @@ export interface HarnessInput {
   planState?: import("../plan-mode").PlanStateName;
   /** 工具上下文（权限检查等） */
   toolContext?: import("../tools/registry/tool-context").ToolContext;
+  /**
+   * 透明文件系统快照管理器（/rollback 基础设施，LLM 不可见）。
+   * 每轮调用 newTurn()，文件修改类工具 dispatch 前调用 ensureCheckpoint()。
+   */
+  checkpointManager?: import("../checkpoint/checkpoint-manager").CheckpointManager;
+  /**
+   * 快照目标目录（默认回退 toolContext.resolvedWorkspaceRoot）。
+   * Worktree 隔离时由 adapter 传入原始工作区根，保证快照/回滚面向用户主项目，
+   * 而不是被丢弃的隔离 worktree 副本。
+   */
+  checkpointWorkspaceRoot?: string;
   /** 权限检查函数 */
   checkPermission?: (toolId: string, args: Record<string, unknown>) => Promise<boolean>;
   /** ExecutionLedger：可选的同进程工具去重缓存（用于副作用重复执行防护） */

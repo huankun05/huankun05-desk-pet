@@ -127,6 +127,9 @@ export async function runHarnessWithAdapter(
   signal: AbortSignal,
   sendBaseEvent: (event: BaseEvent) => void,
 ): Promise<AgentLoopResult> {
+  // 快照面向用户主项目根：必须在 worktree 重定向前捕获原始工作区。
+  // 隔离 worktree 是会被清理的临时副本，对它打快照/回滚没有意义。
+  const checkpointWorkspaceRoot = options.resolvedWorkspaceRoot;
   let worktreeInfo: import("./worktree").WorktreeInfo | null = null;
   if (options.useWorktree && options.resolvedWorkspaceRoot) {
     const { setupWorktree, cleanupWorktree } = await import("./worktree");
@@ -138,7 +141,7 @@ export async function runHarnessWithAdapter(
     }
   }
   try {
-    return await runHarnessCore(options, signal, sendBaseEvent);
+    return await runHarnessCore(options, signal, sendBaseEvent, checkpointWorkspaceRoot);
   } finally {
     if (worktreeInfo) {
       const { cleanupWorktree } = await import("./worktree");
@@ -156,6 +159,7 @@ async function runHarnessCore(
   options: CyreneRunOptions,
   signal: AbortSignal,
   sendBaseEvent: (event: BaseEvent) => void,
+  checkpointWorkspaceRoot?: string,
 ): Promise<AgentLoopResult> {
   // 准备阶段创建唯一的 runStore 实例；checkpoint、工具生命周期和终态都写入它。
   const prepared = await prepareHarnessRun(options, signal);
@@ -223,6 +227,8 @@ async function runHarnessCore(
     includeInteractiveTools: options.harnessInteractiveTools,
     planState,
     toolContext,
+    checkpointManager: options.checkpointManager,
+    checkpointWorkspaceRoot,
     toolOutputStore,
     executionLedger: options.executionLedger,
     checkPermission,

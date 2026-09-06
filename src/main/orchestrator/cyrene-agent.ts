@@ -23,6 +23,7 @@ import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "./to
 import { runChatLoop } from "./chat-loop";
 import type { RunCapabilities } from "./run-capabilities";
 import { runHarnessWithAdapter } from "./harness-adapter";
+import type { CheckpointManager } from "./checkpoint/checkpoint-manager";
 
 /** Skill 路由条目（类型本地定义，不再依赖 task-router 模块） */
 export interface SkillRouteInfo {
@@ -184,6 +185,12 @@ export interface CyreneRunOptions {
    * run 结束后自动清理（无未推送提交时删除，有则保留）。默认 false。
    */
   useWorktree?: boolean;
+  /**
+   * 透明文件系统快照管理器（/rollback 基础设施）。由 AG-UI bridge 注入
+   * （getCheckpointManager(app.getPath("userData"))）。LLM 不可见：
+   * harness 每轮 newTurn()，文件修改类工具 dispatch 前 ensureCheckpoint()。
+   */
+  checkpointManager?: CheckpointManager;
   /**
    * 外部取消信号。
    * - 由 AG-UI bridge 创建的 AbortController 注入，AGUI_CANCEL 调用 abort()。
