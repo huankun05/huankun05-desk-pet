@@ -36,9 +36,10 @@ describe("advanced settings markup", () => {
     }
   });
 
-  it("does not expose the Skill manager after chat takes ownership", () => {
-    expect(html).not.toContain('data-section="skills"');
-    expect(html).not.toContain('data-panel="skills"');
-    expect(html).not.toContain('id="skills-panel"');
+  it("exposes the Skill manager as a standalone settings navigation item", () => {
+    // 技能管理从通用设置中移出，作为设置页独立导航项（见 CHANGELOG 导航栏结构优化）
+    expect(html).toContain('data-section="skills"');
+    expect(html).toContain('data-panel="skills"');
+    expect(html).toContain('id="skills-panel"');
   });
 });

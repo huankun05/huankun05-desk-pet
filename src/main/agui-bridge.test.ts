@@ -286,13 +286,19 @@ describe("agui-bridge sticker event ordering", () => {
       "RUN_STARTED",
       "REASONING_MESSAGE_START",
       "REASONING_MESSAGE_CONTENT",
+      "REASONING_MESSAGE_CONTENT",
       "REASONING_MESSAGE_END",
       "TEXT_MESSAGE_START",
       "TEXT_MESSAGE_CONTENT",
       "TEXT_MESSAGE_END",
       "RUN_FINISHED",
     ]);
-    expect(sent.find((event) => event.type === "REASONING_MESSAGE_CONTENT")?.delta).toBe("先分析问题");
+    // think 内容按流式片段逐个 REASONING_MESSAGE_CONTENT 转发（前端按序追加渲染），拼接后完整
+    const reasoningDelta = sent
+      .filter((event) => event.type === "REASONING_MESSAGE_CONTENT")
+      .map((event) => event.delta)
+      .join("");
+    expect(reasoningDelta).toBe("先分析问题");
     expect(sent.find((event) => event.type === "TEXT_MESSAGE_CONTENT")?.delta).toBe("正式回答");
     const runId = sent.find((event) => event.type === "RUN_STARTED")?.runId;
     expect(runId).toEqual(expect.any(String));

@@ -47,6 +47,7 @@ All notable changes to this project will be documented in this file.
 - **LSP 设置面板接线**：lsp-config-ipc（配置存储/连接测试/状态）在主进程组合根注册，LSP 设置面板的保存/测试/状态查询链路打通；设置面板中启用的自定义服务器（lsp-config.json）优先于内置语言服务候选（支持按 workspaceRoot 限定生效范围）
 - **技能自动创建闭环**：移植 Hermes skill creation 设计，新增 skill-creation.ts（Run 结束后异步判定是否沉淀技能：确定性门槛检查 → LLM 生成 SKILL.md → 幂等检查 → 安全扫描 → 写入技能库）与 security-scan.ts（静态正则扫描技能内容，拦截 curl 密钥窃取/rm -rf/降权提权等危险命令）；harness-adapter 新增 setSkillCreationCallback 可注入回调，default-dependencies 组合根注入后台执行（复用主模型配置，默认不注入时不启用）
 - **脚本内 RPC 调用工具**：移植 Hermes code_execution_tool RPC 设计，新增 execute-code-rpc.ts（回环 TCP 服务器：工具白名单 + 单次调用上限 + newline-delimited JSON 协议）；execute_code 工具启动脚本时自动注入 stub（rpc_stubs.py / rpc_stubs.js），脚本内可调用 read_file/run_shell/web_search 等白名单工具；Node stub 响应消费后自动关闭连接，脚本可自然退出；修复 Windows 下子进程退出后服务器侧 socket ECONNRESET 未监听导致的崩溃隐患
+- **Git Worktree 隔离**：移植 Hermes `hermes -w` 工作区隔离设计，新增 worktree.ts（在仓库根下创建 `.worktrees/cyrene-<8hex>` 隔离 worktree + 独立分支 `cyrene/<name>`，自动写入 `.gitignore`）；支持 `.worktreeinclude` 白名单文件复制进 worktree（目录优先 symlink，Windows 无权限回退 copytree，拒绝目录穿越/逃逸）；清理时保留含未推送提交的 worktree（相对 refs/remotes/* 判定，无远端基线视为无未推送）；harness-adapter 接入 setupWorktree/cleanupWorktree，cyrene-agent.ts 新增 `useWorktree` 选项（默认关闭）
 
 ### Changed
 
@@ -62,6 +63,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **导航栏选中样式**：修复技能管理和备份管理页面导航栏选中样式不更新的问题，将激活状态更新移到 switchSection 函数开头
+- **LSP 进程 shell 解析错乱**：修复 createLSPProcess 在 Windows 无条件启用 shell 导致 cmd.exe 把含括号等特殊字符的参数（如 `node -e` 内联脚本）拆解成多条命令并生成垃圾文件的问题（同时消除 Node DEP0190 注入风险）；shell 仅对 `.cmd/.bat` 命令启用，普通可执行文件直接 spawn 原样传参
 - **CustomSelect 重复方法**：删除 getElement() 方法的重复定义
 - **商汤 TTS 音频解码**：修复商汤 TTS 返回的十六进制编码音频解码错误的问题，使用 Buffer.from(audio, "hex") 解码
 - **TTS 缓存 key 校验**：修复 tts-cache-key.ts 中 CACHE_KEY_PREFIX 正则不包含 senseaudio 导致校验失败的问题

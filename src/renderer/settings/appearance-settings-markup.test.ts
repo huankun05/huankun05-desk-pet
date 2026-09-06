@@ -37,8 +37,9 @@ describe("appearance settings markup", () => {
 
   it("does not expose unavailable theme choices", () => {
     const panel = form("appearance-form");
+    // pearl-white 为当前默认浅色主题（用户偏好浅色页面），其余仅保留实际提供的主题
+    expect(panel).toContain('data-theme="pearl-white"');
     expect(panel).not.toContain('data-theme="classic"');
-    expect(panel).not.toContain('data-theme="pearl-white"');
     expect(panel).not.toContain('data-theme="polished-pink"');
   });
 

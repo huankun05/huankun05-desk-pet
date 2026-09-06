@@ -195,3 +195,7 @@ sticker-descriptions/
 
 # OCR 语言包
 *.traineddata
+
+# 测试运行时生成的临时工作区目录
+.cyrene-temp/
+

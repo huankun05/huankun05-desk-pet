@@ -112,11 +112,47 @@ export function buildDefaultSkillCreationCallback(llmCall: SkillLLMCallFn): Skil
 /**
  * 运行 CyreneHarness 并返回统一的 AgentLoopResult。
  *
+ * Worktree 隔离（可选）：当 options.useWorktree 且绑定了工作目录时，
+ * 先在工作区仓库里创建隔离 git worktree，把本轮 run 的 resolvedWorkspaceRoot
+ * 重定向到 worktree（文件工具/run_shell 只在该目录内操作），run 结束后清理：
+ * 无未推送提交 → 删除 worktree 与分支；有未推送提交 → 保留并提示。
+ * 创建失败时静默降级为直接在主工作区运行（不阻断）。
+ *
  * @param options CyreneRunOptions（与旧循环相同的输入）
  * @param signal 取消信号
  * @param sendBaseEvent 直接发送 AG-UI BaseEvent 的回调
  */
 export async function runHarnessWithAdapter(
+  options: CyreneRunOptions,
+  signal: AbortSignal,
+  sendBaseEvent: (event: BaseEvent) => void,
+): Promise<AgentLoopResult> {
+  let worktreeInfo: import("./worktree").WorktreeInfo | null = null;
+  if (options.useWorktree && options.resolvedWorkspaceRoot) {
+    const { setupWorktree, cleanupWorktree } = await import("./worktree");
+    const info = await setupWorktree(options.resolvedWorkspaceRoot);
+    if (info) {
+      worktreeInfo = info;
+      console.log(`${LOG_PREFIX} worktree isolation active: ${info.path} (branch ${info.branch})`);
+      options = { ...options, resolvedWorkspaceRoot: info.path };
+    }
+  }
+  try {
+    return await runHarnessCore(options, signal, sendBaseEvent);
+  } finally {
+    if (worktreeInfo) {
+      const { cleanupWorktree } = await import("./worktree");
+      const outcome = await cleanupWorktree(worktreeInfo);
+      if (outcome.kind === "kept") {
+        console.log(`${LOG_PREFIX} worktree kept (unpushed commits): ${outcome.path}`);
+      } else if (outcome.kind === "removed") {
+        console.log(`${LOG_PREFIX} worktree cleaned up: ${outcome.path}`);
+      }
+    }
+  }
+}
+
+async function runHarnessCore(
   options: CyreneRunOptions,
   signal: AbortSignal,
   sendBaseEvent: (event: BaseEvent) => void,

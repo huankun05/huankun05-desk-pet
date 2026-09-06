@@ -65,13 +65,16 @@ export function createLSPProcess(config: LSPClientConfig): LSPProcess {
 
   // 启动语言服务器进程
   // stdio: ['pipe', 'pipe', 'pipe'] —— stdin/stdout/stderr 都通过管道通信
+  // shell 仅对 .cmd/.bat 启用：cmd.exe 会把含括号等特殊字符的参数（如 node -e 脚本）
+  // 拆解成多条命令并产生副作用（生成垃圾文件、注入风险，见 Node DEP0190）。
+  // 普通可执行文件直接 spawn，参数原样传递，无 cmd 解析问题。
+  const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
   const child: ChildProcess = spawn(command, args, {
     cwd: workspaceRoot,
     stdio: ["pipe", "pipe", "pipe"],
     // 让子进程在父进程退出时也退出
     detached: false,
-    // Windows 下需要设置 shell 来处理 .cmd 文件
-    ...(process.platform === "win32" ? { shell: true } : {}),
+    ...(needsShell ? { shell: true } : {}),
   });
 
   let exited = false;

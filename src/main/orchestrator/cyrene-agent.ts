@@ -179,6 +179,12 @@ export interface CyreneRunOptions {
    */
   resolvedWorkspaceRoot?: string;
   /**
+   * Git Worktree 隔离（可选）：为 true 且绑定工作目录是 git 仓库时，
+   * 本轮 run 的 resolvedWorkspaceRoot 被重定向到新建的隔离 worktree，
+   * run 结束后自动清理（无未推送提交时删除，有则保留）。默认 false。
+   */
+  useWorktree?: boolean;
+  /**
    * 外部取消信号。
    * - 由 AG-UI bridge 创建的 AbortController 注入，AGUI_CANCEL 调用 abort()。
    * - CyreneAgent.runWithEvents 把它连接到内部 abortController（first-source-wins）。
