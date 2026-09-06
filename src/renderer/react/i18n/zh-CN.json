@@ -356,7 +356,9 @@
     "llmModel": "审查模型：{{model}}",
     "llmToggleFiles": "展开文件级审查",
     "llmExpand": "展开",
-    "llmCollapse": "收起"
+    "llmCollapse": "收起",
+    "llmRefresh": "重新获取",
+    "llmBugBadge": "⚠ 潜在 bug"
   },
   "planReview": {
     "noteReview": "请审阅计划内容后在对话中的卡片里决定",

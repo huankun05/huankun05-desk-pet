@@ -219,6 +219,39 @@
   margin-bottom: 6px;
 }
 
+.cy-llm-review__header-titles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cy-llm-review__badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font: 700 11px/1.6 var(--rb-font-sans, sans-serif);
+  background: #ffebe9;
+  color: #82071e;
+}
+
+.cy-llm-review__refresh {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--cy-border, #e7e2e5);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 70%);
+  color: var(--cy-text-muted, #8b858c);
+  font: 12px/1.6 var(--rb-font-sans, sans-serif);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.cy-llm-review__refresh:hover {
+  color: var(--cy-text, #2f2d31);
+  border-color: #d9cfd6;
+}
+
 .cy-llm-review__score {
   flex-shrink: 0;
   padding: 1px 8px;

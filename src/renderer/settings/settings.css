@@ -3193,6 +3193,10 @@ body {
   transition: width 0.3s ease;
 }
 
+.token-cost__meter-fill.is-exceeded {
+  background: linear-gradient(90deg, #fbbf24, #f87171);
+}
+
 .token-cost__alert {
   margin-top: 10px;
   padding: 8px 10px;
@@ -3202,6 +3206,12 @@ body {
   color: #fca5a5;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.token-cost__alert--warn {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
 }
 
 .token-models {

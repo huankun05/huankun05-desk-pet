@@ -27,43 +27,62 @@ function scoreClass(score: number): string {
   return "is-poor";
 }
 
-/** 后台 LLM 审查结果卡片（无结果时展示"审查中…"）。 */
+/** 后台 LLM 审查结果卡片（无结果时展示"审查中…"，轮询超时后提供手动刷新）。 */
 function LLMReviewCard({ runId }: { runId: string }) {
   const { t } = useTranslation();
   const [review, setReview] = useState<LLMReviewResult | null>(null);
   const [filesExpanded, setFilesExpanded] = useState(false);
+  /** 轮询是否已超时（仍无结果 → 显示刷新按钮）。 */
+  const [exhausted, setExhausted] = useState(false);
+  /** 手动刷新计数：变化时重启轮询。 */
+  const [attempt, setAttempt] = useState(0);
+
+  const fetchData = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await window.review?.getLLM(runId);
+      if (result) {
+        setReview(result);
+        return true;
+      }
+    } catch {
+      // 忽略，进入重试
+    }
+    return false;
+  }, [runId]);
 
   useEffect(() => {
     let cancelled = false;
     let retryCount = 0;
+    setExhausted(false);
 
-    const fetchData = async () => {
+    const tick = async () => {
       if (cancelled) return;
-      try {
-        const result = await window.review?.getLLM(runId);
-        if (cancelled) return;
-        if (result) {
-          setReview(result);
-          return;
-        }
-      } catch {
-        // 忽略，进入重试
-      }
+      const ok = await fetchData();
+      if (cancelled || ok) return;
       retryCount++;
-      if (retryCount < LLM_REVIEW_MAX_RETRIES && !cancelled) {
-        setTimeout(() => void fetchData(), LLM_REVIEW_RETRY_DELAY);
+      if (retryCount < LLM_REVIEW_MAX_RETRIES) {
+        setTimeout(() => void tick(), LLM_REVIEW_RETRY_DELAY);
+      } else {
+        setExhausted(true);
       }
     };
 
-    void fetchData();
+    void tick();
     return () => { cancelled = true; };
-  }, [runId]);
+  }, [runId, attempt, fetchData]);
+
+  const handleRefresh = () => setAttempt((a) => a + 1);
 
   if (!review) {
     return (
       <section className="cy-llm-review is-pending" aria-label={t("review.llmAria")}>
         <span className="cy-llm-review__title">{t("review.llmTitle")}</span>
         <span className="cy-llm-review__pending">{t("review.llmPending")}</span>
+        {exhausted && (
+          <button type="button" className="cy-llm-review__refresh" onClick={handleRefresh}>
+            {t("review.llmRefresh")}
+          </button>
+        )}
       </section>
     );
   }
@@ -89,11 +108,17 @@ function LLMReviewCard({ runId }: { runId: string }) {
   const score = review.overallQualityScore;
   const securityConcerns = review.securityConcerns ?? [];
   const improvements = review.improvementSuggestions ?? [];
+  const hasBugs = review.fileReviews.some((f) => f.hasPotentialBug);
 
   return (
     <section className="cy-llm-review" aria-label={t("review.llmAria")}>
       <header className="cy-llm-review__header">
-        <span className="cy-llm-review__title">{t("review.llmTitle")}</span>
+        <span className="cy-llm-review__header-titles">
+          <span className="cy-llm-review__title">{t("review.llmTitle")}</span>
+          {hasBugs && (
+            <span className="cy-llm-review__badge" role="status">{t("review.llmBugBadge")}</span>
+          )}
+        </span>
         <span className={`cy-llm-review__score ${scoreClass(score)}`}>
           {score > 0 ? `${score}/5` : "—"}
         </span>

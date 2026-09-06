@@ -450,6 +450,7 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
       monthCostUsd: state.monthCostUsd,
       budgetEnabled: state.enabled,
       budgetExceeded: state.exceeded,
+      budgetWarning: state.warning,
       budgetRatio: state.ratio,
     };
   });

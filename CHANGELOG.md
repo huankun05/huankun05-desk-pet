@@ -57,6 +57,8 @@ All notable changes to this project will be documented in this file.
 - **技能安装确认链路**：技能推荐发现未安装技能后通过 IPC 发送安装确认（sendSkillInstallPrompt），用户确认后调用 installSkill 安装；新增 SkillInstallPromptData 类型
 - **凭据增强**：MCP 服务器敏感环境变量（API_KEY/TOKEN 等）落盘时经 CredentialVault 加密；新增凭据导出/导入（scrypt 密钥派生 + AES-256-GCM 加密凭据包，口令保护，换机迁移）；新增凭据变更审计日志（JSONL 格式，记录模型 API Key 与 MCP 环境变量变更历史，支持裁剪与查询）
 - **成本增强**：新增 cost-config 模块（月度预算 + 汇率配置），月度成本超预算时桌面通知告警（每月仅提醒一次）；成本展示支持人民币结算（usdToCny 汇率换算 + formatCost CNY 格式化）
+- **预算告警分级**：新增接近预算预警（月度成本达预算 80% 阈值 WARN_RATIO 时提前提醒），与超限告警各自每月最多提醒一次；告警通知附本月花费最多模型 Top 3 明细，便于定位超支来源；Token 面板区分预警（黄色）/超限（红色）提示与进度条状态
+- **LLM 审查卡片增强**：审查结果轮询超时（24s）后提供"重新获取"按钮可手动重试；任一文件发现潜在 bug 时审查卡片头部展示红色"⚠ 潜在 bug"徽标，审查结论一眼可见
 
 ### Changed
 

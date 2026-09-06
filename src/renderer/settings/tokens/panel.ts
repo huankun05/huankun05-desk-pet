@@ -368,6 +368,7 @@ async function refreshCostPanel(): Promise<void> {
   const meter = document.getElementById("cost-meter");
   const meterFill = document.getElementById("cost-meter-fill");
   const alertEl = document.getElementById("token-cost-alert");
+  const warnEl = document.getElementById("token-cost-warn");
 
   if (usdEl) usdEl.textContent = formatCostText(data.monthCostUsd, "$");
   if (cnyEl) cnyEl.textContent = `≈ ${formatCostText(data.monthCostUsd * data.config.exchangeRate, "¥")}`;
@@ -382,11 +383,15 @@ async function refreshCostPanel(): Promise<void> {
     if (data.budgetEnabled) {
       meter.hidden = false;
       meterFill.style.width = `${Math.min(100, Math.round(data.budgetRatio * 100))}%`;
+      // 预警黄 / 超限红：meter 本体默认绿→黄渐变，超限加红色强调
+      meterFill.classList.toggle("is-exceeded", data.budgetExceeded);
     } else {
       meter.hidden = true;
     }
   }
+  // 预警与超限提示互斥显示（超限优先级更高）
   if (alertEl) alertEl.classList.toggle("is-hidden", !data.budgetExceeded);
+  if (warnEl) warnEl.classList.toggle("is-hidden", !(data.budgetWarning && !data.budgetExceeded));
 }
 
 // 刷新整个面板：调 IPC 拉真实数据 → 有数据渲染图表，无数据显示空态
