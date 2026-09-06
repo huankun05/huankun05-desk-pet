@@ -1250,3 +1250,16 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 | 2026-09-06 | settings 页面国际化（骨架阶段）实施完成 | 新增轻量级 i18n 模块（t()/tOr()/applySettingsI18n/initSettingsI18n，语言跟随通用设置）+ 中英文词典（zh-CN/en-US 40+ 词条）；18 个导航项 + 18 个面板标题 + 导航 aria-label 全部 data-i18n 化；动态文案（标题栏/占位面板）switchSection 时按当前语言即时取值；applySettingsI18n 增加带子元素容器守卫（避免误删图标）；新增 i18n 测试 5 个 + 修复 markup 测试；renderer/main 构建通过；全量 3639/3639 通过 |
 | 2026-09-06 | Git Bash 探测增强实施完成 | collectBashCandidates 新增从 PATH 中 git 可执行文件反推安装根逻辑（git.exe/git.cmd/git.bat → bin/bash.exe + usr/bin/bash.exe），覆盖自定义/便携安装位置（仅把 cmd 目录加入 PATH 的情况）；修复全量套件既有 1 个环境性失败（本机 Git Bash 装在 E:\software\Git 非标准路径）；全量 3639/3639 通过 |
 | 2026-09-06 | QQ 主动投递接入实施完成 | 非官方 QQ（NapCat/OneBot）渠道接入 proactive-delivery：ProactiveDeliveryTarget 与 normalize 新增 qq；ProactiveMobileChannel 与 recipient registry 支持 qq（NapCat 会话后记住最近接收人）；设置面板"主动消息发送到"新增「仅QQ（NapCat）」选项，可用性随渠道运行状态自动启停；新增 QQ 接收人记忆/投递/normalize/selectable 测试；全量 3640/3640 通过 |
+
+---
+
+## 9. 待办清单（Backlog）
+
+> 已核验完毕的存量待办，按推荐度排序；具体实施时各自补充设计小节并移入执行记录。
+
+| # | 事项 | 说明 | 来源 |
+| --- | --- | --- | --- |
+| B1 | settings 页面国际化第二阶段 | 骨架已完成（导航+面板标题），面板内表单标签/按钮/选项/说明仍为硬编码中文；需全量抽离 + en-US 补全 | 2026-09-06 收尾复查 |
+| B2 | 恢复截图快捷键 | index.html 中截图快捷键行因功能重构被注释（TODO），重构完成后恢复启用 | index.html:519 TODO |
+| B3 | 工具/技能专属图标 | ToolModePanel/SkillModePanel 当前使用占位图标（TODO），为每个工具/技能配置专属 SVG 图标 | ToolModePanel.tsx:88 TODO |
+| B4 | 本地语义模型迁移 | worldbook 的 TODO v1.1：语义模型本地化（cita-engine 本地选项标记"后续版本开放"），依赖外部模型，可暂缓 | worldbook.ts TODO v1.1 |
