@@ -77,7 +77,9 @@ export function buildToolSystemPrompt(
 
   // 始终注入技能系统引导（程序性记忆），让 Agent 知道有自进化能力
   try {
-    const skills = listSkills();
+    const allSkills = listSkills();
+    // 过滤掉已禁用的技能
+    const skills = allSkills.filter((s) => s.enabled !== false);
     const skillSectionLines = [
       "## 技能系统（程序性记忆 · 自进化）",
       "",

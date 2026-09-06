@@ -383,6 +383,159 @@ P4 的 LLM 整合目前是**框架版本**：
 - 当前自进化技能系统独立于 Cyrene 原有技能系统（invoke_skill / read_skill_reference）
 - 后续可考虑深度集成：自进化创建的技能也能通过 invoke_skill 调用
 
+## 备份与恢复
+
+技能自进化系统的所有危险操作（合并、更新、删除）前都会自动备份。
+
+**备份功能**：
+- `skill_manage action=backup` — 手动备份当前所有技能
+- `skill_manage action=list-backups` — 列出所有备份（含时间、大小、技能数量）
+- `skill_manage action=restore name=<备份名>` — 从备份恢复（恢复前自动备份当前状态）
+- `skill_manage action=delete-backup name=<备份名>` — 删除指定备份
+
+**自动备份时机**：
+- 伞技能合并前自动备份
+- 外部技能更新前自动备份
+- 从备份恢复前自动备份当前状态
+
+**备份位置**：`userData/skills-curator-backups/skills-<timestamp>/`
+
+## 技能使用反馈机制
+
+Agent 使用技能后可以反馈成功/失败，用于跟踪技能质量和影响 Curator 归档/合并优先级。
+
+**使用方式**：
+- `skill_manage action=success name=<技能名>` — 反馈使用成功
+- `skill_manage action=failure name=<技能名>` — 反馈使用失败
+
+**记录字段**（SkillUsageRecord）：
+- `successCount` — 成功使用次数
+- `failureCount` — 失败使用次数
+- `lastSuccessAt` — 最后成功使用时间
+- `lastFailureAt` — 最后失败使用时间
+
+**影响**：
+- 成功率低（失败 > 成功）的技能优先考虑合并或重构
+- 合并建议中包含使用统计信息，辅助 LLM 判断
+
+## 系统内置技能保护
+
+Cyrene 原有的内置技能自动标记为 `protected: true`，禁止删除，Curator 不自动归档。
+
+**保护规则**：
+- 没有 `source` 字段的技能（Cyrene 原有内置技能）自动标记为 `protected: true` + `source: external`
+- `protected: true` 的技能无法通过 `skill_manage action=delete` 删除
+- 如需修改内置技能，用 `skill_manage action=edit` 直接编辑
+- 如需替换，先 fork（复制为本地定制版）再修改
+
+## 技能热切换
+
+技能创建/编辑/删除后**无需重启应用**，下次对话自动生效。
+
+**实现原理**：
+- `listSkills()` / `getSkill()` 每次都从文件系统实时读取，无缓存
+- `system-prompt-builder` 每次构建系统提示时都调用 `listSkills()` 获取最新技能列表
+- 工具列表（skill_list/skill_view/skill_manage）在启动时注册，但技能内容是动态读取的
+
+## 外部技能包安装（GitHub 仓库）
+
+支持从 GitHub 仓库 URL 安装完整技能包（含 SKILL.md + references/templates/scripts 等附件）。
+
+**支持的 URL 格式**：
+1. GitHub 仓库目录 URL：`https://github.com/user/repo/tree/branch/path/to/skill`
+2. GitHub raw URL：`https://raw.githubusercontent.com/user/repo/branch/path/to/skill/SKILL.md`
+3. 直接 SKILL.md URL：任何直接返回 SKILL.md 文本的 URL
+
+**安装流程**（GitHub 仓库 URL）：
+1. 解析 URL，提取 user/repo/branch/path
+2. 调用 GitHub API 获取目录树（`/repos/{user}/{repo}/git/trees/{branch}?recursive=1`）
+3. 过滤目标路径下的所有文件
+4. 用 raw.githubusercontent.com 下载所有文件
+5. 保存到技能目录（SKILL.md + 附件保持原目录结构）
+6. 自动标记 `source: external` + `sourceUrl`
+
+**回退机制**：如果 GitHub API 调用失败（速率限制等），回退到直接下载 SKILL.md。
+
+## 外部技能更新检查与更新
+
+对于 `source=external` 且有 `sourceUrl` 的技能，可以检查更新并更新到最新版本。
+
+**使用方式**：
+- `skill_manage action=check-update name=<技能名>` — 检查是否有更新
+- `skill_manage action=update name=<技能名>` — 更新到最新版本（更新前自动备份）
+
+**更新比较逻辑**：
+- 下载远程 SKILL.md，与本地内容比较
+- 忽略 frontmatter 中的 `source` / `sourceUrl` / `updatedAt` 字段
+- 忽略换行符差异（CRLF/LF）
+- 内容不同则判定为有更新
+
+**更新流程**：
+1. 自动备份当前技能（复制到备份目录）
+2. 删除旧技能
+3. 用 sourceUrl 重新安装（下载最新版本）
+4. 如果安装失败，旧版本已备份，可手动恢复
+
+## 技能管理 UI 面板
+
+设置页面新增"技能管理"面板，提供可视化的技能管理界面，无需通过大模型工具调用即可管理技能。
+
+**入口**：设置 → 技能管理（侧边栏导航）
+
+### 统一技能管理
+
+技能管理面板统一展示两套技能系统的技能：
+- **Cyrene 原有技能**（`skills/` 目录下的内置技能）
+- **自进化技能**（`userData/skills/` 目录下的技能，包括 Agent 自成长创建和从网上安装的）
+
+通过 **System 标签**区分：
+- 🔵 **Cyrene内置**：Cyrene 原有的内置技能
+- 🟢 **自进化**：Agent 自成长创建或从网上安装的技能
+
+### 颜色方案
+
+每个技能卡片只有一种主色调，按 system 统一：
+- **Cyrene 内置技能**：蓝色系（左边框 + System标签 + Source标签 都是蓝色）
+- **自进化技能**：绿色系（左边框 + System标签 + Source标签 都是绿色）
+
+Source 标签的文字显示具体来源（内置/自成长/外部/Fork/伞技能），但颜色统一。
+
+### 启用/禁用
+
+每个技能卡片右上角有**滑动开关**（toggle switch），可以启用或禁用技能：
+- **启用**：技能对 Agent 可见，会注入 system prompt
+- **禁用**：技能对 Agent 不可见，不会注入 system prompt，卡片变灰，名称加删除线
+
+禁用技能不会删除技能文件，只是暂时隐藏，可以随时重新启用。
+
+### 筛选器
+
+操作栏下方提供筛选器，可以快速筛选技能：
+- **来源筛选**：全部 / Cyrene内置 / 自进化
+- **状态筛选**：全部 / 已启用 / 已禁用
+- 右下角显示"显示 X / 共 Y 个技能"
+
+### 功能列表
+
+1. **技能列表**：卡片式展示所有技能（名称、描述、System标签、Source标签、启用开关、操作按钮）
+2. **查看详情**：点击"查看"打开模态框，显示 SKILL.md 完整内容和元数据
+3. **编辑技能**：点击"编辑"打开编辑器，修改后保存（Cyrene 原有技能暂不支持在线编辑）
+4. **删除技能**：点击"删除"（系统内置受保护技能无法删除，Cyrene 原有技能不显示删除按钮）
+5. **检查更新**：点击"检查更新"，有更新时提示是否更新（更新前自动备份，仅自进化技能）
+6. **安装外部技能**：输入 GitHub 仓库 URL 或 SKILL.md raw URL，点击"安装技能"
+7. **备份管理**：点击"立即备份"打开备份管理模态框，可查看所有备份、恢复、删除
+8. **刷新列表**：点击"刷新列表"重新加载技能
+9. **启用/禁用**：通过滑动开关启用或禁用技能
+10. **筛选**：通过筛选器按来源和状态筛选技能
+
+### 相关文件
+
+- `src/renderer/settings/skills/index.ts` — 渲染进程逻辑
+- `src/renderer/settings/skills/skills.css` — 样式
+- `src/main/skills/skills-ipc.ts` — 主进程 IPC handler
+- `src/main/skills/unified-skill-store.ts` — 统一技能存储（合并两套系统）
+- `src/preload/index.ts` — preload API 暴露（window.skills）
+
 ## 相关文件
 
 - `src/main/self-evolving/skill-types.ts` — 类型定义
@@ -390,6 +543,12 @@ P4 的 LLM 整合目前是**框架版本**：
 - `src/main/self-evolving/skill-tools.ts` — 工具实现与注册（skill_list / skill_view / skill_manage）
 - `src/main/self-evolving/curator.ts` — Curator 后台维护核心
 - `src/main/self-evolving/curator-tools.ts` — skill_curator 管理工具
+- `src/main/skills/unified-skill-store.ts` — 统一技能存储（合并 Cyrene 原有 + 自进化）
+- `src/main/skills/skills-ipc.ts` — 技能管理 IPC handler
 - `src/main/orchestrator/tools/registry/tool-registration.ts` — 工具注册入口（调用 registerSkillTools + registerCuratorTools）
-- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表与引导）
+- `src/main/orchestrator/system-prompt-builder.ts` — 系统提示构建（注入技能列表与引导，过滤禁用技能）
 - `src/main/application/default-dependencies.ts` — 启动入口（initSkills 后调用 initCurator）
+- `src/renderer/settings/skills/index.ts` — 技能管理 UI 渲染进程逻辑
+- `src/renderer/settings/skills/skills.css` — 技能管理 UI 样式
+- `src/preload/index.ts` — preload API 暴露（window.skills）
+- `src/shared/ipc-channels.ts` — IPC 通道定义

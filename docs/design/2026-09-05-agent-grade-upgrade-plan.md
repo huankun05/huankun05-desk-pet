@@ -145,10 +145,10 @@ Code（及绑定工作目录的 Work）模式下，读取工作区根目录的 `
 
 ### 3.3 验收标准
 
-- [ ] 绑定含 AGENTS.md 的目录后，Code 模式 run 的启动 transcript 包含工作区上下文。
-- [ ] 无 AGENTS.md 时行为与现状完全一致（零侵入）。
-- [ ] 超长 AGENTS.md 被截断并带标注。
-- [ ] 单测覆盖：读取、缺失、截断、非 code 模式不注入。
+- [x] 绑定含 AGENTS.md 的目录后，Code 模式 run 的启动 transcript 包含工作区上下文。
+- [x] 无 AGENTS.md 时行为与现状完全一致（零侵入）。
+- [x] 超长 AGENTS.md 被截断并带标注。
+- [x] 单测覆盖：读取、缺失、截断、非 code 模式不注入。
 
 ---
 

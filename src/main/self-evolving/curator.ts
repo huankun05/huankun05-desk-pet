@@ -170,6 +170,99 @@ function cleanupOldBackups(keep: number): void {
   }
 }
 
+/** 列出所有备份。 */
+export function listBackups(): Array<{ name: string; path: string; time: string; size: number; skillCount: number }> {
+  try {
+    const dir = backupDir();
+    if (!fs.existsSync(dir)) return [];
+    const backups = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name.startsWith("skills-"))
+      .map((d) => {
+        const backupPath = path.join(dir, d.name);
+        const stat = fs.statSync(backupPath);
+        // 统计备份中的技能数量（子目录数）
+        let skillCount = 0;
+        try {
+          skillCount = fs.readdirSync(backupPath, { withFileTypes: true }).filter((f) => f.isDirectory()).length;
+        } catch { /* ignore */ }
+        // 计算目录大小
+        let size = 0;
+        try {
+          const files = fs.readdirSync(backupPath, { recursive: true });
+          for (const f of files) {
+            try {
+              size += fs.statSync(path.join(backupPath, f as string)).size;
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+        return {
+          name: d.name,
+          path: backupPath,
+          time: stat.mtime.toISOString(),
+          size,
+          skillCount,
+        };
+      })
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    return backups;
+  } catch (err) {
+    logger.warn(LogTag.Skills, `Curator 列出备份失败: ${err}`);
+    return [];
+  }
+}
+
+/** 从备份恢复技能目录。 */
+export function restoreBackup(backupName: string): { success: boolean; message?: string; error?: string } {
+  try {
+    const dir = backupDir();
+    const backupPath = path.join(dir, backupName);
+    if (!fs.existsSync(backupPath)) {
+      return { success: false, error: `备份 '${backupName}' 不存在` };
+    }
+
+    const skillsRoot = getSkillsRootDir();
+
+    // 恢复前先备份当前状态（防止恢复失败丢失数据）
+    const preRestoreBackup = backupSkills();
+    logger.info(LogTag.Skills, `恢复前自动备份当前技能: ${preRestoreBackup}`);
+
+    // 清空当前技能目录
+    if (fs.existsSync(skillsRoot)) {
+      fs.rmSync(skillsRoot, { recursive: true, force: true });
+    }
+    fs.mkdirSync(skillsRoot, { recursive: true });
+
+    // 从备份复制
+    fs.cpSync(backupPath, skillsRoot, { recursive: true });
+
+    logger.info(LogTag.Skills, `Curator 从备份恢复成功: ${backupName}`);
+    return { success: true, message: `已从备份 '${backupName}' 恢复技能（恢复前已自动备份当前状态）` };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(LogTag.Skills, `Curator 从备份恢复失败: ${errorMsg}`);
+    return { success: false, error: `恢复失败: ${errorMsg}` };
+  }
+}
+
+/** 删除指定备份。 */
+export function deleteBackup(backupName: string): { success: boolean; message?: string; error?: string } {
+  try {
+    const dir = backupDir();
+    const backupPath = path.join(dir, backupName);
+    if (!fs.existsSync(backupPath)) {
+      return { success: false, error: `备份 '${backupName}' 不存在` };
+    }
+    fs.rmSync(backupPath, { recursive: true, force: true });
+    logger.info(LogTag.Skills, `Curator 删除备份成功: ${backupName}`);
+    return { success: true, message: `已删除备份 '${backupName}'` };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(LogTag.Skills, `Curator 删除备份失败: ${errorMsg}`);
+    return { success: false, error: `删除失败: ${errorMsg}` };
+  }
+}
+
 /** 获取技能最后使用时间（优先 lastUsedAt，其次 lastViewedAt，最后 createdAt）。 */
 function getLastUsedTime(record: SkillUsageRecord | undefined, skillName: string): number {
   if (record?.lastUsedAt) return new Date(record.lastUsedAt).getTime();

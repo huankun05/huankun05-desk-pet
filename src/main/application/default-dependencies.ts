@@ -33,6 +33,7 @@ import {
 } from "../windows/window-state";
 import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
+import { registerSkillsIpc } from "../skills/skills-ipc";
 import {
   applyGeneralSettings,
   handleGeneralSettingsChanged,
@@ -499,6 +500,9 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           coordinator: shutdown,
           finalAction: () => services.update.install(),
         });
+
+        // 技能管理 IPC（自进化技能管理 UI）
+        registerSkillsIpc();
 
         // 计划模式开关/查询 IPC
         ipc.handle(IPC.PLAN_SET_MODE, (_event, payload: { conversationId?: string; target?: "on" | "off"; workspaceRoot?: string }) => {

@@ -889,4 +889,25 @@ const ttsApi = {
 };
 contextBridge.exposeInMainWorld("tts", ttsApi);
 
+// 技能管理 API（自进化技能管理 UI）
+const skillsApi = {
+  list: (options?: { includeArchived?: boolean }) =>
+    ipcRenderer.invoke(IPC.SKILLS_LIST, options),
+  get: (name: string) => ipcRenderer.invoke(IPC.SKILLS_GET, name),
+  create: (name: string, content: string) => ipcRenderer.invoke(IPC.SKILLS_CREATE, name, content),
+  edit: (name: string, content: string) => ipcRenderer.invoke(IPC.SKILLS_EDIT, name, content),
+  delete: (name: string) => ipcRenderer.invoke(IPC.SKILLS_DELETE, name),
+  install: (url: string) => ipcRenderer.invoke(IPC.SKILLS_INSTALL, url),
+  checkUpdate: (name: string) => ipcRenderer.invoke(IPC.SKILLS_CHECK_UPDATE, name),
+  update: (name: string) => ipcRenderer.invoke(IPC.SKILLS_UPDATE, name),
+  backup: () => ipcRenderer.invoke(IPC.SKILLS_BACKUP),
+  listBackups: () => ipcRenderer.invoke(IPC.SKILLS_LIST_BACKUPS),
+  restore: (backupName: string) => ipcRenderer.invoke(IPC.SKILLS_RESTORE, backupName),
+  deleteBackup: (backupName: string) => ipcRenderer.invoke(IPC.SKILLS_DELETE_BACKUP, backupName),
+  listAll: () => ipcRenderer.invoke(IPC.SKILLS_LIST_ALL),
+  setEnabled: (id: string, enabled: boolean) =>
+    ipcRenderer.invoke(IPC.SKILLS_SET_ENABLED, { id, enabled }),
+};
+contextBridge.exposeInMainWorld("skills", skillsApi);
+
 exposeMusicApi();
