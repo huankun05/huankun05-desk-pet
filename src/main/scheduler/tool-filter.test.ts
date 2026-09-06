@@ -40,4 +40,10 @@ describe("filterToolsForTask", () => {
     const result = filterToolsForTask(task("allow-list", ["write_file", "weather", "missing"]), tools);
     expect(result.map(t => t.id)).toEqual(["weather"]);
   });
+
+  it("never gives schedule_task to scheduled runs", () => {
+    const tools = [tool("schedule_task"), tool("weather")];
+    const result = filterToolsForTask(task("all-enabled", []), tools);
+    expect(result.map(t => t.id)).toEqual(["weather"]);
+  });
 });

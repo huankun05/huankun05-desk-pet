@@ -69,4 +69,56 @@ describe("schedule calculator", () => {
     expect(next?.getTime()).toBeGreaterThan(now.getTime());
     expect(iso(next)).toBe("2026-06-22T12:01:00.000Z");
   });
+
+  it("computes initial cron next fire strictly after now", () => {
+    const now = new Date(2026, 8, 6, 8, 30, 0, 0);
+    const schedule: ScheduleConfig = { kind: "cron", expr: "0 9 * * *" };
+    const next = computeInitialNextFireAt(schedule, now);
+    expect(next?.getFullYear()).toBe(2026);
+    expect(next?.getMonth()).toBe(8);
+    expect(next?.getDate()).toBe(6);
+    expect(next?.getHours()).toBe(9);
+    expect(next?.getMinutes()).toBe(0);
+  });
+
+  it("cron initial fire rolls to next day when today's slot has passed", () => {
+    const now = new Date(2026, 8, 6, 9, 30, 0, 0);
+    const next = computeInitialNextFireAt({ kind: "cron", expr: "0 9 * * *" }, now);
+    expect(next?.getDate()).toBe(7);
+    expect(next?.getHours()).toBe(9);
+  });
+
+  it("cron weekday expression fires on matching weekday", () => {
+    const monday = new Date(2026, 8, 7, 0, 0, 0, 0);
+    expect(monday.getDay()).toBe(1);
+    const schedule: ScheduleConfig = { kind: "cron", expr: "30 8 * * 1-5" };
+    const next = computeInitialNextFireAt(schedule, monday);
+    expect(next?.getHours()).toBe(8);
+    expect(next?.getMinutes()).toBe(30);
+  });
+
+  it("computeNextFireAtAfter advances one cron occurrence", () => {
+    const fired = new Date(2026, 8, 6, 9, 0, 0, 0);
+    const schedule: ScheduleConfig = { kind: "cron", expr: "0 9 * * *" };
+    const next = computeNextFireAtAfter(schedule, fired);
+    expect(next?.getDate()).toBe(7);
+    expect(next?.getHours()).toBe(9);
+  });
+
+  it("normalizes overdue cron without backfilling", () => {
+    const now = new Date(2026, 8, 8, 10, 0, 0, 0);
+    const overdue = new Date(2026, 8, 6, 9, 0, 0, 0);
+    const schedule: ScheduleConfig = { kind: "cron", expr: "0 9 * * *" };
+    const next = normalizeOverdueNextFireAt(schedule, overdue, now);
+    expect(next?.getFullYear()).toBe(2026);
+    expect(next?.getMonth()).toBe(8);
+    expect(next?.getDate()).toBe(9);
+    expect(next?.getHours()).toBe(9);
+  });
+
+  it("returns null for invalid cron expr (defensive)", () => {
+    const now = new Date(2026, 8, 6, 8, 0, 0, 0);
+    const schedule: ScheduleConfig = { kind: "cron", expr: "99 99 * * *" };
+    expect(computeInitialNextFireAt(schedule, now)).toBeNull();
+  });
 });

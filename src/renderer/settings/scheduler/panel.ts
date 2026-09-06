@@ -10,6 +10,7 @@ import {
   schedulerTitleInput, schedulerPromptInput, schedulerEnabledInput,
   schedulerKindInput, schedulerOnceRunAtInput, schedulerTimeOfDayInput,
   schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput,
+  schedulerCronExprInput,
   schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint,
   schedulerSaveStatus,
 } from "./dom";
@@ -133,6 +134,7 @@ export async function openSchedulerEditor(task?: ScheduledTask): Promise<void> {
   if (schedulerDayOfWeekInput) schedulerDayOfWeekInput.value = "1";
   if (schedulerIntervalEveryInput) schedulerIntervalEveryInput.value = "1";
   if (schedulerIntervalUnitInput) schedulerIntervalUnitInput.value = "minutes";
+  if (schedulerCronExprInput) schedulerCronExprInput.value = "";
   if (task?.schedule.kind === "once" && schedulerOnceRunAtInput) schedulerOnceRunAtInput.value = toLocalDateTimeInputValue(task.schedule.runAt);
   if ((task?.schedule.kind === "daily" || task?.schedule.kind === "weekly") && schedulerTimeOfDayInput) schedulerTimeOfDayInput.value = task.schedule.timeOfDay;
   if (task?.schedule.kind === "weekly" && schedulerDayOfWeekInput) schedulerDayOfWeekInput.value = String(task.schedule.dayOfWeek);
@@ -140,6 +142,7 @@ export async function openSchedulerEditor(task?: ScheduledTask): Promise<void> {
     if (schedulerIntervalEveryInput) schedulerIntervalEveryInput.value = String(task.schedule.every);
     if (schedulerIntervalUnitInput) schedulerIntervalUnitInput.value = task.schedule.unit;
   }
+  if (task?.schedule.kind === "cron" && schedulerCronExprInput) schedulerCronExprInput.value = task.schedule.expr;
   if (schedulerToolLimitInput) schedulerToolLimitInput.checked = task?.toolMode === "allow-list";
   renderSchedulerTools(task?.allowedToolIds ?? []);
   updateSchedulerConditionalFields();
@@ -157,6 +160,7 @@ export function updateSchedulerConditionalFields(): void {
   document.querySelectorAll(".scheduler-time-field").forEach(el => el.classList.toggle("is-hidden", kind !== "daily" && kind !== "weekly"));
   document.querySelectorAll(".scheduler-weekly-field").forEach(el => el.classList.toggle("is-hidden", kind !== "weekly"));
   document.querySelectorAll(".scheduler-interval-field").forEach(el => el.classList.toggle("is-hidden", kind !== "interval"));
+  document.querySelectorAll(".scheduler-cron-field").forEach(el => el.classList.toggle("is-hidden", kind !== "cron"));
   const allowListEnabled = Boolean(schedulerToolLimitInput?.checked);
   schedulerToolPicker?.classList.toggle("is-hidden", !allowListEnabled);
   const selectedCount = collectAllowedToolIds().length;
@@ -187,6 +191,11 @@ export function collectSchedule(): ScheduleConfig {
     if (unit === "minutes" && every > 1440) throw new Error("分钟间隔不能超过 1440");
     if (unit === "hours" && every > 168) throw new Error("小时间隔不能超过 168");
     return { kind: "interval", every, unit };
+  }
+  if (kind === "cron") {
+    const expr = (schedulerCronExprInput?.value ?? "").trim();
+    if (!expr) throw new Error("cron 表达式不能为空");
+    return { kind: "cron", expr };
   }
   const timeOfDay = schedulerTimeOfDayInput?.value || "08:00";
   if (!isValidTimeOfDay(timeOfDay)) throw new Error("每日时间格式必须是 HH:mm");

@@ -107,6 +107,52 @@ describe("scheduler store", () => {
     expect(history[0].status).toBe("success");
   });
 
+  it("adds a cron-scheduled task and persists it", () => {
+    const dir = tmpDir();
+    const store = createSchedulerStore({
+      tasksFile: path.join(dir, "scheduled-tasks.json"),
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-cron",
+    });
+
+    store.load();
+    const task = store.addTask({
+      title: "Morning brew",
+      prompt: "Remind me to drink water",
+      schedule: { kind: "cron", expr: "0 9 * * *" },
+    });
+
+    expect(task.schedule).toEqual({ kind: "cron", expr: "0 9 * * *" });
+    expect(task.nextFireAt).toBeTruthy();
+
+    const store2 = createSchedulerStore({
+      tasksFile: path.join(dir, "scheduled-tasks.json"),
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-2",
+    });
+    store2.load();
+    expect(store2.getTasks()[0].schedule).toEqual({ kind: "cron", expr: "0 9 * * *" });
+  });
+
+  it("rejects invalid cron expressions on add", () => {
+    const dir = tmpDir();
+    const store = createSchedulerStore({
+      tasksFile: path.join(dir, "scheduled-tasks.json"),
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-1",
+    });
+    store.load();
+
+    expect(() => store.addTask({
+      title: "Bad",
+      prompt: "Run B",
+      schedule: { kind: "cron", expr: "99 99 * * *" },
+    })).toThrow(/无效 cron/);
+  });
+
   it("normalizes persisted tasks instead of crashing on old missing optional arrays", () => {
     const dir = tmpDir();
     const tasksFile = path.join(dir, "scheduled-tasks.json");

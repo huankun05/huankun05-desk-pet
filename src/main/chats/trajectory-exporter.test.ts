@@ -4,6 +4,8 @@ import {
   messageToTrajectoryTurn,
   sessionToTrajectory,
   exportTrajectory,
+  exportTrajectoryCompressed,
+  collectTrajectorySessions,
   type TrajectoryTurn,
 } from "./trajectory-exporter";
 import type { ChatMessage, ChatSession, ChatSessionMeta } from "../../shared/chat-types";
@@ -232,6 +234,108 @@ describe("trajectory-exporter", () => {
 
     it("returns empty result when no sessions match", () => {
       const result = exportTrajectory(sessions, getSession, { sessionId: "nonexistent" });
+      expect(result.sessionCount).toBe(0);
+      expect(result.turnCount).toBe(0);
+      expect(result.turns).toEqual([]);
+    });
+  });
+
+  describe("collectTrajectorySessions", () => {
+    const meta1: ChatSessionMeta = { id: "s1", title: "S1", mode: "work", createdAt: 1000, updatedAt: 2000, messageCount: 2 };
+    const meta2: ChatSessionMeta = { id: "s2", title: "S2", mode: "chat", createdAt: 3000, updatedAt: 4000, messageCount: 1 };
+    const getSession = (id: string): ChatSession | null => {
+      if (id === "s1") return makeSession({ id: "s1", messages: [makeMessage({ id: "m1", content: "Hello" }), makeMessage({ id: "m2", role: "assistant", content: "Hi" })] });
+      if (id === "s2") return makeSession({ id: "s2", messages: [makeMessage({ id: "m3", content: "Chat" })] });
+      return null;
+    };
+
+    it("按会话分组返回 turns", () => {
+      const { grouped, sessionCount } = collectTrajectorySessions([meta1, meta2], getSession);
+      expect(sessionCount).toBe(2);
+      expect(grouped).toHaveLength(2);
+      expect(grouped[0]).toHaveLength(2);
+      expect(grouped[1]).toHaveLength(1);
+    });
+
+    it("过滤后仍按会话分组", () => {
+      const { grouped, sessionCount } = collectTrajectorySessions([meta1, meta2], getSession, { mode: "work" });
+      expect(sessionCount).toBe(1);
+      expect(grouped).toHaveLength(1);
+      expect(grouped[0][0].session_id).toBe("s1");
+    });
+  });
+
+  describe("exportTrajectoryCompressed", () => {
+    // 构造一个超过目标预算的大会话：30 轮交替 assistant/tool
+    function makeBigSession(): ChatSession {
+      const messages = Array.from({ length: 30 }, (_, i) =>
+        makeMessage({
+          id: `m${i}`,
+          role: i % 2 === 0 ? "assistant" : "tool",
+          content: "content ".repeat(300),
+          at: 1000 + i,
+        }),
+      );
+      return makeSession({ id: "big", title: "Big", mode: "work", messages });
+    }
+
+    const summarize = async (): Promise<string> => "[CONTEXT SUMMARY]: middle turns compressed.";
+
+    it("压缩每个会话并返回压缩 turns 与汇总指标", async () => {
+      const meta: ChatSessionMeta = { id: "big", title: "Big", mode: "work", createdAt: 1000, updatedAt: 1000, messageCount: 30 };
+      const result = await exportTrajectoryCompressed([meta], (id) => (id === "big" ? makeBigSession() : null), {
+        compression: { summarize, config: { targetMaxTokens: 4000 } },
+      });
+      expect(result.sessionCount).toBe(1);
+      expect(result.turnCount).toBeLessThan(30);
+      expect(result.turns?.some((t) => t.role === "user" && t.content.startsWith("[CONTEXT SUMMARY]:"))).toBe(true);
+      expect(result.metrics).toBeDefined();
+      expect(result.metrics!.summary.total_trajectories).toBe(1);
+      expect(result.metrics!.summary.trajectories_compressed).toBe(1);
+    });
+
+    it("无注入摘要函数时压缩仍可用（占位摘要）", async () => {
+      const meta: ChatSessionMeta = { id: "big", title: "Big", mode: "work", createdAt: 1000, updatedAt: 1000, messageCount: 30 };
+      const result = await exportTrajectoryCompressed([meta], (id) => (id === "big" ? makeBigSession() : null), {
+        compression: { config: { targetMaxTokens: 4000 } },
+      });
+      expect(result.turns?.some((t) => t.content.startsWith("[CONTEXT SUMMARY]: [Summary generation unavailable"))).toBe(true);
+    });
+
+    it("低预算会话跳过压缩并计入 skipped", async () => {
+      const meta1: ChatSessionMeta = { id: "s1", title: "S1", mode: "chat", createdAt: 1000, updatedAt: 2000, messageCount: 1 };
+      const result = await exportTrajectoryCompressed(
+        [meta1],
+        (id) => (id === "s1" ? makeSession({ id: "s1", messages: [makeMessage({ id: "m1", content: "hi" })] }) : null),
+        { compression: { summarize, config: { targetMaxTokens: 4000 } } },
+      );
+      expect(result.sessionCount).toBe(1);
+      expect(result.turnCount).toBe(1);
+      expect(result.metrics!.summary.trajectories_skipped_under_target).toBe(1);
+    });
+
+    it("写出到文件", async () => {
+      const meta: ChatSessionMeta = { id: "big", title: "Big", mode: "work", createdAt: 1000, updatedAt: 1000, messageCount: 30 };
+      const tmpDir = require("node:os").tmpdir();
+      const outputPath = require("node:path").join(tmpDir, `trajectory-compressed-test-${Date.now()}.jsonl`);
+      try {
+        const result = await exportTrajectoryCompressed([meta], (id) => (id === "big" ? makeBigSession() : null), {
+          outputPath,
+          compression: { summarize, config: { targetMaxTokens: 4000 } },
+        });
+        expect(result.outputPath).toBe(outputPath);
+        expect(result.turns).toBeUndefined();
+        const fs = require("node:fs");
+        const lines = fs.readFileSync(outputPath, "utf8").trim().split("\n");
+        expect(lines.length).toBe(result.turnCount);
+        expect(JSON.parse(lines[0]).role).toBe("assistant");
+      } finally {
+        require("node:fs").unlinkSync(outputPath);
+      }
+    });
+
+    it("无匹配会话返回空结果", async () => {
+      const result = await exportTrajectoryCompressed([], () => null, { compression: { summarize } });
       expect(result.sessionCount).toBe(0);
       expect(result.turnCount).toBe(0);
       expect(result.turns).toEqual([]);

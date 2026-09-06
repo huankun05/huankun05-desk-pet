@@ -1,4 +1,4 @@
-export type ScheduleKind = "once" | "daily" | "weekly" | "interval";
+export type ScheduleKind = "once" | "daily" | "weekly" | "interval" | "cron";
 
 /** 定时任务完成后的投递目标。"local" = 仅聊天窗口（默认）；"desktop" = 额外弹桌面通知。 */
 export type ScheduledTaskDelivery = "local" | "desktop";
@@ -7,7 +7,9 @@ export type ScheduleConfig =
   | { kind: "once"; runAt: string }
   | { kind: "daily"; timeOfDay: string }
   | { kind: "weekly"; dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; timeOfDay: string }
-  | { kind: "interval"; every: number; unit: "minutes" | "hours" };
+  | { kind: "interval"; every: number; unit: "minutes" | "hours" }
+  /** 标准 5/6 字段 cron 表达式（分 时 日 月 周 [年]）。由 LLM 自然语言解析或用户直接填写。 */
+  | { kind: "cron"; expr: string };
 
 export type SchedulerToolMode = "all-enabled" | "allow-list";
 

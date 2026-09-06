@@ -16,6 +16,7 @@ export const schedulerTimeOfDayInput = document.getElementById("scheduler-time-o
 export const schedulerDayOfWeekInput = document.getElementById("scheduler-day-of-week") as HTMLSelectElement | null;
 export const schedulerIntervalEveryInput = document.getElementById("scheduler-interval-every") as HTMLInputElement | null;
 export const schedulerIntervalUnitInput = document.getElementById("scheduler-interval-unit") as HTMLSelectElement | null;
+export const schedulerCronExprInput = document.getElementById("scheduler-cron-expr") as HTMLInputElement | null;
 export const schedulerToolLimitInput = document.getElementById("scheduler-tool-limit") as HTMLInputElement | null;
 export const schedulerToolPicker = document.getElementById("scheduler-tool-picker") as HTMLDivElement | null;
 export const schedulerToolEmptyHint = document.getElementById("scheduler-tool-empty-hint") as HTMLDivElement | null;

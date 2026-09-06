@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { Cron } from "croner";
 import { app } from "electron";
 import { computeInitialNextFireAt, normalizeOverdueNextFireAt } from "./schedule-calculator";
 import type {
@@ -63,6 +64,14 @@ function validateSchedule(schedule: ScheduleConfig): void {
   } else if (schedule.kind === "once") {
     const runAt = new Date(schedule.runAt);
     if (Number.isNaN(runAt.getTime())) throw new Error("一次性运行时间无效");
+  } else if (schedule.kind === "cron") {
+    const expr = String(schedule.expr ?? "").trim();
+    if (!expr) throw new Error("cron 表达式不能为空");
+    try {
+      new Cron(expr);
+    } catch (err) {
+      throw new Error(`无效 cron 表达式 '${expr}': ${err instanceof Error ? err.message : String(err)}`);
+    }
   } else {
     throw new Error("未知调度类型");
   }

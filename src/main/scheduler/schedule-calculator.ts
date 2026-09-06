@@ -1,4 +1,17 @@
+import { Cron } from "croner";
 import type { ScheduleConfig } from "./types";
+
+/**
+ * cron 表达式 → 严格晚于 from 的下一次触发时间（croner 的 nextRun 本身就是严格大于）。
+ * 构造/解析失败返回 null（校验层已挡，这里防御性兜底）。
+ */
+function nextCronRunAt(expr: string, from: Date): Date | null {
+  try {
+    return new Cron(expr).nextRun(from);
+  } catch {
+    return null;
+  }
+}
 
 function parseTimeOfDay(timeOfDay: string): { hours: number; minutes: number } | null {
   const match = /^(\d{2}):(\d{2})$/.exec(timeOfDay);
@@ -62,6 +75,8 @@ export function computeInitialNextFireAt(schedule: ScheduleConfig, now: Date): D
       if (!Number.isInteger(schedule.every) || schedule.every <= 0) return null;
       return new Date(now.getTime() + intervalMs(schedule));
     }
+    case "cron":
+      return nextCronRunAt(schedule.expr, now);
   }
 }
 
@@ -83,6 +98,8 @@ export function computeNextFireAtAfter(schedule: ScheduleConfig, scheduledFireAt
       if (!Number.isInteger(schedule.every) || schedule.every <= 0) return null;
       return new Date(scheduledFireAt.getTime() + intervalMs(schedule));
     }
+    case "cron":
+      return nextCronRunAt(schedule.expr, scheduledFireAt);
   }
 }
 

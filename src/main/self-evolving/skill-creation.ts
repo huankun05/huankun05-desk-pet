@@ -11,6 +11,8 @@
 
 import { createSkill, skillExists } from "./skill-store";
 import { scanSkillContent } from "./security-scan";
+import { buildSummaryPrompt, ensureSummaryPrefix, coerceSummaryContent } from "../chats/trajectory-compressor";
+import type { TrajectoryTurn } from "../chats/trajectory-exporter";
 import type { ReviewFileChange, ReviewRunStatus } from "../../shared/review-types";
 
 /** 一次 Run 结束后的轨迹摘要，供沉淀判定使用。 */
@@ -28,6 +30,13 @@ export interface SkillCreationInput {
   files: ReadonlyArray<ReviewFileChange>;
   /** 对话模式（仅 work/code 触发沉淀） */
   conversationMode?: string;
+  /**
+   * 可选：会话完整轨迹 turns（trajectory-exporter 格式）。
+   * 提供后会在判定前用同一次 LLM 生成内容级摘要（[CONTEXT SUMMARY]: 前缀，
+   * 复用轨迹压缩的摘要提示词）并入提示词，让沉淀判定看到"实际做了什么"。
+   * 摘要生成失败不阻断沉淀（容错降级为纯元数据提示词）。
+   */
+  trajectoryTurns?: ReadonlyArray<TrajectoryTurn>;
 }
 
 export type LLMCallFn = (prompt: string, systemPrompt?: string) => Promise<string>;
@@ -59,7 +68,7 @@ function countTaskToolCalls(toolCalls: SkillCreationInput["toolCalls"]): number 
   return toolCalls.filter((call) => !NON_TASK_TOOLS.has(call.toolName) && call.status === "committed").length;
 }
 
-function buildTrajectorySummary(input: SkillCreationInput): string {
+function buildTrajectorySummary(input: SkillCreationInput, contentSummary?: string): string {
   const tools = input.toolCalls
     .slice(0, 40)
     .map((call, i) => `${i + 1}. ${call.toolName} (${call.status})`)
@@ -80,7 +89,29 @@ function buildTrajectorySummary(input: SkillCreationInput): string {
     ``,
     `## 最终回复`,
     input.finalAnswer ? input.finalAnswer.slice(0, 1500) : "  （无）",
+    ...(contentSummary ? [``, `## 对话内容摘要`, contentSummary] : []),
   ].join("\n");
+}
+
+/**
+ * 用轨迹压缩的摘要提示词为完整轨迹生成内容级摘要（对接 #9 轨迹压缩）。
+ * 失败返回 undefined（容错，不阻断沉淀主流程）。
+ */
+async function buildContentSummary(
+  input: SkillCreationInput,
+  llmCall: LLMCallFn,
+): Promise<string | undefined> {
+  if (!input.trajectoryTurns || input.trajectoryTurns.length === 0) return undefined;
+  try {
+    const excerpt = input.trajectoryTurns
+      .slice(0, 60)
+      .map((t, i) => `[Turn ${i} - ${(t.role || "unknown").toUpperCase()}]:\n${(t.content ?? "").slice(0, 3000)}`)
+      .join("\n\n");
+    const raw = await llmCall(buildSummaryPrompt(excerpt, 500));
+    return ensureSummaryPrefix(coerceSummaryContent(raw));
+  } catch {
+    return undefined;
+  }
 }
 
 const CREATION_SYSTEM_PROMPT = [
@@ -153,7 +184,9 @@ export async function runSkillCreation(
   // 2) LLM 判定与内容生成
   let parsed: ReturnType<typeof parseCreationResponse>;
   try {
-    const raw = await llmCall(buildTrajectorySummary(input), CREATION_SYSTEM_PROMPT);
+    // 提供轨迹时先补一次内容级摘要（复用轨迹压缩提示词，失败容错）
+    const contentSummary = await buildContentSummary(input, llmCall);
+    const raw = await llmCall(buildTrajectorySummary(input, contentSummary), CREATION_SYSTEM_PROMPT);
     parsed = parseCreationResponse(raw);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

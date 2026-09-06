@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **自然语言创建定时任务**：移植 Hermes cronjob 工具设计，新增 schedule_task 内置工具（LLM 把自然语言翻译成调度字符串 → parse-schedule.ts 解析 → 写入 scheduler store）；ScheduleConfig 新增 `cron` 类型（5 字段表达式，croner 计算下次触发，明确拒绝带年字段表达式）；parse-schedule 支持 `every 30m`/`2h`/`1d`（周期）、`30m`/`2h`/`1d`（一次性）、5 字段 cron、ISO 时间戳；定时任务执行过滤 schedule_task（对齐 Hermes cron 上下文禁用 cronjob，防止递归建任务）；设置面板新增 cron 频率选项与表达式输入
 - **并行子 Agent（task_group）**：Work/Code 模式新增 `task_group` 内置工具，一次调用可并行委派多个互不依赖的子任务（默认并发上限 4，结果按输入顺序聚合返回）；子任务各自独立会话/checkpoint/角色租约，单个失败不影响其余
 - **AGENTS.md 项目上下文**：Code（及绑定工作目录的 Work）模式启动时读取工作区根目录 AGENTS.md 注入启动 transcript，让模型看到项目级构建/测试/架构约定；超长自动截断，无文件时零侵入
 - **迭代预算（IterationBudget）**：移植自 Hermes，Agent 主循环每次模型调用消耗一次迭代预算，防止死循环；父 agent 默认 90 次，子 agent 默认 50 次；程序化验证工具（run_verification）成功后退还预算
@@ -50,6 +51,7 @@ All notable changes to this project will be documented in this file.
 - **Git Worktree 隔离**：移植 Hermes `hermes -w` 工作区隔离设计，新增 worktree.ts（在仓库根下创建 `.worktrees/cyrene-<8hex>` 隔离 worktree + 独立分支 `cyrene/<name>`，自动写入 `.gitignore`）；支持 `.worktreeinclude` 白名单文件复制进 worktree（目录优先 symlink，Windows 无权限回退 copytree，拒绝目录穿越/逃逸）；清理时保留含未推送提交的 worktree（相对 refs/remotes/* 判定，无远端基线视为无未推送）；harness-adapter 接入 setupWorktree/cleanupWorktree，cyrene-agent.ts 新增 `useWorktree` 选项（默认关闭）
 - **文件系统快照与 /rollback 回滚**：移植 Hermes checkpoint 设计，新增 checkpoint-manager.ts（基于 Git 的透明文件系统快照：跨项目共享对象库 + 每轮快照去重 + 快照列表/diff/单文件回滚 + 回滚前自动保留 pre-rollback 快照可撤销 + node_modules 排除/超大文件剔除/数量自动修剪）；harness 每轮 newTurn()，文件修改类工具（risk=fs-write/shell）dispatch 前自动 ensureCheckpoint（LLM 不可见，失败静默降级）；worktree 隔离时快照面向用户主项目根；输入框拦截 `/rollback` 命令（list/diff/`<target> [file]`）直接响应，不进入 Agent
 - **MCP sampling + HTTP 传输**：mcp-adapter 新增 http（Streamable HTTP）transport（`transport: "http"` + `headers` 透传鉴权，POST 发消息 + GET SSE 收消息）；支持 MCP sampling 反向请求：`sampling.enabled` 开启后声明 sampling 能力并注册 createMessage handler（复用 llm-client 非流式调用，SamplingMessage 文本块映射 + 非文本块跳过，systemPrompt 前置，支持模型/maxTokens 覆盖）
+- **轨迹压缩**：移植 Hermes trajectory_compressor.py，新增 trajectory-compressor.ts（保护头部 system/user/assistant/tool 轮次 + 尾部 N 轮，只压缩中部可压缩区间并恰好压到预算内；摘要替换压缩区间，剩余轮次原样保留；token 计数 CJK 感知；SummarizeFn 注入 LLM 摘要，未注入时确定性占位摘要保证离线可用；批量压缩并发控制 + 汇总指标）；trajectory-exporter 新增 collectTrajectorySessions/exportTrajectoryCompressed 支持压缩后轨迹导出；skill-creation 新增 trajectoryTurns 可选参数（沉淀判定前生成内容级摘要入提示词，提升技能创建准确性）
 
 ### Changed
 

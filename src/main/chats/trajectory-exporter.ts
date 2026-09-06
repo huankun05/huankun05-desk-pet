@@ -30,6 +30,13 @@ import * as path from "node:path";
 import type { ChatMessage, ChatSession, ChatSessionMeta, ConversationMode } from "../../shared/chat-types";
 import type { ToolExecutionRecord } from "../../shared/chat-types";
 import { redactSensitiveText } from "../orchestrator/security/message-redactor";
+import {
+  compressTrajectories,
+  defaultCompressionConfig,
+  aggregateMetricsToDict,
+  type CompressionConfig,
+  type SummarizeFn,
+} from "./trajectory-compressor";
 
 export interface TrajectoryTurn {
   session_id: string;
@@ -193,19 +200,15 @@ export function sessionToTrajectory(
 }
 
 /**
- * 导出轨迹。
- *
- * @param sessions 要导出的会话列表（从 chats-store 获取）
- * @param getSession 按 id 获取完整会话的函数（chats-store.getSession）
- * @param options 导出选项
+ * 从会话列表收集轨迹（按会话分组，供同步导出与压缩导出复用）。
  */
-export function exportTrajectory(
+export function collectTrajectorySessions(
   sessions: ChatSessionMeta[],
   getSession: (id: string) => ChatSession | null,
-  options: ExportOptions = {},
-): ExportResult {
+  options: { sessionId?: string; mode?: ConversationMode; since?: number; until?: number; sanitize?: boolean } = {},
+): { grouped: TrajectoryTurn[][]; sessionCount: number } {
   const sanitize = options.sanitize !== false;
-  let allTurns: TrajectoryTurn[] = [];
+  const grouped: TrajectoryTurn[][] = [];
   let sessionCount = 0;
 
   for (const meta of sessions) {
@@ -222,9 +225,27 @@ export function exportTrajectory(
     });
     if (turns.length === 0) continue;
 
-    allTurns = allTurns.concat(turns);
+    grouped.push(turns);
     sessionCount += 1;
   }
+
+  return { grouped, sessionCount };
+}
+
+/**
+ * 导出轨迹。
+ *
+ * @param sessions 要导出的会话列表（从 chats-store 获取）
+ * @param getSession 按 id 获取完整会话的函数（chats-store.getSession）
+ * @param options 导出选项
+ */
+export function exportTrajectory(
+  sessions: ChatSessionMeta[],
+  getSession: (id: string) => ChatSession | null,
+  options: ExportOptions = {},
+): ExportResult {
+  const { grouped, sessionCount } = collectTrajectorySessions(sessions, getSession, options);
+  const allTurns = grouped.flat();
 
   if (options.outputPath) {
     const dir = path.dirname(options.outputPath);
@@ -235,4 +256,59 @@ export function exportTrajectory(
   }
 
   return { turnCount: allTurns.length, sessionCount, turns: allTurns };
+}
+
+export interface CompressExportOptions extends ExportOptions {
+  compression?: {
+    /** 压缩配置覆盖项 */
+    config?: Partial<CompressionConfig>;
+    /** LLM 摘要函数；缺省时压缩仍可用（生成确定性占位摘要） */
+    summarize?: SummarizeFn;
+    /** 批量压缩并发上限（默认 4） */
+    concurrency?: number;
+  };
+}
+
+export interface CompressedExportResult extends ExportResult {
+  /** 压缩汇总指标（每个会话各自压缩后汇总） */
+  metrics?: Record<string, unknown>;
+}
+
+/**
+ * 导出并压缩轨迹（异步）。
+ *
+ * 每个会话的轨迹独立压缩（保护头部/尾部、压缩中部、替换为摘要），
+ * 再合并写出。outputPath 未指定时返回压缩后的 turns。
+ */
+export async function exportTrajectoryCompressed(
+  sessions: ChatSessionMeta[],
+  getSession: (id: string) => ChatSession | null,
+  options: CompressExportOptions = {},
+): Promise<CompressedExportResult> {
+  const { grouped, sessionCount } = collectTrajectorySessions(sessions, getSession, options);
+  if (grouped.length === 0) return { turnCount: 0, sessionCount: 0, turns: [], metrics: {} };
+
+  const config = defaultCompressionConfig(options.compression?.config ?? {});
+  if (options.compression?.summarize) config.summarize = options.compression.summarize;
+
+  const { trajectories, metrics, aggregate } = await compressTrajectories(grouped, config, {
+    concurrency: options.compression?.concurrency,
+  });
+
+  const allTurns: TrajectoryTurn[] = [];
+  for (let i = 0; i < trajectories.length; i++) {
+    // saveOverLimit=false 时丢弃压缩后仍超限的会话
+    if (!config.saveOverLimit && metrics[i].stillOverLimit) continue;
+    allTurns.push(...trajectories[i]);
+  }
+
+  if (options.outputPath) {
+    const dir = path.dirname(options.outputPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const lines = allTurns.map((turn) => JSON.stringify(turn));
+    fs.writeFileSync(options.outputPath, lines.join("\n") + "\n", "utf8");
+    return { turnCount: allTurns.length, sessionCount, outputPath: options.outputPath, metrics: aggregateMetricsToDict(aggregate) };
+  }
+
+  return { turnCount: allTurns.length, sessionCount, turns: allTurns, metrics: aggregateMetricsToDict(aggregate) };
 }

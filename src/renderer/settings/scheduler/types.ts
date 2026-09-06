@@ -5,7 +5,8 @@ export type ScheduleConfig =
   | { kind: "once"; runAt: string }
   | { kind: "daily"; timeOfDay: string }
   | { kind: "weekly"; dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; timeOfDay: string }
-  | { kind: "interval"; every: number; unit: "minutes" | "hours" };
+  | { kind: "interval"; every: number; unit: "minutes" | "hours" }
+  | { kind: "cron"; expr: string };
 
 export type SchedulerToolMode = "all-enabled" | "allow-list";
 

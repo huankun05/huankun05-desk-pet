@@ -21,6 +21,7 @@ import { installMcpServerTool } from "./builtin-tools/install-mcp-tool";
 import { runVerificationTool } from "./builtin-tools/run-verification-tool";
 import { runShellTool } from "./builtin-tools/run-shell-tool";
 import { executeCodeTool } from "./builtin-tools/execute-code-tool";
+import { createScheduleTaskTool } from "./builtin-tools/schedule-task-tool";
 
 let sendToLive2DWindow: (channel: string, payload?: unknown) => void = () => {};
 export function setLive2dWindowSender(sender: typeof sendToLive2DWindow): void {
@@ -37,3 +38,4 @@ logger.info(LogTag.BuiltinTools, "registered: fetch_url / run_shell / execute_co
 toolRegistry.register(weatherTool);
 toolRegistry.register(webSearchTool);
 toolRegistry.register(createPlayLive2DActionTool({ sendToLive2DWindow }));
+toolRegistry.register(createScheduleTaskTool());

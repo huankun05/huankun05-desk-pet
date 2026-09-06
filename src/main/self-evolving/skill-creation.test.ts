@@ -227,3 +227,66 @@ describe("runSkillCreation LLM 判定与写入", () => {
     expect(outcome.detail).toContain("名称非法");
   });
 });
+
+// ── skill-creation trajectoryTurns 内容级摘要（对接轨迹压缩） ────
+
+describe("runSkillCreation trajectoryTurns", () => {
+  function makeTurn(role: string, content: string) {
+    return {
+      session_id: "s1",
+      session_title: "S",
+      session_mode: "work" as const,
+      turn_index: 0,
+      role,
+      content,
+      timestamp: 1,
+    };
+  }
+
+  it("提供轨迹 turns 时生成内容级摘要并入判定提示词", async () => {
+    const llm = vi.fn(async (prompt: string) => {
+      if (prompt.includes("TURNS TO SUMMARIZE")) return "[CONTEXT SUMMARY]: 完成了构建与部署";
+      return validCreationRaw;
+    });
+    const outcome = await runSkillCreation(
+      makeInput({
+        trajectoryTurns: [
+          makeTurn("assistant", "检查了配置文件"),
+          makeTurn("tool", "配置正确"),
+        ],
+      }),
+      llm as LLMCallFn,
+    );
+    expect(outcome.status).toBe("created");
+    expect(llm).toHaveBeenCalledTimes(2);
+    const creationPrompt = llm.mock.calls[1][0] as string;
+    expect(creationPrompt).toContain("## 对话内容摘要");
+    expect(creationPrompt).toContain("[CONTEXT SUMMARY]: 完成了构建与部署");
+  });
+
+  it("摘要生成失败不阻断沉淀（容错降级）", async () => {
+    let calls = 0;
+    const llm = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("summary llm down");
+      return validCreationRaw;
+    });
+    const outcome = await runSkillCreation(
+      makeInput({ trajectoryTurns: [makeTurn("assistant", "工作内容")] }),
+      llm as LLMCallFn,
+    );
+    expect(outcome.status).toBe("created");
+    expect(llm).toHaveBeenCalledTimes(2);
+    // 判定提示词不含内容级摘要（已降级）
+    const creationPrompt = llm.mock.calls[1][0] as string;
+    expect(creationPrompt).not.toContain("## 对话内容摘要");
+  });
+
+  it("无轨迹 turns 时行为与原先完全一致（单次调用）", async () => {
+    const llm = llmReturning(validCreationRaw);
+    const outcome = await runSkillCreation(makeInput(), llm);
+    expect(outcome.status).toBe("created");
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect((llm.mock.calls[0][0] as string)).not.toContain("## 对话内容摘要");
+  });
+});
