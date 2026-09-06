@@ -5,6 +5,12 @@ dist/main/
 dist/cli/
 dist/preload/
 dist/renderer/assets
+dist/renderer/avatars/
+dist/renderer/icons/
+dist/renderer/models/
+dist/renderer/stickers/
+dist/renderer/loading.png
+dist/renderer/splash.html
 dist/renderer/feeling/
 dist/renderer/status/
 dist/renderer/call/index.html

@@ -5,7 +5,7 @@ import { appendHistory as appendChannelHistory } from "./history-log";
 import { appendLog as appendChannelLog, type LogEntry } from "./message-log";
 import type { ChannelId, IncomingMessage, OutgoingMessage } from "./types";
 
-export type ProactiveMobileChannel = Extract<ChannelId, "wechat" | "feishu">;
+export type ProactiveMobileChannel = Extract<ChannelId, "wechat" | "feishu" | "qq">;
 
 export interface RecentProactiveChannelRecipient {
   targetId: string;
@@ -23,7 +23,7 @@ export function createProactiveChannelRecipientRegistry(): ProactiveChannelRecip
   const recipients = new Map<ProactiveMobileChannel, RecentProactiveChannelRecipient>();
   return {
     remember(message, sessionId): void {
-      if (message.channel !== "wechat" && message.channel !== "feishu") return;
+      if (message.channel !== "wechat" && message.channel !== "feishu" && message.channel !== "qq") return;
       const targetId = message.chatId.trim();
       if (!targetId || !sessionId) return;
       recipients.set(message.channel, {

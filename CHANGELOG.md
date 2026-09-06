@@ -59,6 +59,8 @@ All notable changes to this project will be documented in this file.
 - **成本增强**：新增 cost-config 模块（月度预算 + 汇率配置），月度成本超预算时桌面通知告警（每月仅提醒一次）；成本展示支持人民币结算（usdToCny 汇率换算 + formatCost CNY 格式化）
 - **预算告警分级**：新增接近预算预警（月度成本达预算 80% 阈值 WARN_RATIO 时提前提醒），与超限告警各自每月最多提醒一次；告警通知附本月花费最多模型 Top 3 明细，便于定位超支来源；Token 面板区分预警（黄色）/超限（红色）提示与进度条状态
 - **LLM 审查卡片增强**：审查结果轮询超时（24s）后提供"重新获取"按钮可手动重试；任一文件发现潜在 bug 时审查卡片头部展示红色"⚠ 潜在 bug"徽标，审查结论一眼可见
+- **settings 页面国际化**：实现 settings 页面导航、面板标题、提示与占位文案的国际化（骨架阶段）：新增轻量级 i18n 模块（t()/tOr() 翻译函数、applySettingsI18n 批量替换 data-i18n 静态文案与 data-i18n-aria 可访问性名称、initSettingsI18n 语言跟随通用设置）；新增中英文词典（zh-CN/en-US，覆盖 nav/hint/panel/placeholder 等 40+ 词条）；动态文案（导航标题栏、占位面板）在 switchSection 时按当前语言即时取值，语言切换后自动跟随
+- **QQ 主动投递**：将非官方 QQ（NapCat/OneBot）渠道接入 proactive-delivery：ProactiveDeliveryTarget 与 normalize 新增 `qq`；ProactiveMobileChannel 与 recipient registry 支持 qq（NapCat 会话后记住最近接收人）；设置面板"主动消息发送到"新增「仅QQ（NapCat）」选项，可用性随渠道运行状态自动启停
 
 ### Changed
 
@@ -81,6 +83,7 @@ All notable changes to this project will be documented in this file.
 - **TTS 引擎白名单**：修复 settings-facade.ts 中 ttsEngine normalize 白名单不包含 "senseaudio" 的问题
 - **辅助模型设置重复**：删除 index.html 中重复的 5 个辅助模型配置区
 - **备份删除按钮颜色**：修复备份管理页面删除按钮颜色与背景重合的问题，改为红色背景+白色文字
+- **Git Bash 探测增强**：collectBashCandidates 新增从 PATH 中 git 可执行文件反推安装根的逻辑，覆盖自定义/便携安装位置（仅把 cmd 目录加入 PATH 的情况），避免 run_shell bash 模式误报 BASH_UNAVAILABLE
 
 ### Technical
 

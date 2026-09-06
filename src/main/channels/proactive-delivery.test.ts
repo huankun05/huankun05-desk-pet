@@ -18,7 +18,7 @@ const capability: ChannelCapability = {
   maxTextLength: 4000,
 };
 
-function incoming(channel: "wechat" | "feishu", senderId: string, chatId = senderId): IncomingMessage {
+function incoming(channel: "wechat" | "feishu" | "qq", senderId: string, chatId = senderId): IncomingMessage {
   return { channel, senderId, chatId, text: "你好", at: new Date() };
 }
 
@@ -49,6 +49,30 @@ describe("proactive channel delivery", () => {
 
     expect(registry.get("wechat")).toMatchObject({ targetId: "wx-chat-2", sessionId: "session-wx-2" });
     expect(registry.get("feishu")).toMatchObject({ targetId: "fs-1", sessionId: "session-fs-1" });
+  });
+
+  it("records QQ recipients and delivers to them", async () => {
+    const adapter = fakeAdapter();
+    registry.remember(incoming("qq", "10001"), "session-qq-1");
+
+    expect(registry.get("qq")).toMatchObject({ targetId: "10001", sessionId: "session-qq-1" });
+
+    const result = await sendProactiveChannelMessage({
+      channel: "qq",
+      text: "第一句。",
+      mobileMessageSegmentation: "off",
+      manager: { getAdapter: () => adapter },
+      recipientRegistry: registry,
+      appendHistory: vi.fn(),
+      appendLog: vi.fn(),
+    });
+
+    expect(result).toEqual({ kind: "committed", deliveredParts: 1, totalParts: 1 });
+    expect(adapter.send).toHaveBeenCalledWith({
+      channel: "qq",
+      targetId: "10001",
+      parts: [{ kind: "text", text: "第一句。" }],
+    });
   });
 
   it("cancels while the selected channel is offline", async () => {

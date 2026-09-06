@@ -114,12 +114,12 @@ export interface TaskGroupExecuteResult {
 
 ### 2.3 验收标准
 
-- [ ] `task_group` 工具出现在 Work / Code 模式的工具清单（includeTask=true）。
-- [ ] 两个及以上子任务并行执行，总耗时 ≈ max(单任务耗时) 而非累加（用 mock harness 计时验证）。
-- [ ] 单任务失败不影响其余；聚合结果按输入顺序对齐。
-- [ ] 子任务内不可见 `task_group` / `task` / `ask_user`。
-- [ ] 相同 companion_id 冲突时该子任务失败并携带明确信息。
-- [ ] 新增单测覆盖：并发上限、失败隔离、顺序对齐、参数校验、角色冲突。
+- [x] `task_group` 工具出现在 Work / Code 模式的工具清单（includeTask=true）。
+- [x] 两个及以上子任务并行执行，总耗时 ≈ max(单任务耗时) 而非累加（用 mock harness 计时验证）。
+- [x] 单任务失败不影响其余；聚合结果按输入顺序对齐。
+- [x] 子任务内不可见 `task_group` / `task` / `ask_user`。
+- [x] 相同 companion_id 冲突时该子任务失败并携带明确信息。
+- [x] 新增单测覆盖：并发上限、失败隔离、顺序对齐、参数校验、角色冲突。
 
 ### 2.4 风险与说明
 
@@ -1187,10 +1187,10 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
    - `installSkill`/`uninstallSkill`：安装/卸载技能
    - `isInstalled`/`isAvailable`：检查技能状态
 
-#### 7.6.3 UI 集成（后续迭代）
-- 大模型调用 `recommendSkills` 发现未安装技能后，通过 IPC 触发渲染进程弹出确认对话框
-- 用户点击"安装"后调用 `installSkill`
-- 使用项目现有的 cy-modal 组件风格，保持 UI 统一
+#### 7.6.3 UI 集成
+- 大模型调用 `recommend_skill` 工具发现未安装技能后，由 skill-recommend-tool 通过 `SKILL_INSTALL_PROMPT` 向聊天窗口发送安装确认提示
+- 渲染进程弹出确认框，用户点击"安装"后调用 `installSkill`
+- 达到阈值（score ≥ 50）才自动弹窗，同一技能每会话只弹一次；服务实例在 bootstrap 注入（setSkillRecommendService + setSkillPromptWindowGetter），工具执行时惰性读取
 
 #### 7.6.4 验收标准
 - [x] 17 个内置技能模板
@@ -1245,3 +1245,8 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 | 2026-09-06 | ⑧自然语言创建定时任务实施完成 | 移植 Hermes cronjob 工具：新增 schedule_task 内置工具（LLM 把自然语言翻译成调度字符串 → parse-schedule.ts 解析 → 写入 scheduler store，解析失败返回格式指引供 LLM 自纠）；ScheduleConfig 新增 cron 类型（5 字段表达式，croner 计算下次触发；croner 不支持年字段，带年字段表达式明确报错而非静默吞掉）；parse-schedule 支持 every X（周期）/时长（一次性）/5 字段 cron/ISO 时间戳；schedule-calculator 三种计算函数全部支持 cron（初始/后续/补跑）；store 校验 cron 表达式；定时任务执行过滤 schedule_task（对齐 Hermes cron 上下文禁用 cronjob，防递归建任务）；设置面板新增 cron 频率选项 + 表达式输入；36 新增/修改单测 + tsc 通过 |
 | 2026-09-06 | ⑨轨迹压缩实施完成 | 移植 Hermes trajectory_compressor.py：新增 trajectory-compressor.ts（压缩策略：保护头部 system/user/assistant/tool 轮次 + 保护尾部 N 轮 + 只压缩中部可压缩区间 + 只压到恰好满足预算 + 摘要替换区间 + 剩余轮次原样保留；token 计数 CJK 感知；SummarizeFn 抽象由调用方注入 LLM，未注入时确定性占位摘要保证离线可用；重试/指数退避/降级占位）；批量压缩并发控制 + 汇总指标；trajectory-exporter 新增 collectTrajectorySessions/exportTrajectoryCompressed 对接（压缩后轨迹导出）；skill-creation 新增 trajectoryTurns 可选参数（沉淀判定前生成内容级摘要入提示词，提升技能准确性）；trajectory-compressor 新增测试 + exporter/skill-creation 补充测试 + tsc 通过；全量回归 3584/3585（唯一失败为环境缺 Git Bash 的既有问题） |
 | 2026-09-06 | think-scrubber 集成评估完成 | 对比 think-scrubber（状态机+块边界+5标签变体）与 think-filter（已集成 runtime.ts 流式管线，leading-only/strict 模式）：P5-1 后 think-filter 已吸收 5 标签变体/孤立关闭标签/精确部分标签暂存全部关键能力，且额外具备 leading-only 模式与 takeThinking；判定管线清理由 think-filter 承担，think-scrubber 保留为非流式清理独立模块（scrubThinkBlocks），**无需重复接入**，避免双份过滤行为漂移；P4-2 集成待办标注为已由 P5-1 取代 |
+| 2026-09-06 | 成本/审查细化实施完成 | 预算告警分级（80% 预警 + Top 模型明细）；LLM 审查卡片新增"重新获取"按钮与"⚠ 潜在 bug"徽标；已提交并推送 |
+| 2026-09-06 | P0 验收清单补勾 | 补齐 P0-1 并行子 Agent 全部 6 项验收勾选（工具清单/并行耗时/失败隔离与顺序对齐/子任务工具屏蔽/角色冲突/单测覆盖），逐一核对实现与测试后勾选 |
+| 2026-09-06 | settings 页面国际化（骨架阶段）实施完成 | 新增轻量级 i18n 模块（t()/tOr()/applySettingsI18n/initSettingsI18n，语言跟随通用设置）+ 中英文词典（zh-CN/en-US 40+ 词条）；18 个导航项 + 18 个面板标题 + 导航 aria-label 全部 data-i18n 化；动态文案（标题栏/占位面板）switchSection 时按当前语言即时取值；applySettingsI18n 增加带子元素容器守卫（避免误删图标）；新增 i18n 测试 5 个 + 修复 markup 测试；renderer/main 构建通过；全量 3639/3639 通过 |
+| 2026-09-06 | Git Bash 探测增强实施完成 | collectBashCandidates 新增从 PATH 中 git 可执行文件反推安装根逻辑（git.exe/git.cmd/git.bat → bin/bash.exe + usr/bin/bash.exe），覆盖自定义/便携安装位置（仅把 cmd 目录加入 PATH 的情况）；修复全量套件既有 1 个环境性失败（本机 Git Bash 装在 E:\software\Git 非标准路径）；全量 3639/3639 通过 |
+| 2026-09-06 | QQ 主动投递接入实施完成 | 非官方 QQ（NapCat/OneBot）渠道接入 proactive-delivery：ProactiveDeliveryTarget 与 normalize 新增 qq；ProactiveMobileChannel 与 recipient registry 支持 qq（NapCat 会话后记住最近接收人）；设置面板"主动消息发送到"新增「仅QQ（NapCat）」选项，可用性随渠道运行状态自动启停；新增 QQ 接收人记忆/投递/normalize/selectable 测试；全量 3640/3640 通过 |

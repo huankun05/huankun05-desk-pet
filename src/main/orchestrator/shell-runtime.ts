@@ -46,6 +46,9 @@ function collectBashCandidates(): string[] {
     if (directory) candidates.push(path.join(directory, "bash.exe"));
   }
 
+  // 通过 PATH 中的 git 反推其安装根，覆盖自定义/便携安装位置（仅把 cmd 目录加入 PATH 的情况）
+  candidates.push(...collectGitDerivedBashCandidates());
+
   const programFiles = process.env.ProgramFiles;
   const programFilesX86 = process.env["ProgramFiles(x86)"];
   const localAppData = process.env.LOCALAPPDATA;
@@ -60,6 +63,23 @@ function collectBashCandidates(): string[] {
     seen.add(key);
     return true;
   });
+}
+
+/** 从 PATH 中的 git 可执行文件（git.exe/git.cmd/git.bat）反推安装根，返回其 bin/usr 下的 bash.exe 候选。 */
+function collectGitDerivedBashCandidates(): string[] {
+  const candidates: string[] = [];
+  for (const entry of (process.env.PATH ?? "").split(path.delimiter)) {
+    const directory = entry.trim().replace(/^"|"$/g, "");
+    if (!directory) continue;
+    for (const name of ["git.exe", "git.cmd", "git.bat"]) {
+      const gitPath = path.join(directory, name);
+      if (!fs.existsSync(gitPath)) continue;
+      const gitRoot = path.dirname(path.dirname(gitPath));
+      candidates.push(path.join(gitRoot, "bin", "bash.exe"));
+      candidates.push(path.join(gitRoot, "usr", "bin", "bash.exe"));
+    }
+  }
+  return candidates;
 }
 
 function probeBash(executable: string): Promise<boolean> {

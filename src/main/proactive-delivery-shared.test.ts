@@ -11,5 +11,7 @@ describe("proactive delivery availability", () => {
     expect(isProactiveDeliveryTargetSelectable("wechat", { phase: "offline" })).toBe(false);
     expect(isProactiveDeliveryTargetSelectable("feishu", { phase: "error" })).toBe(false);
     expect(isProactiveDeliveryTargetSelectable("feishu", undefined)).toBe(false);
+    expect(isProactiveDeliveryTargetSelectable("qq", { phase: "running" })).toBe(true);
+    expect(isProactiveDeliveryTargetSelectable("qq", { phase: "starting" })).toBe(false);
   });
 });

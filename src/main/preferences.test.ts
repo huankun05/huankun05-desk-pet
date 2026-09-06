@@ -43,6 +43,7 @@ describe("preferences", () => {
     expect(normalizeProactiveDeliveryTarget("local")).toBe("local");
     expect(normalizeProactiveDeliveryTarget("wechat")).toBe("wechat");
     expect(normalizeProactiveDeliveryTarget("feishu")).toBe("feishu");
+    expect(normalizeProactiveDeliveryTarget("qq")).toBe("qq");
     expect(normalizeProactiveDeliveryTarget(undefined)).toBe("local");
     expect(normalizeProactiveDeliveryTarget("")).toBe("local");
     expect(normalizeProactiveDeliveryTarget("unknown")).toBe("local");
