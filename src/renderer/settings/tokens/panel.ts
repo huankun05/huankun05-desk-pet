@@ -41,12 +41,32 @@ interface TokenUsageReport {
 }
 
 declare global {
-interface Window {
+  interface Window {
     tokenUsage?: {
       get: (days: number) => Promise<TokenUsageReport>;
       clear: () => Promise<void>;
     };
+    cost?: {
+      get: () => Promise<CostPanelData>;
+      setConfig: (config: { monthlyBudgetUsd?: number; exchangeRate?: number }) => Promise<unknown>;
+      triggerAlert: () => Promise<unknown>;
+    };
   }
+}
+
+interface CostPanelData {
+  config: { monthlyBudgetUsd: number; exchangeRate: number };
+  monthCostUsd: number;
+  budgetEnabled: boolean;
+  budgetExceeded: boolean;
+  budgetRatio: number;
+}
+
+/** 与主进程 formatCost 同规则的本地面额格式化（渲染端无法直接 import 主进程模块）。 */
+function formatCostText(cost: number, symbol: "$" | "¥"): string {
+  if (cost >= 1) return `${symbol}${cost.toFixed(2)}`;
+  if (cost >= 0.01) return `${symbol}${cost.toFixed(4)}`;
+  return `${symbol}${cost.toFixed(6)}`;
 }
 
 function formatCacheMetric(value: number, data: TokenDayData): string {
@@ -331,8 +351,48 @@ function updateTokenStats(data: TokenDayData[]): void {
   }));
 }
 
+// 刷新成本/预算区块（人民币结算 + 预算告警，独立于时间范围，按自然月统计）
+async function refreshCostPanel(): Promise<void> {
+  let data: CostPanelData | null = null;
+  try {
+    data = (await window.cost?.get()) ?? null;
+  } catch (err) {
+    console.warn("[settings] 拉取成本/预算失败:", err);
+  }
+  if (!data) return;
+
+  const usdEl = document.getElementById("token-cost-usd");
+  const cnyEl = document.getElementById("token-cost-cny");
+  const budgetInput = document.getElementById("cost-budget-input") as HTMLInputElement | null;
+  const rateInput = document.getElementById("cost-rate-input") as HTMLInputElement | null;
+  const meter = document.getElementById("cost-meter");
+  const meterFill = document.getElementById("cost-meter-fill");
+  const alertEl = document.getElementById("token-cost-alert");
+
+  if (usdEl) usdEl.textContent = formatCostText(data.monthCostUsd, "$");
+  if (cnyEl) cnyEl.textContent = `≈ ${formatCostText(data.monthCostUsd * data.config.exchangeRate, "¥")}`;
+  // 避免覆盖正在输入的字段
+  if (budgetInput && document.activeElement !== budgetInput) {
+    budgetInput.value = data.config.monthlyBudgetUsd > 0 ? String(data.config.monthlyBudgetUsd) : "";
+  }
+  if (rateInput && document.activeElement !== rateInput) {
+    rateInput.value = String(data.config.exchangeRate);
+  }
+  if (meter && meterFill) {
+    if (data.budgetEnabled) {
+      meter.hidden = false;
+      meterFill.style.width = `${Math.min(100, Math.round(data.budgetRatio * 100))}%`;
+    } else {
+      meter.hidden = true;
+    }
+  }
+  if (alertEl) alertEl.classList.toggle("is-hidden", !data.budgetExceeded);
+}
+
 // 刷新整个面板：调 IPC 拉真实数据 → 有数据渲染图表，无数据显示空态
 async function refreshTokenPanel(days: number): Promise<void> {
+  // 成本/预算与时间范围无关，始终刷新
+  void refreshCostPanel();
   let report: TokenUsageReport = { days: [], models: [] };
   try {
     report = await window.tokenUsage?.get(days) ?? report;
@@ -406,5 +466,24 @@ document.getElementById("token-usage-clear")?.addEventListener("click", async ()
   }
 });
 
+// 保存预算/汇率配置
+document.getElementById("cost-save-btn")?.addEventListener("click", async () => {
+  const budgetInput = document.getElementById("cost-budget-input") as HTMLInputElement | null;
+  const rateInput = document.getElementById("cost-rate-input") as HTMLInputElement | null;
+  const budgetRaw = Number(budgetInput?.value ?? NaN);
+  const rateRaw = Number(rateInput?.value ?? NaN);
+  const monthlyBudgetUsd = Number.isFinite(budgetRaw) && budgetRaw >= 0 ? budgetRaw : 0;
+  const exchangeRate = Number.isFinite(rateRaw) && rateRaw > 0 ? rateRaw : undefined;
+  try {
+    await window.cost?.setConfig({ monthlyBudgetUsd, exchangeRate });
+    await refreshCostPanel();
+  } catch (err) {
+    console.warn("[settings] 保存成本配置失败:", err);
+  }
+});
+
 // 初始渲染
 void refreshTokenPanel(7);
+
+// 打开面板时检查一次预算告警（服务端保证每月最多通知一次）
+void window.cost?.triggerAlert().catch((err) => console.warn("[settings] 预算告警检查失败:", err));

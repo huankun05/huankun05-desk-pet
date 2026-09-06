@@ -200,6 +200,20 @@
             </button>
           </div>
 
+          <div class="credential-migrate-row">
+            <div class="credential-migrate-row__copy">
+              <span class="credential-migrate-row__title">凭据迁移</span>
+              <p class="credential-migrate-row__hint">导出全部 API Key 与 MCP 环境变量凭据（口令加密），换机时导入即可恢复。</p>
+            </div>
+            <div class="credential-migrate-row__actions">
+              <button type="button" class="btn-primary" id="cred-export-btn">导出凭据</button>
+              <button type="button" class="btn-primary" id="cred-import-btn">导入凭据</button>
+              <button type="button" class="ghost-btn" id="cred-audit-btn">变更记录</button>
+            </div>
+            <div class="credential-migrate-row__status" id="cred-status" role="status" hidden></div>
+            <div class="credential-migrate-row__audit" id="cred-audit" hidden></div>
+          </div>
+
           <hr class="api-section-divider" />
 
           <div class="form-grid">
@@ -2224,6 +2238,32 @@
                 <span class="token-stat__value" id="token-hit">N/A</span>
               </div>
             </div>
+
+            <!-- 本月成本：人民币结算 + 预算告警 -->
+            <section class="token-cost" id="token-cost" aria-labelledby="token-cost-title">
+              <div class="token-cost__heading">
+                <h3 class="token-cost__title" id="token-cost-title">本月成本</h3>
+                <div class="token-cost__amounts">
+                  <span class="token-cost__usd" id="token-cost-usd">$0.00</span>
+                  <span class="token-cost__cny" id="token-cost-cny">≈ ¥0.00</span>
+                </div>
+              </div>
+              <div class="token-cost__config">
+                <label class="token-cost__field">
+                  <span>月度预算（$）</span>
+                  <input type="number" id="cost-budget-input" min="0" step="0.5" inputmode="decimal" placeholder="0 = 关闭" />
+                </label>
+                <label class="token-cost__field">
+                  <span>汇率（$ → ¥）</span>
+                  <input type="number" id="cost-rate-input" min="0.01" step="0.01" inputmode="decimal" />
+                </label>
+                <button type="button" class="btn-secondary token-cost__save" id="cost-save-btn">保存</button>
+              </div>
+              <div class="token-cost__meter" id="cost-meter" hidden>
+                <div class="token-cost__meter-fill" id="cost-meter-fill"></div>
+              </div>
+              <div class="token-cost__alert is-hidden" id="token-cost-alert" role="alert">⚠️ 本月成本已超过预算，请注意控制用量</div>
+            </section>
 
             <section class="token-cache-summary" aria-labelledby="token-cache-summary-title">
               <div class="token-cache-summary__heading">

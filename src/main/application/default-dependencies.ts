@@ -89,6 +89,8 @@ import { registerAgUiIpc } from "../agui-bridge";
 import { updateLocaleContext } from "../locale-context";
 import { registerCallIpc } from "../call/call-manager";
 import { initSkills, skillRegistry } from "../skills";
+import { createSkillService, registerSkillServiceIpcHandlers } from "../skills/skill-service-ipc";
+import { setSkillPromptWindowGetter, setSkillRecommendService } from "../skills/skill-recommend-tool";
 import { initCurator } from "../self-evolving/curator";
 import { createSchedulerSubsystem } from "../scheduler/bootstrap";
 import { registerBackupIpc } from "../backup/backup-ipc";
@@ -96,7 +98,7 @@ import { getLspConfig, initLspConfigStorage, registerLspConfigIpcHandlers } from
 import { createChannelsSubsystem } from "../channels/bootstrap";
 import { startPluginRuntime } from "../plugin-runtime";
 import { createAgentRuntime } from "../orchestrator/agent-runtime";
-import { buildDefaultSkillCreationCallback, setSkillCreationCallback } from "../orchestrator/harness-adapter";
+import { buildDefaultLLMReviewCallback, buildDefaultSkillCreationCallback, setLLMReviewCallback, setSkillCreationCallback } from "../orchestrator/harness-adapter";
 import { createRuntimeStateService } from "../orchestrator/runtime-state-service";
 import { createProactiveLifecycle } from "../proactive/proactive-lifecycle";
 import { createCitaService } from "../services/cita/cita-service";
@@ -372,6 +374,14 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           ];
           return services.llm.chat(loadModelSettings(), messages, undefined, 90000, "后台技能沉淀", false);
         }));
+        // 后台 LLM 审查：Run 结束后异步审查文件变更（复用主模型配置；不注入则不启用）。
+        setLLMReviewCallback(buildDefaultLLMReviewCallback(async (prompt, systemPrompt) => {
+          const messages = [
+            ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
+            { role: "user" as const, content: prompt },
+          ];
+          return services.llm.chat(loadModelSettings(), messages, undefined, 120000, "后台代码审查", false);
+        }, loadModelSettings().model));
         return createAgentRuntime({
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,
@@ -446,6 +456,16 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           windowManager: shell.windowManager,
           embeddingIndexService: services.embedding,
         });
+
+        // ── 技能服务（P7-6）：目录/推荐/安装/卸载 IPC + 安装确认提示接线 ──
+        // SkillService 与 recommend_skill 工具共用同一实例；提示框发送到聊天窗口。
+        const skillService = createSkillService(
+          getExternalContentPaths().userSkillDirectories[0],
+          skillRegistry.getAll(),
+        );
+        registerSkillServiceIpcHandlers(skillService);
+        setSkillRecommendService(skillService);
+        setSkillPromptWindowGetter(() => reactChatWindow);
 
         // ── TTS IPC ──
         registerTtsIpc({ ipc, ttsSessionService: services.ttsSession });

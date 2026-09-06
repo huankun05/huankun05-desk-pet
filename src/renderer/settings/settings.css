@@ -1,4 +1,4 @@
-﻿/* 标记！AI写的超大技术债，延期重构*/
+/* 标记！AI写的超大技术债，延期重构*/
 /* 柱状图/用量进度条共享样式（与 tasks 窗口共用） */
 @import "../ui/chart.css";
 
@@ -2583,6 +2583,73 @@ body {
   margin-top: 10px;
 }
 
+/* ── 凭据迁移（导出 / 导入 / 变更记录） ── */
+.credential-migrate-row {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 182, 220, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.credential-migrate-row__copy {
+  margin-bottom: 10px;
+}
+.credential-migrate-row__title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rb-text-strong);
+}
+.credential-migrate-row__hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(235, 229, 245, 0.45);
+}
+.credential-migrate-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.credential-migrate-row__status {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(235, 229, 245, 0.75);
+}
+.credential-migrate-row__status.is-error {
+  color: #ff8fa3;
+}
+.credential-migrate-row__audit {
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 182, 220, 0.1);
+  padding-top: 8px;
+}
+.credential-migrate-row__audit-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: rgba(235, 229, 245, 0.65);
+  border-bottom: 1px dashed rgba(255, 182, 220, 0.08);
+}
+.credential-migrate-row__audit-time {
+  flex-shrink: 0;
+  font-family: var(--rb-font-mono, monospace);
+  font-size: 11px;
+  color: rgba(235, 229, 245, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.credential-migrate-row__audit-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .work-flow-adapt-meta {
   display: flex;
   flex-wrap: wrap;
@@ -3021,6 +3088,120 @@ body {
 
 @media (max-width: 520px) {
   .token-cache-summary__list { grid-template-columns: 1fr; }
+}
+
+/* 本月成本：人民币结算 + 预算告警 */
+.token-cost {
+  margin: 0 0 22px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 182, 220, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.token-cost__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.token-cost__title {
+  margin: 0;
+  color: var(--rb-text-default);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.token-cost__amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.token-cost__usd {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ff8ccc;
+  text-shadow: 0 0 10px rgba(236, 72, 153, 0.22);
+  font-variant-numeric: tabular-nums;
+}
+
+.token-cost__cny {
+  font-size: 12px;
+  color: var(--rb-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.token-cost__config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.token-cost__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.token-cost__field span {
+  font-size: 11px;
+  color: var(--rb-text-muted);
+}
+
+.token-cost__field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 182, 220, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--rb-text-default);
+  font-size: 12px;
+  outline: none;
+}
+
+.token-cost__field input:focus {
+  border-color: rgba(255, 140, 204, 0.55);
+}
+
+.token-cost__save {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.token-cost__meter {
+  position: relative;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: var(--rb-radius-full);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.token-cost__meter-fill {
+  height: 100%;
+  border-radius: var(--rb-radius-full);
+  background: linear-gradient(90deg, #34d399, #fbbf24 70%, #f87171);
+  transition: width 0.3s ease;
+}
+
+.token-cost__alert {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .token-models {

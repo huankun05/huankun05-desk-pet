@@ -19,6 +19,7 @@ import { registerLspTool } from "../lsp-tool";
 import "../built-in-tools";
 import { registerSkillTools } from "../../../self-evolving/skill-tools";
 import { registerCuratorTools } from "../../../self-evolving/curator-tools";
+import { recommendSkillTool } from "../../../skills/skill-recommend-tool";
 
 export function syncBuiltInToolToggles(settings: GeneralSettings): void {
   toolRegistry.setEnabled("weather", settings.weatherEnabled);
@@ -50,6 +51,8 @@ export function registerAllTools(deps: { codeGitService: GitService; lspManager:
   registerSkillTools();
   // Curator 后台维护工具（skill_curator）
   registerCuratorTools();
+  // 技能推荐 + 安装确认提示工具（recommend_skill）
+  toolRegistry.register(recommendSkillTool);
 
   syncBuiltInToolToggles(loadGeneralSettings());
 }

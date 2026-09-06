@@ -788,20 +788,14 @@ delta3 = "</think>"
 - [x] 核心模块 think-scrubber.ts 完成（状态机 + 部分标签暂存 + 块边界规则 + 便捷函数）
 - [x] 39 个单测全部通过（闭合对/流式分割/块边界/部分标签暂存/孤立标签/多种标签变体/不区分大小写/flush/reset/普通文本/便捷函数/复杂场景）
 - [x] `tsc --noEmit` 类型检查通过
-- [ ] 集成到 Cyrene 流式输出管线（涉及 vendors/sdk-stream/harness 多层架构，留作后续优化）
-
-**后续集成计划**：
-- 在 `vendors/sdk-stream/` 的 normalizer 层添加 think-scrubber，在 delta 归一化后清理
-- 或在 `harness/harness-llm.ts` 的 LLM 调用回调中添加清理
-- 每轮新对话开始时调用 `scrubber.reset()`
-- 流结束时调用 `scrubber.flush()` 输出暂存内容
+- [x] 集成到 Cyrene 流式输出管线 —— **已被 P5-1 取代，无需接入**（2026-09-06 评估）：P5-1 已增强既有 think-filter（5 种标签变体 + 孤立关闭标签移除 + 精确部分标签暂存）并保持其集成在 runtime.ts 流式管线（leading-only 模式），管线清理由 think-filter 承担；think-scrubber 作为独立模块保留用于非流式清理场景（scrubThinkBlocks），二者不重复接入，避免双份过滤造成行为漂移
 
 #### 4.4.5 验收标准
 
 - [x] 核心模块完整移植 Hermes think_scrubber.py 的状态机逻辑
 - [x] 39 个单测全部通过
 - [x] `tsc --noEmit` 类型检查通过
-- [ ] 集成到流式输出管线（后续优化）
+- [x] 集成到流式输出管线 —— 无需集成，由 P5-1 增强后的 think-filter 承担（避免重复）
 
 ---
 
@@ -1250,3 +1244,4 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 | 2026-09-06 | ⑥MCP sampling + HTTP 传输实施完成 | mcp-adapter 新增 http（Streamable HTTP）transport：McpServerConfig.transport 支持 "http"、headers 透传鉴权；MCP sampling 反向请求：config.sampling.enabled 开启后声明 sampling 能力并注册 createMessage handler（复用 llm-client.chatNonStream，消息映射跳过 image/audio 块，systemPrompt 前置，支持模型与 maxTokens 覆盖）；13 单测（新增 http 构造/缺 url 校验 + sampling 注册/消息映射/模型覆盖/非文本跳过）+ tsc 通过 |
 | 2026-09-06 | ⑧自然语言创建定时任务实施完成 | 移植 Hermes cronjob 工具：新增 schedule_task 内置工具（LLM 把自然语言翻译成调度字符串 → parse-schedule.ts 解析 → 写入 scheduler store，解析失败返回格式指引供 LLM 自纠）；ScheduleConfig 新增 cron 类型（5 字段表达式，croner 计算下次触发；croner 不支持年字段，带年字段表达式明确报错而非静默吞掉）；parse-schedule 支持 every X（周期）/时长（一次性）/5 字段 cron/ISO 时间戳；schedule-calculator 三种计算函数全部支持 cron（初始/后续/补跑）；store 校验 cron 表达式；定时任务执行过滤 schedule_task（对齐 Hermes cron 上下文禁用 cronjob，防递归建任务）；设置面板新增 cron 频率选项 + 表达式输入；36 新增/修改单测 + tsc 通过 |
 | 2026-09-06 | ⑨轨迹压缩实施完成 | 移植 Hermes trajectory_compressor.py：新增 trajectory-compressor.ts（压缩策略：保护头部 system/user/assistant/tool 轮次 + 保护尾部 N 轮 + 只压缩中部可压缩区间 + 只压到恰好满足预算 + 摘要替换区间 + 剩余轮次原样保留；token 计数 CJK 感知；SummarizeFn 抽象由调用方注入 LLM，未注入时确定性占位摘要保证离线可用；重试/指数退避/降级占位）；批量压缩并发控制 + 汇总指标；trajectory-exporter 新增 collectTrajectorySessions/exportTrajectoryCompressed 对接（压缩后轨迹导出）；skill-creation 新增 trajectoryTurns 可选参数（沉淀判定前生成内容级摘要入提示词，提升技能准确性）；trajectory-compressor 新增测试 + exporter/skill-creation 补充测试 + tsc 通过；全量回归 3584/3585（唯一失败为环境缺 Git Bash 的既有问题） |
+| 2026-09-06 | think-scrubber 集成评估完成 | 对比 think-scrubber（状态机+块边界+5标签变体）与 think-filter（已集成 runtime.ts 流式管线，leading-only/strict 模式）：P5-1 后 think-filter 已吸收 5 标签变体/孤立关闭标签/精确部分标签暂存全部关键能力，且额外具备 leading-only 模式与 takeThinking；判定管线清理由 think-filter 承担，think-scrubber 保留为非流式清理独立模块（scrubThinkBlocks），**无需重复接入**，避免双份过滤行为漂移；P4-2 集成待办标注为已由 P5-1 取代 |

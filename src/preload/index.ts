@@ -1,4 +1,4 @@
-﻿import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC } from "../shared/ipc-channels";
 import type { StartTtsRequest, TtsSessionEvent, TtsStartResult } from "../shared/tts-session";
 import type { ScreenshotInsertPayload } from "../shared/ipc-channels";
@@ -8,6 +8,7 @@ import type { ReasoningPreference } from "../shared/reasoning";
 import type { DocumentIndexProgress } from "../main/rag/document-index-queue";
 import type { AguiRunAck } from "../shared/run-terminal";
 import type { ReviewSnapshot } from "../shared/review-types";
+import type { LLMReviewResult, ReviewStats } from "../main/orchestrator/review/llm-reviewer";
 import { getLive2DIpcListenerCounts } from "./live2d-listener-diagnostics";
 import { exposeMusicApi } from "./music";
 import { normalizeChatAppearance, type ChatAppearanceSettings } from "../shared/chat-appearance";
@@ -485,6 +486,18 @@ const settingsApi = {
 
 contextBridge.exposeInMainWorld("settings", settingsApi);
 
+// 凭据导出/导入/审计（设置页"凭据迁移"区）
+const credentialsApi = {
+  export: (passphrase: string) =>
+    ipcRenderer.invoke(IPC.CRED_EXPORT, passphrase) as Promise<{ ok: boolean; count?: number; filePath?: string; error?: string }>,
+  import: (passphrase: string) =>
+    ipcRenderer.invoke(IPC.CRED_IMPORT, passphrase) as Promise<{ ok: boolean; appliedModel?: number; appliedMcp?: number; skipped?: number; error?: string }>,
+  auditList: (limit?: number) =>
+    ipcRenderer.invoke(IPC.CRED_AUDIT_LIST, limit ?? undefined) as Promise<Array<{ time: number; action: string; target: string; detail?: string }>>,
+};
+
+contextBridge.exposeInMainWorld("credentials", credentialsApi);
+
 const pluginsApi = {
   list: () => ipcRenderer.invoke(IPC.PLUGINS_LIST),
   setEnabled: (id: string, enabled: boolean) =>
@@ -652,6 +665,25 @@ const chatStoreApi = {
     ipcRenderer.invoke(IPC.CHATS_OPEN_WORKSPACE, workspaceRoot),
   migrateLegacy: (messages: unknown[]) =>
     ipcRenderer.invoke(IPC.CHATS_MIGRATE_LEGACY, messages),
+  // 导出轨迹（JSONL；主进程弹保存对话框，支持格式/gzip/增量）
+  exportTrajectory: (options?: {
+    sessionId?: string;
+    mode?: "chat" | "work" | "code" | "learn";
+    format?: "cyrene" | "openai" | "sharegpt";
+    compress?: boolean;
+    incremental?: boolean;
+    since?: number;
+    until?: number;
+  }) => ipcRenderer.invoke(IPC.CHATS_EXPORT_TRAJECTORY, options ?? {}) as Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    error?: string;
+    outputPath?: string;
+    turnCount?: number;
+    sessionCount?: number;
+    format?: string;
+    incremental?: boolean;
+  }>,
   // 聊天窗口加载 / 切换 session 时上报；其他窗口可查询/订阅
   setActiveSession: (sessionId: string | null) =>
     ipcRenderer.invoke(IPC.CHATS_SET_ACTIVE_SESSION, sessionId),
@@ -702,6 +734,10 @@ contextBridge.exposeInMainWorld("chatStore", chatStoreApi);
 // Review 快照：获取指定 Run 的不可变文件变更审查数据
 const reviewApi = {
   get: (runId: string) => ipcRenderer.invoke(IPC.REVIEW_GET, runId) as Promise<ReviewSnapshot | null>,
+  // LLM 审查结果：获取 / 列表 / 统计
+  getLLM: (runId: string) => ipcRenderer.invoke(IPC.REVIEW_GET_LLM, runId) as Promise<LLMReviewResult | null>,
+  listLLM: (limit?: number) => ipcRenderer.invoke(IPC.REVIEW_LIST_LLM, limit ?? undefined) as Promise<LLMReviewResult[]>,
+  llmStats: () => ipcRenderer.invoke(IPC.REVIEW_LLM_STATS) as Promise<ReviewStats>,
 };
 
 contextBridge.exposeInMainWorld("review", reviewApi);
@@ -727,6 +763,15 @@ const tokenUsageApi = {
   clear: () => ipcRenderer.invoke(IPC.TOKEN_USAGE_CLEAR) as Promise<void>,
 };
 contextBridge.exposeInMainWorld("tokenUsage", tokenUsageApi);
+
+// 成本 / 预算（设置中心 Token 面板：人民币结算 + 预算告警）
+const costApi = {
+  get: () => ipcRenderer.invoke(IPC.COST_GET),
+  setConfig: (config: { monthlyBudgetUsd?: number; exchangeRate?: number }) =>
+    ipcRenderer.invoke(IPC.COST_SET_CONFIG, config),
+  triggerAlert: () => ipcRenderer.invoke(IPC.COST_TRIGGER_ALERT),
+};
+contextBridge.exposeInMainWorld("cost", costApi);
 
 // TTS 语音合成（设置中心 TTS 面板 + 聊天窗口朗读用）
 const ttsApi = {

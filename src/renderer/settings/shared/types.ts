@@ -300,3 +300,10 @@ export interface SettingsApi {
   beginScreenshotHotkeyCapture: () => Promise<boolean>;
   endScreenshotHotkeyCapture: () => Promise<boolean>;
 }
+
+/** 凭据导出/导入/审计（preload 暴露为 window.credentials）。 */
+export interface CredentialsApi {
+  export: (passphrase: string) => Promise<{ ok: boolean; count?: number; filePath?: string; error?: string }>;
+  import: (passphrase: string) => Promise<{ ok: boolean; appliedModel?: number; appliedMcp?: number; skipped?: number; error?: string }>;
+  auditList: (limit?: number) => Promise<Array<{ time: number; action: string; target: string; detail?: string }>>;
+}

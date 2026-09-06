@@ -26,9 +26,11 @@ import { getDefaultModelProfile, loadModelSettings, resolveModelSettingsProfile 
 import { FileToolOutputStore } from "../orchestrator/harness/tool-output/file-tool-output-store";
 import { getHarnessRunStore } from "../orchestrator/harness/run-store";
 import { getRunReviewTracker } from "../orchestrator/review/run-review-tracker";
+import { loadLLMReview, listLLMReviews, getReviewStats } from "../orchestrator/review/llm-reviewer";
 import { getAdapterForConfig } from "../orchestrator/vendors";
 import { callSummarizeModel } from "../orchestrator/context-manager";
 import { buildContextUsageSnapshot } from "../orchestrator/context-usage";
+import { exportTrajectory, type ExportFormat } from "./trajectory-exporter";
 
 function broadcastChanged(senderWebContents?: WebContents | null): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -299,6 +301,65 @@ export function registerChatsIpc(ipcOption?: IpcScope): void {
     return true;
   });
 
+  // ── Trajectory 导出：弹保存对话框 → 按选项导出 JSONL ──────
+  // 默认导出全部会话（脱敏、cyrene 格式）；支持格式/gzip/增量选项。
+  // 取消保存对话框返回 { canceled: true }，不视为错误。
+  ipc.handle(
+    IPC.CHATS_EXPORT_TRAJECTORY,
+    async (event, payload?: {
+      sessionId?: string;
+      mode?: ConversationMode;
+      format?: ExportFormat;
+      compress?: boolean;
+      incremental?: boolean;
+      since?: number;
+      until?: number;
+    }) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const options = payload && typeof payload === "object" ? payload : {};
+      const format: ExportFormat = options.format === "openai" || options.format === "sharegpt" ? options.format : "cyrene";
+      const extension = options.compress ? "jsonl.gz" : "jsonl";
+      if (!win) return { canceled: true };
+      const result = await dialog.showSaveDialog(win, {
+        title: "导出轨迹",
+        defaultPath: `trajectory-${new Date().toISOString().slice(0, 10)}.${extension}`,
+        filters: [
+          { name: format === "cyrene" ? "Trajectory JSONL" : format === "openai" ? "OpenAI JSONL" : "ShareGPT JSONL", extensions: [extension] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (result.canceled || !result.filePath) return { canceled: true };
+
+      try {
+        const sessions = chatsStore.listSessions();
+        const exportResult = exportTrajectory(sessions, (id) => chatsStore.getSession(id), {
+          sessionId: options.sessionId,
+          mode: options.mode,
+          format,
+          compress: options.compress,
+          incremental: options.incremental,
+          since: options.since,
+          until: options.until,
+          outputPath: result.filePath,
+        });
+        console.log(
+          `[TrajectoryExport] ${format}${options.compress ? " gzip" : ""}${options.incremental ? " incremental" : ""}: ` +
+          `${exportResult.turnCount} turns / ${exportResult.sessionCount} sessions → ${result.filePath}`,
+        );
+        return {
+          ok: true,
+          outputPath: result.filePath,
+          turnCount: exportResult.turnCount,
+          sessionCount: exportResult.sessionCount,
+          format,
+          ...(exportResult.incremental ? { incremental: true } : {}),
+        };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
+
   ipc.handle(IPC.CHATS_OPEN_WORKSPACE, async (_event, workspaceRoot: unknown) => {
     if (typeof workspaceRoot !== "string" || !workspaceRoot.trim()) {
       return { ok: false, error: "missing workspaceRoot" };
@@ -456,6 +517,23 @@ export function registerChatsIpc(ipcOption?: IpcScope): void {
     if (!session || session.status === "running") return null;
     // 崩溃恢复（interrupted）或异常终止的 Run：按 halted 补生成
     return tracker.finalizeIfPending(runId, session.createdAt, "halted");
+  });
+
+  // ── LLM 审查结果：获取 / 列表 / 统计 ──
+  // 后台审查由 harness-adapter 在 Run 结束后异步触发并持久化；
+  // 前端在 Review 卡片中展示质量评分 / 安全问题 / 改进建议。
+  ipc.handle(IPC.REVIEW_GET_LLM, (_event, runId: string) => {
+    if (!runId || typeof runId !== "string") return null;
+    return loadLLMReview(app.getPath("userData"), runId);
+  });
+
+  ipc.handle(IPC.REVIEW_LIST_LLM, (_event, limit?: number) => {
+    const n = typeof limit === "number" && Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 50;
+    return listLLMReviews(app.getPath("userData"), n);
+  });
+
+  ipc.handle(IPC.REVIEW_LLM_STATS, () => {
+    return getReviewStats(app.getPath("userData"));
   });
 }
 

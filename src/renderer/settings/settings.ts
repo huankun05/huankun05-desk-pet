@@ -1,4 +1,4 @@
-﻿/* 标记！AI写的超大技术债，延期重构*/
+/* 标记！AI写的超大技术债，延期重构*/
 import "../ui/base.css";
 import "./settings.css";
 import "../ui/theme";
@@ -71,6 +71,7 @@ import { formatDateTime, escapeHtml } from "./shared/format";
 import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
 import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, thinkingModeSelect, toggleDisableMaxToken } from "./api/dom";
+import "./api/credentials";  // 凭据迁移：导出 / 导入 / 变更记录（副作用导入）
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { auxiliaryDedicatedToggle, auxiliaryDedicatedFields, auxiliaryBaseUrlInput, auxiliaryApiKeyInput, auxiliaryModelInput } from "./auxiliary/dom";
 import { consolidationToggle } from "./consolidation/dom";
@@ -158,6 +159,7 @@ import "./tokens/panel";  // 副作用导入：Token 用量图表 + 时间范围
 declare global {
   interface Window {
     settings?: SettingsApi;
+    credentials?: import("./shared/types").CredentialsApi;
     cyreneScheduler?: SchedulerApi;
     user?: UserApi;
     memoryPanel?: MemoryPanelApi;

@@ -1,4 +1,4 @@
-﻿// IPC channel names shared between main and renderer
+// IPC channel names shared between main and renderer
 export interface ScreenshotInsertPayload {
   mime: "image/png";
   width: number;
@@ -87,6 +87,10 @@ export const IPC = {
   SETTINGS_TEST_CONNECTION: "settings:test-connection",
   SETTINGS_TEST_VISION: "settings:test-vision",
   SETTINGS_TEST_OCR: "settings:test-ocr",
+  // 凭据导出/导入/审计（换机迁移 + 变更追踪）
+  CRED_EXPORT: "credential:export",
+  CRED_IMPORT: "credential:import",
+  CRED_AUDIT_LIST: "credential:audit-list",
   SETTINGS_GET_GENERAL: "settings:get-general",
   SETTINGS_SAVE_GENERAL: "settings:save-general",
   SETTINGS_GET_TIMEOUT_SETTINGS: "settings:get-timeout-settings",
@@ -139,6 +143,8 @@ export const IPC = {
   CHATS_OPEN_FOLDER: "chats:open-folder",
   CHATS_OPEN_WORKSPACE: "chats:open-workspace",
   CHATS_MIGRATE_LEGACY: "chats:migrate-legacy",
+  // renderer → main：导出轨迹（JSONL，支持格式/gzip/增量，弹保存对话框）
+  CHATS_EXPORT_TRAJECTORY: "chats:export-trajectory",
   // 任意会话变动后 main → 所有渲染窗口 broadcast，触发列表/标题刷新
   CHATS_CHANGED: "chats:changed",
   // 状态栏 → main：要求打开/复用 reactChatWindow 并加载指定 sessionId
@@ -171,6 +177,12 @@ export const IPC = {
   // Review 快照（不可变文件变更审查）
   // renderer → main：获取指定 Run 的 ReviewSnapshot（不存在时按 halted 补生成）
   REVIEW_GET: "review:get",
+  // renderer → main：获取指定 Run 的 LLM 审查结果（未生成返回 null）
+  REVIEW_GET_LLM: "review:get-llm",
+  // renderer → main：列出已保存的 LLM 审查结果（按审查时间倒序）
+  REVIEW_LIST_LLM: "review:list-llm",
+  // renderer → main：获取 LLM 审查统计汇总
+  REVIEW_LLM_STATS: "review:llm-stats",
 
 // sticker manager window
 	  STICKERS_MINIMIZE: "stickers:minimize",
@@ -282,6 +294,11 @@ export const IPC = {
   // token usage statistics
   TOKEN_USAGE_GET: "token-usage:get",
   TOKEN_USAGE_CLEAR: "token-usage:clear",
+
+  // cost / budget（人民币结算 + 预算告警）
+  COST_GET: "cost:get",
+  COST_SET_CONFIG: "cost:set-config",
+  COST_TRIGGER_ALERT: "cost:trigger-alert",
 
   // TTS 语音合成
   TTS_UPLOAD: "tts:upload",          // 上传音频文件 → file_id

@@ -125,14 +125,24 @@ export function calculateModelCost(modelName: string, usage: TokenUsageModel): C
   return calculateCostForModel(modelName, usage.input, usage.output, usage.hit, usage.cacheCreation);
 }
 
+/** 默认美元→人民币汇率（可在 Token 面板覆盖）。 */
+export const DEFAULT_USD_CNY_RATE = 7.2;
+
 /**
- * 格式化成本为可读字符串（美元）。
- * - >= $1: 保留 2 位小数（$1.23）
- * - >= $0.01: 保留 4 位小数（$0.0123）
- * - < $0.01: 保留 6 位小数（$0.000123）
+ * 格式化成本为可读字符串。
+ * - >= 1: 保留 2 位小数（$1.23 / ¥8.86）
+ * - >= 0.01: 保留 4 位小数（$0.0123）
+ * - < 0.01: 保留 6 位小数（$0.000123）
+ * @param currency 货币符号；"CNY" 输出 ¥，其余输出 $。
  */
-export function formatCost(cost: number): string {
-  if (cost >= 1) return `$${cost.toFixed(2)}`;
-  if (cost >= 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(6)}`;
+export function formatCost(cost: number, currency: "USD" | "CNY" = "USD"): string {
+  const symbol = currency === "CNY" ? "¥" : "$";
+  if (cost >= 1) return `${symbol}${cost.toFixed(2)}`;
+  if (cost >= 0.01) return `${symbol}${cost.toFixed(4)}`;
+  return `${symbol}${cost.toFixed(6)}`;
+}
+
+/** 美元按汇率换算为人民币（保留 6 位小数，避免浮点误差累积）。 */
+export function usdToCny(usd: number, rate: number): number {
+  return round(usd * rate);
 }

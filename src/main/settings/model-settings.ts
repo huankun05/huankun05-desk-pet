@@ -10,6 +10,7 @@ import { migrateLegacyMinimaxDefaults } from "../orchestrator/vendors/minimax-de
 import { getCapabilityOrOpenAI } from "../orchestrator/vendors/capabilities";
 import { addModelProfile, resolveDefaultModelProfile, updateModelProfile, type SavedModelProfile } from "./model-catalog";
 import { getCredentialVault } from "./credential-vault";
+import { logCredentialChange } from "./credential-audit";
 
 /**
  * 统一模型配置入口：所有模块（包括 Code 模式）必须通过此函数读取。
@@ -692,6 +693,14 @@ export function saveModelSettings(settings: Partial<ModelSettings>): ModelSettin
   // 落盘前加密所有 apiKey（内存中始终明文，JSON 文件中不可见明文）
   const encrypted = applyVaultToSettings(final, "encrypt");
   fs.writeFileSync(filePath, JSON.stringify(encrypted, null, 2), "utf8");
+  // 凭据变更审计：仅当当前厂商 apiKey 实际变化时记录（不记明文）
+  if (existing.apiKey !== final.apiKey) {
+    logCredentialChange({
+      action: "model-settings.save",
+      target: "model:" + currentProvider,
+      detail: existing.apiKey ? (final.apiKey ? "API Key 已更新" : "API Key 已清空") : "API Key 已设置",
+    });
+  }
   Object.assign(existing, final);
   return final;
 }

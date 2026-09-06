@@ -339,7 +339,24 @@
     "binaryHint": "二进制文件，无法显示差异",
     "largeTextHint": "文件过大，未生成行级差异",
     "renamedHint": "文件已重命名，内容无变更",
-    "noDiffHint": "无行级差异"
+    "noDiffHint": "无行级差异",
+    "llmAria": "LLM 审查结果",
+    "llmTitle": "LLM 审查",
+    "llmPending": "审查中…",
+    "llmSkipped": "本次无文件变更，已跳过 LLM 审查",
+    "llmFailed": "LLM 审查失败：{{error}}",
+    "llmQuality": "质量评分",
+    "llmSummary": "总体评价",
+    "llmSecurity": "安全问题",
+    "llmNoSecurity": "未发现安全问题",
+    "llmImprovements": "改进建议",
+    "llmNoImprovements": "暂无改进建议",
+    "llmBugs": "潜在 bug",
+    "llmFiles": "文件级审查",
+    "llmModel": "审查模型：{{model}}",
+    "llmToggleFiles": "展开文件级审查",
+    "llmExpand": "展开",
+    "llmCollapse": "收起"
   },
   "planReview": {
     "noteReview": "请审阅计划内容后在对话中的卡片里决定",
@@ -517,7 +534,11 @@
     "emptyConversations": "还没有对话",
     "rename": "重命名",
     "unpin": "取消置顶",
-    "pin": "置顶"
+    "pin": "置顶",
+    "exportTrajectoryTitle": "导出轨迹（JSONL）",
+    "exportTrajectoryUnavailable": "导出功能不可用",
+    "exportTrajectoryFailed": "导出失败",
+    "exportTrajectoryDone": "已导出 {{count}} 条记录 → {{path}}"
   },
   "ttsPlayback": {
     "playbackFailed": "语音播放失败",

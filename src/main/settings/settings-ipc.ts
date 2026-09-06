@@ -29,6 +29,10 @@ import { testVendorConnection } from "../orchestrator/vendors/test-connection";
 import type { VendorConfig } from "../orchestrator/vendors";
 import { normalizeModelSettings, getPublicModelConfig, listSavedModelProfiles, saveModelProfile, setDefaultModelProfile, saveModelSettings } from "./model-settings";
 import type { ModelSettings } from "./model-settings";
+import { collectMcpEnvCredentials, importMcpServerEnv } from "../orchestrator/mcp-manager";
+import { buildExportBundle, encryptBundle, decryptBundle } from "./credential-transfer";
+import { logCredentialChange, listCredentialAudit } from "./credential-audit";
+import { getCostConfig, saveCostConfig, evaluateBudgetAlert, maybeNotifyBudgetExceeded } from "./cost-config";
 import { getTimeoutSettings, saveTimeoutSettings } from "../timeout-manager";
 import type { syncVolcanoSearchMcp } from "./general-settings-lifecycle";
 import type { syncPlaywrightMcp } from "../sync-mcp-builtin";
@@ -302,6 +306,167 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     const saved = saveModelSettings(settings);
     broadcastModelConfigChanged(saved);
     return saved;
+  });
+
+  // ── 凭据导出 / 导入 / 审计 ────────────────────────────────
+  /** 收集当前全部凭据（模型 API Key + MCP 敏感 env），内存中明文。 */
+  function collectAllCredentials(): Array<{ key: string; label: string; value: string }> {
+    const creds: Array<{ key: string; label: string; value: string }> = [];
+    const settings = getModelSettings();
+    // perProvider 是真值（顶层镜像跳过，避免重复）
+    for (const [provider, profile] of Object.entries(settings.perProvider ?? {})) {
+      if (profile && typeof profile.apiKey === "string" && profile.apiKey) {
+        creds.push({ key: `model:provider:${provider}`, label: `模型「${provider}」API Key`, value: profile.apiKey });
+      }
+    }
+    if (settings.vision?.apiKey) {
+      creds.push({ key: "model:vision", label: "视觉模型 API Key", value: settings.vision.apiKey });
+    }
+    if (settings.auxiliary?.apiKey) {
+      creds.push({ key: "model:auxiliary", label: "辅助模型 API Key", value: settings.auxiliary.apiKey });
+    }
+    for (const profile of settings.modelProfiles ?? []) {
+      if (profile && typeof profile.apiKey === "string" && profile.apiKey) {
+        creds.push({ key: `model:profile:${profile.id}`, label: `模型档案「${profile.id}」API Key`, value: profile.apiKey });
+      }
+    }
+    return creds.concat(collectMcpEnvCredentials());
+  }
+
+  ipc.handle(IPC.CRED_EXPORT, async (_event, passphrase: unknown) => {
+    if (typeof passphrase !== "string" || passphrase.length < 4) {
+      return { ok: false, error: "口令至少 4 个字符" };
+    }
+    const bundle = buildExportBundle(collectAllCredentials());
+    if (!bundle) return { ok: false, error: "没有可导出的凭据" };
+    const encrypted = encryptBundle(bundle, passphrase);
+    if (!encrypted) return { ok: false, error: "加密失败" };
+    const result = await dialog.showSaveDialog({
+      title: "导出凭据",
+      defaultPath: path.join(app.getPath("documents"), `cyrene-credentials-${new Date().toISOString().slice(0, 10)}.json`),
+      filters: [{ name: "Cyrene 凭据包", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, error: "已取消" };
+    fs.writeFileSync(result.filePath, JSON.stringify(encrypted, null, 2), "utf-8");
+    logCredentialChange({
+      action: "credential.export",
+      target: "credential:export",
+      detail: `导出 ${bundle.credentials.length} 条凭据`,
+    });
+    return { ok: true, count: bundle.credentials.length, filePath: result.filePath };
+  });
+
+  ipc.handle(IPC.CRED_IMPORT, async (_event, passphrase: unknown) => {
+    if (typeof passphrase !== "string" || passphrase.length < 4) {
+      return { ok: false, error: "口令至少 4 个字符" };
+    }
+    const result = await dialog.showOpenDialog({
+      title: "导入凭据",
+      properties: ["openFile"],
+      filters: [{ name: "Cyrene 凭据包", extensions: ["json"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, error: "已取消" };
+    let raw: unknown;
+    try {
+      raw = JSON.parse(fs.readFileSync(result.filePaths[0], "utf-8"));
+    } catch {
+      return { ok: false, error: "文件无法解析" };
+    }
+    const decrypted = decryptBundle(raw, passphrase);
+    if (!decrypted.ok) return { ok: false, error: decrypted.error };
+
+    let appliedModel = 0;
+    let appliedMcp = 0;
+    let skipped = 0;
+    for (const entry of decrypted.bundle.credentials) {
+      if (!entry.value) continue;
+      if (entry.key.startsWith("model:provider:")) {
+        const provider = entry.key.slice("model:provider:".length);
+        const existing = getModelSettings().perProvider?.[provider];
+        if (existing) {
+          saveModelSettings({ perProvider: { [provider]: { ...existing, apiKey: entry.value } } });
+          appliedModel++;
+        } else {
+          skipped++;
+        }
+      } else if (entry.key.startsWith("model:profile:")) {
+        const id = entry.key.slice("model:profile:".length);
+        const existing = getModelSettings().modelProfiles?.find((p) => p.id === id);
+        if (existing) {
+          saveModelProfile({ ...existing, id, apiKey: entry.value });
+          appliedModel++;
+        } else {
+          skipped++;
+        }
+      } else if (entry.key === "model:vision") {
+        const existing = getModelSettings().vision;
+        if (existing) {
+          saveModelSettings({ vision: { ...existing, apiKey: entry.value } });
+          appliedModel++;
+        } else {
+          skipped++;
+        }
+      } else if (entry.key === "model:auxiliary") {
+        const existing = getModelSettings().auxiliary ?? { mode: "inherit-main" as const };
+        saveModelSettings({ auxiliary: { ...existing, apiKey: entry.value } });
+        appliedModel++;
+      } else if (entry.key.startsWith("mcp:")) {
+        const rest = entry.key.slice("mcp:".length);
+        const sep = rest.indexOf(":");
+        if (sep > 0) {
+          const serverId = rest.slice(0, sep);
+          const envKey = rest.slice(sep + 1);
+          if (importMcpServerEnv(serverId, { [envKey]: entry.value })) {
+            appliedMcp++;
+          } else {
+            skipped++;
+          }
+        } else {
+          skipped++;
+        }
+      } else {
+        skipped++;
+      }
+    }
+    logCredentialChange({
+      action: "credential.import",
+      target: "credential:import",
+      detail: `模型 ${appliedModel} 条 / MCP ${appliedMcp} 条 / 跳过 ${skipped} 条`,
+    });
+    broadcastModelConfigChanged();
+    return { ok: true, appliedModel, appliedMcp, skipped };
+  });
+
+  ipc.handle(IPC.CRED_AUDIT_LIST, (_event, limit?: number) => {
+    return listCredentialAudit(typeof limit === "number" ? limit : 50);
+  });
+
+  // ── 成本 / 预算（人民币结算 + 预算告警）────────────────────────
+  ipc.handle(IPC.COST_GET, () => {
+    const config = getCostConfig();
+    const state = evaluateBudgetAlert(config);
+    return {
+      config: { monthlyBudgetUsd: config.monthlyBudgetUsd, exchangeRate: config.exchangeRate },
+      monthCostUsd: state.monthCostUsd,
+      budgetEnabled: state.enabled,
+      budgetExceeded: state.exceeded,
+      budgetRatio: state.ratio,
+    };
+  });
+
+  ipc.handle(IPC.COST_SET_CONFIG, (_event, partial: unknown) => {
+    const p = partial as { monthlyBudgetUsd?: unknown; exchangeRate?: unknown };
+    const saved = saveCostConfig({
+      monthlyBudgetUsd: typeof p?.monthlyBudgetUsd === "number" ? p.monthlyBudgetUsd : undefined,
+      exchangeRate: typeof p?.exchangeRate === "number" ? p.exchangeRate : undefined,
+    });
+    return { monthlyBudgetUsd: saved.monthlyBudgetUsd, exchangeRate: saved.exchangeRate };
+  });
+
+  ipc.handle(IPC.COST_TRIGGER_ALERT, () => {
+    const notified = maybeNotifyBudgetExceeded();
+    const state = evaluateBudgetAlert();
+    return { notified, ...state };
   });
 
   ipc.handle(IPC.SETTINGS_TEST_CONNECTION, async (_event, cfg: VendorConfig) => testVendorConnection(cfg));

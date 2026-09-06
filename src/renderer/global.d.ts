@@ -8,8 +8,49 @@ interface SystemApi {
   openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
+// 与 preload 暴露的 reviewApi 对齐（LLM 审查结果 / 列表 / 统计）。
+interface LLMFileReview {
+  filePath: string;
+  changeKind: string;
+  qualityScore: number;
+  qualityComment: string;
+  securityIssues: string[];
+  improvements: string[];
+  hasPotentialBug: boolean;
+  bugDescription?: string;
+}
+
+interface LLMReviewResult {
+  runId: string;
+  reviewedAt: number;
+  summary: string;
+  overallQualityScore: number;
+  securityConcerns: string[];
+  improvementSuggestions: string[];
+  fileReviews: LLMFileReview[];
+  status: "completed" | "failed" | "skipped";
+  error?: string;
+  model?: string;
+}
+
+interface ReviewStats {
+  totalReviews: number;
+  completedReviews: number;
+  failedReviews: number;
+  skippedReviews: number;
+  avgOverallQualityScore: number | null;
+  reviewsWithSecurityConcerns: number;
+  reviewsWithPotentialBugs: number;
+  totalFilesReviewed: number;
+  earliestReviewAt: number | null;
+  latestReviewAt: number | null;
+}
+
 interface ReviewApi {
   get: (runId: string) => Promise<ReviewSnapshot | null>;
+  getLLM: (runId: string) => Promise<LLMReviewResult | null>;
+  listLLM: (limit?: number) => Promise<LLMReviewResult[]>;
+  llmStats: () => Promise<ReviewStats>;
 }
 
 declare global {

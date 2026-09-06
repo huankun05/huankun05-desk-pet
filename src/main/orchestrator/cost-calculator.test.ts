@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateCost, calculateCostForModel, calculateDayCost, calculateModelCost, formatCost, type CostBreakdown } from "./cost-calculator";
+import { calculateCost, calculateCostForModel, calculateDayCost, calculateModelCost, formatCost, usdToCny, DEFAULT_USD_CNY_RATE, type CostBreakdown } from "./cost-calculator";
 import { setCustomPricing, clearCustomPricing } from "./model-pricing";
 import type { TokenUsageDay, TokenUsageModel } from "../token-usage-store";
 
@@ -172,6 +172,40 @@ describe("cost-calculator", () => {
 
     it("formats zero", () => {
       expect(formatCost(0)).toBe("$0.000000");
+    });
+  });
+
+  describe("formatCost CNY", () => {
+    it("formats >= ¥1 with 2 decimals", () => {
+      expect(formatCost(8.856, "CNY")).toBe("¥8.86");
+      expect(formatCost(100, "CNY")).toBe("¥100.00");
+    });
+
+    it("formats >= ¥0.01 with 4 decimals", () => {
+      expect(formatCost(0.0888, "CNY")).toBe("¥0.0888");
+    });
+
+    it("formats < ¥0.01 with 6 decimals", () => {
+      expect(formatCost(0.000886, "CNY")).toBe("¥0.000886");
+    });
+
+    it("defaults to USD when currency omitted", () => {
+      expect(formatCost(1.23)).toBe("$1.23");
+    });
+  });
+
+  describe("usdToCny", () => {
+    it("converts at the given rate", () => {
+      expect(usdToCny(10, 7.2)).toBe(72);
+      expect(usdToCny(1, DEFAULT_USD_CNY_RATE)).toBeCloseTo(7.2, 6);
+    });
+
+    it("keeps 6-decimal precision", () => {
+      expect(usdToCny(0.0123, 7.2)).toBeCloseTo(0.08856, 6);
+    });
+
+    it("zero stays zero", () => {
+      expect(usdToCny(0, 7.2)).toBe(0);
     });
   });
 });

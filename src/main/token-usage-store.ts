@@ -289,3 +289,15 @@ export function flush(): void {
   clearTimers();
   flushNow();
 }
+
+/** 当前自然月的全部已记录用量日（key = "YYYY-MM-DD"），供成本/预算统计复用。 */
+export function getCurrentMonthDays(): Array<{ key: string; day: TokenUsageDay }> {
+  const store = ensureLoaded();
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const result: Array<{ key: string; day: TokenUsageDay }> = [];
+  for (const [key, day] of Object.entries(store.days)) {
+    if (key.startsWith(prefix)) result.push({ key, day });
+  }
+  return result;
+}

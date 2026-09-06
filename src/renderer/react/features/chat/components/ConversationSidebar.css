@@ -23,10 +23,44 @@
 }
 
 .cy-conversation-sidebar__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   padding: 2px 10px 4px;
   color: #8b8b8b;
   font: 600 10.5px/1.15 var(--rb-font-sans, sans-serif);
   letter-spacing: .12em;
+}
+
+.cy-conversation-sidebar__export {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  color: var(--cy-text-muted, #8b8b8b);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background .15s ease, color .15s ease, transform .1s ease;
+}
+
+.cy-conversation-sidebar__export:hover:not(:disabled) {
+  color: var(--cy-accent, #f472b6);
+  background: rgba(244, 114, 182, .12);
+}
+
+.cy-conversation-sidebar__export:active:not(:disabled) {
+  transform: scale(.9);
+}
+
+.cy-conversation-sidebar__export:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 
 .cy-conversation-sidebar__empty {

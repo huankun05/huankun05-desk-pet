@@ -6,8 +6,18 @@ import {
   exportTrajectory,
   exportTrajectoryCompressed,
   collectTrajectorySessions,
+  convertTurnsToFormat,
+  writeExportLines,
+  shouldCompressOutput,
+  loadExportCursor,
+  saveExportCursor,
+  defaultCursorPath,
   type TrajectoryTurn,
 } from "./trajectory-exporter";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as zlib from "node:zlib";
+import * as os from "node:os";
 import type { ChatMessage, ChatSession, ChatSessionMeta } from "../../shared/chat-types";
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -339,6 +349,220 @@ describe("trajectory-exporter", () => {
       expect(result.sessionCount).toBe(0);
       expect(result.turnCount).toBe(0);
       expect(result.turns).toEqual([]);
+    });
+  });
+
+  describe("convertTurnsToFormat", () => {
+    const turns: TrajectoryTurn[] = [
+      {
+        session_id: "s1",
+        session_title: "S1",
+        session_mode: "work",
+        turn_index: 0,
+        role: "user",
+        content: "Hello",
+        timestamp: 1000,
+      },
+      {
+        session_id: "s1",
+        session_title: "S1",
+        session_mode: "work",
+        turn_index: 1,
+        role: "assistant",
+        content: "Checking...",
+        tool_calls: [{ id: "call-1", name: "get_weather", arguments: '{"city":"Beijing"}' }],
+        timestamp: 2000,
+      },
+      {
+        session_id: "s1",
+        session_title: "S1",
+        session_mode: "work",
+        turn_index: 2,
+        role: "tool",
+        content: "25C",
+        timestamp: 3000,
+      },
+    ];
+
+    it("openai 格式：messages 数组 + 函数调用结构", () => {
+      const obj = convertTurnsToFormat(turns, "openai");
+      expect((obj.messages as unknown[])).toHaveLength(3);
+      const messages = obj.messages as Array<Record<string, unknown>>;
+      expect(messages[0]).toEqual({ role: "user", content: "Hello" });
+      expect(messages[1].role).toBe("assistant");
+      expect(messages[1].tool_calls).toEqual([
+        { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Beijing"}' } },
+      ]);
+      expect(messages[2]).toEqual({ role: "tool", content: "25C" });
+    });
+
+    it("sharegpt 格式：conversations 数组 with from/value", () => {
+      const obj = convertTurnsToFormat(turns, "sharegpt");
+      const conv = obj.conversations as Array<{ from: string; value: string }>;
+      expect(conv).toHaveLength(3);
+      expect(conv[0]).toEqual({ from: "human", value: "Hello" });
+      expect(conv[1]).toEqual({ from: "gpt", value: "Checking..." });
+      expect(conv[2]).toEqual({ from: "human", value: "25C" });
+    });
+
+    it("cyrene 格式回退为 turns 包装", () => {
+      const obj = convertTurnsToFormat(turns, "cyrene");
+      expect(obj.turns).toBe(turns);
+    });
+  });
+
+  describe("writeExportLines / shouldCompressOutput", () => {
+    it(".gz 扩展名自动启用 gzip，内容可解压回原文", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-gz-"));
+      const outputPath = path.join(dir, "traj.jsonl.gz");
+      try {
+        writeExportLines(outputPath, ["a", "b", "c"]);
+        expect(shouldCompressOutput(outputPath)).toBe(true);
+        const raw = fs.readFileSync(outputPath);
+        // gzip 魔数
+        expect(raw[0]).toBe(0x1f);
+        expect(raw[1]).toBe(0x8b);
+        const decompressed = zlib.gunzipSync(raw).toString("utf8");
+        expect(decompressed).toBe("a\nb\nc\n");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("compress=true 强制 gzip（非 .gz 路径）", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-gz2-"));
+      const outputPath = path.join(dir, "traj.jsonl");
+      try {
+        writeExportLines(outputPath, ["x"], { compress: true });
+        expect(shouldCompressOutput(outputPath, { compress: true })).toBe(true);
+        const raw = fs.readFileSync(outputPath);
+        expect(zlib.gunzipSync(raw).toString("utf8")).toBe("x\n");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("默认明文写入", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-plain-"));
+      const outputPath = path.join(dir, "traj.jsonl");
+      try {
+        writeExportLines(outputPath, ["y"]);
+        expect(fs.readFileSync(outputPath, "utf8")).toBe("y\n");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("增量导出（incremental）", () => {
+    it("第一次全量导出并落盘游标，第二次只导出新消息", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-inc-"));
+      const outputPath = path.join(dir, "traj.jsonl");
+      const cursorPath = defaultCursorPath(outputPath);
+
+      const makeMeta = (messages: ChatMessage[]): ChatSessionMeta =>
+        ({ id: "s1", title: "S1", mode: "work", createdAt: 1000, updatedAt: messages[messages.length - 1].at, messageCount: messages.length });
+      const messagesV1 = [
+        makeMessage({ id: "m1", content: "first", at: 1000 }),
+        makeMessage({ id: "m2", role: "assistant", content: "reply", at: 2000 }),
+      ];
+      const messagesV2 = [
+        ...messagesV1,
+        makeMessage({ id: "m3", content: "new message", at: 3000 }),
+      ];
+
+      try {
+        // 第一次导出（当前状态 v1）
+        let result = exportTrajectory([makeMeta(messagesV1)], (id) =>
+          (id === "s1" ? makeSession({ id: "s1", messages: messagesV1 }) : null),
+          { outputPath, incremental: true });
+        expect(result.incremental).toBe(true);
+        expect(result.turnCount).toBe(2);
+        expect(result.cursor).toEqual({ s1: 2000 });
+        // 游标文件已落盘
+        expect(loadExportCursor(cursorPath)).toEqual({ s1: 2000 });
+
+        // 会话追加新消息（v2），第二次导出只应包含新消息
+        result = exportTrajectory([makeMeta(messagesV2)], (id) =>
+          (id === "s1" ? makeSession({ id: "s1", messages: messagesV2 }) : null),
+          { outputPath, incremental: true });
+        expect(result.turnCount).toBe(1);
+        expect(result.cursor).toEqual({ s1: 3000 });
+
+        // 输出文件内容：只含新消息
+        const content = fs.readFileSync(outputPath, "utf8").trim();
+        expect(JSON.parse(content).id ?? JSON.parse(content).content).toBe("new message");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("无 outputPath 时增量导出降级为全量（不写游标）", () => {
+      const meta: ChatSessionMeta = { id: "s1", title: "S1", mode: "work", createdAt: 1000, updatedAt: 1000, messageCount: 1 };
+      const result = exportTrajectory(
+        [meta],
+        (id) => (id === "s1" ? makeSession({ id: "s1", messages: [makeMessage({ id: "m1", content: "hi", at: 1000 })] }) : null),
+        { incremental: true },
+      );
+      expect(result.turnCount).toBe(1);
+      expect(result.incremental).toBeUndefined();
+      expect(result.cursor).toBeUndefined();
+    });
+
+    it("损坏游标文件降级为全量导出", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-inc-bad-"));
+      const outputPath = path.join(dir, "traj.jsonl");
+      const cursorPath = defaultCursorPath(outputPath);
+      try {
+        fs.writeFileSync(cursorPath, "not-json", "utf8");
+        const meta: ChatSessionMeta = { id: "s1", title: "S1", mode: "work", createdAt: 1000, updatedAt: 1000, messageCount: 1 };
+        const result = exportTrajectory(
+          [meta],
+          (id) => (id === "s1" ? makeSession({ id: "s1", messages: [makeMessage({ id: "m1", content: "hi", at: 1000 })] }) : null),
+          { outputPath, incremental: true },
+        );
+        expect(result.turnCount).toBe(1);
+        // 损坏游标被重写为有效游标
+        expect(loadExportCursor(cursorPath)).toEqual({ s1: 1000 });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("saveExportCursor 原子写可读回", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-cursor-"));
+      const cursorPath = path.join(dir, "cursor.json");
+      try {
+        saveExportCursor(cursorPath, { s1: 100, s2: 200 });
+        expect(loadExportCursor(cursorPath)).toEqual({ s1: 100, s2: 200 });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("exportTrajectory format 写出", () => {
+    it("openai 格式写出：每会话一行 messages 数组", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "traj-fmt-"));
+      const outputPath = path.join(dir, "openai.jsonl");
+      const meta: ChatSessionMeta = { id: "s1", title: "S1", mode: "work", createdAt: 1000, updatedAt: 2000, messageCount: 2 };
+      try {
+        const result = exportTrajectory(
+          [meta],
+          (id) => (id === "s1" ? makeSession({ id: "s1", messages: [makeMessage({ id: "m1", content: "hi", at: 1000 }), makeMessage({ id: "m2", role: "assistant", content: "yo", at: 2000 })] }) : null),
+          { outputPath, format: "openai" },
+        );
+        expect(result.turnCount).toBe(2);
+        expect(result.sessionCount).toBe(1);
+        const lines = fs.readFileSync(outputPath, "utf8").trim().split("\n");
+        expect(lines).toHaveLength(1);
+        const parsed = JSON.parse(lines[0]);
+        expect(parsed.messages).toHaveLength(2);
+        expect(parsed.messages[0].role).toBe("user");
+        expect(parsed.messages[1].role).toBe("assistant");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

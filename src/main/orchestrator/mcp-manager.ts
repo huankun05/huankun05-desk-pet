@@ -4,6 +4,8 @@ import * as path from "path";
 import { app } from "electron";
 import { connectMcpServer, disconnectMcpServer, getMcpServerStates, McpServerConfig } from "./mcp-adapter";
 import { logger, LogTag } from "../logger";
+import { getCredentialVault } from "../settings/credential-vault";
+import { logCredentialChange } from "../settings/credential-audit";
 
 const LOG_PREFIX = "[MCP Manager]";
 
@@ -12,13 +14,45 @@ function getConfigPath(): string {
   return path.join(userDataPath, "mcp-servers.json");
 }
 
+/**
+ * 判断 env 键名是否为敏感凭据（API_KEY / TOKEN / SECRET / PASSWORD / PRIVATE_KEY / CREDENTIAL 等）。
+ * 键名匹配即加密，与取值无关；误加密非敏感值不影响运行（解密后原样使用）。
+ */
+export function isSensitiveEnvKey(key: string): boolean {
+  if (!key) return false;
+  return /(api[_-]?key|api[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|secret|password|passwd|private[_-]?key|credential|authorization|bearer)/i.test(key);
+}
+
+/** 加密单个配置中所有敏感 env（幂等：已加密值不重复加密）。 */
+function encryptMcpConfig(config: McpServerConfig): McpServerConfig {
+  if (!config.env) return config;
+  const vault = getCredentialVault();
+  const nextEnv: Record<string, string> = {};
+  for (const [key, value] of Object.entries(config.env)) {
+    nextEnv[key] = isSensitiveEnvKey(key) ? vault.encrypt(String(value)) : value;
+  }
+  return { ...config, env: nextEnv };
+}
+
+/** 解密单个配置中所有敏感 env（无前缀的旧明文透传，向后兼容）。 */
+function decryptMcpConfig(config: McpServerConfig): McpServerConfig {
+  if (!config.env) return config;
+  const vault = getCredentialVault();
+  const nextEnv: Record<string, string> = {};
+  for (const [key, value] of Object.entries(config.env)) {
+    nextEnv[key] = isSensitiveEnvKey(key) ? vault.decrypt(String(value)) : value;
+  }
+  return { ...config, env: nextEnv };
+}
+
 function loadConfigs(): McpServerConfig[] {
   try {
     const raw = fs.readFileSync(getConfigPath(), "utf-8");
     const configs = JSON.parse(raw);
     if (Array.isArray(configs)) {
       logger.info(LogTag.MCP, `loaded ${configs.length} MCP server configs`);
-      return configs;
+      // 落盘时敏感 env 已加密，读取时先解密（内存中始终明文）
+      return configs.map(decryptMcpConfig);
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -34,7 +68,8 @@ function saveConfigs(configs: McpServerConfig[]): void {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(getConfigPath(), JSON.stringify(configs, null, 2), "utf-8");
+    // 落盘前加密所有敏感 env（内存中始终明文，JSON 文件中不可见明文凭据）
+    fs.writeFileSync(getConfigPath(), JSON.stringify(configs.map(encryptMcpConfig), null, 2), "utf-8");
     console.log(LOG_PREFIX, "已保存 " + configs.length + " 个 MCP server 配置");
   } catch (err) {
     console.error(LOG_PREFIX, "保存配置失败:", (err as Error).message);
@@ -136,6 +171,7 @@ export async function addMcpServer(config: McpServerConfig): Promise<{
     const toolIds = await connectMcpServer(config);
     configs.push(config);
     saveConfigs(configs);
+    logCredentialChange({ action: "mcp.add", target: "mcp:" + config.id, detail: config.name });
     return { ok: true, toolIds };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -156,8 +192,10 @@ export async function removeMcpServer(serverId: string): Promise<{ ok: boolean; 
 
   await disconnectMcpServer(serverId);
 
+  const removed = loadConfigs().find(c => c.id === serverId);
   const configs = loadConfigs().filter(c => c.id !== serverId);
   saveConfigs(configs);
+  logCredentialChange({ action: "mcp.remove", target: "mcp:" + serverId, detail: removed?.name });
   return { ok: true };
 }
 
@@ -181,4 +219,49 @@ export function listMcpServers(): Array<{
  */
 export function listMcpServerConfigs(): McpServerConfig[] {
   return loadConfigs();
+}
+
+/** 收集全部已保存 MCP server 的敏感 env（导出凭据用）。 */
+export function collectMcpEnvCredentials(): Array<{ key: string; label: string; value: string }> {
+  const result: Array<{ key: string; label: string; value: string }> = [];
+  for (const config of loadConfigs()) {
+    if (!config.env) continue;
+    for (const [envKey, envValue] of Object.entries(config.env)) {
+      if (isSensitiveEnvKey(envKey)) {
+        result.push({
+          key: `mcp:${config.id}:${envKey}`,
+          label: `MCP「${config.name}」环境变量 ${envKey}`,
+          value: String(envValue),
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 导入时写入单个 MCP server 的敏感 env（凭据导入用）。
+ * 只覆盖导入包中出现的键；不存在的 server id 返回 false。
+ */
+export function importMcpServerEnv(serverId: string, env: Record<string, string>): boolean {
+  const configs = loadConfigs();
+  const target = configs.find((c) => c.id === serverId);
+  if (!target) return false;
+  const nextEnv = { ...(target.env ?? {}) };
+  let changed = false;
+  for (const [key, value] of Object.entries(env)) {
+    if (isSensitiveEnvKey(key) && nextEnv[key] !== value) {
+      nextEnv[key] = value;
+      changed = true;
+    }
+  }
+  if (!changed) return true;
+  const next = configs.map((c) => (c.id === serverId ? { ...c, env: nextEnv } : c));
+  saveConfigs(next);
+  logCredentialChange({
+    action: "mcp.env.import",
+    target: "mcp:" + serverId,
+    detail: "导入 " + Object.keys(env).length + " 个敏感环境变量",
+  });
+  return true;
 }

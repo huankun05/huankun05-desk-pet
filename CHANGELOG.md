@@ -52,6 +52,11 @@ All notable changes to this project will be documented in this file.
 - **文件系统快照与 /rollback 回滚**：移植 Hermes checkpoint 设计，新增 checkpoint-manager.ts（基于 Git 的透明文件系统快照：跨项目共享对象库 + 每轮快照去重 + 快照列表/diff/单文件回滚 + 回滚前自动保留 pre-rollback 快照可撤销 + node_modules 排除/超大文件剔除/数量自动修剪）；harness 每轮 newTurn()，文件修改类工具（risk=fs-write/shell）dispatch 前自动 ensureCheckpoint（LLM 不可见，失败静默降级）；worktree 隔离时快照面向用户主项目根；输入框拦截 `/rollback` 命令（list/diff/`<target> [file]`）直接响应，不进入 Agent
 - **MCP sampling + HTTP 传输**：mcp-adapter 新增 http（Streamable HTTP）transport（`transport: "http"` + `headers` 透传鉴权，POST 发消息 + GET SSE 收消息）；支持 MCP sampling 反向请求：`sampling.enabled` 开启后声明 sampling 能力并注册 createMessage handler（复用 llm-client 非流式调用，SamplingMessage 文本块映射 + 非文本块跳过，systemPrompt 前置，支持模型/maxTokens 覆盖）
 - **轨迹压缩**：移植 Hermes trajectory_compressor.py，新增 trajectory-compressor.ts（保护头部 system/user/assistant/tool 轮次 + 尾部 N 轮，只压缩中部可压缩区间并恰好压到预算内；摘要替换压缩区间，剩余轮次原样保留；token 计数 CJK 感知；SummarizeFn 注入 LLM 摘要，未注入时确定性占位摘要保证离线可用；批量压缩并发控制 + 汇总指标）；trajectory-exporter 新增 collectTrajectorySessions/exportTrajectoryCompressed 支持压缩后轨迹导出；skill-creation 新增 trajectoryTurns 可选参数（沉淀判定前生成内容级摘要入提示词，提升技能创建准确性）
+- **Trajectory 导出增强**：trajectory-exporter 新增 gzip 压缩（输出路径以 .gz 结尾自动启用，或显式 compress=true）、OpenAI messages / ShareGPT conversations 两种互操作格式（ExportFormat = cyrene/openai/sharegpt）、增量导出（saveExportCursor/loadExportCursor 记录每会话已导出偏移，仅导出新会话）；IPC/UI 触发导出
+- **LLM 审查接线**：bootstrap 默认启用后台 LLM 审查（此前需手动注入回调），新增审查结果 IPC 接口与设置面板审查结果卡片 UI（评分/安全问题/潜在 bug/改进建议展示）
+- **技能安装确认链路**：技能推荐发现未安装技能后通过 IPC 发送安装确认（sendSkillInstallPrompt），用户确认后调用 installSkill 安装；新增 SkillInstallPromptData 类型
+- **凭据增强**：MCP 服务器敏感环境变量（API_KEY/TOKEN 等）落盘时经 CredentialVault 加密；新增凭据导出/导入（scrypt 密钥派生 + AES-256-GCM 加密凭据包，口令保护，换机迁移）；新增凭据变更审计日志（JSONL 格式，记录模型 API Key 与 MCP 环境变量变更历史，支持裁剪与查询）
+- **成本增强**：新增 cost-config 模块（月度预算 + 汇率配置），月度成本超预算时桌面通知告警（每月仅提醒一次）；成本展示支持人民币结算（usdToCny 汇率换算 + formatCost CNY 格式化）
 
 ### Changed
 

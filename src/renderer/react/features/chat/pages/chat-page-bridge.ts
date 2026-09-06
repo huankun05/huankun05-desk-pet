@@ -26,6 +26,25 @@ export interface ChatStoreApi {
   onChanged: (callback: () => void) => () => void;
   onReactSwitchSession: (callback: (sessionId: string) => void) => () => void;
   notifyReactReady: () => void;
+  // 导出轨迹：主进程弹保存对话框，返回导出结果
+  exportTrajectory: (options?: {
+    sessionId?: string;
+    mode?: ConversationMode;
+    format?: "cyrene" | "openai" | "sharegpt";
+    compress?: boolean;
+    incremental?: boolean;
+    since?: number;
+    until?: number;
+  }) => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    error?: string;
+    outputPath?: string;
+    turnCount?: number;
+    sessionCount?: number;
+    format?: string;
+    incremental?: boolean;
+  }>;
 }
 
 export interface SidebarApi {

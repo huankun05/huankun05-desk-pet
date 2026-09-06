@@ -1,9 +1,10 @@
 import { Conversations, type ConversationItemType } from "@ant-design/x";
-import { DeleteOutlined, EditOutlined, PushpinOutlined } from "@ant-design/icons";
-import { Input, Menu, Modal, Popover } from "antd";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, PushpinOutlined } from "@ant-design/icons";
+import { App, Input, Menu, Modal, Popover } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n";
 import type { ChatSessionMeta, ConversationMode } from "../../../../../shared/chat-types";
+import { chatStore } from "../pages/chat-page-bridge";
 
 interface ConversationSidebarProps {
   mode: ConversationMode;
@@ -110,7 +111,34 @@ export function ConversationSidebar({
   onTogglePin,
 }: ConversationSidebarProps) {
   const { t } = useTranslation();
+  const { message } = App.useApp();
   const supportsProjects = mode === "work" || mode === "code";
+
+  // 导出当前模式全部会话的轨迹（主进程弹保存对话框）
+  const [exporting, setExporting] = useState(false);
+  async function handleExportTrajectory() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const store = chatStore();
+      if (!store?.exportTrajectory) {
+        message.error(t("sidebar.exportTrajectoryUnavailable"));
+        return;
+      }
+      const result = await store.exportTrajectory({ mode });
+      if (!result) return;
+      if (result.canceled) return;
+      if (result.ok) {
+        message.success(t("sidebar.exportTrajectoryDone", { count: result.turnCount ?? 0, path: result.outputPath ?? "" }));
+      } else {
+        message.error(result.error ?? t("sidebar.exportTrajectoryFailed"));
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(false);
+    }
+  }
   const projects = useMemo(() => {
     const result = new Map<string, ProjectSummary>();
     for (const session of sessions) {
@@ -269,7 +297,19 @@ export function ConversationSidebar({
 
   return (
     <nav className="cy-conversation-sidebar" aria-label={supportsProjects ? t("sidebar.projectsAndConversationsAria") : t("sidebar.conversationListAria")}>
-      <div className="cy-conversation-sidebar__title">{supportsProjects ? t("sidebar.projectsTitle") : t("sidebar.conversationsTitle")}</div>
+      <div className="cy-conversation-sidebar__title">
+        <span>{supportsProjects ? t("sidebar.projectsTitle") : t("sidebar.conversationsTitle")}</span>
+        <button
+          type="button"
+          className="cy-conversation-sidebar__export"
+          title={t("sidebar.exportTrajectoryTitle")}
+          aria-label={t("sidebar.exportTrajectoryTitle")}
+          disabled={exporting || sessions.length === 0}
+          onClick={handleExportTrajectory}
+        >
+          <DownloadOutlined />
+        </button>
+      </div>
       {items.length === 0 ? (
         <div className="cy-conversation-sidebar__empty">
           {supportsProjects ? t("sidebar.emptyProjects") : t("sidebar.emptyConversations")}
