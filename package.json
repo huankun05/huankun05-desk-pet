@@ -17,6 +17,7 @@
     "prepare:mingit": "node scripts/packaging/prepare-mingit.mjs",
     "prepare:mpv": "node scripts/packaging/prepare-mpv.mjs",
     "prepare:skills": "node scripts/packaging/build-skills-snapshot.mjs",
+    "models:download": "node scripts/download-local-models.mjs",
     "verify:mpv": "node scripts/verify/mpv-helper.mjs resources/bin/mpv/mpv.exe",
     "build:music-component": "node scripts/packaging/build-music-component.mjs",
     "package:win:dir": "npm run build && npm run build:screenshot-helper && npm run prepare:mingit && npm run prepare:mpv && electron-builder --win --dir",
@@ -24,6 +25,7 @@
     "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "smoke:music": "npm run build:main && node scripts/verify/music-smoke.mjs",
     "build:sim": "tsc -p tsconfig.sim.json",
     "sim": "tsc -p tsconfig.sim.json && node dist/sim/main/sim/dmae-sim.js",
@@ -38,6 +40,7 @@
     "npm": ">=10"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/cross-spawn": "^6.0.6",
     "@types/diff": "^7.0.2",
     "@types/dompurify": "^3.0.5",

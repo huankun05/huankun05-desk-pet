@@ -122,6 +122,10 @@ player-demo/
 # Playwright CLI scratch
 .playwright-cli/
 
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+
 # Sim result dumps
 sim-result/
 

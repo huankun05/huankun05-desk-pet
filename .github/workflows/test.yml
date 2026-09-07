@@ -28,6 +28,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: E2E smoke (Electron app)
+        if: success() || failure()
+        run: npx playwright test e2e/app-smoke.spec.ts --reporter=line
+
       - name: Test src/main/orchestrator/vendors
         if: success() || failure()
         run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/orchestrator/vendors

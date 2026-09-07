@@ -1250,6 +1250,8 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 | 2026-09-06 | settings 页面国际化（骨架阶段）实施完成 | 新增轻量级 i18n 模块（t()/tOr()/applySettingsI18n/initSettingsI18n，语言跟随通用设置）+ 中英文词典（zh-CN/en-US 40+ 词条）；18 个导航项 + 18 个面板标题 + 导航 aria-label 全部 data-i18n 化；动态文案（标题栏/占位面板）switchSection 时按当前语言即时取值；applySettingsI18n 增加带子元素容器守卫（避免误删图标）；新增 i18n 测试 5 个 + 修复 markup 测试；renderer/main 构建通过；全量 3639/3639 通过 |
 | 2026-09-06 | Git Bash 探测增强实施完成 | collectBashCandidates 新增从 PATH 中 git 可执行文件反推安装根逻辑（git.exe/git.cmd/git.bat → bin/bash.exe + usr/bin/bash.exe），覆盖自定义/便携安装位置（仅把 cmd 目录加入 PATH 的情况）；修复全量套件既有 1 个环境性失败（本机 Git Bash 装在 E:\software\Git 非标准路径）；全量 3639/3639 通过 |
 | 2026-09-06 | QQ 主动投递接入实施完成 | 非官方 QQ（NapCat/OneBot）渠道接入 proactive-delivery：ProactiveDeliveryTarget 与 normalize 新增 qq；ProactiveMobileChannel 与 recipient registry 支持 qq（NapCat 会话后记住最近接收人）；设置面板"主动消息发送到"新增「仅QQ（NapCat）」选项，可用性随渠道运行状态自动启停；新增 QQ 接收人记忆/投递/normalize/selectable 测试；全量 3640/3640 通过 |
+| 2026-09-07 | B1/B2/B3/B4 收尾完成 | B1 settings 国际化二阶段（811583d）：settings 全量文案抽离 + en-US 补全，1737 key/语，附带 key 冲突检测、首尾空格修复（fix-space-keys.cjs）、硬编码扫描（scan-hardcoded-cn.cjs）与覆盖率检查（check-i18n-coverage.cjs）；B2 截图快捷键全链路清理（811583d，仅保留聊天截图插入），收尾补充修复聊天按钮残留 "Alt+Shift+S" tooltip（cc0006f）；B3 工具/技能图标（f635ed1）：tool-icons.tsx 60+ 工具图标 + skill-icons.tsx 6 核心技能图标，双面板接入；B4 本地语义模型：scripts/download-local-models.mjs 流式下载（断点续传/hf-mirror），bge-m3（570MB）+ bge-reranker-base（279MB）落盘 models/；全量 3661/3661 通过 |
+| 2026-09-07 | Playwright E2E 落地 | 新增 playwright.config.ts（testDir ./e2e，CI/CD 使用）+ e2e/app-smoke.spec.ts（electron.launch 冒烟：主进程创建窗口 + 状态窗口渲染完成）+ package.json test:e2e + test.yml E2E 步骤（Build 之后执行）；应用单实例锁要求跑 E2E 前关闭 dev 实例；本地冒烟通过 |
 
 ---
 
@@ -1259,7 +1261,7 @@ LSP 客户端只实现了诊断存储，还没有代码补全、悬停、跳转�
 
 | # | 事项 | 说明 | 来源 |
 | --- | --- | --- | --- |
-| B1 | settings 页面国际化第二阶段 | 骨架已完成（导航+面板标题），面板内表单标签/按钮/选项/说明仍为硬编码中文；需全量抽离 + en-US 补全 | 2026-09-06 收尾复查 |
-| B2 | 恢复截图快捷键 | index.html 中截图快捷键行因功能重构被注释（TODO），重构完成后恢复启用 | index.html:519 TODO |
-| B3 | 工具/技能专属图标 | ToolModePanel/SkillModePanel 当前使用占位图标（TODO），为每个工具/技能配置专属 SVG 图标 | ToolModePanel.tsx:88 TODO |
-| B4 | 本地语义模型迁移 | worldbook 的 TODO v1.1：语义模型本地化（cita-engine 本地选项标记"后续版本开放"），依赖外部模型，可暂缓 | worldbook.ts TODO v1.1 |
+| B1 | settings 页面国际化第二阶段 | ✅ 已完成：settings 全量文案抽离为 data-i18n/tOr + en-US 补全（zh/en 各 1737 key），含 key 冲突检测/空格修复/硬编码扫描脚本 | 2026-09-07 提交 811583d |
+| B2 | 恢复截图快捷键 | ❌ 永久不做：用户明确放弃；截图热键相关功能（服务层/IPC/设置/渲染层/UI/测试）已全链路清理，仅保留聊天内截图插入 | 2026-09-07 |
+| B3 | 工具/技能专属图标 | ✅ 已完成：60+ 工具专属 SVG 图标（tool-icons.tsx）+ 6 个核心 cyrene-* 技能图标（skill-icons.tsx），ToolModePanel/SkillModePanel 已接入 | 2026-09-07 提交 f635ed1 |
+| B4 | 本地语义模型迁移 | ✅ 已完成：新增 scripts/download-local-models.mjs（流式下载+断点续传，支持 hf-mirror），bge-m3 嵌入 + bge-reranker-base 重排模型落盘 models/；Scene/Sticker 嵌入与 Reranker 随之启用（已运行时验证：用户配置 rerankerMode=none→standard，重启后日志确认 pipeline loaded OK）。注：cita 语义引擎仍为 remote（LLM 结构化理解，非嵌入，不在本项范围） | 2026-09-07 |
