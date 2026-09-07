@@ -649,7 +649,8 @@
 [data-ui-theme="pearl-white"] .skill-group,
 [data-ui-theme="pearl-white"] .skill-group__header,
 [data-ui-theme="pearl-white"] .scheduler-toolbar,
-[data-ui-theme="pearl-white"] .scheduler-empty {
+[data-ui-theme="pearl-white"] .scheduler-empty,
+[data-ui-theme="pearl-white"] .scheduler-silent-row {
   color: var(--rb-text-default);
   background: var(--rb-bg-2);
   border-color: var(--rb-border-soft);

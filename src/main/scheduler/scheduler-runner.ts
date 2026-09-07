@@ -4,7 +4,7 @@ import { AgentRuntimeError } from "../orchestrator/agent-runtime-error";
 import { CyreneAgent, type CyreneRunOptions } from "../orchestrator/cyrene-agent";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
 import { filterToolsForTask } from "./tool-filter";
-import type { ScheduledRunResult, ScheduledTask, ScheduledTaskHistoryEntry } from "./types";
+import type { ScheduledRunResult, ScheduledTask, ScheduledTaskDelivery, ScheduledTaskHistoryEntry } from "./types";
 
 /**
  * 第一期：scheduler 的 buildOptions 返回"传统"形式（包含 system 消息）。
@@ -24,6 +24,10 @@ interface RunnerDeps {
   now: () => Date;
   /** 任务完成后的投递回调（桌面通知等）。task.deliver === "desktop" 时触发。 */
   deliverResult?: (task: ScheduledTask, result: ScheduledRunResult) => void;
+  /** 任务完成后的渠道投递回调（微信/飞书/QQ）。task.deliver 为渠道时触发。 */
+  deliverChannelResult?: (task: ScheduledTask, result: ScheduledRunResult) => void;
+  /** 是否处于静默时段；返回 true 时跳过所有投递（桌面通知与渠道推送）。 */
+  isInSilentWindow?: () => boolean;
 }
 
 /** 定时任务是无人值守的 Work Harness：不询问、不审批，直接执行已分配工具。 */
@@ -35,6 +39,24 @@ export function applyScheduledExecutionPolicy(options: CyreneRunOptions): Cyrene
     harnessInteractiveTools: false,
     permissionMode: "allow_all",
   };
+}
+
+function isChannelDelivery(deliver: ScheduledTaskDelivery | undefined): deliver is "wechat" | "feishu" | "qq" {
+  return deliver === "wechat" || deliver === "feishu" || deliver === "qq";
+}
+
+/** 按任务的投递目标分派结果；静默时段内一律跳过。 */
+function deliverTaskResult(task: ScheduledTask, result: ScheduledRunResult, deps: RunnerDeps): void {
+  if (!task.deliver || task.deliver === "local") return;
+  if (deps.isInSilentWindow?.()) {
+    console.log(`[scheduler] 静默时段内，跳过投递：${task.title}`);
+    return;
+  }
+  if (task.deliver === "desktop") {
+    deps.deliverResult?.(task, result);
+  } else if (isChannelDelivery(task.deliver)) {
+    deps.deliverChannelResult?.(task, result);
+  }
 }
 
 export function createSchedulerRunner(deps: RunnerDeps) {
@@ -144,9 +166,7 @@ export function createSchedulerRunner(deps: RunnerDeps) {
       });
       send({ type: "RUN_ERROR", message, code: err instanceof AgentRuntimeError ? err.code : undefined, threadId: `scheduler-${task.id}`, runId: historyId, schedulerRunId: historyId, schedulerTaskId: task.id });
       const result: ScheduledRunResult = { ok: false, historyId, error: message, effectiveToolIds };
-      if (task.deliver === "desktop" && deps.deliverResult) {
-        deps.deliverResult(task, result);
-      }
+      deliverTaskResult(task, result, deps);
       return result;
     }
   }

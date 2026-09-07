@@ -82,7 +82,9 @@ function normalizeToolMode(value: unknown): SchedulerToolMode {
 }
 
 function normalizeDelivery(value: unknown): ScheduledTaskDelivery | undefined {
-  return value === "desktop" ? "desktop" : undefined; // undefined = "local" 默认
+  return value === "desktop" || value === "wechat" || value === "feishu" || value === "qq"
+    ? value
+    : undefined; // undefined = "local" 默认
 }
 
 function normalizeLoadedTask(raw: unknown): ScheduledTask | null {

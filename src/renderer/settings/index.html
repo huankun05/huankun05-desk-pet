@@ -1476,6 +1476,27 @@
                 </label>
               </div>
 
+              <label class="field scheduler-deliver-field">
+                <span data-i18n="tasks.delivery">完成投递</span>
+                <select class="setting-select" id="scheduler-deliver">
+                  <option value="local" data-i18n="tasks.deliverLocal">仅聊天窗口</option>
+                  <option value="desktop" data-i18n="tasks.deliverDesktop">桌面通知</option>
+                  <option value="wechat" data-i18n="tasks.deliverWechat">微信</option>
+                  <option value="feishu" data-i18n="tasks.deliverFeishu">飞书</option>
+                  <option value="qq" data-i18n="tasks.deliverQq">QQ</option>
+                </select>
+              </label>
+
+              <div class="scheduler-silent-row">
+                <span class="scheduler-silent-row__label" data-i18n="tasks.silentHours" title="tasks.silentHint">投递静默时段</span>
+                <span data-i18n="tasks.silentStart">静默开始</span>
+                <input id="scheduler-silent-start" type="time" />
+                <span class="scheduler-silent-row__dash">–</span>
+                <span data-i18n="tasks.silentEnd">静默结束</span>
+                <input id="scheduler-silent-end" type="time" />
+                <span class="scheduler-silent-status" id="scheduler-silent-status"></span>
+              </div>
+
               <label class="setting-row">
                 <div>
                   <strong data-i18n="tasks.toolLimit">高级工具限制</strong>

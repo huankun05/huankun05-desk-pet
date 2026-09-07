@@ -121,6 +121,7 @@ import {
   updateSchedulerConditionalFields, collectSchedule, collectAllowedToolIds,
   saveSchedulerTask, toggleSchedulerTask, fireSchedulerTask,
   deleteSchedulerTask, toggleSchedulerHistory,
+  saveSchedulerSilentHours, applySchedulerSilentHours,
 } from "./scheduler/panel";
 import { loadMusicPanel, disposeMusicPanel } from "./music/panel";
 import { initLocalMusicPanel } from "./music/local-panel";
@@ -1167,6 +1168,7 @@ async function loadGeneralSettings(): Promise<void> {
       .then((status: unknown) => renderProactiveDeliveryAvailability(status as Record<string, { phase?: string }>))
       .catch(() => renderProactiveDeliveryAvailability({}));
     applyLanguageSelection("zh-CN");
+    applySchedulerSilentHours(cfg.silentHoursStart ?? "", cfg.silentHoursEnd ?? "");
     setPreferencesSaveStatus(tOr("common.pendingSave", "等待保存"));
     setAppearanceSaveStatus(tOr("common.pendingSave", "等待保存"));
     setGeneralSaveStatus(tOr("common.pendingSave", "等待保存"));
@@ -2156,6 +2158,8 @@ schedulerCancelBtn?.addEventListener("click", closeSchedulerEditor);
 schedulerSaveBtn?.addEventListener("click", () => void saveSchedulerTask());
 schedulerKindInput?.addEventListener("change", updateSchedulerConditionalFields);
 schedulerToolLimitInput?.addEventListener("change", updateSchedulerConditionalFields);
+schedulerSilentStartInput?.addEventListener("change", () => void saveSchedulerSilentHours());
+schedulerSilentEndInput?.addEventListener("change", () => void saveSchedulerSilentHours());
 updateSchedulerConditionalFields();
 
 void loadConfig();

@@ -10,6 +10,9 @@ export type ScheduleConfig =
 
 export type SchedulerToolMode = "all-enabled" | "allow-list";
 
+/** 任务完成后投递目标；undefined 等价 "local"（仅聊天窗口）。 */
+export type ScheduledTaskDelivery = "local" | "desktop" | "wechat" | "feishu" | "qq";
+
 export interface ScheduledTask {
   id: string;
   title: string;
@@ -20,6 +23,7 @@ export interface ScheduledTask {
   lastFiredAt?: string;
   toolMode: SchedulerToolMode;
   allowedToolIds: string[];
+  deliver?: ScheduledTaskDelivery;
   createdAt: string;
   updatedAt: string;
 }

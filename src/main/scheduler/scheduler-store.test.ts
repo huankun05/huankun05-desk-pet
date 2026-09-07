@@ -206,7 +206,7 @@ describe("scheduler store", () => {
     expect(enabled.nextFireAt).toBe("2026-06-22T13:00:00.000Z");
   });
 
-  it("normalizes and persists deliver field (desktop / undefined=local)", () => {
+  it("normalizes and persists deliver field (desktop / channel / undefined=local)", () => {
     const dir = tmpDir();
     const store = createSchedulerStore({
       tasksFile: path.join(dir, "scheduled-tasks.json"),
@@ -233,12 +233,21 @@ describe("scheduler store", () => {
     });
     expect(localTask.deliver).toBeUndefined();
 
+    // addTask with channel deliver → preserved
+    const channelTask = store.addTask({
+      title: "Push WeChat",
+      prompt: "test",
+      schedule: { kind: "daily", timeOfDay: "12:00" },
+      deliver: "wechat",
+    });
+    expect(channelTask.deliver).toBe("wechat");
+
     // addTask with invalid deliver → normalized to undefined
     const invalidTask = store.addTask({
       title: "Invalid Deliver",
       prompt: "test",
       schedule: { kind: "daily", timeOfDay: "11:00" },
-      deliver: "wechat" as never,
+      deliver: "sms" as never,
     });
     expect(invalidTask.deliver).toBeUndefined();
 
@@ -251,16 +260,17 @@ describe("scheduler store", () => {
     });
     store2.load();
     const reloaded = store2.getTasks();
-    expect(reloaded).toHaveLength(3);
+    expect(reloaded).toHaveLength(4);
     expect(reloaded.find(t => t.title === "Desktop Notify")?.deliver).toBe("desktop");
     expect(reloaded.find(t => t.title === "Local Only")?.deliver).toBeUndefined();
+    expect(reloaded.find(t => t.title === "Push WeChat")?.deliver).toBe("wechat");
 
     // updateTask: patch deliver from desktop → undefined (local)
     const updated = store2.updateTask(desktopTask.id, { deliver: undefined });
     expect(updated.deliver).toBeUndefined();
 
-    // updateTask: patch deliver from undefined → desktop
-    const updated2 = store2.updateTask(localTask.id, { deliver: "desktop" });
-    expect(updated2.deliver).toBe("desktop");
+    // updateTask: patch deliver from undefined → channel
+    const updated2 = store2.updateTask(localTask.id, { deliver: "feishu" });
+    expect(updated2.deliver).toBe("feishu");
   });
 });

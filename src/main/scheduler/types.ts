@@ -1,7 +1,8 @@
 export type ScheduleKind = "once" | "daily" | "weekly" | "interval" | "cron";
 
-/** 定时任务完成后的投递目标。"local" = 仅聊天窗口（默认）；"desktop" = 额外弹桌面通知。 */
-export type ScheduledTaskDelivery = "local" | "desktop";
+/** 定时任务完成后的投递目标。"local" = 仅聊天窗口（默认）；"desktop" = 额外弹桌面通知；
+ *  "wechat" | "feishu" | "qq" = 推送到对应手机渠道（需渠道已连接且存在最近会话）。 */
+export type ScheduledTaskDelivery = "local" | "desktop" | "wechat" | "feishu" | "qq";
 
 export type ScheduleConfig =
   | { kind: "once"; runAt: string }
@@ -23,7 +24,7 @@ export interface ScheduledTask {
   lastFiredAt?: string;
   toolMode: SchedulerToolMode;
   allowedToolIds: string[];
-  /** 完成后投递目标，默认 "local"（仅聊天窗口）。"desktop" 额外弹桌面通知。 */
+  /** 完成后投递目标，默认 "local"（仅聊天窗口）。"desktop" 额外弹桌面通知；渠道值推送手机渠道。 */
   deliver?: ScheduledTaskDelivery;
   createdAt: string;
   updatedAt: string;

@@ -61,6 +61,10 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   proactiveChatMode: ProactiveChatMode;
   /** 主动消息最终投递到本地、微信或飞书。 */
   proactiveDeliveryTarget: ProactiveDeliveryTarget;
+  /** 定时任务投递静默时段起点 "HH:MM"；空字符串 = 未启用。期间任务仍运行，但不弹通知/不推渠道。 */
+  silentHoursStart?: string;
+  /** 定时任务投递静默时段终点 "HH:MM"；空字符串 = 未启用。 */
+  silentHoursEnd?: string;
   // TTS 配置
   ttsEngine: "off" | "minimax" | "gptsovits" | "custom-cloud" | "mimo" | "mossland" | "senseaudio";
   ttsAutoRead: boolean;

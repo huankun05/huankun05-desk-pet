@@ -3,10 +3,14 @@ import type { BrowserWindow } from "electron";
 import type { IpcScope } from "../application/ipc-scope";
 import type { AgentRuntime } from "../orchestrator/agent-runtime";
 import { toolRegistry } from "../orchestrator/tools/registry/tool-registry";
+import { channelManager } from "../channels/manager";
+import { sendProactiveChannelMessage, type ProactiveMobileChannel } from "../channels/proactive-delivery";
+import type { GeneralSettings } from "../settings/general-settings";
 import { SchedulerEngine, type SchedulerEngineDeps } from "./scheduler-engine";
 import { getSchedulerStore } from "./scheduler-store";
 import { registerSchedulerIpc } from "./scheduler-ipc";
 import { createSchedulerRunner } from "./scheduler-runner";
+import { isInSilentWindow } from "./silent-window";
 import type { ScheduledRunResult, ScheduledTask } from "./types";
 
 export interface SchedulerSubsystemDeps {
@@ -17,6 +21,8 @@ export interface SchedulerSubsystemDeps {
   registerIpc?: typeof registerSchedulerIpc;
   /** 共享 IPC scope；传入后 scheduler IPC 由组合根统一注销。 */
   ipc?: IpcScope;
+  /** 读取通用设置（渠道投递与静默时段）。缺省时渠道投递不可用。 */
+  loadGeneralSettings?: () => GeneralSettings;
 }
 
 export interface SchedulerSubsystem {
@@ -51,6 +57,34 @@ function deliverScheduledResultToDesktop(task: ScheduledTask, result: ScheduledR
   }
 }
 
+/**
+ * 定时任务完成后的手机渠道投递（微信/飞书/QQ）。
+ * 渠道未连接或没有最近会话时投递会被取消，仅记录 warning，不影响任务本身。
+ */
+function deliverScheduledResultToChannel(
+  task: ScheduledTask,
+  result: ScheduledRunResult,
+  loadGeneralSettings: () => GeneralSettings,
+): void {
+  const channel = task.deliver as ProactiveMobileChannel;
+  const settings = loadGeneralSettings();
+  const text = result.ok
+    ? `定时任务完成：${task.title}\n\n${(result.reply ?? "").slice(0, 800)}`
+    : `定时任务失败：${task.title}\n\n${(result.error ?? "未知错误").slice(0, 800)}`;
+  void sendProactiveChannelMessage({
+    channel,
+    text,
+    mobileMessageSegmentation: settings.mobileMessageSegmentation,
+    manager: channelManager,
+  })
+    .then((delivery) => {
+      if (delivery.kind === "cancelled") {
+        console.warn(`[scheduler] ${channel} 投递未完成:`, delivery.reason);
+      }
+    })
+    .catch((err) => console.error("[scheduler] 渠道投递异常:", err));
+}
+
 export function createSchedulerSubsystem(deps: SchedulerSubsystemDeps): SchedulerSubsystem {
   const store = deps.store ?? getSchedulerStore();
 
@@ -64,6 +98,18 @@ export function createSchedulerSubsystem(deps: SchedulerSubsystemDeps): Schedule
     id: () => `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     now: () => new Date(),
     deliverResult: deliverScheduledResultToDesktop,
+    deliverChannelResult: (task, result) => {
+      if (!deps.loadGeneralSettings) return;
+      deliverScheduledResultToChannel(task, result, deps.loadGeneralSettings);
+    },
+    isInSilentWindow: () => {
+      const settings = deps.loadGeneralSettings?.();
+      if (!settings) return false;
+      return isInSilentWindow(
+        { start: settings.silentHoursStart ?? "", end: settings.silentHoursEnd ?? "" },
+        new Date(),
+      );
+    },
   });
 
   const engineDeps: SchedulerEngineDeps = {

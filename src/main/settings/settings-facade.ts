@@ -66,6 +66,8 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   mobileMessageSegmentation: "off",
   proactiveChatMode: "off",
   proactiveDeliveryTarget: "local",
+  silentHoursStart: "",
+  silentHoursEnd: "",
   ttsEngine: "off",
   ttsAutoRead: true,
   ttsSpeed: 1,

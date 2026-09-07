@@ -125,6 +125,10 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   mobileMessageSegmentation: MobileMessageSegmentationMode;
   proactiveChatMode: ProactiveChatMode;
   proactiveDeliveryTarget: ProactiveDeliveryTarget;
+  /** 定时任务投递静默时段起点 "HH:MM"；空字符串 = 未启用。 */
+  silentHoursStart?: string;
+  /** 定时任务投递静默时段终点 "HH:MM"；空字符串 = 未启用。 */
+  silentHoursEnd?: string;
   /** 聊天段落间距（em）。目前仅设置窗口 UI 使用，主进程归一化尚未持久化该字段。 */
   chatParaSpacing?: number;
   screenshotHotkey?: string;

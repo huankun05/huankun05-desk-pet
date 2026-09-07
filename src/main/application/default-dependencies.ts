@@ -421,6 +421,7 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
         agentRuntime: runtime,
         getReactChatWindow: () => reactChatWindow,
         ipc: shell.ipc,
+        loadGeneralSettings,
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {

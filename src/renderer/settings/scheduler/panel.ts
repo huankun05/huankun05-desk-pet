@@ -2,7 +2,7 @@
 // 从 settings.ts 抽离。依赖 scheduler DOM 引用（./dom）、schedulerState（./state）、
 // 纯函数（./utils）、shared showModal、scheduler/types 类型。
 
-import type { ScheduledTask, ScheduleConfig } from "./types";
+import type { ScheduledTask, ScheduleConfig, ScheduledTaskDelivery } from "./types";
 import { schedulerState } from "./state";
 import {
   schedulerEmpty, schedulerList,
@@ -12,6 +12,8 @@ import {
   schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput,
   schedulerCronExprInput,
   schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint,
+  schedulerDeliverInput,
+  schedulerSilentStartInput, schedulerSilentEndInput, schedulerSilentStatus,
   schedulerSaveStatus,
 } from "./dom";
 import {
@@ -72,7 +74,10 @@ export async function renderSchedulerList(): Promise<void> {
       badge.classList.toggle("is-disabled", !task.enabled);
     }
     const meta = card.querySelector(".scheduler-card__meta");
-    if (meta) meta.textContent = `${describeSchedule(task.schedule)}${tOr("scheduler.nextRunPrefix", " · 下次运行：")}${formatSchedulerDate(task.nextFireAt)}${tOr("scheduler.toolsPrefix", " · 工具：")}${task.toolMode === "all-enabled" ? tOr("scheduler.allEnabledTools", "全部已启用工具") : task.allowedToolIds.join(", ") || tOr("scheduler.none", "无")}`;
+    if (meta) {
+      const deliveryLabel = describeDelivery(task.deliver);
+      meta.textContent = `${describeSchedule(task.schedule)}${tOr("scheduler.nextRunPrefix", " · 下次运行：")}${formatSchedulerDate(task.nextFireAt)}${deliveryLabel ? tOr("scheduler.deliverPrefix", " · 投递：") + deliveryLabel : ""}${tOr("scheduler.toolsPrefix", " · 工具：")}${task.toolMode === "all-enabled" ? tOr("scheduler.allEnabledTools", "全部已启用工具") : task.allowedToolIds.join(", ") || tOr("scheduler.none", "无")}`;
+    }
     const actions = card.querySelector(".scheduler-card__actions") as HTMLDivElement | null;
     if (actions) {
       const fireBtn = document.createElement("button");
@@ -208,6 +213,43 @@ export function collectAllowedToolIds(): string[] {
   return Array.from(schedulerToolPicker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')).map(input => input.value);
 }
 
+/** 投递目标显示名（用于列表 meta）。 */
+export function describeDelivery(deliver?: ScheduledTaskDelivery): string {
+  if (!deliver || deliver === "local") return "";
+  if (deliver === "desktop") return tOr("scheduler.deliverDesktop", "桌面通知");
+  if (deliver === "wechat") return tOr("scheduler.deliverWechat", "微信");
+  if (deliver === "feishu") return tOr("scheduler.deliverFeishu", "飞书");
+  return tOr("scheduler.deliverQq", "QQ");
+}
+
+function setSchedulerSilentStatus(text: string, className = ""): void {
+  if (!schedulerSilentStatus) return;
+  schedulerSilentStatus.textContent = text;
+  schedulerSilentStatus.className = "scheduler-silent-status" + (className ? " " + className : "");
+}
+
+/** 将静默时段写入通用设置（部分合并，立即保存）。 */
+export async function saveSchedulerSilentHours(): Promise<void> {
+  const start = schedulerSilentStartInput?.value ?? "";
+  const end = schedulerSilentEndInput?.value ?? "";
+  try {
+    await window.settings!.saveGeneral({ silentHoursStart: start, silentHoursEnd: end });
+    setSchedulerSilentStatus(tOr("scheduler.silentSaved", "已保存"), "is-ok");
+  } catch {
+    setSchedulerSilentStatus(tOr("scheduler.silentSaveFailed", "保存失败"), "is-error");
+  }
+}
+
+/** 把通用设置里的静默时段回填到输入框（保留输入焦点）。 */
+export function applySchedulerSilentHours(start: string, end: string): void {
+  if (schedulerSilentStartInput && document.activeElement !== schedulerSilentStartInput) {
+    schedulerSilentStartInput.value = start;
+  }
+  if (schedulerSilentEndInput && document.activeElement !== schedulerSilentEndInput) {
+    schedulerSilentEndInput.value = end;
+  }
+}
+
 export async function saveSchedulerTask(): Promise<void> {
   try {
     setSchedulerStatus(tOr("scheduler.saving", "保存中…"));
@@ -220,6 +262,7 @@ export async function saveSchedulerTask(): Promise<void> {
       prompt,
       enabled: schedulerEnabledInput?.checked ?? true,
       schedule: collectSchedule(),
+      deliver: (schedulerDeliverInput?.value ?? "local") as ScheduledTaskDelivery,
       toolMode: schedulerToolLimitInput?.checked ? "allow-list" : "all-enabled",
       allowedToolIds: collectAllowedToolIds(),
     };
