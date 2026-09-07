@@ -381,7 +381,7 @@ export function ChatComposer({
               type="button"
               className="cy-composer__icon-button"
               aria-label={t("composer.screenshot")}
-              title={t("composer.screenshotShortcut")}
+              title={t("composer.screenshot")}
               onClick={onScreenshot}
             >
               <ScreenshotIcon />
