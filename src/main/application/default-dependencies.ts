@@ -33,6 +33,7 @@ import {
 } from "../windows/window-state";
 import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
+import { maybeNotifyBudgetExceeded } from "../settings/cost-config";
 import { registerSkillsIpc } from "../skills/skills-ipc";
 import {
   applyGeneralSettings,
@@ -81,7 +82,7 @@ import { backupMemoryRagFiles, reconcileMemoryRag } from "../memory/memory-rag-r
 import { registerChatsIpc } from "../chats/chats-ipc";
 import { registerChatUiIpc } from "../chats/chat-ui-ipc";
 import * as chatsStore from "../chats/chats-store";
-import { flush as flushTokenUsage } from "../token-usage-store";
+import { flush as flushTokenUsage, setUsageRecordedHook } from "../token-usage-store";
 import { TtsSessionService } from "../tts/tts-session-service";
 import { registerTtsIpc } from "../tts/tts-ipc";
 import { loadUserProfile } from "../settings-store";
@@ -381,6 +382,18 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           ];
           return services.llm.chat(loadModelSettings(), messages, undefined, 120000, "后台代码审查", false);
         }, loadModelSettings().model));
+        // 预算告警闭环：每次记录 token 用量后节流评估，越过阈值自动弹通知（不再只等面板打开）。
+        let lastBudgetCheckAt = 0;
+        setUsageRecordedHook(() => {
+          const now = Date.now();
+          if (now - lastBudgetCheckAt < 60_000) return; // 节流：最多每分钟评估一次
+          lastBudgetCheckAt = now;
+          try {
+            maybeNotifyBudgetExceeded();
+          } catch (err) {
+            console.error("[cost-config] 用量记录后预算评估失败:", err);
+          }
+        });
         return createAgentRuntime({
         runtimeStateService: services.runtimeState,
         llmClient: services.llm,

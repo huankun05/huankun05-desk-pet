@@ -65,7 +65,7 @@ import { channelsWechatEnabledEl, channelsFeishuEnabledEl, channelsWechatStatusE
 import { memoryState } from "./memory/state";
 import { memoryL0NameInput, memoryL0OccupationInput, memoryL0InterestsInput, memoryL0LanguageInput, memoryL0NoteInput, memoryL1GoalsInput, memoryL1PreferencesInput, memoryL1ProjectInput, memoryL2SearchInput, memoryL2List, memoryImportedList, memoryReflectionList, memoryL0EditBtn, memoryL0CancelBtn, memoryL1EditBtn, memoryL1CancelBtn } from "./memory/dom";
 import { schedulerState } from "./scheduler/state";
-import { schedulerNewBtn, schedulerEmpty, schedulerList, schedulerEditor, schedulerEditorTitle, schedulerEditorClose, schedulerTitleInput, schedulerPromptInput, schedulerEnabledInput, schedulerKindInput, schedulerOnceRunAtInput, schedulerTimeOfDayInput, schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput, schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint, schedulerSaveStatus, schedulerCancelBtn, schedulerSaveBtn } from "./scheduler/dom";
+import { schedulerNewBtn, schedulerEmpty, schedulerList, schedulerEditor, schedulerEditorTitle, schedulerEditorClose, schedulerTitleInput, schedulerPromptInput, schedulerEnabledInput, schedulerKindInput, schedulerOnceRunAtInput, schedulerTimeOfDayInput, schedulerDayOfWeekInput, schedulerIntervalEveryInput, schedulerIntervalUnitInput, schedulerToolLimitInput, schedulerToolPicker, schedulerToolEmptyHint, schedulerSilentStartInput, schedulerSilentEndInput, schedulerSaveStatus, schedulerCancelBtn, schedulerSaveBtn } from "./scheduler/dom";
 import { tokensState } from "./tokens/state";
 import { modalState } from "./shared/modal-state";
 import { formatDateTime, escapeHtml } from "./shared/format";

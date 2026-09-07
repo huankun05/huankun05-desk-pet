@@ -64,6 +64,8 @@ function todayKey(): string {
 let cache: TokenUsageStore | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+/** 用量记录后的外部回调（预算告警等接入点；不阻塞记录流程）。 */
+let usageRecordedHook: (() => void) | null = null;
 
 function clearTimers(): void {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
@@ -125,6 +127,11 @@ function flushNow(): void {
 
 // ── public API ──
 
+/** 注册/解除用量记录后的回调（传入 null 解除）。供预算告警等外部逻辑接入。 */
+export function setUsageRecordedHook(hook: (() => void) | null): void {
+  usageRecordedHook = hook;
+}
+
 /** 将一次模型调用累加到指定日期；导出供统计逻辑测试与复用。 */
 export function applyUsageToDay(
   day: TokenUsageDay,
@@ -176,6 +183,7 @@ export function recordUsage(input: number, output: number, requests = 1, cachedI
   applyUsageToDay(day, input, output, requests, cachedInput, model, cacheCreation);
   store.days[key] = day;
   scheduleFlush();
+  usageRecordedHook?.();
 }
 
 /** 记录一次模型请求的发生（不依赖厂商是否返回 usage）。用于统计请求覆盖率。 */

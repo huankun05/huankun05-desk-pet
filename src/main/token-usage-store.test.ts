@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as os from "os";
+import * as path from "path";
+
+// recordUsage 依赖 app.getPath("userData")，用独立临时目录隔离本测试。
+vi.mock("electron", () => ({
+  app: {
+    getPath: () => path.join(os.tmpdir(), "cyrene-token-usage-hook-test"),
+  },
+}));
+
 import {
   applyUsageToDay,
   clearUsage,
+  recordUsage,
+  setUsageRecordedHook,
   type TokenUsageDay,
 } from "./token-usage-store";
 
@@ -51,5 +63,20 @@ describe("clearUsage", () => {
     clearUsage(days);
 
     expect(days).toEqual({});
+  });
+});
+
+describe("setUsageRecordedHook", () => {
+  it("recordUsage 后触发已注册的回调；解除后不再触发", () => {
+    clearUsage();
+    const hook = vi.fn();
+    setUsageRecordedHook(hook);
+
+    recordUsage(10, 5, 1, undefined, "hook-model");
+    expect(hook).toHaveBeenCalledTimes(1);
+
+    setUsageRecordedHook(null);
+    recordUsage(1, 1, 1, undefined, "hook-model");
+    expect(hook).toHaveBeenCalledTimes(1); // 解除后不再触发
   });
 });

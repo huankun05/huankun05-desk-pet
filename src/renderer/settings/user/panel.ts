@@ -8,6 +8,7 @@ import {
   userBirthdayInput, userTimezoneSelect, userGenderGroup,
 } from "./dom";
 import { TIMEZONE_OPTIONS, normalizeTimezoneOptionValue } from "../timezone-options";
+import { tOr } from "../i18n";
 
 const avatarImg = avatarEl?.querySelector("img") as HTMLImageElement | null;
 const avatarPlaceholder = avatarEl?.querySelector("span") as HTMLElement | null;
