@@ -128,10 +128,15 @@ export function createSchedulerStore(deps: StoreDeps) {
 
   function load(): void {
     try {
-      const parsed = JSON.parse(fs.readFileSync(deps.tasksFile, "utf8")) as { tasks?: unknown[] };
-      tasks = Array.isArray(parsed.tasks)
-        ? parsed.tasks.map(normalizeLoadedTask).filter((task): task is ScheduledTask => task !== null)
-        : [];
+      const parsed = JSON.parse(fs.readFileSync(deps.tasksFile, "utf8"));
+      // 兼容两种持久化形态：新版 `{ "tasks": [...] }` 包装，以及早期/手工写入的裸数组 `[...]`。
+      // 裸数组时按任务列表直接读取，避免旧数据被静默丢弃导致调度器“看似为空”。
+      const rawList = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as { tasks?: unknown[] } | null)?.tasks)
+          ? (parsed as { tasks: unknown[] }).tasks
+          : [];
+      tasks = rawList.map(normalizeLoadedTask).filter((task): task is ScheduledTask => task !== null);
     } catch {
       tasks = [];
     }

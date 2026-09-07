@@ -43,6 +43,38 @@ describe("scheduler store", () => {
     expect(store2.getTasks()[0].title).toBe("Morning");
   });
 
+  it("loads a legacy bare-array tasks file (backward compatible)", () => {
+    const dir = tmpDir();
+    const tasksFile = path.join(dir, "scheduled-tasks.json");
+    fs.writeFileSync(
+      tasksFile,
+      JSON.stringify([
+        {
+          id: "legacy-1",
+          title: "Legacy",
+          prompt: "Run once",
+          enabled: true,
+          schedule: { kind: "once", runAt: "2026-06-23T09:00:00.000Z" },
+          nextFireAt: "2026-06-23T09:00:00.000Z",
+          createdAt: "2026-06-22T08:00:00.000Z",
+          updatedAt: "2026-06-22T08:00:00.000Z",
+        },
+      ]),
+      "utf8",
+    );
+
+    const store = createSchedulerStore({
+      tasksFile,
+      historyFile: path.join(dir, "scheduled-tasks-history.jsonl"),
+      now: () => new Date("2026-06-22T08:00:00.000Z"),
+      id: () => "id-1",
+    });
+    store.load();
+    expect(store.getTasks()).toHaveLength(1);
+    expect(store.getTasks()[0].id).toBe("legacy-1");
+    expect(store.getTasks()[0].title).toBe("Legacy");
+  });
+
   it("keeps 50 history entries per task and 1000 globally", () => {
     const dir = tmpDir();
     const store = createSchedulerStore({
