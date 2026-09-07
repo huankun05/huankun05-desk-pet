@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../../../i18n";
+import { SKILL_ICON_SVGS } from "./skill-icons";
 import "./SkillModePanel.css";
 
 type SkillMode = "work" | "code" | "learn";
@@ -30,9 +31,6 @@ const SOURCE_OPTIONS: Array<{ key: "all" | SkillSource; labelKey: string }> = [
   { key: "builtin", labelKey: "skillPanel.sourceBuiltin" },
   { key: "user", labelKey: "skillPanel.sourceUser" },
 ];
-
-// TODO: 为每个 skill 配置专属 SVG 图标；key 为 skill id。
-const SKILL_ICON_SVGS: Record<string, React.ReactNode> = {};
 
 function RefreshIcon() {
   return (
