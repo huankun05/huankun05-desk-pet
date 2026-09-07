@@ -290,7 +290,15 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
   });
 
   ipc.on(IPC.SETTINGS_SET_PET_VISIBLE, (_event, value: boolean) => {
-    saveGeneralSettings({ ...getGeneralSettings(), petVisible: Boolean(value) });
+    const saved = saveGeneralSettings({ ...getGeneralSettings(), petVisible: Boolean(value) });
+    // 即时生效：开启时创建（幂等）并显示桌宠；关闭时隐藏（保留窗口，快速恢复）。
+    // 修复前只保存设置不操作窗口，导致重启后 petVisible=false 时桌宠不再创建、重新开启也不显示。
+    if (saved.petVisible) {
+      deps.windowManager?.createPetWindow(true);
+      deps.windowManager?.showPetWindow();
+    } else {
+      deps.windowManager?.hidePetWindow();
+    }
   });
 
   ipc.on(IPC.SETTINGS_SET_PET_ZOOM, (_event, value: number) => {

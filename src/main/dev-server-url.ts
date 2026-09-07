@@ -20,5 +20,5 @@ export function getDevServerBaseUrl(dev: boolean = isDev): string {
   } catch {
     // 文件缺失/损坏时回退默认端口，保持向后兼容
   }
-  return "http://localhost:5173";
+  return "http://localhost:5174";
 }

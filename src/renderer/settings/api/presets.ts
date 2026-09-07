@@ -16,7 +16,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     anthropicBaseUrl: "https://api.minimaxi.com/anthropic",
     transport: "anthropic",
     mainModels: ["MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.5"],
-    iconUrl: "../icons/providers/minimax.svg",
+    iconUrl: "/icons/providers/minimax.svg",
     websiteUrl: "https://platform.minimaxi.com/",
     // 主模型默认走 Anthropic SDK；视觉继续走 OpenAI 兼容入口。
     visionBaseUrl: "https://api.minimaxi.com/v1",
@@ -31,7 +31,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     anthropicBaseUrl: "https://api.deepseek.com/anthropic",
     transport: "openai",
     mainModels: ["deepseek-v4-pro", "deepseek-v4-flash"],
-    iconUrl: "../icons/providers/deepseek.svg",
+    iconUrl: "/icons/providers/deepseek.svg",
     websiteUrl: "https://platform.deepseek.com/",
   },
   {
@@ -45,7 +45,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
       "doubao-seed-2-0-lite-260428",
       "doubao-seed-2-0-mini-260428",
     ],
-    iconUrl: "../icons/providers/volcengine.svg",
+    iconUrl: "/icons/providers/volcengine.svg",
     websiteUrl: "https://www.volcengine.com/product/ark",
   },
   {
@@ -55,7 +55,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     anthropicBaseUrl: "https://open.bigmodel.cn/api/anthropic",
     transport: "openai",
     mainModels: ["glm-5.3", "glm-5.2", "glm-5.1", "glm-5-turbo", "glm-4.7"],
-    iconUrl: "../icons/providers/glm.svg",
+    iconUrl: "/icons/providers/glm.svg",
     websiteUrl: "https://open.bigmodel.cn/",
   },
   {
@@ -64,7 +64,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "https://api.moonshot.cn/v1",
     transport: "openai",
     mainModels: ["kimi-k2.6", "kimi-k2.5", "kimi-k2-thinking"],
-    iconUrl: "../icons/providers/kimi.svg",
+    iconUrl: "/icons/providers/kimi.svg",
     websiteUrl: "https://platform.moonshot.cn/",
   },
   {
@@ -73,7 +73,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     transport: "openai",
     mainModels: ["qwen-max", "qwen-plus", "qwen-turbo"],
-    iconUrl: "../icons/providers/qwen.svg",
+    iconUrl: "/icons/providers/qwen.svg",
     websiteUrl: "https://bailian.console.aliyun.com/",
   },
   {
@@ -84,7 +84,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     transport: "responses",
     // 官方入口只推荐已纳入结构化输出 Profile 的型号；代理与自定义型号走“自定义端点”。
     mainModels: ["gpt-5.6"],
-    iconUrl: "../icons/providers/openai.svg",
+    iconUrl: "/icons/providers/openai.svg",
     websiteUrl: "https://platform.openai.com/",
   },
   {
@@ -93,7 +93,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "https://api.anthropic.com/v1",
     transport: "anthropic",
     mainModels: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-4-6"],
-    iconUrl: "../icons/providers/claude.svg",
+    iconUrl: "/icons/providers/claude.svg",
     websiteUrl: "https://console.anthropic.com/",
   },
   {
@@ -103,7 +103,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     anthropicBaseUrl: "https://api.xiaomimimo.com/anthropic",
     transport: "openai",
     mainModels: ["mimo-v2.5-pro"],
-    iconUrl: "../icons/providers/xiaomimimo.svg",
+    iconUrl: "/icons/providers/xiaomimimo.svg",
     websiteUrl: "https://mimo.mi.com/",
     visionBaseUrl: "https://api.xiaomimimo.com/v1",
     // 主模型 mimo-v2.5-pro 不适合做视觉（视觉模型是 mimo-v2.5）；
@@ -117,7 +117,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "",
     transport: "openai",
     mainModels: [],
-    iconUrl: "../icons/providers/custom-endpoint.svg",
+    iconUrl: "/icons/providers/custom-endpoint.svg",
     customEndpointMode: "cloud",
   },
   {
@@ -126,7 +126,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "",
     transport: "openai",
     mainModels: [],
-    iconUrl: "../icons/providers/custom-endpoint.svg",
+    iconUrl: "/icons/providers/custom-endpoint.svg",
     customEndpointMode: "local",
     hiddenInPresetList: true,
   },

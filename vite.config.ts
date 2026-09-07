@@ -75,7 +75,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // 5173 常被其他项目（如 Assa\Xiyue 的 electron-vite）占用，固定到 5174 避免抢端口。
+    port: 5174,
     strictPort: false,
   },
 });

@@ -37,12 +37,12 @@ describe("getDevServerBaseUrl", () => {
   });
 
   it("falls back to the default port when the probe file is missing", () => {
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5173");
+    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
   });
 
   it("falls back when the probe file is malformed", () => {
     writeProbe("{ not json");
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5173");
+    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
   });
 
   it("returns empty string in production", () => {
