@@ -1504,87 +1504,6 @@
           </div>
         </section>
 
-        <section class="settings-panel is-hidden" id="skills-panel" data-panel="skills">
-
-          <!-- 操作栏：安装外部技能 + 备份 -->
-          <div class="skills-toolbar">
-            <div class="skills-install-group">
-              <input type="url" id="skill-install-url" placeholder="输入 GitHub 仓库 URL 或 SKILL.md raw URL" />
-              <button type="button" class="save-btn save-btn--ghost" id="skill-install-btn">安装技能</button>
-            </div>
-            <div class="skills-backup-group">
-              <button type="button" class="save-btn save-btn--ghost" id="skill-backup-btn">立即备份</button>
-              <button type="button" class="save-btn save-btn--ghost" id="skill-refresh-btn">刷新列表</button>
-            </div>
-          </div>
-
-          <!-- 筛选器 -->
-          <div class="skills-filters" id="skills-filters">
-            <div class="skills-filter-group">
-              <span class="skills-filter-label">来源：</span>
-              <div class="skills-filter-btns" id="filter-system">
-                <button type="button" class="skills-filter-btn active" data-value="all">全部</button>
-                <button type="button" class="skills-filter-btn" data-value="cyrene-builtin">Cyrene内置</button>
-                <button type="button" class="skills-filter-btn" data-value="self-evolving">自进化</button>
-              </div>
-            </div>
-            <div class="skills-filter-group">
-              <span class="skills-filter-label">状态：</span>
-              <div class="skills-filter-btns" id="filter-enabled">
-                <button type="button" class="skills-filter-btn active" data-value="all">全部</button>
-                <button type="button" class="skills-filter-btn" data-value="enabled">已启用</button>
-                <button type="button" class="skills-filter-btn" data-value="disabled">已禁用</button>
-              </div>
-            </div>
-            <span class="skills-filter-count" id="skills-filter-count"></span>
-          </div>
-
-          <!-- 状态提示 -->
-          <div class="skills-status" id="skills-status" hidden></div>
-
-          <!-- 技能列表 -->
-          <div class="skills-list" id="skills-list">
-            <p class="skills-loading">加载中...</p>
-          </div>
-
-          <!-- 技能详情/编辑器（模态） -->
-          <div class="skills-modal" id="skills-modal" hidden>
-            <div class="skills-modal-content">
-              <div class="skills-modal-header">
-                <h3 id="skills-modal-title">技能详情</h3>
-                <button type="button" class="skills-modal-close" id="skills-modal-close">&times;</button>
-              </div>
-              <div class="skills-modal-body">
-                <div class="skills-meta" id="skills-meta"></div>
-                <textarea id="skills-editor" class="skills-editor" spellcheck="false"></textarea>
-              </div>
-              <div class="skills-modal-footer">
-                <button type="button" class="save-btn save-btn--ghost" id="skills-modal-cancel">取消</button>
-                <button type="button" class="save-btn" id="skills-modal-save">保存</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 备份管理（模态） -->
-          <div class="skills-modal" id="skills-backup-modal" hidden>
-            <div class="skills-modal-content">
-              <div class="skills-modal-header">
-                <h3>备份管理</h3>
-                <button type="button" class="skills-modal-close" id="skills-backup-modal-close">&times;</button>
-              </div>
-              <div class="skills-modal-body">
-                <div class="skills-backup-list" id="skills-backup-list">
-                  <p class="skills-loading">加载中...</p>
-                </div>
-              </div>
-              <div class="skills-modal-footer">
-                <button type="button" class="save-btn save-btn--ghost" id="skills-backup-modal-close-btn">关闭</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-
         <section class="settings-panel is-hidden" id="channels-panel" data-panel="channels">
           <details class="channels-log" id="channels-log-details">
             <summary><svg width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-2px"><title>消息日志</title><path d="M33 38H22V30H36V22H44V38H39L36 41L33 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6H36V30H17L13 34L9 30H4V6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22H18" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M12 14H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg> 消息日志（最近 100 条）</summary>
@@ -1688,7 +1607,7 @@
               <div class="form-row">
                 <label class="form-label" for="channels-qq-listen-mode">监听模式</label>
                 <select id="channels-qq-listen-mode" class="form-input form-input--wide setting-select">
-                  <option value="auto">自动（优先 WSL，失败回环）</option>
+                  <option value="auto">自动（仅本机 127.0.0.1，推荐）</option>
                   <option value="wsl">Windows WSL 虚拟网卡</option>
                   <option value="loopback">仅本机 127.0.0.1</option>
                   <option value="custom">自定义地址</option>
@@ -2082,7 +2001,7 @@
           </div>
           <div id="netease-detail-view" class="is-hidden">
             <button type="button" class="music-return-btn" id="music-return-btn">← 返回音乐平台</button>
-            <header class="music-detail-header"><img data-music-logo alt="网易云音乐" /><h1 data-i18n="panel.music">网易云音乐</h1><p>扫码登录后搜索歌曲，通过内置 mpv 播放器播放。</p></div></header>
+            <header class="music-detail-header"><img data-music-logo alt="网易云音乐" /><h1 data-i18n="panel.music">网易云音乐</h1><p>扫码登录后搜索歌曲，通过内置 mpv 播放器播放。</p></header>
             <div class="music-card music-openapi-card" id="music-openapi-card">
               <div class="music-card__header"><h2>OpenAPI 配置</h2></div>
               <div class="music-card__body">
@@ -2194,6 +2113,7 @@
               <p>安装或使用本软件即视为您已阅读、理解并同意本免责声明的全部条款。</p>
             </article>
           </div>
+
         </section>
 
         <section class="settings-panel is-hidden" id="token-panel" data-panel="tokens">
@@ -3048,6 +2968,7 @@
             <h1 id="placeholder-title">待开发</h1>
             <p id="placeholder-copy">这个模块先占位，等核心聊天与 API 接通后再继续扩展。</p>
           </div>
+        </section>
         </section>
       </section>
     </main>

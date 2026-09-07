@@ -20,7 +20,7 @@
     "verify:mpv": "node scripts/verify/mpv-helper.mjs resources/bin/mpv/mpv.exe",
     "build:music-component": "node scripts/packaging/build-music-component.mjs",
     "package:win:dir": "npm run build && npm run build:screenshot-helper && npm run prepare:mingit && npm run prepare:mpv && electron-builder --win --dir",
-    "dev": "node -e \"require('fs').rmSync('dist/main/.vite-dev-url.json',{force:true})\" && npm run build:main && npm run build:preload && npm run build:cli && concurrently -k \"vite\" \"wait-on dist/main/.vite-dev-url.json && cross-env VITE_DEV=1 electron .\"",
+    "dev": "node scripts/dev-kill-stale.mjs && node -e \"require('fs').rmSync('dist/main/.vite-dev-url.json',{force:true})\" && npm run build:main && npm run build:preload && npm run build:cli && concurrently -k \"vite\" \"wait-on dist/main/.vite-dev-url.json && cross-env VITE_DEV=1 electron .\"",
     "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -123,11 +123,14 @@
     "yaml": "^2.9.0"
   },
   "allowScripts": {
-    "protobufjs@7.6.4": true,
+    "electron-winstaller@5.4.0": true,
+    "electron@43.6.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
     "protobufjs@6.11.6": true,
-    "electron@43.1.0": true,
-    "esbuild@0.21.5": true,
+    "protobufjs@7.6.6": true,
     "sharp@0.32.6": true,
+    "tesseract.js@5.1.1": true,
     "tree-sitter@0.22.4": true
   }
 }

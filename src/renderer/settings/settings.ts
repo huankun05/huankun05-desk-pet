@@ -2127,7 +2127,6 @@ function switchSection(section: string): void {
     !isAsr &&
     !isMusic &&
     !isSkills &&
-    !isFeaturePlugins &&
     !isLsp &&
     !isBackup
   ) {

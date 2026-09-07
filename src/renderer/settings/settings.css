@@ -114,10 +114,18 @@ body {
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.nav-item span {
+.nav-item > span:not(.nav-item__label) {
   width: 18px;
   text-align: center;
   filter: drop-shadow(0 0 5px rgba(236, 72, 153, 0.35));
+}
+
+.nav-item__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-item svg.nav-item__icon {
