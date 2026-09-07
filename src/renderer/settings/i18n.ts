@@ -53,6 +53,7 @@ export function getSettingsLocale(): string {
  * 批量替换 DOM 中带 `data-i18n` 的静态文案。
  * - data-i18n：替换 textContent（input/textarea 则替换 placeholder），不会动带子元素（图标等）的容器。
  * - data-i18n-aria：替换 aria-label（如导航区可访问性名称）。
+ * - data-i18n-title：替换 title 属性（如厂商官网链接的悬停提示）。
  */
 export function applySettingsI18n(root: ParentNode = document): void {
   root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
@@ -73,6 +74,20 @@ export function applySettingsI18n(root: ParentNode = document): void {
     const value = t(key);
     if (value === key) return;
     el.setAttribute("aria-label", value);
+  });
+  root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((el) => {
+    const key = el.dataset.i18nTitle;
+    if (!key) return;
+    const value = t(key);
+    if (value === key) return;
+    el.setAttribute("title", value);
+  });
+  root.querySelectorAll<HTMLElement>("[data-i18n-alt]").forEach((el) => {
+    const key = el.dataset.i18nAlt;
+    if (!key) return;
+    const value = t(key);
+    if (value === key) return;
+    el.setAttribute("alt", value);
   });
 }
 

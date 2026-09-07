@@ -228,6 +228,15 @@ export class DmaeManager<T extends DmaeEntry> {
     this.state.set(id, st);
   }
 
+  // 导出全部状态快照（持久化用）：返回拷贝，避免外部持有内部 Map 的引用
+  exportState(): Array<{ id: string; state: EntryState }> {
+    const out: Array<{ id: string; state: EntryState }> = [];
+    for (const [id, st] of this.state) {
+      out.push({ id, state: { ...st, recentUserHits: [...st.recentUserHits] } });
+    }
+    return out;
+  }
+
   // V5.1 DMAE 主循环
   updateActivation(entries: readonly T[], userText: string, modelText: string, turn = 0): Set<string> {
     const user = userText ?? "";
@@ -407,7 +416,7 @@ export class WorldbookManager {
     // 常驻条目不进 DMAE（始终注入），不给它们分配状态。
     this.dmae.initEntries(this.entries);
 
-    // v1 持久化 seam：预留，暂为空（重启回 0）
+    // 恢复 DMAE 持久化状态（覆盖同名条目；无 stateFile 时跳过）
     this.loadState();
 
     const nonPermanent = this.entries.filter((e) => e.enabled && !e.permanent).length;
@@ -576,6 +585,9 @@ export class WorldbookManager {
     if (this.dmae.getDebug() && this.lastCascadeEntries.length > 0) {
       console.log(`[Worldbook/Cascade] ${this.lastCascadeEntries.length} entries one-shot injected: ${this.lastCascadeEntries.map(e => e.id).join(", ")}`);
     }
+
+    // 状态更新后落盘（文件极小，同步写开销可忽略；崩溃最坏丢一轮增量）
+    this.saveState();
   }
 
   // 取本轮 One-Shot cascade 触发的条目（仅供 orchestrator 注入用，不进 DMAE 状态表）
@@ -640,15 +652,59 @@ export class WorldbookManager {
     return this.dmae.getState(id);
   }
 
-  // ── 持久化 seam（v1 no-op；后续接 JsonVectorStore 同款 sync JSON）──
+  // ── 持久化：stateFile 读写 DMAE 状态（JSON：Array<{ id, state }>）──
+  // loadFromDirectory / loadFromEntries 已按条目补齐默认状态，这里只覆盖仍存在的条目；
+  // 已从 .md 删除的条目状态会被跳过并在下次 save 时自然清除。
   private loadState(): void {
     if (!this.stateFile) return;
-    // TODO v1.1: fs.readFileSync(this.stateFile) → 反序列化到 this.dmae
-    // 暂不落盘，重启回 0（已确认 v1 接受）
+    try {
+      if (!fs.existsSync(this.stateFile)) return;
+      const raw = fs.readFileSync(this.stateFile, "utf8");
+      const parsed = JSON.parse(raw) as unknown;
+      const list = Array.isArray(parsed) ? parsed : (parsed as { entries?: unknown })?.entries;
+      if (!Array.isArray(list)) {
+        logger.warn(LogTag.Worldbook, `[Worldbook] 状态文件格式非法，忽略: ${this.stateFile}`);
+        return;
+      }
+      const maxScore = this.dmae.getParams().maxScore;
+      let restored = 0;
+      for (const item of list) {
+        const id = (item as { id?: unknown })?.id;
+        const st = (item as { state?: unknown })?.state as Partial<EntryState> | undefined;
+        if (typeof id !== "string" || !st) continue;
+        if (typeof st.activation !== "number" || !Number.isFinite(st.activation)) continue;
+        // 只恢复当前仍存在的条目（initEntries 已为所有非常驻条目建默认状态）
+        if (!this.dmae.getState(id)) continue;
+        const normalized: EntryState = {
+          activation: Math.max(0, Math.min(maxScore, st.activation)),
+          userSilence: typeof st.userSilence === "number" && Number.isFinite(st.userSilence)
+            ? Math.max(0, Math.floor(st.userSilence))
+            : 0,
+          modelSilence: typeof st.modelSilence === "number" && Number.isFinite(st.modelSilence)
+            ? Math.max(0, Math.floor(st.modelSilence))
+            : 0,
+          recentUserHits: Array.isArray(st.recentUserHits)
+            ? st.recentUserHits.filter((t): t is number => typeof t === "number" && Number.isFinite(t) && t >= 0)
+            : [],
+        };
+        this.dmae.setState(id, normalized);
+        restored++;
+      }
+      if (restored > 0) {
+        logger.info(LogTag.Worldbook, `[Worldbook] 已恢复 ${restored} 条 DMAE 状态: ${this.stateFile}`);
+      }
+    } catch (err) {
+      logger.warn(LogTag.Worldbook, `[Worldbook] 加载状态文件失败: ${String(err)}`);
+    }
   }
 
   private saveState(): void {
     if (!this.stateFile) return;
-    // TODO v1.1: fs.writeFileSync(this.stateFile, JSON.stringify([...this.dmae]))
+    try {
+      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
+      fs.writeFileSync(this.stateFile, JSON.stringify(this.dmae.exportState(), null, 2), "utf8");
+    } catch (err) {
+      logger.warn(LogTag.Worldbook, `[Worldbook] 保存状态文件失败: ${String(err)}`);
+    }
   }
 }

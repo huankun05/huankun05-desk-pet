@@ -93,7 +93,7 @@ if (userTimezoneSelect) {
   for (const opt of TIMEZONE_OPTIONS) {
     const o = document.createElement("option");
     o.value = opt.value;
-    o.textContent = opt.label;
+    o.textContent = tOr("timezone." + opt.value, opt.label);
     userTimezoneSelect.appendChild(o);
   }
   userTimezoneSelect.addEventListener("change", () => {

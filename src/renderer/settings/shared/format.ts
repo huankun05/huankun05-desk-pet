@@ -1,11 +1,13 @@
 // 通用格式化纯函数：HTML 转义与时间显示
 // 从 settings.ts 抽离，无 DOM/状态依赖。
 
+import { tOr } from "../i18n";
+
 /** 将时间戳格式化为 zh-CN 本地字符串（YYYY/MM/DD HH:mm）；0 或无效返回「暂无时间」。 */
 export function formatDateTime(timestamp: number): string {
-  if (!timestamp) return "暂无时间";
+  if (!timestamp) return tOr("common.noTime", "暂无时间");
   const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "暂无时间";
+  if (Number.isNaN(date.getTime())) return tOr("common.noTime", "暂无时间");
   return date.toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",

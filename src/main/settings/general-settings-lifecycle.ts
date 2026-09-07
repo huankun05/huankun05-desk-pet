@@ -17,7 +17,6 @@ import { syncLaunchAtLogin } from "./launch-at-login";
 export interface GeneralSettingsLifecycleDependencies {
   get windowManager(): WindowManager | null;
   get tray(): Tray | null;
-  get screenshotService(): { replaceHotkey: (hotkey: string) => { ok: boolean } | null } | null;
   get proactiveLifecycle(): { getProactiveChatService: () => { invalidate: () => void } | null };
   broadcastToAuxWindows(channel: string, payload: unknown): void;
 }
@@ -145,12 +144,6 @@ export function handleGeneralSettingsChanged(
   }
   if (before.uiIcon !== after.uiIcon) {
     applyUiIcon(after.uiIcon, deps);
-  }
-  if (before.screenshotHotkey !== after.screenshotHotkey) {
-    const result = deps.screenshotService?.replaceHotkey(after.screenshotHotkey);
-    if (result && !result.ok) {
-      console.warn("[Cyrene] 截图热键注册失败，可能被其他应用占用:", after.screenshotHotkey);
-    }
   }
   if (
     before.proactiveChatMode !== after.proactiveChatMode

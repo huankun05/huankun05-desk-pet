@@ -122,7 +122,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   asrVadSilenceMs: 1000,
   asrVadThreshold: 0.01,
   asrShowTranscript: false,
-  screenshotHotkey: "Alt+Shift+S",
   chatLineHeight: 1.75,
   assistantBubbleEnabled: true,
   toolModeOverrides: {},
@@ -281,9 +280,6 @@ export function normalizeGeneralSettings(
       ? Math.max(0.001, Math.min(0.5, Number(input.asrVadThreshold)))
       : DEFAULT_GENERAL_SETTINGS.asrVadThreshold,
     asrShowTranscript: Boolean(input?.asrShowTranscript),
-    screenshotHotkey: typeof input?.screenshotHotkey === "string" && input.screenshotHotkey.trim()
-      ? input.screenshotHotkey.trim()
-      : DEFAULT_GENERAL_SETTINGS.screenshotHotkey,
     ttsGptsovitsBaseUrl: typeof input?.ttsGptsovitsBaseUrl === "string"
       ? input.ttsGptsovitsBaseUrl
       : DEFAULT_GENERAL_SETTINGS.ttsGptsovitsBaseUrl,

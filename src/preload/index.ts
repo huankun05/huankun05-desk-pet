@@ -479,9 +479,6 @@ const settingsApi = {
   },
   resolvePermissionApproval: (id: string, allowed: boolean): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.PERMISSION_APPROVAL_RESOLVE, { id, allowed }),
-  // 截图热键捕获（设置页临时挂起全局快捷键）
-  beginScreenshotHotkeyCapture: () => ipcRenderer.invoke(IPC.SCREENSHOT_HOTKEY_CAPTURE_START),
-  endScreenshotHotkeyCapture: () => ipcRenderer.invoke(IPC.SCREENSHOT_HOTKEY_CAPTURE_END),
 };
 
 contextBridge.exposeInMainWorld("settings", settingsApi);

@@ -3,6 +3,7 @@
 // Electron 禁用了 window.prompt / window.confirm，所以自建 overlay 实现。
 
 import { modalState } from "./modal-state";
+import { tOr } from "../i18n";
 
 export function _initModalOverlay(): void {
   if (modalState.cyOverlay) return;
@@ -13,13 +14,13 @@ export function _initModalOverlay(): void {
     '<div class="cy-modal" role="alertdialog" aria-modal="true">',
     '  <div class="cy-modal__head">',
     '    <span class="cy-modal__icon" id="cy-modal-icon">📌</span>',
-    '    <h3 class="cy-modal__title" id="cy-modal-title">提示</h3>',
+    `    <h3 class="cy-modal__title" id="cy-modal-title">${tOr("common.hint", "提示")}</h3>`,
     '  </div>',
     '  <hr class="cy-modal__divider">',
-    '  <p class="cy-modal__body" id="cy-modal-message">确认执行此操作吗？</p>',
+    `  <p class="cy-modal__body" id="cy-modal-message">${tOr("common.confirmAction", "确认执行此操作吗？")}</p>`,
     '  <div class="cy-modal__actions">',
-    '    <button type="button" class="ghost-btn" id="cy-modal-cancel">取消</button>',
-    '    <button type="button" class="btn-primary" id="cy-modal-confirm">确定</button>',
+    `    <button type="button" class="ghost-btn" id="cy-modal-cancel">${tOr("common.cancel", "取消")}</button>`,
+    `    <button type="button" class="btn-primary" id="cy-modal-confirm">${tOr("common.confirm", "确定")}</button>`,
     '  </div>',
     '</div>',
   ].join("\n");
@@ -37,8 +38,8 @@ export function showModal(options: { title: string; message: string; icon?: stri
   iconEl.innerHTML = options.icon || "📌";
   titleEl.textContent = options.title;
   msgEl.textContent = options.message;
-  cancelBtn.textContent = options.cancelText || "取消";
-  confirmBtn.textContent = options.confirmText || "确定";
+  cancelBtn.textContent = options.cancelText || tOr("common.cancel", "取消");
+  confirmBtn.textContent = options.confirmText || tOr("common.confirm", "确定");
   modalState.cyOverlay.classList.remove("is-hidden");
   return new Promise(function (resolve) {
     var cleanup = function (result: boolean) {
@@ -63,12 +64,12 @@ function _initHtmlModalOverlay(): void {
     '<div class="cy-modal cy-html-modal" role="dialog" aria-modal="true">',
     '  <div class="cy-modal__head">',
     '    <span class="cy-modal__icon" id="cy-html-modal-icon">📌</span>',
-    '    <h3 class="cy-modal__title" id="cy-html-modal-title">说明</h3>',
+    `    <h3 class="cy-modal__title" id="cy-html-modal-title">${tOr("common.info", "说明")}</h3>`,
     '  </div>',
     '  <hr class="cy-modal__divider">',
     '  <div class="cy-html-modal__body" id="cy-html-modal-body"></div>',
     '  <div class="cy-modal__actions">',
-    '    <button type="button" class="btn-primary" id="cy-html-modal-confirm">知道了</button>',
+    `    <button type="button" class="btn-primary" id="cy-html-modal-confirm">${tOr("common.gotIt", "知道了")}</button>`,
     '  </div>',
     '</div>',
   ].join("\n");
@@ -90,7 +91,7 @@ export function showHtmlModal(options: { title: string; htmlBody: string; icon?:
   iconEl.innerHTML = options.icon || "📌";
   titleEl.textContent = options.title;
   bodyEl.innerHTML = options.htmlBody;
-  confirmBtn.textContent = options.confirmText || "知道了";
+  confirmBtn.textContent = options.confirmText || tOr("common.gotIt", "知道了");
   modalState.cyHtmlOverlay.classList.remove("is-hidden");
   return new Promise((resolve) => {
     const cleanup = () => {
@@ -113,15 +114,15 @@ function _initInputOverlay(): void {
     '<div class="cy-modal" role="dialog" aria-modal="true" style="width:min(420px,90vw);">',
     '  <div class="cy-modal__head">',
     '    <span class="cy-modal__icon" id="cy-input-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="display:inline;vertical-align:-2px"><path d="M5.32497 43.4996L13.81 43.4998L44.9227 12.3871L36.4374 3.90186L5.32471 35.0146L5.32497 43.4996Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M27.9521 12.3872L36.4374 20.8725" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
-    '    <h3 class="cy-modal__title" id="cy-input-title">请输入</h3>',
+    `    <h3 class="cy-modal__title" id="cy-input-title">${tOr("common.input", "请输入")}</h3>`,
     '  </div>',
     '  <hr class="cy-modal__divider">',
     '  <p class="cy-modal__body" id="cy-input-message"></p>',
     '  <input type="text" id="cy-input-field" autocomplete="off" spellcheck="false"',
     '    style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.32);color:var(--rb-text-strong,#fff);font-family:inherit;font-size:13px;outline:none;margin-bottom:12px;" />',
     '  <div class="cy-modal__actions">',
-    '    <button type="button" class="ghost-btn" id="cy-input-cancel">取消</button>',
-    '    <button type="button" class="btn-primary" id="cy-input-confirm">确定</button>',
+    `    <button type="button" class="ghost-btn" id="cy-input-cancel">${tOr("common.cancel", "取消")}</button>`,
+    `    <button type="button" class="btn-primary" id="cy-input-confirm">${tOr("common.confirm", "确定")}</button>`,
     '  </div>',
     '</div>',
   ].join("\n");
@@ -150,8 +151,8 @@ export function showInputModal(options: {
   msgEl.textContent = options.message;
   inputEl.value = options.defaultValue || "";
   inputEl.placeholder = options.placeholder || "";
-  cancelBtn.textContent = options.cancelText || "取消";
-  confirmBtn.textContent = options.confirmText || "确定";
+  cancelBtn.textContent = options.cancelText || tOr("common.cancel", "取消");
+  confirmBtn.textContent = options.confirmText || tOr("common.confirm", "确定");
   modalState.cyInputOverlay.classList.remove("is-hidden");
   setTimeout(() => inputEl.focus(), 30);
   return new Promise((resolve) => {

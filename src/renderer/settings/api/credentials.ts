@@ -3,6 +3,7 @@
 // 口令由用户在输入框内提供，密文只出现在主进程（IPC 不落明文日志）。
 
 import { showInputModal } from "../shared/modal";
+import { tOr } from "../i18n";
 import type { CredentialsApi } from "../shared/types";
 
 const exportBtn = document.getElementById("cred-export-btn") as HTMLButtonElement | null;
@@ -23,56 +24,65 @@ function setStatus(message: string, isError = false): void {
 }
 
 async function promptPassphrase(title: string, message: string): Promise<string | null> {
-  return showInputModal({ title, message, placeholder: "输入加密口令（至少 4 个字符）" });
+  return showInputModal({ title, message, placeholder: tOr("api.credentials.passphrasePlaceholder", "输入加密口令（至少 4 个字符）") });
 }
 
 async function handleExport(): Promise<void> {
-  const passphrase = await promptPassphrase("导出凭据", "导出将包含全部 API Key 与 MCP 敏感环境变量，并加密保存。请设置口令，换机导入时需要输入同一口令。");
+  const passphrase = await promptPassphrase(
+    tOr("api.credentials.exportTitle", "导出凭据"),
+    tOr("api.credentials.exportMessage", "导出将包含全部 API Key 与 MCP 敏感环境变量，并加密保存。请设置口令，换机导入时需要输入同一口令。"),
+  );
   if (passphrase === null) return;
   if (passphrase.length < 4) {
-    setStatus("口令至少 4 个字符", true);
+    setStatus(tOr("api.credentials.passphraseTooShort", "口令至少 4 个字符"), true);
     return;
   }
   const result = await api()?.export(passphrase);
   if (!result) {
-    setStatus("导出失败：API 不可用", true);
+    setStatus(tOr("api.credentials.exportUnavailable", "导出失败：API 不可用"), true);
     return;
   }
   if (result.ok) {
-    setStatus(`已导出 ${result.count ?? 0} 条凭据到 ${result.filePath ?? ""}`);
+    setStatus(`${tOr("api.credentials.exportedPrefix", "已导出 ")}${result.count ?? 0}${tOr("api.credentials.exportedSuffix", " 条凭据到 ")}${result.filePath ?? ""}`);
   } else {
-    setStatus(result.error ?? "导出失败", true);
+    setStatus(result.error ?? tOr("api.credentials.exportFailed", "导出失败"), true);
   }
 }
 
 async function handleImport(): Promise<void> {
-  const passphrase = await promptPassphrase("导入凭据", "选择要导入的凭据文件，并输入导出时的口令。导入会覆盖本地同名凭据。");
+  const passphrase = await promptPassphrase(
+    tOr("api.credentials.importTitle", "导入凭据"),
+    tOr("api.credentials.importMessage", "选择要导入的凭据文件，并输入导出时的口令。导入会覆盖本地同名凭据。"),
+  );
   if (passphrase === null) return;
   if (passphrase.length < 4) {
-    setStatus("口令至少 4 个字符", true);
+    setStatus(tOr("api.credentials.passphraseTooShort", "口令至少 4 个字符"), true);
     return;
   }
   const result = await api()?.import(passphrase);
   if (!result) {
-    setStatus("导入失败：API 不可用", true);
+    setStatus(tOr("api.credentials.importUnavailable", "导入失败：API 不可用"), true);
     return;
   }
   if (result.ok) {
-    const parts = [`模型 ${result.appliedModel ?? 0} 条`, `MCP ${result.appliedMcp ?? 0} 条`];
-    if (result.skipped) parts.push(`跳过 ${result.skipped} 条`);
-    setStatus(`导入完成：${parts.join(" / ")}`);
+    const parts = [
+      `${tOr("api.credentials.appliedModelPrefix", "模型 ")}${result.appliedModel ?? 0}${tOr("api.credentials.countSuffix", " 条")}`,
+      `${tOr("api.credentials.appliedMcpPrefix", "MCP ")}${result.appliedMcp ?? 0}${tOr("api.credentials.countSuffix", " 条")}`,
+    ];
+    if (result.skipped) parts.push(`${tOr("api.credentials.skippedPrefix", "跳过 ")}${result.skipped}${tOr("api.credentials.countSuffix", " 条")}`);
+    setStatus(`${tOr("api.credentials.importDone", "导入完成：")}${parts.join(" / ")}`);
   } else {
-    setStatus(result.error ?? "导入失败", true);
+    setStatus(result.error ?? tOr("api.credentials.importFailed", "导入失败"), true);
   }
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  "model-settings.save": "模型 API Key 变更",
-  "mcp.add": "新增 MCP Server",
-  "mcp.remove": "移除 MCP Server",
-  "mcp.env.import": "MCP 环境变量导入",
-  "credential.export": "导出凭据",
-  "credential.import": "导入凭据",
+  "model-settings.save": tOr("api.credentials.action.modelSettingsSave", "模型 API Key 变更"),
+  "mcp.add": tOr("api.credentials.action.mcpAdd", "新增 MCP Server"),
+  "mcp.remove": tOr("api.credentials.action.mcpRemove", "移除 MCP Server"),
+  "mcp.env.import": tOr("api.credentials.action.mcpEnvImport", "MCP 环境变量导入"),
+  "credential.export": tOr("api.credentials.action.credentialExport", "导出凭据"),
+  "credential.import": tOr("api.credentials.action.credentialImport", "导入凭据"),
 };
 
 function formatTime(time: number): string {
@@ -90,15 +100,15 @@ async function toggleAudit(): Promise<void> {
   }
   const entries = await api()?.auditList(50);
   if (!entries) {
-    setStatus("读取变更记录失败", true);
+    setStatus(tOr("api.credentials.auditLoadFailed", "读取变更记录失败"), true);
     return;
   }
   auditEl.hidden = false;
   auditEl.innerHTML = entries.length === 0
-    ? "<div class='credential-migrate-row__audit-item'><span>暂无变更记录</span></div>"
+    ? `<div class='credential-migrate-row__audit-item'><span>${tOr("api.credentials.noAuditRecords", "暂无变更记录")}</span></div>`
     : entries.map((entry) => {
         const label = ACTION_LABELS[entry.action] ?? entry.action;
-        const target = entry.target ? `（${entry.target}）` : "";
+        const target = entry.target ? `${tOr("api.credentials.auditTargetOpen", "（")}${entry.target}${tOr("api.credentials.auditTargetClose", "）")}` : "";
         const detail = entry.detail ? ` · ${entry.detail}` : "";
         return (
           "<div class='credential-migrate-row__audit-item'>" +

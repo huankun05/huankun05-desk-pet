@@ -1,4 +1,4 @@
-﻿// TTS 设置面板交互：配置加载/保存、引擎切换、语速/音量滑块、
+// TTS 设置面板交互：配置加载/保存、引擎切换、语速/音量滑块、
 // MiniMax/GPT-SoVITS/自定义云端/MiMo/Mossland 测试发音、音色快速复刻
 // 从 settings.ts 抽离。依赖 ttsState + TTS_FIELD_MAP + shared modal/utils。
 // 副作用导入：模块加载时执行事件绑定 + 初始加载配置。
@@ -9,6 +9,7 @@ import { DEFAULT_MOSSLAND_TTS_MODEL, type MosslandSyncFormat } from "../../../sh
 import { createUniqueMiniMaxVoiceId, validateMiniMaxVoiceId } from "../../../shared/minimax-voice";
 import { showHtmlModal } from "../shared/modal";
 import { safeGet } from "../shared/utils";
+import { tOr } from "../i18n";
 
 /* ============================================================
    🎙️ TTS 设置面板交互
@@ -91,7 +92,7 @@ declare global {
   }
 }
 
-const TTS_TEST_TEXT = "你好，我是昔涟，很高兴见到你。";
+const TTS_TEST_TEXT = tOr("tts.testText", "你好，我是昔涟，很高兴见到你。");
 
 // 获取 DOM 元素的辅助函数
 function ttsEl(id: string): HTMLInputElement {
@@ -157,7 +158,7 @@ async function loadTtsConfig(): Promise<void> {
   // 小米 MiMo
   ttsEl("tts-mimo-key").value = String(ttsState.config.ttsMimoKey ?? "");
   ttsEl("tts-mimo-voice-audio").value = String(ttsState.config.ttsMimoVoiceAudioPath ?? "");
-  ttsEl("tts-mimo-style").value = String(ttsState.config.ttsMimoStylePrompt ?? "温柔、自然、略带亲近感，像在轻声陪用户聊天。");
+  ttsEl("tts-mimo-style").value = String(ttsState.config.ttsMimoStylePrompt ?? tOr("tts.mimo.styleDefault", "温柔、自然、略带亲近感，像在轻声陪用户聊天。"));
 
   // Mossland（UI 骨架已就位，IPC 第二步接通；字段值已写入 ttsState.config 以便保存）
   ttsEl("tts-mossland-key").value = String(ttsState.config.ttsMosslandKey ?? "");
@@ -170,7 +171,7 @@ async function loadTtsConfig(): Promise<void> {
   if (![...mosslandModelSelect.options].some((option) => option.value === savedMosslandModel)) {
     const savedOption = document.createElement("option");
     savedOption.value = savedMosslandModel;
-    savedOption.textContent = `${savedMosslandModel}（已保存版本）`;
+    savedOption.textContent = `${savedMosslandModel}${tOr("tts.mossland.savedVersionSuffix", "（已保存版本）")}`;
     mosslandModelSelect.appendChild(savedOption);
   }
   mosslandModelSelect.value = savedMosslandModel;
@@ -298,7 +299,7 @@ function markTtsProviderDirty(provider: string): void {
   const ui = ttsProviderUi[provider];
   if (!ui) return;
   ui.btn.classList.remove("is-hidden");
-  ui.status.textContent = "有未保存的更改";
+  ui.status.textContent = tOr("tts.unsavedChanges", "有未保存的更改");
   ui.status.className = "save-status";
 }
 
@@ -315,7 +316,7 @@ async function saveTtsProvider(provider: string): Promise<void> {
   if (!ui) return;
   const fields = TTS_PROVIDER_FIELDS[provider] ?? [];
   ui.btn.disabled = true;
-  ui.status.textContent = "保存中…";
+  ui.status.textContent = tOr("tts.saving", "保存中…");
   ui.status.className = "save-status";
   try {
     const payload: Record<string, unknown> = {};
@@ -334,17 +335,17 @@ async function saveTtsProvider(provider: string): Promise<void> {
       ttsState.config[field] = value;   // 同步内存中的 ttsState.config 缓存
     }
     if (Object.keys(payload).length === 0) {
-      ui.status.textContent = "没有可保存的更改";
+      ui.status.textContent = tOr("tts.nothingToSave", "没有可保存的更改");
       ui.status.className = "save-status";
       return;
     }
     await window.tts!.saveSettings(payload);
-    ui.status.textContent = "已保存";
+    ui.status.textContent = tOr("common.saved", "已保存");
     ui.status.className = "save-status is-ok";
     ui.btn.classList.add("is-hidden");
     setTimeout(() => { ui.status.textContent = ""; }, 2000);
   } catch (e) {
-    ui.status.textContent = "保存失败：" + (e instanceof Error ? e.message : String(e));
+    ui.status.textContent = tOr("tts.saveFailedDetail", "保存失败：") + (e instanceof Error ? e.message : String(e));
     ui.status.className = "save-status is-error";
   } finally {
     ui.btn.disabled = false;
@@ -399,23 +400,23 @@ document.getElementById("tts-gptsovits-test")?.addEventListener("click", async (
   const refAudioPath = ttsEl("tts-gptsovits-ref-audio").value.trim();
   const promptText = ttsEl("tts-gptsovits-prompt-text").value.trim();
   const format = (ttsEl("tts-gptsovits-format") as HTMLSelectElement).value as "wav" | "mp3";
-  if (!baseUrl) { window.alert("请先填写 GPT-SoVITS API 地址"); return; }
-  if (!refAudioPath) { window.alert("请先选择参考音频文件"); return; }
-  if (!promptText) { window.alert("请先填写参考音频对应的文本"); return; }
+  if (!baseUrl) { window.alert(tOr("tts.gptsovits.requireBaseUrl", "请先填写 GPT-SoVITS API 地址")); return; }
+  if (!refAudioPath) { window.alert(tOr("tts.gptsovits.requireRefAudio", "请先选择参考音频文件")); return; }
+  if (!promptText) { window.alert(tOr("tts.gptsovits.requirePromptText", "请先填写参考音频对应的文本")); return; }
 
   const btn = document.getElementById("tts-gptsovits-test") as HTMLButtonElement;
   btn.disabled = true;
-  btn.textContent = "合成中…";
+  btn.textContent = tOr("tts.synthesizing", "合成中…");
   try {
     const result = await window.tts.synthesizeGptsovits({
       baseUrl, refAudioPath, promptText, text: TTS_TEST_TEXT, format,
     });
     playTtsAudio(result.base64, result.format);
   } catch (err) {
-    window.alert("测试失败: " + (err instanceof Error ? err.message : String(err)));
+    window.alert(tOr("tts.testFailed", "测试失败: ") + (err instanceof Error ? err.message : String(err)));
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔊 测试发音";
+    btn.textContent = "🔊 " + tOr("tts.testPronunciation", "测试发音");
   }
 });
 
@@ -437,11 +438,11 @@ document.getElementById("tts-custom-cloud-test")?.addEventListener("click", asyn
   const voiceId = ttsEl("tts-custom-cloud-voice").value.trim();
   const format = (ttsEl("tts-custom-cloud-format") as HTMLSelectElement).value as "wav" | "mp3";
   const timeoutMs = Number(ttsEl("tts-custom-cloud-timeout").value) || 30000;
-  if (!endpointUrl) { window.alert("请先填写自定义云端 Endpoint URL"); return; }
+  if (!endpointUrl) { window.alert(tOr("tts.customCloud.requireEndpointUrl", "请先填写自定义云端 Endpoint URL")); return; }
 
   const btn = document.getElementById("tts-custom-cloud-test") as HTMLButtonElement;
   btn.disabled = true;
-  btn.textContent = "合成中…";
+  btn.textContent = tOr("tts.synthesizing", "合成中…");
   try {
     const result = await window.tts.synthesizeCustomCloud({
       endpointUrl, apiKey, voiceId, text: TTS_TEST_TEXT,
@@ -452,10 +453,10 @@ document.getElementById("tts-custom-cloud-test")?.addEventListener("click", asyn
     });
     playTtsAudio(result.base64, result.format);
   } catch (err) {
-    window.alert("测试失败: " + (err instanceof Error ? err.message : String(err)));
+    window.alert(tOr("tts.testFailed", "测试失败: ") + (err instanceof Error ? err.message : String(err)));
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔊 测试发音";
+    btn.textContent = "🔊 " + tOr("tts.testPronunciation", "测试发音");
   }
 });
 
@@ -465,22 +466,22 @@ document.getElementById("tts-mimo-test")?.addEventListener("click", async () => 
   const apiKey = ttsEl("tts-mimo-key").value.trim();
   const voiceAudioPath = ttsEl("tts-mimo-voice-audio").value.trim();
   const stylePrompt = ttsEl("tts-mimo-style").value.trim();
-  if (!apiKey) { window.alert("请先填写小米 MiMo API Key"); return; }
-  if (!voiceAudioPath) { window.alert("请先选择昔涟克隆参考音频"); return; }
+  if (!apiKey) { window.alert(tOr("tts.mimo.requireApiKey", "请先填写小米 MiMo API Key")); return; }
+  if (!voiceAudioPath) { window.alert(tOr("tts.mimo.requireVoiceAudio", "请先选择昔涟克隆参考音频")); return; }
 
   const btn = document.getElementById("tts-mimo-test") as HTMLButtonElement;
   btn.disabled = true;
-  btn.textContent = "合成中…";
+  btn.textContent = tOr("tts.synthesizing", "合成中…");
   try {
     const result = await window.tts.synthesizeMimo({
       apiKey, voiceAudioPath, stylePrompt, text: TTS_TEST_TEXT,
     });
     playTtsAudio(result.base64, result.format);
   } catch (err) {
-    window.alert("测试失败: " + (err instanceof Error ? err.message : String(err)));
+    window.alert(tOr("tts.testFailed", "测试失败: ") + (err instanceof Error ? err.message : String(err)));
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔊 测试发音";
+    btn.textContent = "🔊 " + tOr("tts.testPronunciation", "测试发音");
   }
 });
 
@@ -518,7 +519,7 @@ function renderMosslandVoiceList(voices: Array<{ id: string; name: string }>): v
     const useBtn = document.createElement("button");
     useBtn.type = "button";
     useBtn.className = "voice-use";
-    useBtn.textContent = "使用";
+    useBtn.textContent = tOr("tts.useVoice", "使用");
     useBtn.addEventListener("click", () => {
       ttsEl("tts-mossland-voice").value = v.id;
     });
@@ -535,20 +536,20 @@ document.getElementById("tts-mossland-test")?.addEventListener("click", async ()
   const text = ttsEl("tts-mossland-text").value.trim();
   const model = (ttsEl("tts-mossland-model") as HTMLSelectElement).value;
   const format = (ttsEl("tts-mossland-format") as HTMLSelectElement).value as MosslandSyncFormat;
-  if (!apiKey) { window.alert("请先填写 Mossland API Key"); return; }
-  if (!voiceId) { window.alert("请先填写音色 ID（可从下方拉取列表）"); return; }
-  if (!text) { window.alert("请先填写试听文本"); return; }
+  if (!apiKey) { window.alert(tOr("tts.mossland.requireApiKey", "请先填写 Mossland API Key")); return; }
+  if (!voiceId) { window.alert(tOr("tts.mossland.requireVoiceId", "请先填写音色 ID（可从下方拉取列表）")); return; }
+  if (!text) { window.alert(tOr("tts.mossland.requireTestText", "请先填写试听文本")); return; }
 
   const btn = document.getElementById("tts-mossland-test") as HTMLButtonElement;
   btn.disabled = true;
-  btn.textContent = "合成中…";
+  btn.textContent = tOr("tts.synthesizing", "合成中…");
   const statusEl = document.getElementById("tts-mossland-test-status");
-  if (statusEl) { statusEl.textContent = "合成中…"; statusEl.className = "tts-clone-status is-loading"; }
+  if (statusEl) { statusEl.textContent = tOr("tts.synthesizing", "合成中…"); statusEl.className = "tts-clone-status is-loading"; }
   try {
     const result = await window.tts.synthesizeMossland({ apiKey, voiceId, text, model, format });
     playTtsAudio(result.base64, result.format);
     if (statusEl) {
-      statusEl.textContent = "✅ 合成成功";
+      statusEl.textContent = "✅ " + tOr("tts.synthesizeSuccess", "合成成功");
       statusEl.className = "tts-clone-status is-ok";
       setTimeout(() => { statusEl.textContent = ""; }, 2000);
     }
@@ -557,11 +558,11 @@ document.getElementById("tts-mossland-test")?.addEventListener("click", async ()
       statusEl.textContent = "❌ " + (err instanceof Error ? err.message : String(err));
       statusEl.className = "tts-clone-status is-error";
     } else {
-      window.alert("合成失败: " + (err instanceof Error ? err.message : String(err)));
+      window.alert(tOr("tts.synthesizeFailed", "合成失败: ") + (err instanceof Error ? err.message : String(err)));
     }
   } finally {
     btn.disabled = false;
-    btn.textContent = "测试发音";
+    btn.textContent = tOr("tts.testPronunciation", "测试发音");
   }
 });
 
@@ -580,10 +581,10 @@ document.getElementById("tts-mossland-clone-start")?.addEventListener("click", a
   const filePath = ttsEl("tts-mossland-clone-file").value.trim();
   const name = ttsEl("tts-mossland-clone-name").value.trim();
   const description = ttsEl("tts-mossland-clone-desc").value.trim();
-  if (!apiKey) { window.alert("请先填写 Mossland API Key"); return; }
-  if (!filePath) { window.alert("请先选择参考音频"); return; }
+  if (!apiKey) { window.alert(tOr("tts.mossland.requireApiKey", "请先填写 Mossland API Key")); return; }
+  if (!filePath) { window.alert(tOr("tts.mossland.requireRefAudio", "请先选择参考音频")); return; }
 
-  setMosslandStatus("正在上传并创建音色…", "loading");
+  setMosslandStatus(tOr("tts.mossland.uploadingCreating", "正在上传并创建音色…"), "loading");
   try {
     const result = await window.tts.cloneMossland({
       apiKey, filePath,
@@ -593,7 +594,7 @@ document.getElementById("tts-mossland-clone-start")?.addEventListener("click", a
     // 自动填到上方「音色 ID」+ 同步写到 ttsState.config（让保存按钮 / chat 调度都能用）
     ttsEl("tts-mossland-voice").value = result.voiceId;
     void saveTtsField("ttsMosslandVoiceId", result.voiceId);
-    setMosslandStatus(`✅ 克隆成功！voice_id「${result.voiceId}」已自动填入音色 ID 框。`, "ok");
+    setMosslandStatus(`✅ ${tOr("tts.mossland.cloneSuccessPrefix", "克隆成功！voice_id「")}${result.voiceId}${tOr("tts.mossland.cloneSuccessSuffix", "」已自动填入音色 ID 框。")}`, "ok");
   } catch (err) {
     setMosslandStatus("❌ " + (err instanceof Error ? err.message : String(err)), "error");
   }
@@ -603,17 +604,17 @@ document.getElementById("tts-mossland-clone-start")?.addEventListener("click", a
 document.getElementById("tts-mossland-list-voices")?.addEventListener("click", async () => {
   if (!window.tts) return;
   const apiKey = ttsEl("tts-mossland-key").value.trim();
-  if (!apiKey) { window.alert("请先填写 Mossland API Key"); return; }
+  if (!apiKey) { window.alert(tOr("tts.mossland.requireApiKey", "请先填写 Mossland API Key")); return; }
 
-  setMosslandListStatus("正在拉取音色列表…", "loading");
+  setMosslandListStatus(tOr("tts.mossland.fetchingVoices", "正在拉取音色列表…"), "loading");
   try {
     const result = await window.tts.listMosslandVoices({ apiKey, limit: 150 });
     if (result.voices.length === 0) {
-      setMosslandListStatus("账号下还没有已克隆的音色，请先到上方「音色克隆」创建一个。", "error");
+      setMosslandListStatus(tOr("tts.mossland.noClonedVoices", "账号下还没有已克隆的音色，请先到上方「音色克隆」创建一个。"), "error");
     } else {
       renderMosslandVoiceList(result.voices);
-      const moreHint = result.hasMore ? "仍有更多音色，可稍后继续分页拉取。" : "";
-      setMosslandListStatus(`✅ 拉到 ${result.voices.length} 个音色。点击右侧「使用」可填入音色 ID 框。${moreHint}`, "ok");
+      const moreHint = result.hasMore ? tOr("tts.mossland.moreVoicesHint", "仍有更多音色，可稍后继续分页拉取。") : "";
+      setMosslandListStatus(`✅ ${tOr("tts.mossland.fetchedCountPrefix", "拉到 ")}${result.voices.length}${tOr("tts.mossland.fetchedCountSuffix", " 个音色。点击右侧「使用」可填入音色 ID 框。")}${moreHint}`, "ok");
     }
   } catch (err) {
     setMosslandListStatus("❌ " + (err instanceof Error ? err.message : String(err)), "error");
@@ -623,28 +624,28 @@ document.getElementById("tts-mossland-list-voices")?.addEventListener("click", a
 // 克隆须知 modal（富文本，复用 showHtmlModal 复用 MiniMax 那套样式）
 document.getElementById("tts-mossland-clone-info-btn")?.addEventListener("click", () => {
   void showHtmlModal({
-    title: "Mossland 音色克隆 · 完整规格",
+    title: tOr("tts.mossland.cloneSpecTitle", "Mossland 音色克隆 · 完整规格"),
     icon: "ⓘ",
     htmlBody: [
       '<div class="tts-clone-spec-block">',
-      '  <h4>音色管理</h4>',
-      '  <p>创建成功后会返回 <code>voice_id</code>。有效期、计费和账号配额请以 Mossland 控制台的当前说明为准。</p>',
+      `  <h4>${tOr("tts.mossland.cloneSpec.voiceManagement", "音色管理")}</h4>`,
+      `  <p>${tOr("tts.mossland.cloneSpec.createdReturnsPrefix", "创建成功后会返回 ")}<code>voice_id</code>${tOr("tts.mossland.cloneSpec.validityNote", "。有效期、计费和账号配额请以 Mossland 控制台的当前说明为准。")}</p>`,
       '</div>',
       '<div class="tts-clone-spec-block">',
-      '  <h4><svg class="tts-clone-spec-icon" width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 44V4H31L40 14.5V44H8Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 14L26 16.9688V31.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20.5" cy="31.5" r="5.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg> 参考音频 <code>audio_sample</code></h4>',
+      `  <h4><svg class="tts-clone-spec-icon" width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 44V4H31L40 14.5V44H8Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 14L26 16.9688V31.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20.5" cy="31.5" r="5.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>${tOr("tts.mossland.cloneSpec.refAudioHeading", " 参考音频 ")}<code>audio_sample</code></h4>`,
       '  <ul>',
-      '    <li>请求格式：<strong>multipart/form-data</strong>（不支持 JSON / URL / base64）</li>',
-      '    <li>字段名：<code>audio_sample</code>（必填）</li>',
-      '    <li>字段名：<code>name</code>（可选，给音色起名）</li>',
-      '    <li>字段名：<code>description</code>（可选，描述音色）</li>',
-      '    <li>请上传清晰、单人、低噪声的参考音频；格式和大小限制以接口返回为准</li>',
+      `    <li>${tOr("tts.mossland.cloneSpec.requestFormat", "请求格式：")}<strong>multipart/form-data</strong>${tOr("tts.mossland.cloneSpec.noJsonUrlBase64", "（不支持 JSON / URL / base64）")}</li>`,
+      `    <li>${tOr("tts.mossland.cloneSpec.fieldName", "字段名：")}<code>audio_sample</code>${tOr("tts.requiredMark", "（必填）")}</li>`,
+      `    <li>${tOr("tts.mossland.cloneSpec.fieldName", "字段名：")}<code>name</code>${tOr("tts.mossland.cloneSpec.optionalName", "（可选，给音色起名）")}</li>`,
+      `    <li>${tOr("tts.mossland.cloneSpec.fieldName", "字段名：")}<code>description</code>${tOr("tts.mossland.cloneSpec.optionalDescription", "（可选，描述音色）")}</li>`,
+      `    <li>${tOr("tts.mossland.cloneSpec.uploadGuide", "请上传清晰、单人、低噪声的参考音频；格式和大小限制以接口返回为准")}</li>`,
       '  </ul>',
       '</div>',
       '<div class="tts-clone-spec-block">',
-      '  <h4><svg class="tts-clone-spec-icon" width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 14V16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="32" r="2.5" fill="currentColor"/></svg> 后续合成</h4>',
+      `  <h4><svg class="tts-clone-spec-icon" width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 14V16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="32" r="2.5" fill="currentColor"/></svg>${tOr("tts.mossland.cloneSpec.laterSynthesisHeading", " 后续合成")}</h4>`,
       '  <ul>',
-      '    <li>拿到 voice_id 后，调用 <code>POST /v1/audio/speech</code></li>',
-      '    <li>同步合成可选择 <code>moss-tts-1.5-flash</code> 或 <code>moss-tts-1.0-pro</code>，输出 MP3 / WAV</li>',
+      `    <li>${tOr("tts.mossland.cloneSpec.afterVoiceId", "拿到 voice_id 后，调用 ")}<code>POST /v1/audio/speech</code></li>`,
+      `    <li>${tOr("tts.mossland.cloneSpec.syncSynthesisOptions", "同步合成可选择 ")}<code>moss-tts-1.5-flash</code> 或 <code>moss-tts-1.0-pro</code>${tOr("tts.mossland.cloneSpec.outputMp3Wav", "，输出 MP3 / WAV")}</li>`,
       '  </ul>',
       '</div>',
     ].join("\n"),
@@ -658,21 +659,21 @@ document.getElementById("tts-minimax-test")?.addEventListener("click", async () 
   const voiceId = ttsEl("tts-minimax-voice").value.trim();
   const modelSelect = ttsEl("tts-minimax-model") as HTMLSelectElement;
   const model = modelSelect.value === "speech-2.8-hd" ? "speech-2.8-hd" : "speech-2.8-turbo";
-  if (!apiKey) { window.alert("请先填写 MiniMax API Key"); return; }
-  if (!voiceId) { window.alert("请先填写音色 ID（或下方复刻训练）"); return; }
+  if (!apiKey) { window.alert(tOr("tts.minimax.requireApiKey", "请先填写 MiniMax API Key")); return; }
+  if (!voiceId) { window.alert(tOr("tts.minimax.requireVoiceId", "请先填写音色 ID（或下方复刻训练）")); return; }
 
   const btn = document.getElementById("tts-minimax-test") as HTMLButtonElement;
   btn.disabled = true;
-  btn.textContent = "合成中…";
+  btn.textContent = tOr("tts.synthesizing", "合成中…");
   try {
     const vocalEnhance = { enabled: ttsEl("tts-minimax-vocal-enhance").checked };
     const base64 = await window.tts.synthesize({ apiKey, voiceId, text: TTS_TEST_TEXT, model, vocalEnhance });
     playTtsAudio(base64);
   } catch (err) {
-    window.alert("测试失败: " + (err instanceof Error ? err.message : String(err)));
+    window.alert(tOr("tts.testFailed", "测试失败: ") + (err instanceof Error ? err.message : String(err)));
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔊 测试发音";
+    btn.textContent = "🔊 " + tOr("tts.testPronunciation", "测试发音");
   }
 });
 
@@ -709,30 +710,30 @@ document.getElementById("tts-clone-start")?.addEventListener("click", async () =
   const cloneText = ttsEl("tts-clone-text").value.trim();
   const voiceId = ttsEl("tts-clone-voice-id").value.trim();
 
-  if (!apiKey) { window.alert("请先填写 MiniMax API Key"); return; }
-  if (!cloneFile) { window.alert("请选择配音文件"); return; }
-  if (!cloneText) { window.alert("请填写复刻文本"); return; }
-  if (!voiceId) { window.alert("请填写音色命名"); return; }
+  if (!apiKey) { window.alert(tOr("tts.minimax.requireApiKey", "请先填写 MiniMax API Key")); return; }
+  if (!cloneFile) { window.alert(tOr("tts.clone.requireCloneFile", "请选择配音文件")); return; }
+  if (!cloneText) { window.alert(tOr("tts.clone.requireCloneText", "请填写复刻文本")); return; }
+  if (!voiceId) { window.alert(tOr("tts.clone.requireVoiceName", "请填写音色命名")); return; }
   const voiceIdError = validateMiniMaxVoiceId(voiceId);
   if (voiceIdError) { setCloneStatus("❌ " + voiceIdError, "error"); return; }
 
   const btn = document.getElementById("tts-clone-start") as HTMLButtonElement;
   btn.disabled = true;
-  setCloneStatus("正在上传配音文件…", "loading");
+  setCloneStatus(tOr("tts.clone.uploadingCloneFile", "正在上传配音文件…"), "loading");
 
   try {
     // 步骤1: 上传配音文件
     const cloneUpload = await window.tts.upload(apiKey, cloneFile, "voice_clone");
-    setCloneStatus("配音文件上传完成 (file_id: " + cloneUpload.file_id + ")，正在上传示例音频…", "loading");
+    setCloneStatus(tOr("tts.clone.cloneFileUploaded", "配音文件上传完成 (file_id: ") + cloneUpload.file_id + tOr("tts.clone.uploadingPromptAudio", ")，正在上传示例音频…"), "loading");
 
     // 步骤2: 上传示例音频（可选）
     let promptFileId: string | undefined;
     if (promptFile) {
       const promptUpload = await window.tts.upload(apiKey, promptFile, "prompt_audio");
       promptFileId = promptUpload.file_id;
-      setCloneStatus("示例音频上传完成，正在训练音色…", "loading");
+      setCloneStatus(tOr("tts.clone.promptAudioUploaded", "示例音频上传完成，正在训练音色…"), "loading");
     } else {
-      setCloneStatus("正在训练音色…", "loading");
+      setCloneStatus(tOr("tts.clone.trainingVoice", "正在训练音色…"), "loading");
     }
 
     // 步骤3: 音色克隆
@@ -746,7 +747,7 @@ document.getElementById("tts-clone-start")?.addEventListener("click", async () =
     ttsEl("tts-minimax-voice").value = result.voiceId;
     void saveTtsField("ttsMinimaxVoiceId", result.voiceId);
 
-    setCloneStatus("✅ 复刻成功！音色 ID「" + result.voiceId + "」已自动填入。", "ok");
+    setCloneStatus("✅ " + tOr("tts.clone.cloneSuccessPrefix", "复刻成功！音色 ID「") + result.voiceId + tOr("tts.clone.cloneSuccessSuffix", "」已自动填入。"), "ok");
 
     // 如果有试听音频，播放
     if (result.audioDemo) {
@@ -782,10 +783,10 @@ const CLONE_SPEC_BODY = [
   '      <path d="M24.0083 22V34" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '      <path d="M30 15L24 21L18 15" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '    </svg>',
-  '    费用',
+  `    ${tOr("tts.cloneSpec.fee", "费用")}`,
   '  </h4>',
-  '  <p>每次成功发起复刻将收取 <span class="tts-clone-fee">¥9.9</span>。',
-  '     试听（<code>text</code> + <code>model</code>）按字符数另计 T2A 费用，与平台其他 T2A 接口同价。</p>',
+  `  <p>${tOr("tts.cloneSpec.feePerClone", "每次成功发起复刻将收取 ")}<span class="tts-clone-fee">¥9.9</span>${tOr("tts.cloneSpec.trialPrefix", "。")}`,
+  `${tOr("tts.cloneSpec.trialText", "     试听（")}<code>text</code> + <code>model</code>${tOr("tts.cloneSpec.trialFeeNote", "）按字符数另计 T2A 费用，与平台其他 T2A 接口同价。")}</p>`,
   '</div>',
   '<div class="tts-clone-spec-block">',
   '  <h4>',
@@ -797,9 +798,9 @@ const CLONE_SPEC_BODY = [
   '      <path d="M21 15H27" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '      <path d="M19 38H29" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '    </svg>',
-  '    过期规则',
+  `    ${tOr("tts.cloneSpec.expiryRules", "过期规则")}`,
   '  </h4>',
-  '  <p>复刻得到的音色若 <strong>7 天内</strong>无任何调用，将被系统自动删除。如需长期保留音色，平时不定期点一下「🔊 测试发音」即可续命。</p>',
+  `  <p>${tOr("tts.cloneSpec.expiryNotePrefix", "复刻得到的音色若 ")}<strong>7 天内</strong>${tOr("tts.cloneSpec.expiryNoteMid", "无任何调用，将被系统自动删除。如需长期保留音色，平时不定期点一下「")}🔊 ${tOr("tts.testPronunciation", "测试发音")}${tOr("tts.cloneSpec.expiryNoteSuffix", "」即可续命。")}</p>`,
   '</div>',
   '<div class="tts-clone-spec-block">',
   '  <h4>',
@@ -808,12 +809,12 @@ const CLONE_SPEC_BODY = [
   '      <path d="M32 14L26 16.9688V31.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '      <circle cx="20.5" cy="31.5" r="5.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '    </svg>',
-  '    配音文件 <code>file_id</code>（必填）',
+  `    ${tOr("tts.cloneSpec.cloneFileHeading", "配音文件 ")}<code>file_id</code>${tOr("tts.requiredMark", "（必填）")}`,
   '  </h4>',
   '  <ul>',
-  '    <li>格式：mp3 / m4a / wav</li>',
-  '    <li>时长：10 秒 ~ 5 分钟</li>',
-  '    <li>大小：≤ 20 MB</li>',
+  `    <li>${tOr("tts.cloneSpec.formatLabel", "格式：")}mp3 / m4a / wav</li>`,
+  `    <li>${tOr("tts.cloneSpec.durationLabel", "时长：")}10 秒 ~ 5 分钟</li>`,
+  `    <li>${tOr("tts.cloneSpec.sizeLabel", "大小：")}≤ 20 MB</li>`,
   '  </ul>',
   '</div>',
   '<div class="tts-clone-spec-block">',
@@ -824,14 +825,14 @@ const CLONE_SPEC_BODY = [
   '      <circle cx="24" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '      <path d="M20 34H28" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
   '    </svg>',
-  '    自定义 voice_id（必填）',
+  `    ${tOr("tts.cloneSpec.customVoiceIdHeading", "自定义 voice_id（必填）")}`,
   '  </h4>',
   '  <ul>',
-  '    <li>长度范围：8 ~ 256 个字符</li>',
-  '    <li>首字符必须为英文字母</li>',
-  '    <li>允许：数字、字母、<code>-</code>、<code>_</code></li>',
-  '    <li>末位字符不可为 <code>-</code> 或 <code>_</code></li>',
-  '    <li>不得与已有 voice_id 重复</li>',
+  `    <li>${tOr("tts.cloneSpec.lengthRangeLabel", "长度范围：")}8 ~ 256 个字符</li>`,
+  `    <li>${tOr("tts.cloneSpec.firstCharMustBeLetter", "首字符必须为英文字母")}</li>`,
+  `    <li>${tOr("tts.cloneSpec.allowedCharsLabel", "允许：")}数字、字母、<code>-</code>、<code>_</code></li>`,
+  `    <li>${tOr("tts.cloneSpec.lastCharRule", "末位字符不可为 ")}<code>-</code> 或 <code>_</code></li>`,
+  `    <li>${tOr("tts.cloneSpec.noDuplicateVoiceId", "不得与已有 voice_id 重复")}</li>`,
   '  </ul>',
   '</div>',
   '<div class="tts-clone-spec-block">',
@@ -844,14 +845,14 @@ const CLONE_SPEC_BODY = [
   '      <path d="M12 22V26" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
   '      <path d="M24 14V34" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
   '    </svg>',
-  '    示例音频 clone_prompt（可选，强烈推荐）',
+  `    ${tOr("tts.cloneSpec.promptAudioHeading", "示例音频 clone_prompt（可选，强烈推荐）")}`,
   '  </h4>',
-  '  <p>提供一段示例音频可显著增强合成音色的相似度与稳定性。</p>',
+  `  <p>${tOr("tts.cloneSpec.promptAudioBenefit", "提供一段示例音频可显著增强合成音色的相似度与稳定性。")}</p>`,
   '  <ul>',
-  '    <li>格式：mp3 / m4a / wav</li>',
-  '    <li>时长：&lt; 8 秒</li>',
-  '    <li>大小：≤ 20 MB</li>',
-  '    <li>须填写对应的示例文本 <code>prompt_text</code>，句末需有标点</li>',
+  `    <li>${tOr("tts.cloneSpec.formatLabel", "格式：")}mp3 / m4a / wav</li>`,
+  `    <li>${tOr("tts.cloneSpec.durationLabel", "时长：")}&lt; 8 秒</li>`,
+  `    <li>${tOr("tts.cloneSpec.sizeLabel", "大小：")}≤ 20 MB</li>`,
+  `    <li>${tOr("tts.cloneSpec.promptTextRule", "须填写对应的示例文本 ")}<code>prompt_text</code>${tOr("tts.cloneSpec.promptTextRuleSuffix", "，句末需有标点")}</li>`,
   '  </ul>',
   '</div>',
   '<div class="tts-clone-spec-block">',
@@ -863,15 +864,15 @@ const CLONE_SPEC_BODY = [
   '      <path d="M23 44L40 23" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
   '      <path d="M16 24H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
   '    </svg>',
-  '    复刻文本 <code>text</code>（试听用，建议 ≤1000 字符）',
+  `    ${tOr("tts.cloneSpec.cloneTextHeading", "复刻文本 ")}<code>text</code>${tOr("tts.cloneSpec.cloneTextHeadingSuffix", "（试听用，建议 ≤1000 字符）")}`,
   '  </h4>',
-  '  <p>模型会用克隆后的音色朗读这段文本并返回试听音频链接，便于人工核对相似度。</p>',
+  `  <p>${tOr("tts.cloneSpec.cloneTextDescription", "模型会用克隆后的音色朗读这段文本并返回试听音频链接，便于人工核对相似度。")}</p>`,
   '</div>',
 ].join("\n");
 
 function showCloneSpecModal(): void {
   void showHtmlModal({
-    title: "🎙️ 音色快速复刻 · 完整规格",
+    title: "🎙️ " + tOr("tts.cloneSpecTitle", "音色快速复刻 · 完整规格"),
     icon: "ⓘ",
     htmlBody: CLONE_SPEC_BODY,
   });

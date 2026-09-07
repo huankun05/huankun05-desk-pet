@@ -17,24 +17,25 @@ export {
 } from "../../shared/custom-endpoint-state";
 
 import type { CustomEndpointConfigInput, CustomEndpointMode } from "../../shared/custom-endpoint-state";
+import { tOr } from "./i18n";
 
 export function validateCustomEndpointConfig(
   mode: CustomEndpointMode,
   config: CustomEndpointConfigInput,
 ): string | null {
   const baseUrl = config.baseUrl.trim();
-  if (!baseUrl) return "请填写 Base URL";
+  if (!baseUrl) return tOr("customEndpoint.requiredBaseUrl", "请填写 Base URL");
 
   try {
     const parsed = new URL(baseUrl);
     if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.hostname) {
-      return "Base URL 必须是完整的 HTTP(S) 地址";
+      return tOr("customEndpoint.invalidBaseUrl", "Base URL 必须是完整的 HTTP(S) 地址");
     }
   } catch {
-    return "Base URL 必须是完整的 HTTP(S) 地址";
+    return tOr("customEndpoint.invalidBaseUrl", "Base URL 必须是完整的 HTTP(S) 地址");
   }
 
-  if (!config.model.trim()) return "请填写模型 ID";
-  if (mode === "cloud" && !config.apiKey.trim()) return "请填写 API Key";
+  if (!config.model.trim()) return tOr("customEndpoint.requiredModelId", "请填写模型 ID");
+  if (mode === "cloud" && !config.apiKey.trim()) return tOr("customEndpoint.requiredApiKey", "请填写 API Key");
   return null;
 }

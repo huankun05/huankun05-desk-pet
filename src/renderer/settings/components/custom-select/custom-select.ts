@@ -3,6 +3,8 @@
  * 用于替换原生 <select>，实现统一的 UI 风格和"吸连"效果
  */
 
+import { tOr } from "../../i18n";
+
 export interface CustomSelectOption {
   value: string;
   label: string;
@@ -50,7 +52,7 @@ export class CustomSelect {
     // 创建值显示
     this.valueSpan = document.createElement('span');
     this.valueSpan.className = 'custom-select__value';
-    this.valueSpan.textContent = this.getCurrentLabel() || config.placeholder || '请选择';
+    this.valueSpan.textContent = this.getCurrentLabel() || config.placeholder || tOr("common.pleaseSelect", "请选择");
 
     // 创建箭头
     this.arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -173,7 +175,7 @@ export class CustomSelect {
     // 如果当前值不在新选项中，清空
     if (!options.find(o => o.value === this.currentValue)) {
       this.currentValue = '';
-      this.valueSpan.textContent = '请选择';
+      this.valueSpan.textContent = tOr("common.pleaseSelect", "请选择");
     }
   }
 

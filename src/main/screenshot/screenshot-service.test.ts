@@ -18,7 +18,7 @@ function result(overrides: Partial<ScreenshotResult> = {}): ScreenshotResult {
   };
 }
 
-function createHarness(registerResult = true) {
+function createHarness() {
   const client = {
     processState: "stopped",
     captureState: "idle",
@@ -29,42 +29,18 @@ function createHarness(registerResult = true) {
     shutdown: vi.fn().mockResolvedValue(undefined),
   } as unknown as ScreenshotHelperClient;
   const sendInsert = vi.fn();
-  const callbacks = new Map<string, () => void>();
-  const registerShortcut = vi.fn((accelerator: string, callback: () => void) => {
-    if (!registerResult) return false;
-    callbacks.set(accelerator, callback);
-    return true;
-  });
-  const unregisterShortcut = vi.fn((accelerator: string) => {
-    callbacks.delete(accelerator);
-  });
   const service = createScreenshotService({
     client,
     sendInsert,
-    registerShortcut,
-    unregisterShortcut,
   });
   return {
     client,
     sendInsert,
-    callbacks,
-    registerShortcut,
-    unregisterShortcut,
     service,
   };
 }
 
 describe("createScreenshotService", () => {
-  it("maps the hotkey to clipboard-only without chat insertion", async () => {
-    const harness = createHarness();
-    vi.mocked(harness.client.start).mockResolvedValueOnce(result());
-
-    await expect(harness.service.startFromHotkey()).resolves.toEqual({ ok: true });
-
-    expect(harness.client.start).toHaveBeenCalledWith("clipboard-only", "hotkey");
-    expect(harness.sendInsert).not.toHaveBeenCalled();
-  });
-
   it("maps the chat button to clipboard-and-file with a renderer-safe preview URL", async () => {
     const harness = createHarness();
     vi.mocked(harness.client.start).mockResolvedValueOnce(
@@ -123,61 +99,6 @@ describe("createScreenshotService", () => {
       expect.any(Error),
     );
     warn.mockRestore();
-  });
-
-  it("suspends the active shortcut while settings captures keys and resumes it", () => {
-    const harness = createHarness();
-    harness.service.init("Alt+Shift+S");
-    expect(harness.callbacks.has("Alt+Shift+S")).toBe(true);
-
-    harness.service.suspendHotkey();
-    expect(harness.callbacks.has("Alt+Shift+S")).toBe(false);
-
-    harness.service.resumeHotkey();
-    expect(harness.callbacks.has("Alt+Shift+S")).toBe(true);
-  });
-
-  it("restores the previous shortcut when replacement registration fails", () => {
-    let shouldRegister = true;
-    const callbacks = new Map<string, () => void>();
-    const harness = createHarness();
-    harness.registerShortcut.mockImplementation((accelerator, callback) => {
-      if (!shouldRegister) {
-        shouldRegister = true;
-        return false;
-      }
-      callbacks.set(accelerator, callback);
-      return true;
-    });
-    harness.unregisterShortcut.mockImplementation((accelerator) => {
-      callbacks.delete(accelerator);
-    });
-
-    harness.service.init("Alt+Shift+S");
-    shouldRegister = false;
-    expect(harness.service.replaceHotkey("Alt+Shift+X")).toEqual({
-      ok: false,
-      activeHotkey: "Alt+Shift+S",
-    });
-    expect(callbacks.has("Alt+Shift+S")).toBe(true);
-    expect(callbacks.has("Alt+Shift+X")).toBe(false);
-  });
-
-  it("restores the previous shortcut when Electron rejects an invalid accelerator", () => {
-    const harness = createHarness();
-    let registrations = 0;
-    harness.registerShortcut.mockImplementation(() => {
-      registrations += 1;
-      if (registrations === 2) throw new Error("invalid accelerator");
-      return true;
-    });
-    harness.service.init("Alt+Shift+S");
-
-    expect(() => harness.service.replaceHotkey("not a shortcut")).not.toThrow();
-    expect(harness.service.replaceHotkey("Alt+Shift+S")).toEqual({
-      ok: true,
-      activeHotkey: "Alt+Shift+S",
-    });
   });
 });
 

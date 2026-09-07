@@ -454,12 +454,10 @@ export const IPC = {
   // main → renderer：缓存索引变化（下载完成/删除/导入）广播
   MUSIC_CACHE_UPDATED: "music:cache-updated",
 
-  // screenshot
+  // screenshot（聊天截图插入；全局热键截图已移除）
   SCREENSHOT_START: "screenshot:start",
   SCREENSHOT_SAVE_TEMP: "screenshot:save-temp",
   SCREENSHOT_INSERT: "screenshot:insert",
-  SCREENSHOT_HOTKEY_CAPTURE_START: "screenshot:hotkey-capture-start",
-  SCREENSHOT_HOTKEY_CAPTURE_END: "screenshot:hotkey-capture-end",
 
   // plugin system
   PLUGINS_LIST: "plugins:list",

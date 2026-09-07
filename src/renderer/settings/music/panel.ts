@@ -23,6 +23,7 @@ import {
   type NeteaseViewState,
 } from "../../../shared/music-view-state";
 import { requestTrackPlayback } from "../music-playback";
+import { tOr } from "../i18n";
 
 export function getMusicApi(): MusicApi | null {
   const w = window as unknown as { music?: MusicApi };
@@ -41,9 +42,9 @@ function setMusicFeedback(kind: "info" | "ok" | "err", msg: string): void {
 export function renderMusicStatus(snapshot: MusicStatusSnapshot): void {
   const state = deriveNeteaseViewState(snapshot);
   const labels: Record<NeteaseViewState, string> = {
-    backend_starting: "正在读取音乐服务状态…", backend_error: "音乐服务暂不可用", signed_out: "尚未连接",
-    creating_qr: "正在等待扫码", waiting_scan: "正在等待扫码", waiting_confirm: "已扫码，请在手机确认",
-    login_expired: "二维码已过期", login_failed: "登录失败", connected: "网易云音乐已连接", connected_without_client: "已登录，但 mpv 播放器未就绪",
+    backend_starting: tOr("music.status.backendStarting", "正在读取音乐服务状态…"), backend_error: tOr("music.status.backendError", "音乐服务暂不可用"), signed_out: tOr("music.status.signedOut", "尚未连接"),
+    creating_qr: tOr("music.status.waitingScan", "正在等待扫码"), waiting_scan: tOr("music.status.waitingScan", "正在等待扫码"), waiting_confirm: tOr("music.status.waitingConfirm", "已扫码，请在手机确认"),
+    login_expired: tOr("music.status.loginExpired", "二维码已过期"), login_failed: tOr("music.status.loginFailed", "登录失败"), connected: tOr("music.status.connected", "网易云音乐已连接"), connected_without_client: tOr("music.status.connectedWithoutClient", "已登录，但 mpv 播放器未就绪"),
   };
   if (musicAccountStatusText) musicAccountStatusText.textContent = labels[state];
   const musicStatusDot = document.getElementById("music-status-dot");
@@ -54,27 +55,27 @@ export function renderMusicStatus(snapshot: MusicStatusSnapshot): void {
     const button = document.createElement("button");
     button.type = "button";
     button.className = state === "signed_out" || state === "backend_error" ? "btn-primary" : "btn-secondary";
-    const actions: Partial<Record<NeteaseViewState, string>> = { signed_out: "连接网易云", creating_qr: "取消登录", waiting_scan: "取消登录", waiting_confirm: "取消登录", login_expired: "重新生成二维码", login_failed: "重新登录", connected: "断开连接", connected_without_client: "断开连接", backend_error: "重新启动音乐服务" };
+    const actions: Partial<Record<NeteaseViewState, string>> = { signed_out: tOr("music.action.connect", "连接网易云"), creating_qr: tOr("music.action.cancelLogin", "取消登录"), waiting_scan: tOr("music.action.cancelLogin", "取消登录"), waiting_confirm: tOr("music.action.cancelLogin", "取消登录"), login_expired: tOr("music.action.regenerateQr", "重新生成二维码"), login_failed: tOr("music.action.relogin", "重新登录"), connected: tOr("music.action.disconnect", "断开连接"), connected_without_client: tOr("music.action.disconnect", "断开连接"), backend_error: tOr("music.action.restartService", "重新启动音乐服务") };
     if (actions[state]) { button.textContent = actions[state]!; button.addEventListener("click", () => void handleMusicAction(state)); actionHost.appendChild(button); }
   }
   const loggedIn = state === "connected" || state === "connected_without_client";
   musicSearchForm?.classList.toggle("is-hidden", !loggedIn);
-  if (musicSearchHint) musicSearchHint.textContent = loggedIn ? "搜索网易云曲库。" : "连接网易云后即可搜索歌曲和获取每日推荐。";
+  if (musicSearchHint) musicSearchHint.textContent = loggedIn ? tOr("music.searchHint.loggedIn", "搜索网易云曲库。") : tOr("music.searchHint.loggedOut", "连接网易云后即可搜索歌曲和获取每日推荐。");
   musicQrBox?.classList.toggle("is-hidden", !(state === "creating_qr" || state === "waiting_scan" || state === "waiting_confirm" || state === "login_expired"));
-  if (musicQrStatus) musicQrStatus.textContent = state === "connected" || state === "connected_without_client" ? "当前状态：网易云音乐已连接" : state === "waiting_confirm" ? "当前状态：等待手机确认" : state === "login_expired" ? "当前状态：二维码过期" : "当前状态：等待扫码";
+  if (musicQrStatus) musicQrStatus.textContent = state === "connected" || state === "connected_without_client" ? tOr("music.qrStatus.connected", "当前状态：网易云音乐已连接") : state === "waiting_confirm" ? tOr("music.qrStatus.waitingConfirm", "当前状态：等待手机确认") : state === "login_expired" ? tOr("music.qrStatus.expired", "当前状态：二维码过期") : tOr("music.qrStatus.waitingScan", "当前状态：等待扫码");
 }
 
 async function handleMusicAction(state: NeteaseViewState): Promise<void> {
-  const api = getMusicApi(); if (!api) { setMusicFeedback("err", "音乐 API 未就绪"); return; }
+  const api = getMusicApi(); if (!api) { setMusicFeedback("err", tOr("music.feedback.apiNotReady", "音乐 API 未就绪")); return; }
   if (state === "signed_out" || state === "login_expired" || state === "login_failed") return void startMusicLogin();
   if (state === "connected" || state === "connected_without_client") {
-    setMusicFeedback("info", "正在断开连接…");
+    setMusicFeedback("info", tOr("music.feedback.disconnecting", "正在断开连接…"));
     try {
       const r = await api.logout();
-    if (r.ok) setMusicFeedback("ok", "已断开连接");
-    else setMusicFeedback("err", "断开失败：" + r.errorCode);
+    if (r.ok) setMusicFeedback("ok", tOr("music.feedback.disconnected", "已断开连接"));
+    else setMusicFeedback("err", tOr("music.feedback.disconnectFailed", "断开失败：") + r.errorCode);
     } catch (err) {
-      setMusicFeedback("err", "断开异常：" + (err instanceof Error ? err.message : String(err)));
+      setMusicFeedback("err", tOr("music.feedback.disconnectError", "断开异常：") + (err instanceof Error ? err.message : String(err)));
     }
     return;
   }
@@ -98,7 +99,7 @@ export function updateMusicActionsForAccount(account: string): void {
 function clearMusicQr(): void {
   if (musicQrImg) { musicQrImg.style.display = "none"; musicQrImg.src = ""; }
   if (musicQrBox) musicQrBox.classList.add("is-hidden");
-  if (musicQrTip) musicQrTip.textContent = "请用网易云音乐 App 扫描二维码完成登录";
+  if (musicQrTip) musicQrTip.textContent = tOr("music.qrTip.scan", "请用网易云音乐 App 扫描二维码完成登录");
   musicState.lastQrDataUrl = null;
 }
 
@@ -136,11 +137,11 @@ function startMusicLoginPolling(pollIntervalMs = 2000): void {
           // 登录成功 → 关闭 QR 面板、停止轮询
           clearMusicQr();
           stopMusicLoginPolling();
-          setMusicFeedback("ok", "已连接到网易云音乐");
+          setMusicFeedback("ok", tOr("music.feedback.connected", "已连接到网易云音乐"));
         } else if (r.data.flow === "expired" || r.data.flow === "failed" || r.data.flow === "cancelled") {
           stopMusicLoginPolling();
           if (r.data.flow !== "expired") clearMusicQr();
-          setMusicFeedback("err", r.data.flow === "expired" ? "二维码已过期，请重新生成" : "登录未完成，请重试");
+          setMusicFeedback("err", r.data.flow === "expired" ? tOr("music.feedback.qrExpired", "二维码已过期，请重新生成") : tOr("music.feedback.loginIncomplete", "登录未完成，请重试"));
         } else if (
           // 登录流程进行中（waiting_scan 等）时，account 的 expired /
           // temporarily_unavailable 描述的是上一轮会话的旧 token，不是本次
@@ -151,7 +152,7 @@ function startMusicLoginPolling(pollIntervalMs = 2000): void {
         ) {
           stopMusicLoginPolling();
           clearMusicQr();
-          setMusicFeedback("err", "登录失败：账户状态 " + r.data.account);
+          setMusicFeedback("err", tOr("music.feedback.loginFailedState", "登录失败：账户状态 ") + r.data.account);
         }
       }
     } catch (err) {
@@ -163,14 +164,14 @@ function startMusicLoginPolling(pollIntervalMs = 2000): void {
 async function startMusicLogin(): Promise<void> {
   const api = getMusicApi();
   if (!api) {
-    setMusicFeedback("err", "window.music 未就绪，请确认 music plugin 已注册");
+    setMusicFeedback("err", tOr("music.feedback.windowMusicNotReady", "window.music 未就绪，请确认 music plugin 已注册"));
     return;
   }
-  setMusicFeedback("info", "正在生成二维码…");
+  setMusicFeedback("info", tOr("music.feedback.generatingQr", "正在生成二维码…"));
   try {
     const r = await api.beginLogin();
     if (!r.ok) {
-      setMusicFeedback("err", "启动登录失败：" + r.errorCode);
+      setMusicFeedback("err", tOr("music.feedback.loginStartFailed", "启动登录失败：") + r.errorCode);
       // 把错误状态同步渲染出来
       const snapshot: MusicStatusSnapshot = {
         backend: r.backendState ?? "unknown",
@@ -183,7 +184,7 @@ async function startMusicLogin(): Promise<void> {
     // 无 qrContent：上一次会话其实已完成手机授权（主进程吃掉了 803），
     // 不需要画二维码，直接轮询等 signed_in。
     if (!r.data.qrContent) {
-      setMusicFeedback("info", "正在确认登录状态…");
+      setMusicFeedback("info", tOr("music.feedback.confirmingLogin", "正在确认登录状态…"));
       startMusicLoginPolling(r.data.pollIntervalMs);
       return;
     }
@@ -197,16 +198,16 @@ async function startMusicLogin(): Promise<void> {
       dataUrl = await qrcodeMod.toDataURL(r.data.qrContent, { width: 240, margin: 1 });
     } catch (qrErr) {
       console.error("[music] QR 渲染失败", qrErr);
-      setMusicFeedback("err", "二维码渲染失败");
+      setMusicFeedback("err", tOr("music.feedback.qrRenderFailed", "二维码渲染失败"));
       return;
     }
-    showMusicQr(dataUrl, "请用网易云音乐 App 扫描二维码完成登录");
-    setMusicFeedback("info", "等待扫码…");
+    showMusicQr(dataUrl, tOr("music.qrTip.scan", "请用网易云音乐 App 扫描二维码完成登录"));
+    setMusicFeedback("info", tOr("music.feedback.waitingScan", "等待扫码…"));
     updateMusicActionsForAccount("signed_out"); // 切到"取消登录"显示
     startMusicLoginPolling(r.data.pollIntervalMs);
   } catch (err) {
     console.error("[music] beginLogin threw", err);
-    setMusicFeedback("err", "启动登录异常：" + (err instanceof Error ? err.message : String(err)));
+    setMusicFeedback("err", tOr("music.feedback.loginStartError", "启动登录异常：") + (err instanceof Error ? err.message : String(err)));
   }
 }
 
@@ -215,7 +216,7 @@ async function cancelMusicLogin(): Promise<void> {
   if (!api) return;
   stopMusicLoginPolling();
   clearMusicQr();
-  setMusicFeedback("info", "已取消登录");
+  setMusicFeedback("info", tOr("music.feedback.loginCancelled", "已取消登录"));
   try {
     await api.cancelLogin();
   } catch (err) {
@@ -233,9 +234,9 @@ async function cancelMusicLogin(): Promise<void> {
 async function disconnectMusic(): Promise<void> {
   // 暂时没有正式的 disconnect API；先用 cancelLogin 作为近似（它会清掉 loginSession），
   // 并把 UI 切回"未连接"。后续会接 music.disconnect。
-  setMusicFeedback("info", "正在断开…");
+  setMusicFeedback("info", tOr("music.feedback.disconnectingShort", "正在断开…"));
   await cancelMusicLogin();
-  setMusicFeedback("ok", "已断开（当前仅清空登录会话，详见说明）");
+  setMusicFeedback("ok", tOr("music.feedback.disconnectedSession", "已断开（当前仅清空登录会话，详见说明）"));
 }
 
 function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: string): void {
@@ -244,7 +245,7 @@ function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: s
   if (!r.ok) {
     const div = document.createElement("div");
     div.className = "music-feedback music-feedback--err";
-    div.textContent = "搜索失败：" + r.errorCode;
+    div.textContent = tOr("music.search.failed", "搜索失败：") + r.errorCode;
     musicSearchResults.appendChild(div);
     return;
   }
@@ -254,7 +255,7 @@ function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: s
     p.className = "empty-hint";
     // 安全转义
     const safeKw = kw.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    p.textContent = `暂无结果，关键词 '${safeKw}' 未匹配到歌曲`;
+    p.textContent = tOr("music.search.noResultPrefix", "暂无结果，关键词 '") + safeKw + tOr("music.search.noResultSuffix", "' 未匹配到歌曲");
     musicSearchResults.appendChild(p);
     return;
   }
@@ -277,11 +278,11 @@ function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: s
     const playBtn = document.createElement("button");
     playBtn.type = "button";
     playBtn.className = "btn-secondary music-search-row__play";
-    playBtn.textContent = "▶ 播放";
+    playBtn.textContent = "▶ " + tOr("common.play", "播放");
     playBtn.addEventListener("click", async () => {
       const api = getMusicApi();
       if (!api) {
-        setMusicFeedback("err", "window.music 未就绪");
+        setMusicFeedback("err", tOr("music.feedback.windowMusicNotReadyShort", "window.music 未就绪"));
         return;
       }
       playBtn.disabled = true;
@@ -289,7 +290,7 @@ function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: s
         const feedback = await requestTrackPlayback(api, t);
         setMusicFeedback(feedback.kind, feedback.message);
       } catch (err) {
-        setMusicFeedback("err", "播放请求异常：" + (err instanceof Error ? err.message : String(err)));
+        setMusicFeedback("err", tOr("music.feedback.playRequestError", "播放请求异常：") + (err instanceof Error ? err.message : String(err)));
       } finally {
         playBtn.disabled = false;
       }
@@ -304,22 +305,22 @@ function renderMusicSearchResults(r: MusicIpcResult<MusicSelectionResult>, kw: s
 async function runMusicSearch(): Promise<void> {
   const api = getMusicApi();
   if (!api) {
-    setMusicFeedback("err", "window.music 未就绪");
+    setMusicFeedback("err", tOr("music.feedback.windowMusicNotReadyShort", "window.music 未就绪"));
     return;
   }
   const kw = (musicSearchInput?.value ?? "").trim();
   if (!kw) {
-    setMusicFeedback("info", "请输入搜索关键词");
+    setMusicFeedback("info", tOr("music.search.enterKeyword", "请输入搜索关键词"));
     return;
   }
-  if (musicSearchResults) musicSearchResults.innerHTML = '<p class="empty-hint">搜索中…</p>';
+  if (musicSearchResults) musicSearchResults.innerHTML = '<p class="empty-hint">' + tOr("music.search.searching", "搜索中…") + "</p>";
   try {
     const r = await api.search(kw, 20);
     renderMusicSearchResults(r, kw);
   } catch (err) {
     console.error("[music] search threw", err);
     if (musicSearchResults) musicSearchResults.innerHTML = "";
-    setMusicFeedback("err", "搜索异常：" + (err instanceof Error ? err.message : String(err)));
+    setMusicFeedback("err", tOr("music.search.error", "搜索异常：") + (err instanceof Error ? err.message : String(err)));
   }
 }
 
@@ -356,20 +357,20 @@ export async function loadMusicPanel(): Promise<void> {
     try {
       const r = await api.search("a", 1);
       if (r.ok) {
-        setMusicFeedback("ok", "已连接到网易云音乐");
-        if (musicAccountStatusText) musicAccountStatusText.textContent = "网易云音乐已连接";
+        setMusicFeedback("ok", tOr("music.feedback.connected", "已连接到网易云音乐"));
+        if (musicAccountStatusText) musicAccountStatusText.textContent = tOr("music.status.connected", "网易云音乐已连接");
         const dot = document.getElementById("music-status-dot");
         if (dot) dot.classList.add("is-connected");
       } else {
-        setMusicFeedback("info", "尚未登录，请扫码");
-        if (musicAccountStatusText) musicAccountStatusText.textContent = "尚未连接";
+        setMusicFeedback("info", tOr("music.feedback.notLoggedIn", "尚未登录，请扫码"));
+        if (musicAccountStatusText) musicAccountStatusText.textContent = tOr("music.status.signedOut", "尚未连接");
       }
     } catch (err) {
       console.warn("[music] 探测失败", err);
-      setMusicFeedback("info", "尚未登录，请扫码");
+      setMusicFeedback("info", tOr("music.feedback.notLoggedIn", "尚未登录，请扫码"));
     }
   } else {
-    setMusicFeedback("err", "window.music 未就绪");
+    setMusicFeedback("err", tOr("music.feedback.windowMusicNotReadyShort", "window.music 未就绪"));
   }
 
   // OpenAPI 配置表单（appId + privateKey）
@@ -380,14 +381,14 @@ export async function loadMusicPanel(): Promise<void> {
   musicOpenPlayerBtn?.addEventListener("click", async () => {
     const api = getMusicApi();
     if (!api?.openPlayer) {
-      setMusicFeedback("err", "音乐 API 未就绪");
+      setMusicFeedback("err", tOr("music.feedback.apiNotReady", "音乐 API 未就绪"));
       return;
     }
     try {
       await api.openPlayer();
-      setMusicFeedback("ok", "播放器窗口已打开");
+      setMusicFeedback("ok", tOr("music.feedback.playerOpened", "播放器窗口已打开"));
     } catch (err) {
-      setMusicFeedback("err", "打开播放器失败：" + (err instanceof Error ? err.message : String(err)));
+      setMusicFeedback("err", tOr("music.feedback.openPlayerFailed", "打开播放器失败：") + (err instanceof Error ? err.message : String(err)));
     }
   });
 }
@@ -399,7 +400,7 @@ async function loadOpenapiConfigForm(): Promise<void> {
   try {
     const r = await api.getOpenapiConfig();
     if (!r.ok) {
-      setMusicFeedback("err", "读取配置失败：" + r.errorCode);
+      setMusicFeedback("err", tOr("music.openapi.loadConfigFailed", "读取配置失败：") + r.errorCode);
       return;
     }
     if (r.data && musicAppIdInput) {
@@ -415,32 +416,32 @@ async function loadOpenapiConfigForm(): Promise<void> {
 async function saveOpenapiConfig(): Promise<void> {
   const api = getMusicApi();
   if (!api?.saveOpenapiConfig) {
-    setMusicFeedback("err", "window.music 未就绪");
+    setMusicFeedback("err", tOr("music.feedback.windowMusicNotReadyShort", "window.music 未就绪"));
     return;
   }
   const appId = musicAppIdInput?.value.trim() ?? "";
   const privateKey = musicPrivateKeyInput?.value.trim() ?? "";
   if (!appId) {
-    setMusicFeedback("err", "请填写 appId");
+    setMusicFeedback("err", tOr("music.openapi.enterAppId", "请填写 appId"));
     return;
   }
   // privateKey 为空 → 视为保留旧值（仅在已有配置时允许）
   if (!privateKey) {
-    setMusicFeedback("err", "请填写 privateKey（首次配置必填）");
+    setMusicFeedback("err", tOr("music.openapi.enterPrivateKey", "请填写 privateKey（首次配置必填）"));
     return;
   }
-  setMusicFeedback("info", "正在保存配置…");
+  setMusicFeedback("info", tOr("music.openapi.saving", "正在保存配置…"));
   try {
     const r = await api.saveOpenapiConfig({ appId, privateKey });
     if (r.ok) {
-      setMusicFeedback("ok", "OpenAPI 配置已保存，后端状态：" + r.data.backend);
+      setMusicFeedback("ok", tOr("music.openapi.savedBackend", "OpenAPI 配置已保存，后端状态：") + r.data.backend);
       // 清空 privateKey 输入框（安全）
       if (musicPrivateKeyInput) musicPrivateKeyInput.value = "";
     } else {
-      setMusicFeedback("err", "保存失败：" + r.errorCode);
+      setMusicFeedback("err", tOr("music.openapi.saveFailed", "保存失败：") + r.errorCode);
     }
   } catch (err) {
-    setMusicFeedback("err", "保存异常：" + (err as Error).message);
+    setMusicFeedback("err", tOr("music.openapi.saveError", "保存异常：") + (err as Error).message);
   }
 }
 

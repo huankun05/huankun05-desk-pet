@@ -23,6 +23,7 @@ import {
 import { proactiveDeliverySelect } from "../general/dom";
 import { normalizeProactiveDeliveryTarget } from "../../../shared/preferences";
 import { isProactiveDeliveryTargetSelectable } from "../../../shared/proactive-delivery";
+import { tOr } from "../i18n";
 
 // 通用：根据渠道状态更新"主动投递目标"选项的可选择性
 // （从 settings.ts 移过来；settings.ts 反向 import 此函数以保持其他面板调用不变）
@@ -46,7 +47,7 @@ function renderChannelStatus(el: HTMLElement | null, phase: string, message?: st
     else if (phase === "config_missing") dot.classList.add("channels-status__dot--config_missing");
     else dot.classList.add("channels-status__dot--offline");
   }
-  if (text) text.textContent = message ?? (phase === "running" ? "运行中" : phase === "starting" ? "启动中" : phase === "config_missing" ? "配置缺失" : phase === "error" ? "错误" : "未启用");
+  if (text) text.textContent = message ?? (phase === "running" ? tOr("channels.statusRunning", "运行中") : phase === "starting" ? tOr("channels.statusStarting", "启动中") : phase === "config_missing" ? tOr("channels.statusConfigMissing", "配置缺失") : phase === "error" ? tOr("channels.statusError", "错误") : tOr("channels.statusDisabled", "未启用"));
 }
 
 function setFeishuFeedback(kind: "info" | "ok" | "err", msg: string): void {
@@ -81,13 +82,13 @@ function parseIdList(value: string): string[] {
 
 async function copyInputValue(input: HTMLInputElement | null, label: string): Promise<void> {
   const value = input?.value ?? "";
-  if (!value) throw new Error(`${label}为空`);
+  if (!value) throw new Error(label + tOr("channels.copyEmpty", "为空"));
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
     return;
   }
   input!.select();
-  if (!document.execCommand("copy")) throw new Error(`无法复制${label}`);
+  if (!document.execCommand("copy")) throw new Error(tOr("channels.copyFailed", "无法复制") + label);
 }
 
 function renderQqDetail(status?: { detail?: Record<string, unknown> }): void {
@@ -111,7 +112,7 @@ function parseOpenidList(value: string): string[] {
 function renderQqBotDetail(status?: { detail?: Record<string, unknown> }): void {
   const rejected = status?.detail?.lastRejectedOpenid;
   if (typeof rejected === "string" && rejected) {
-    setQqBotFeedback("info", `最近一条被白名单拒绝的消息来自 openid：${rejected}（复制到上方白名单可放行）`);
+    setQqBotFeedback("info", tOr("channels.rejectedOpenidPrefix", "最近一条被白名单拒绝的消息来自 openid：") + rejected + tOr("channels.rejectedOpenidSuffix", "（复制到上方白名单可放行）"));
   }
 }
 
@@ -129,7 +130,7 @@ export interface LogEntry {
 export function renderChannelsLog(entries: LogEntry[]): void {
   if (!channelsLogListEl) return;
   if (entries.length === 0) {
-    channelsLogListEl.innerHTML = '<p class="empty-hint">暂无消息。</p>';
+    channelsLogListEl.innerHTML = `<p class="empty-hint">${tOr("channels.logEmpty", "暂无消息。")}</p>`;
     return;
   }
   const html = entries
@@ -138,7 +139,7 @@ export function renderChannelsLog(entries: LogEntry[]): void {
       const hh = String(t.getHours()).padStart(2, "0");
       const mm = String(t.getMinutes()).padStart(2, "0");
       const ss = String(t.getSeconds()).padStart(2, "0");
-      const dir = e.dir === "incoming" ? "← 收到" : "→ 回复";
+      const dir = e.dir === "incoming" ? tOr("channels.logIncoming", "← 收到") : tOr("channels.logOutgoing", "→ 回复");
       const who = e.senderName ? `${e.senderName} (${e.senderId})` : e.senderId;
       const safe = (s: string) =>
         s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -182,8 +183,8 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsFeishuAppSecretEl) {
       channelsFeishuAppSecretEl.value = "";
       channelsFeishuAppSecretEl.placeholder = cfg.feishu.appSecret
-        ? "已保存（输入新值会覆盖）"
-        : "点击保存配置时加密保存";
+        ? tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）")
+        : tOr("channels.encryptedOnSave", "点击保存配置时加密保存");
     }
     if (channelsQqListenModeEl) channelsQqListenModeEl.value = cfg.qq?.listenMode ?? "auto";
     if (channelsQqCustomHostEl) channelsQqCustomHostEl.value = cfg.qq?.customHost ?? "";
@@ -191,8 +192,8 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsQqPrivateAllowlistEl) channelsQqPrivateAllowlistEl.value = (cfg.qq?.allowedPrivateUserIds ?? []).join("\n");
     if (channelsQqGroupAllowlistEl) channelsQqGroupAllowlistEl.value = (cfg.qq?.allowedGroupIds ?? []).join("\n");
     if (channelsQqTokenEl) channelsQqTokenEl.placeholder = cfg.qq?.hasAccessToken
-      ? "已保存（输入新值会覆盖）"
-      : "留空仅允许本机 127.0.0.1 监听；WSL/跨网卡请先生成";
+      ? tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）")
+      : tOr("channels.qqTokenPlaceholderHint", "留空仅允许本机 127.0.0.1 监听；WSL/跨网卡请先生成");
     // 已保存的 token 不回显；保存时若输入为空且没有已存值，非回环监听需要先补生成
     let hadQqToken = !!cfg.qq?.hasAccessToken;
 
@@ -202,8 +203,8 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsQqBotAppSecretEl) {
       channelsQqBotAppSecretEl.value = "";
       channelsQqBotAppSecretEl.placeholder = cfg.qqbot?.hasAppSecret
-        ? "已保存（输入新值会覆盖）"
-        : "点击保存配置时加密保存";
+        ? tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）")
+        : tOr("channels.encryptedOnSave", "点击保存配置时加密保存");
     }
     if (channelsQqBotAllowAnyPrivateEl) channelsQqBotAllowAnyPrivateEl.checked = !!cfg.qqbot?.allowAnyPrivate;
     if (channelsQqBotUserAllowlistEl) channelsQqBotUserAllowlistEl.value = (cfg.qqbot?.allowedUserOpenids ?? []).join("\n");
@@ -287,7 +288,7 @@ export async function loadChannelsPanel(): Promise<void> {
 
   // 保存配置（secret 用 safeStorage 加密后落盘 + 触发长连接重连）
   channelsFeishuSaveBtn?.addEventListener("click", async () => {
-    setFeishuFeedback("info", "保存并连接中...");
+    setFeishuFeedback("info", tOr("channels.feishuSavingConnecting", "保存并连接中..."));
     const patch: Record<string, unknown> = {
       feishu: {
         enabled: channelsFeishuEnabledEl?.checked ?? false,
@@ -302,11 +303,11 @@ export async function loadChannelsPanel(): Promise<void> {
       await window.settings.channelsSaveConfig(patch);
       // 保存后立即触发飞书 adapter 重建 + 重连长连接
       await window.settings.channelsRestart();
-      setFeishuFeedback("ok", "已保存，飞书长连接正在建立…");
+      setFeishuFeedback("ok", tOr("channels.feishuSavedConnecting", "已保存，飞书长连接正在建立…"));
       // 清空输入框（已落盘），并把 placeholder 切到"已保存"
       if (channelsFeishuAppSecretEl) {
         channelsFeishuAppSecretEl.value = "";
-        channelsFeishuAppSecretEl.placeholder = "已保存（输入新值会覆盖）";
+        channelsFeishuAppSecretEl.placeholder = tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）");
       }
     } catch (err) {
       setFeishuFeedback("err", err instanceof Error ? err.message : String(err));
@@ -358,28 +359,28 @@ export async function loadChannelsPanel(): Promise<void> {
   window.settings.onChannelsWechatQrcode((dataUrl) => {
     console.log("[WechatSettings] QR event received, dataUrl prefix:", dataUrl?.slice(0, 40), "len:", dataUrl?.length);
     showWechatQr(dataUrl);
-    setWechatFeedback("info", "请用微信扫描二维码");
+    setWechatFeedback("info", tOr("channels.wechatScan", "请用微信扫描二维码"));
   });
   // 订阅 Main 推送的登录结果（成功 / 失败 / 二维码过期）
   window.settings.onChannelsWechatLoginDone((payload) => {
     hideWechatQr();
     if (payload.ok) {
-      setWechatFeedback("ok", `已登录（botId=${payload.botId ?? "?"}）`);
+      setWechatFeedback("ok", tOr("channels.wechatLoggedInPrefix", "已登录（botId=") + (payload.botId ?? tOr("channels.unknownValue", "?")) + tOr("channels.wechatLoggedInSuffix", "）"));
     } else {
-      setWechatFeedback("err", `登录失败：${payload.error ?? "未知错误"}`);
+      setWechatFeedback("err", tOr("channels.loginFailedPrefix", "登录失败：") + (payload.error ?? tOr("channels.unknownError", "未知错误")));
     }
   });
 
   channelsWechatLoginBtn?.addEventListener("click", async () => {
     hideWechatQr();
-    setWechatFeedback("info", "正在启动扫码…");
+    setWechatFeedback("info", tOr("channels.wechatStartingScan", "正在启动扫码…"));
     try {
       const result = await window.settings.channelsWechatLoginStart();
       if (result.ok) {
         // 二维码由 onChannelsWechatQrcode 推过来并显示；这里只刷个轻提示
-        setWechatFeedback("info", "等待二维码推送…");
+        setWechatFeedback("info", tOr("channels.wechatWaitingQr", "等待二维码推送…"));
       } else {
-        setWechatFeedback("err", result.error ?? "启动失败");
+        setWechatFeedback("err", result.error ?? tOr("channels.wechatStartFailed", "启动失败"));
       }
     } catch (err) {
       setWechatFeedback("err", err instanceof Error ? err.message : String(err));
@@ -388,10 +389,10 @@ export async function loadChannelsPanel(): Promise<void> {
 
   // 重启连接
   channelsWechatRestartBtn?.addEventListener("click", async () => {
-    setWechatFeedback("info", "重启连接中…");
+    setWechatFeedback("info", tOr("channels.wechatRestarting", "重启连接中…"));
     try {
       await window.settings.channelsRestart();
-      setWechatFeedback("ok", "已重启");
+      setWechatFeedback("ok", tOr("channels.restarted", "已重启"));
     } catch (err) {
       setWechatFeedback("err", err instanceof Error ? err.message : String(err));
     }
@@ -410,16 +411,16 @@ export async function loadChannelsPanel(): Promise<void> {
     channelsQqTokenEl.value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
     channelsQqTokenEl.type = "text";
     channelsQqTokenEl.select();
-    setQqFeedback("info", "已生成 Token，请复制到 NapCat WebSocket Client 配置后再保存。");
+    setQqFeedback("info", tOr("channels.qqTokenGenerated", "已生成 Token，请复制到 NapCat WebSocket Client 配置后再保存。"));
   });
   channelsQqUrlCopyBtn?.addEventListener("click", () => {
-    void copyInputValue(channelsQqUrlEl, "连接 URL")
-      .then(() => setQqFeedback("ok", "连接 URL 已复制。"))
+    void copyInputValue(channelsQqUrlEl, tOr("channels.connectionUrlLabel", "连接 URL"))
+      .then(() => setQqFeedback("ok", tOr("channels.urlCopied", "连接 URL 已复制。")))
       .catch((error) => setQqFeedback("err", error instanceof Error ? error.message : String(error)));
   });
   channelsQqTokenCopyBtn?.addEventListener("click", () => {
-    void copyInputValue(channelsQqTokenEl, "Token")
-      .then(() => setQqFeedback("ok", "Token 已复制；保存后将无法从设置页读取明文。"))
+    void copyInputValue(channelsQqTokenEl, tOr("channels.tokenLabel", "Token"))
+      .then(() => setQqFeedback("ok", tOr("channels.tokenCopied", "Token 已复制；保存后将无法从设置页读取明文。")))
       .catch((error) => setQqFeedback("err", error instanceof Error ? error.message : String(error)));
   });
   channelsQqSaveBtn?.addEventListener("click", async () => {
@@ -433,10 +434,10 @@ export async function loadChannelsPanel(): Promise<void> {
       channelsQqTokenEl.value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
       channelsQqTokenEl.type = "text";
       channelsQqTokenEl.select();
-      setQqFeedback("info", "非回环监听需要 Access Token：已自动生成，请先复制到 NapCat WebSocket Client 的 Token 字段，再回来点击保存。");
+      setQqFeedback("info", tOr("channels.qqTokenNeededHint", "非回环监听需要 Access Token：已自动生成，请先复制到 NapCat WebSocket Client 的 Token 字段，再回来点击保存。"));
       return;
     }
-    setQqFeedback("info", "正在保存并启动 QQ 监听…");
+    setQqFeedback("info", tOr("channels.qqSavingStart", "正在保存并启动 QQ 监听…"));
     const qq: Record<string, unknown> = {
       enabled: channelsQqEnabledEl?.checked ?? false,
       listenMode,
@@ -455,20 +456,20 @@ export async function loadChannelsPanel(): Promise<void> {
       if (channelsQqTokenEl) {
         channelsQqTokenEl.value = "";
         channelsQqTokenEl.type = "password";
-        channelsQqTokenEl.placeholder = "已保存（输入新值会覆盖）";
+        channelsQqTokenEl.placeholder = tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）");
       }
-      setQqFeedback("ok", "已启动监听；请在 NapCat 中新增 WebSocket Client，并使用上方 URL。");
+      setQqFeedback("ok", tOr("channels.qqStartedHint", "已启动监听；请在 NapCat 中新增 WebSocket Client，并使用上方 URL。"));
     } catch (error) {
       setQqFeedback("err", error instanceof Error ? error.message : String(error));
     }
   });
   channelsQqTestBtn?.addEventListener("click", async () => {
-    setQqFeedback("info", "正在检查 NapCat 连接…");
+    setQqFeedback("info", tOr("channels.qqCheckingConnection", "正在检查 NapCat 连接…"));
     try {
       const result = await window.settings.channelsQqTestConnection();
       setQqFeedback(result.ok ? "ok" : "err", result.ok
-        ? `连接正常：${result.detail?.nickname ? `${String(result.detail.nickname)} (` : "QQ "}${String(result.detail?.selfId ?? "")}${result.detail?.nickname ? ")" : ""}${result.detail?.appVersion ? ` · NapCat ${String(result.detail.appVersion)}` : ""} · Stream ${result.detail?.supportsStream ? "可用" : "不可用"}`
-        : result.error ?? "连接失败");
+        ? tOr("channels.qqConnectionOkPrefix", "连接正常：") + (result.detail?.nickname ? `${String(result.detail.nickname)} (` : tOr("channels.qqLabel", "QQ ")) + String(result.detail?.selfId ?? "") + (result.detail?.nickname ? ")" : "") + (result.detail?.appVersion ? ` · NapCat ${String(result.detail.appVersion)}` : "") + ` · Stream ${result.detail?.supportsStream ? tOr("channels.streamAvailable", "可用") : tOr("channels.streamUnavailable", "不可用")}`
+        : result.error ?? tOr("channels.connectionFailed", "连接失败"));
     } catch (error) {
       setQqFeedback("err", error instanceof Error ? error.message : String(error));
     }
@@ -479,10 +480,10 @@ export async function loadChannelsPanel(): Promise<void> {
   channelsQqBotSaveBtn?.addEventListener("click", async () => {
     const appId = channelsQqBotAppIdEl?.value.trim() ?? "";
     if (!appId) {
-      setQqBotFeedback("err", "请先填写 AppID（q.qq.com → 机器人开发设置里获取）。");
+      setQqBotFeedback("err", tOr("channels.qqBotAppIdRequired", "请先填写 AppID（q.qq.com → 机器人开发设置里获取）。"));
       return;
     }
-    setQqBotFeedback("info", "正在保存并连接 QQ 开放平台网关…");
+    setQqBotFeedback("info", tOr("channels.qqBotSavingConnecting", "正在保存并连接 QQ 开放平台网关…"));
     const qqbot: Record<string, unknown> = {
       enabled: channelsQqBotEnabledEl?.checked ?? false,
       appId,
@@ -498,13 +499,13 @@ export async function loadChannelsPanel(): Promise<void> {
       const status = await window.settings.channelsGetStatus() as Record<string, { phase?: string; message?: string }>;
       if (channelsQqBotAppSecretEl) {
         channelsQqBotAppSecretEl.value = "";
-        channelsQqBotAppSecretEl.placeholder = "已保存（输入新值会覆盖）";
+        channelsQqBotAppSecretEl.placeholder = tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）");
       }
       setQqBotFeedback(
         status.qqbot?.phase === "running" ? "ok" : "info",
         status.qqbot?.phase === "running"
-          ? "网关已连接，机器人已上线。"
-          : `已保存（当前状态：${status.qqbot?.message ?? status.qqbot?.phase ?? "未知"}）`,
+          ? tOr("channels.qqBotConnected", "网关已连接，机器人已上线。")
+          : tOr("channels.qqBotSavedPrefix", "已保存（当前状态：") + (status.qqbot?.message ?? status.qqbot?.phase ?? tOr("common.unknown", "未知")) + tOr("channels.qqBotSavedSuffix", "）"),
       );
     } catch (error) {
       setQqBotFeedback("err", error instanceof Error ? error.message : String(error));
@@ -512,12 +513,12 @@ export async function loadChannelsPanel(): Promise<void> {
   });
 
   channelsQqBotTestBtn?.addEventListener("click", async () => {
-    setQqBotFeedback("info", "正在校验 AppID / AppSecret…");
+    setQqBotFeedback("info", tOr("channels.qqBotTesting", "正在校验 AppID / AppSecret…"));
     try {
       const result = await window.settings.channelsQqBotTestConnection();
       setQqBotFeedback(result.ok ? "ok" : "err", result.ok
-        ? "凭证有效，可以正常连接 QQ 开放平台。"
-        : result.error ?? "连接失败");
+        ? tOr("channels.qqBotCredentialValid", "凭证有效，可以正常连接 QQ 开放平台。")
+        : result.error ?? tOr("channels.connectionFailed", "连接失败"));
     } catch (error) {
       setQqBotFeedback("err", error instanceof Error ? error.message : String(error));
     }
@@ -526,7 +527,7 @@ export async function loadChannelsPanel(): Promise<void> {
   // ===== Phase 3.4：消息日志事件绑定 =====
   channelsLogRefreshBtn?.addEventListener("click", () => void refreshChannelsLog());
   channelsLogClearBtn?.addEventListener("click", async () => {
-    if (!confirm("确认清空所有 bot 消息日志？")) return;
+    if (!confirm(tOr("channels.clearLogConfirm", "确认清空所有 bot 消息日志？"))) return;
     await window.settings.channelsLogClear();
     await refreshChannelsLog();
   });

@@ -2,6 +2,7 @@
 // 提供技能列表、详情查看、编辑、删除、外部技能安装、备份管理等 UI 功能。
 
 import "./skills.css";
+import { tOr } from "../i18n";
 
 // 声明 window.skills API（由 preload 暴露）
 declare global {
@@ -105,30 +106,30 @@ function escapeHtml(text: string): string {
 /** 格式化来源标签 */
 function formatSource(source?: string): string {
   switch (source) {
-    case "self-grown": return "自成长";
+    case "self-grown": return tOr("skills.sourceSelfGrowing", "自成长");
     case "forked": return "Fork";
-    case "umbrella": return "伞技能";
-    case "external": return "外部";
-    default: return source || "未知";
+    case "umbrella": return tOr("skills.sourceUmbrella", "伞技能");
+    case "external": return tOr("skills.sourceExternal", "外部");
+    default: return source || tOr("skills.unknownError", "未知错误");
   }
 }
 
 /** 加载并渲染技能列表 */
 async function loadSkills(): Promise<void> {
   if (!els.list) return;
-  els.list.innerHTML = '<p class="skills-loading">加载中...</p>';
+  els.list.innerHTML = `<p class="skills-loading">${tOr("skills.loadingLabel", "加载中...")}</p>`;
 
   try {
     const result = await window.skills?.listAll();
     if (!result?.success) {
-      els.list.innerHTML = `<p class="skills-error">加载失败：${escapeHtml(result?.error || "未知错误")}</p>`;
+      els.list.innerHTML = `<p class="skills-error">${tOr("skills.loadFailed", "加载失败：")}${escapeHtml(result?.error || tOr("skills.unknownError", "未知错误"))}</p>`;
       return;
     }
 
     allSkills = result.skills || [];
     renderSkillList();
   } catch (err) {
-    els.list.innerHTML = `<p class="skills-error">加载异常：${escapeHtml(String(err))}</p>`;
+    els.list.innerHTML = `<p class="skills-error">${tOr("skills.loadException", "加载异常：")}${escapeHtml(String(err))}</p>`;
   }
 }
 
@@ -151,26 +152,26 @@ function renderSkillList(): void {
   if (els.filterCount) {
     const total = allSkills.length;
     const shown = filtered.length;
-    els.filterCount.textContent = `显示 ${shown} / 共 ${total} 个技能`;
+    els.filterCount.textContent = `${tOr("skills.filterCountPrefix", "显示 ")}${shown}${tOr("skills.filterCountMid", " / 共 ")}${total}${tOr("skills.skillCountSuffix", " 个技能")}`;
   }
 
   if (filtered.length === 0) {
-    els.list.innerHTML = '<p class="skills-empty">没有符合筛选条件的技能。</p>';
+    els.list.innerHTML = `<p class="skills-empty">${tOr("skills.noFilterMatch", "没有符合筛选条件的技能。")}</p>`;
     return;
   }
 
   // 渲染技能卡片列表
   els.list.innerHTML = filtered.map((skill: any) => {
     const isCyrene = skill.system === "cyrene-builtin";
-    const systemLabel = isCyrene ? "Cyrene内置" : "自进化";
+    const systemLabel = isCyrene ? "Cyrene" + tOr("skills.builtin", "内置") : tOr("skills.selfEvolving", "自进化");
     const systemClass = isCyrene ? "cyrene" : "self";
     const disabledClass = skill.enabled ? "" : "skill-card--disabled";
 
     // Cyrene 原有技能不显示"检查更新"和"删除"按钮
-    const checkUpdateBtn = isCyrene ? "" : '<button class="skill-btn skill-btn--check-update" data-action="check-update">检查更新</button>';
-    const deleteBtn = isCyrene ? "" : '<button class="skill-btn skill-btn--delete" data-action="delete">删除</button>';
+    const checkUpdateBtn = isCyrene ? "" : `<button class="skill-btn skill-btn--check-update" data-action="check-update">${tOr("skills.checkUpdate", "检查更新")}</button>`;
+    const deleteBtn = isCyrene ? "" : `<button class="skill-btn skill-btn--delete" data-action="delete">${tOr("common.delete", "删除")}</button>`;
     // Cyrene 原有技能 source 标签显示"内置"
-    const sourceLabel = isCyrene ? "内置" : formatSource(skill.source);
+    const sourceLabel = isCyrene ? tOr("skills.builtin", "内置") : formatSource(skill.source);
     const sourceClass = isCyrene ? "external" : (skill.source || "unknown");
 
     return `
@@ -188,10 +189,10 @@ function renderSkillList(): void {
             </label>
           </div>
         </div>
-        <p class="skill-card__desc">${escapeHtml(skill.description || "无描述")}</p>
+        <p class="skill-card__desc">${escapeHtml(skill.description || tOr("skills.noDescription", "无描述"))}</p>
         <div class="skill-card__actions">
-          <button class="skill-btn skill-btn--view" data-action="view">查看</button>
-          <button class="skill-btn skill-btn--edit" data-action="edit">编辑</button>
+          <button class="skill-btn skill-btn--view" data-action="view">${tOr("skills.view", "查看")}</button>
+          <button class="skill-btn skill-btn--edit" data-action="edit">${tOr("common.edit", "编辑")}</button>
           ${checkUpdateBtn}
           ${deleteBtn}
         </div>
@@ -213,7 +214,7 @@ function renderSkillList(): void {
         try {
           const result = await window.skills?.setEnabled(id, enabled);
           if (result?.success) {
-            showStatus(`技能 '${name}' 已${enabled ? "启用" : "禁用"}`, "success");
+            showStatus(`${tOr("skills.namePrefix", "技能 '")}${name}${tOr("skills.nameQuoteTail", "' 已")}${enabled ? tOr("skills.enabled", "启用") : tOr("skills.disabled", "禁用")}`, "success");
             // 更新本地数据
             const skill = allSkills.find((s: any) => s.id === id);
             if (skill) skill.enabled = enabled;
@@ -225,11 +226,11 @@ function renderSkillList(): void {
               card.classList.toggle("skill-card--disabled", !enabled);
             }
           } else {
-            showStatus(`操作失败：${result?.error || "未知错误"}`, "error");
+            showStatus(`${tOr("skills.operationFailed", "操作失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
             toggle.checked = !enabled; // 回滚
           }
         } catch (err) {
-          showStatus(`操作异常：${String(err)}`, "error");
+          showStatus(`${tOr("skills.operationException", "操作异常：")}${String(err)}`, "error");
           toggle.checked = !enabled; // 回滚
         }
       });
@@ -251,7 +252,7 @@ async function handleSkillAction(id: string, name: string, action: string | null
 
   // Cyrene 原有技能只支持查看，其他操作显示提示
   if (!isSelf && action !== "view") {
-    showStatus("Cyrene 原有技能暂不支持此操作，请修改源码文件", "info");
+    showStatus(tOr("skills.cyreneNotSupported", "Cyrene 原有技能暂不支持此操作，请修改源码文件"), "info");
     return;
   }
 
@@ -282,7 +283,7 @@ async function viewSkill(id: string, name: string): Promise<void> {
       openModal(name, {
         name: skill.name,
         description: skill.description,
-        content: `# ${skill.name}\n\n${skill.description}\n\n（Cyrene 原有技能，完整内容请查看项目源码目录 src/plugins/）`,
+        content: `# ${skill.name}\n\n${skill.description}\n\n${tOr("skills.cyreneViewNotice", "（Cyrene 原有技能，完整内容请查看项目源码目录 src/plugins/）")}`,
         source: "external",
         enabled: skill.enabled,
       }, false);
@@ -294,12 +295,12 @@ async function viewSkill(id: string, name: string): Promise<void> {
   try {
     const result = await window.skills?.get(name);
     if (!result?.success) {
-      showStatus(`查看失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.viewFailed", "查看失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
       return;
     }
     openModal(name, result.skill, false);
   } catch (err) {
-    showStatus(`查看异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.viewException", "查看异常：")}${String(err)}`, "error");
   }
 }
 
@@ -308,12 +309,12 @@ async function editSkill(name: string): Promise<void> {
   try {
     const result = await window.skills?.get(name);
     if (!result?.success) {
-      showStatus(`加载失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.loadFailed", "加载失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
       return;
     }
     openModal(name, result.skill, true);
   } catch (err) {
-    showStatus(`加载异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.loadException", "加载异常：")}${String(err)}`, "error");
   }
 }
 
@@ -324,18 +325,18 @@ function openModal(name: string, skill: any, editable: boolean): void {
   currentEditName = name;
   isCreateMode = false;
 
-  els.modalTitle.textContent = editable ? `编辑技能：${name}` : `技能详情：${name}`;
+  els.modalTitle.textContent = editable ? `${tOr("skills.editTitlePrefix", "编辑技能：")}${name}` : `${tOr("skills.viewTitlePrefix", "技能详情：")}${name}`;
   els.editor.value = skill.content || "";
   els.editor.readOnly = !editable;
   els.modalSave.style.display = editable ? "inline-block" : "none";
 
   // 显示元数据
   const metaHtml = `
-    <div class="skill-meta-row"><span>名称：</span><strong>${escapeHtml(skill.name || name)}</strong></div>
-    <div class="skill-meta-row"><span>描述：</span>${escapeHtml(skill.description || "无")}</div>
-    <div class="skill-meta-row"><span>来源：</span>${formatSource(skill.source)}</div>
-    ${skill.sourceUrl ? `<div class="skill-meta-row"><span>来源URL：</span><a href="${escapeHtml(skill.sourceUrl)}" target="_blank">${escapeHtml(skill.sourceUrl)}</a></div>` : ""}
-    ${skill.protected ? `<div class="skill-meta-row"><span>状态：</span><span class="skill-badge skill-badge--protected">系统内置（受保护）</span></div>` : ""}
+    <div class="skill-meta-row"><span>${tOr("skills.metaName", "名称：")}</span><strong>${escapeHtml(skill.name || name)}</strong></div>
+    <div class="skill-meta-row"><span>${tOr("skills.metaDesc", "描述：")}</span>${escapeHtml(skill.description || tOr("skills.metaNoValue", "无"))}</div>
+    <div class="skill-meta-row"><span>${tOr("skills.metaSource", "来源：")}</span>${formatSource(skill.source)}</div>
+    ${skill.sourceUrl ? `<div class="skill-meta-row"><span>${tOr("skills.metaSourceUrl", "来源URL：")}</span><a href="${escapeHtml(skill.sourceUrl)}" target="_blank">${escapeHtml(skill.sourceUrl)}</a></div>` : ""}
+    ${skill.protected ? `<div class="skill-meta-row"><span>${tOr("skills.metaStatus", "状态：")}</span><span class="skill-badge skill-badge--protected">${tOr("skills.protectedBadge", "系统内置（受保护）")}</span></div>` : ""}
   `;
   els.meta.innerHTML = metaHtml;
 
@@ -356,58 +357,58 @@ async function saveSkill(): Promise<void> {
   try {
     const result = await window.skills?.edit(currentEditName, els.editor.value);
     if (result?.success) {
-      showStatus(`技能 '${currentEditName}' 已保存`, "success");
+      showStatus(`${tOr("skills.namePrefix", "技能 '")}${currentEditName}${tOr("skills.saveSuccessNameTail", "' 已保存")}`, "success");
       closeModal();
       await loadSkills();
     } else {
-      showStatus(`保存失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.saveFailed", "保存失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
     }
   } catch (err) {
-    showStatus(`保存异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.saveException", "保存异常：")}${String(err)}`, "error");
   }
 }
 
 /** 删除技能 */
 async function deleteSkill(name: string): Promise<void> {
-  if (!confirm(`确定要删除技能 '${name}' 吗？此操作不可撤销（建议先备份）。`)) return;
+  if (!confirm(`${tOr("skills.deleteConfirmPrefix", "确定要删除技能 '")}${name}${tOr("skills.deleteConfirmSuffix", "' 吗？此操作不可撤销（建议先备份）。")}`)) return;
 
   try {
     const result = await window.skills?.delete(name);
     if (result?.success) {
-      showStatus(`技能 '${name}' 已删除`, "success");
+      showStatus(`${tOr("skills.namePrefix", "技能 '")}${name}${tOr("skills.deleteSuccessNameTail", "' 已删除")}`, "success");
       await loadSkills();
     } else {
-      showStatus(`删除失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.deleteFailed", "删除失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
     }
   } catch (err) {
-    showStatus(`删除异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.deleteException", "删除异常：")}${String(err)}`, "error");
   }
 }
 
 /** 检查技能更新 */
 async function checkSkillUpdate(name: string): Promise<void> {
-  showStatus(`正在检查 '${name}' 的更新...`, "info");
+  showStatus(`${tOr("skills.checkingUpdateNamePrefix", "正在检查 '")}${name}${tOr("skills.checkingUpdateNameTail", "' 的更新...")}`, "info");
   try {
     const result = await window.skills?.checkUpdate(name);
     if (result?.success) {
       if (result.hasUpdate) {
-        if (confirm(`技能 '${name}' 有可用更新，是否更新？（更新前会自动备份）`)) {
+        if (confirm(`${tOr("skills.namePrefix", "技能 '")}${name}${tOr("skills.updateAvailableConfirmSuffix", "' 有可用更新，是否更新？（更新前会自动备份）")}`)) {
           const updateResult = await window.skills?.update(name);
           if (updateResult?.success) {
-            showStatus(`技能 '${name}' 已更新到最新版本`, "success");
+            showStatus(`${tOr("skills.namePrefix", "技能 '")}${name}${tOr("skills.updateSuccessNameTail", "' 已更新到最新版本")}`, "success");
             await loadSkills();
           } else {
-            showStatus(`更新失败：${updateResult?.error || "未知错误"}`, "error");
+            showStatus(`${tOr("skills.updateFailed", "更新失败：")}${updateResult?.error || tOr("skills.unknownError", "未知错误")}`, "error");
           }
         }
       } else {
-        showStatus(`技能 '${name}' 已是最新版本`, "success");
+        showStatus(`${tOr("skills.namePrefix", "技能 '")}${name}${tOr("skills.upToDateNameTail", "' 已是最新版本")}`, "success");
       }
     } else {
-      showStatus(`检查更新失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.checkUpdateFailed", "检查更新失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
     }
   } catch (err) {
-    showStatus(`检查更新异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.checkUpdateException", "检查更新异常：")}${String(err)}`, "error");
   }
 }
 
@@ -416,55 +417,55 @@ async function installSkill(): Promise<void> {
   if (!els.installUrl) return;
   const url = els.installUrl.value.trim();
   if (!url) {
-    showStatus("请输入技能 URL", "error");
+    showStatus(tOr("skills.installUrlRequired", "请输入技能 URL"), "error");
     return;
   }
 
-  showStatus("正在安装技能...", "info");
+  showStatus(tOr("skills.installing", "正在安装技能..."), "info");
   try {
     const result = await window.skills?.install(url);
     if (result?.success) {
-      showStatus(`技能 '${result.skillName}' 安装成功`, "success");
+      showStatus(`${tOr("skills.namePrefix", "技能 '")}${result.skillName}${tOr("skills.installSuccessNameTail", "' 安装成功")}`, "success");
       els.installUrl.value = "";
       await loadSkills();
     } else {
-      showStatus(`安装失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.installFailed", "安装失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
     }
   } catch (err) {
-    showStatus(`安装异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.installException", "安装异常：")}${String(err)}`, "error");
   }
 }
 
 /** 立即备份 */
 async function doBackup(): Promise<void> {
-  showStatus("正在备份技能...", "info");
+  showStatus(tOr("skills.backingUp", "正在备份技能..."), "info");
   try {
     const result = await window.skills?.backup();
     if (result?.success) {
-      showStatus("备份成功", "success");
+      showStatus(tOr("skills.backupSuccess", "备份成功"), "success");
     } else {
-      showStatus(`备份失败：${result?.error || "未知错误"}`, "error");
+      showStatus(`${tOr("skills.backupFailed", "备份失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
     }
   } catch (err) {
-    showStatus(`备份异常：${String(err)}`, "error");
+    showStatus(`${tOr("skills.backupException", "备份异常：")}${String(err)}`, "error");
   }
 }
 
 /** 加载并显示备份列表 */
 async function loadBackups(): Promise<void> {
   if (!els.backupList) return;
-  els.backupList.innerHTML = '<p class="skills-loading">加载中...</p>';
+  els.backupList.innerHTML = `<p class="skills-loading">${tOr("skills.loadingLabel", "加载中...")}</p>`;
 
   try {
     const result = await window.skills?.listBackups();
     if (!result?.success) {
-      els.backupList.innerHTML = `<p class="skills-error">加载失败：${escapeHtml(result?.error || "未知错误")}</p>`;
+      els.backupList.innerHTML = `<p class="skills-error">${tOr("skills.loadFailed", "加载失败：")}${escapeHtml(result?.error || tOr("skills.unknownError", "未知错误"))}</p>`;
       return;
     }
 
     const backups = result.backups || [];
     if (backups.length === 0) {
-      els.backupList.innerHTML = '<p class="skills-empty">暂无备份。</p>';
+      els.backupList.innerHTML = `<p class="skills-empty">${tOr("skills.noBackups", "暂无备份。")}</p>`;
       return;
     }
 
@@ -475,12 +476,12 @@ async function loadBackups(): Promise<void> {
           <span class="backup-card__time">${escapeHtml(new Date(backup.time).toLocaleString())}</span>
         </div>
         <div class="backup-card__meta">
-          <span>${backup.skillCount || 0} 个技能</span>
+          <span>${backup.skillCount || 0}${tOr("skills.skillCountSuffix", " 个技能")}</span>
           <span>${(backup.size / 1024).toFixed(1)} KB</span>
         </div>
         <div class="backup-card__actions">
-          <button class="skill-btn skill-btn--restore" data-action="restore">恢复</button>
-          <button class="skill-btn skill-btn--delete" data-action="delete">删除</button>
+          <button class="skill-btn skill-btn--restore" data-action="restore">${tOr("skills.restore", "恢复")}</button>
+          <button class="skill-btn skill-btn--delete" data-action="delete">${tOr("common.delete", "删除")}</button>
         </div>
       </div>
     `).join("");
@@ -493,24 +494,24 @@ async function loadBackups(): Promise<void> {
         btn.addEventListener("click", async () => {
           const action = btn.getAttribute("data-action");
           if (action === "restore") {
-            if (confirm(`确定要从备份 '${name}' 恢复吗？当前技能会被覆盖（恢复前会自动备份当前状态）。`)) {
+            if (confirm(`${tOr("skills.restoreConfirmPrefix", "确定要从备份 '")}${name}${tOr("skills.restoreConfirmSuffix", "' 恢复吗？当前技能会被覆盖（恢复前会自动备份当前状态）。")}`)) {
               const result = await window.skills?.restore(name);
               if (result?.success) {
-                showStatus("恢复成功", "success");
+                showStatus(tOr("skills.restoreSuccess", "恢复成功"), "success");
                 await loadSkills();
                 await loadBackups();
               } else {
-                showStatus(`恢复失败：${result?.error || "未知错误"}`, "error");
+                showStatus(`${tOr("skills.restoreFailed", "恢复失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
               }
             }
           } else if (action === "delete") {
-            if (confirm(`确定要删除备份 '${name}' 吗？`)) {
+            if (confirm(`${tOr("skills.deleteBackupConfirmPrefix", "确定要删除备份 '")}${name}${tOr("skills.deleteBackupConfirmSuffix", "' 吗？")}`)) {
               const result = await window.skills?.deleteBackup(name);
               if (result?.success) {
-                showStatus("备份已删除", "success");
+                showStatus(tOr("skills.backupDeleted", "备份已删除"), "success");
                 await loadBackups();
               } else {
-                showStatus(`删除失败：${result?.error || "未知错误"}`, "error");
+                showStatus(`${tOr("skills.deleteFailed", "删除失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}`, "error");
               }
             }
           }
@@ -518,7 +519,7 @@ async function loadBackups(): Promise<void> {
       });
     });
   } catch (err) {
-    els.backupList.innerHTML = `<p class="skills-error">加载异常：${escapeHtml(String(err))}</p>`;
+    els.backupList.innerHTML = `<p class="skills-error">${tOr("skills.loadException", "加载异常：")}${escapeHtml(String(err))}</p>`;
   }
 }
 

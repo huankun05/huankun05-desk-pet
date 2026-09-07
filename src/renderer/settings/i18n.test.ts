@@ -35,6 +35,14 @@ describe("settings i18n", () => {
     expect(document.querySelector("aside")?.getAttribute("aria-label")).toBe("设置导航");
   });
 
+  it("applySettingsI18n replaces title attribute via data-i18n-title", () => {
+    document.body.innerHTML = `
+      <a id="link" href="#" data-i18n-title="settings.visitSiteTitle">link</a>
+    `;
+    applySettingsI18n();
+    expect(document.querySelector("a")?.getAttribute("title")).toBe("前往厂商官网");
+  });
+
   it("applySettingsI18n skips containers with child elements (icons)", () => {
     document.body.innerHTML = `
       <h1 data-i18n="panel.api"><svg id="icon"></svg>API 设置</h1>

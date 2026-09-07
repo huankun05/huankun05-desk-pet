@@ -149,8 +149,6 @@ export interface GeneralSettings extends ChatAppearanceSettings {
   asrVadThreshold: number;
   /** 通话中显示文字转写 */
   asrShowTranscript: boolean;
-  /** 截图全局热键（Electron Accelerator 格式，如 "Alt+Shift+S"） */
-  screenshotHotkey: string;
   /** 工具-模式覆盖层：用户自定义每个工具在 learn/code/work 模式下的可见性。
    *  key = toolId，value = { mode: enabled }。覆盖优先于工具声明的 modes 字段。
    *  空对象 = 全部按默认（modes 字段或全可见），由设置面板 UI 写入。 */

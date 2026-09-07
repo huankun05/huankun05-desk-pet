@@ -2,6 +2,7 @@
 // 从 settings.ts 抽离，无 DOM/状态依赖。
 
 import type { ScheduleConfig } from "./types";
+import { tOr } from "../i18n";
 
 /** 将任意时间字符串转为 <input type="datetime-local"> 需要的本地时间格式 YYYY-MM-DDTHH:mm。 */
 export function toLocalDateTimeInputValue(value: string): string {
@@ -18,20 +19,28 @@ export function isValidTimeOfDay(value: string): boolean {
 
 /** 将时间值格式化为本地可读字符串；空/无效返回固定占位符。 */
 export function formatSchedulerDate(value: string | null | undefined): string {
-  if (!value) return "未安排";
+  if (!value) return tOr("scheduler.notScheduled", "未安排");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "时间无效";
+  if (Number.isNaN(date.getTime())) return tOr("scheduler.timeInvalid", "时间无效");
   return date.toLocaleString();
 }
 
 /** 依据 ScheduleConfig 生成一句话描述（用于列表项 meta）。 */
 export function describeSchedule(schedule: ScheduleConfig): string {
-  if (schedule.kind === "once") return "仅一次 " + formatSchedulerDate(schedule.runAt);
-  if (schedule.kind === "daily") return "每天 " + schedule.timeOfDay;
+  if (schedule.kind === "once") return tOr("scheduler.oncePrefix", "仅一次 ") + formatSchedulerDate(schedule.runAt);
+  if (schedule.kind === "daily") return tOr("scheduler.dailyPrefix", "每天 ") + schedule.timeOfDay;
   if (schedule.kind === "weekly") {
-    const names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    const names = [
+      tOr("scheduler.weekday.sunday", "周日"),
+      tOr("scheduler.weekday.monday", "周一"),
+      tOr("scheduler.weekday.tuesday", "周二"),
+      tOr("scheduler.weekday.wednesday", "周三"),
+      tOr("scheduler.weekday.thursday", "周四"),
+      tOr("scheduler.weekday.friday", "周五"),
+      tOr("scheduler.weekday.saturday", "周六"),
+    ];
     return `${names[schedule.dayOfWeek]} ${schedule.timeOfDay}`;
   }
-  if (schedule.kind === "cron") return "cron " + schedule.expr;
-  return `每隔 ${schedule.every} ${schedule.unit === "minutes" ? "分钟" : "小时"}`;
+  if (schedule.kind === "cron") return tOr("scheduler.cronPrefix", "cron ") + schedule.expr;
+  return tOr("scheduler.intervalPrefix", "每隔 ") + schedule.every + (schedule.unit === "minutes" ? tOr("scheduler.minutes", "分钟") : tOr("scheduler.hours", "小时"));
 }

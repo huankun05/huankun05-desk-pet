@@ -1,4 +1,4 @@
-﻿// 角色与风格面板逻辑
+// 角色与风格面板逻辑
 import { STYLE_DISPLAY_NAMES, type CharacterConfig } from "../../../shared/character-types";
 import type { StyleId } from "../../../shared/style-sampling";
 import {
@@ -16,6 +16,7 @@ import {
   characterStyleSaveStatus,
   characterStyleForm,
 } from "./dom";
+import { tOr } from "../i18n";
 
 interface GeneralSettingsWithCharacters {
   characters?: CharacterConfig[];
@@ -61,11 +62,11 @@ function renderCharacterList(): void {
     item.innerHTML = `
       <div class="character-style-item__info">
         <strong>${char.name}</strong>
-        <span>${styleName}风格 · ${char.modelPath}</span>
+        <span>${styleName}${tOr("characterStyle.styleSuffix", "风格")} · ${char.modelPath}</span>
       </div>
       <div class="character-style-item__actions">
-        <button type="button" class="ghost-btn" data-edit="${idx}">编辑</button>
-        <button type="button" class="ghost-btn is-danger" data-delete="${idx}" ${isDefault ? "disabled title='默认角色不可删除'" : ""}>删除</button>
+        <button type="button" class="ghost-btn" data-edit="${idx}">${tOr("common.edit", "编辑")}</button>
+        <button type="button" class="ghost-btn is-danger" data-delete="${idx}" ${isDefault ? "disabled title='" + tOr("characterStyle.defaultRoleProtected", "默认角色不可删除") + "'" : ""}>${tOr("common.delete", "删除")}</button>
       </div>
     `;
     characterStyleList.appendChild(item);
@@ -76,7 +77,7 @@ function openEditor(index: number): void {
   editingIndex = index;
   const char = editingCharacters[index];
   if (characterStyleEditorTitle) {
-    characterStyleEditorTitle.textContent = index === -1 ? "新建角色" : "编辑角色";
+    characterStyleEditorTitle.textContent = index === -1 ? tOr("characterStyle.editorTitleNew", "新建角色") : tOr("characterStyle.editorTitleEdit", "编辑角色");
   }
   if (characterStyleEditName) characterStyleEditName.value = char?.name ?? "";
   if (characterStyleEditModelPath) characterStyleEditModelPath.value = char?.modelPath ?? "";
@@ -96,8 +97,8 @@ async function saveEditor(): Promise<void> {
   const modelPath = characterStyleEditModelPath?.value.trim() ?? "";
   const styleId = (characterStyleEditStyle?.value ?? "default") as StyleId;
 
-  if (!name) { setStatus("请填写角色名称", "is-error"); return; }
-  if (!modelPath) { setStatus("请填写模型路径", "is-error"); return; }
+  if (!name) { setStatus(tOr("characterStyle.nameRequired", "请填写角色名称"), "is-error"); return; }
+  if (!modelPath) { setStatus(tOr("characterStyle.modelPathRequired", "请填写模型路径"), "is-error"); return; }
 
   if (editingIndex === -1) {
     const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, "-") || "character";
@@ -118,11 +119,11 @@ async function saveEditor(): Promise<void> {
 
   try {
     await settingsApi()?.saveGeneral?.({ characters: editingCharacters });
-    setStatus("角色已保存", "is-ok");
+    setStatus(tOr("characterStyle.saved", "角色已保存"), "is-ok");
     closeEditor();
     renderCharacterList();
   } catch {
-    setStatus("保存失败", "is-error");
+    setStatus(tOr("common.saveFailed", "保存失败"), "is-error");
   }
 }
 
@@ -134,7 +135,7 @@ async function loadCharacters(): Promise<void> {
       : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json", styleId: "default" as StyleId }];
     renderCharacterList();
   } catch {
-    setStatus("读取角色列表失败", "is-error");
+    setStatus(tOr("characterStyle.loadFailed", "读取角色列表失败"), "is-error");
   }
 }
 
@@ -161,14 +162,14 @@ export function initCharacterStylePanel(): void {
     } else if (deleteBtn && !deleteBtn.hasAttribute("disabled")) {
       const idx = Number(deleteBtn.getAttribute("data-delete"));
       const char = editingCharacters[idx];
-      if (window.confirm(`确定删除角色「${char.name}」？\n删除后不可恢复。`)) {
+      if (window.confirm(tOr("characterStyle.deleteConfirmPrefix", "确定删除角色「") + char.name + tOr("characterStyle.deleteConfirmSuffix", "」？\n删除后不可恢复。"))) {
         editingCharacters.splice(idx, 1);
         settingsApi()?.saveGeneral?.({ characters: editingCharacters })
           .then(() => {
-            setStatus("角色已删除", "is-ok");
+            setStatus(tOr("characterStyle.deleted", "角色已删除"), "is-ok");
             renderCharacterList();
           })
-          .catch(() => setStatus("删除失败", "is-error"));
+          .catch(() => setStatus(tOr("characterStyle.deleteFailed", "删除失败"), "is-error"));
       }
     }
   });
@@ -187,7 +188,7 @@ export function initCharacterStylePanel(): void {
   const observer = new MutationObserver(() => {
     if (characterStyleForm && !characterStyleForm.classList.contains("is-hidden")) {
       void loadCharacters();
-      setStatus("等待操作");
+      setStatus(tOr("characterStyle.waitingAction", "等待操作"));
     }
   });
   if (characterStyleForm) {
@@ -216,35 +217,35 @@ function initStyleEditor(): void {
 
   async function loadStyle(styleId: string): Promise<void> {
     try {
-      setStatus("加载中...");
+      setStatus(tOr("characterStyle.styleLoading", "加载中..."));
       const settingsApi = (window as unknown as { settings?: { readStylePrompt?: (id: string) => Promise<{ ok: boolean; content?: string; error?: string }> } }).settings;
       const result = await settingsApi?.readStylePrompt?.(styleId);
       if (result?.ok && result.content !== undefined) {
         promptTextarea.value = result.content;
-        setStatus("加载成功");
+        setStatus(tOr("characterStyle.styleLoadSuccess", "加载成功"));
       } else {
         promptTextarea.value = "";
-        setStatus("加载失败: " + (result?.error || "未知错误"), "error");
+        setStatus(tOr("characterStyle.styleLoadFailedPrefix", "加载失败: ") + (result?.error || tOr("characterStyle.unknownError", "未知错误")), "error");
       }
     } catch (error) {
-      setStatus("加载失败: " + (error instanceof Error ? error.message : String(error)), "error");
+      setStatus(tOr("characterStyle.styleLoadFailedPrefix", "加载失败: ") + (error instanceof Error ? error.message : String(error)), "error");
     }
   }
 
   async function saveStyle(): Promise<void> {
     try {
-      setStatus("保存中...");
+      setStatus(tOr("characterStyle.styleSaving", "保存中..."));
       const styleId = styleSelect.value;
       const content = promptTextarea.value;
       const settingsApi = (window as unknown as { settings?: { writeStylePrompt?: (id: string, content: string) => Promise<{ ok: boolean; filePath?: string; error?: string }> } }).settings;
       const result = await settingsApi?.writeStylePrompt?.(styleId, content);
       if (result?.ok) {
-        setStatus("保存成功", "success");
+        setStatus(tOr("characterStyle.styleSaveSuccess", "保存成功"), "success");
       } else {
-        setStatus("保存失败: " + (result?.error || "未知错误"), "error");
+        setStatus(tOr("characterStyle.styleSaveFailedPrefix", "保存失败: ") + (result?.error || tOr("characterStyle.unknownError", "未知错误")), "error");
       }
     } catch (error) {
-      setStatus("保存失败: " + (error instanceof Error ? error.message : String(error)), "error");
+      setStatus(tOr("characterStyle.styleSaveFailedPrefix", "保存失败: ") + (error instanceof Error ? error.message : String(error)), "error");
     }
   }
 
@@ -291,34 +292,34 @@ function initSoulEditor(): void {
 
   async function loadSoul(): Promise<void> {
     try {
-      setStatus("加载中...");
+      setStatus(tOr("characterStyle.styleLoading", "加载中..."));
       const settingsApi = (window as unknown as { settings?: { readStylePrompt?: (id: string) => Promise<{ ok: boolean; content?: string; error?: string }> } }).settings;
       const result = await settingsApi?.readStylePrompt?.("soul");
       if (result?.ok && result.content !== undefined) {
         promptTextarea.value = result.content;
-        setStatus("加载成功");
+        setStatus(tOr("characterStyle.styleLoadSuccess", "加载成功"));
       } else {
         promptTextarea.value = "";
-        setStatus("加载失败: " + (result?.error || "未知错误"), "error");
+        setStatus(tOr("characterStyle.styleLoadFailedPrefix", "加载失败: ") + (result?.error || tOr("characterStyle.unknownError", "未知错误")), "error");
       }
     } catch (error) {
-      setStatus("加载失败: " + (error instanceof Error ? error.message : String(error)), "error");
+      setStatus(tOr("characterStyle.styleLoadFailedPrefix", "加载失败: ") + (error instanceof Error ? error.message : String(error)), "error");
     }
   }
 
   async function saveSoul(): Promise<void> {
     try {
-      setStatus("保存中...");
+      setStatus(tOr("characterStyle.styleSaving", "保存中..."));
       const content = promptTextarea.value;
       const settingsApi = (window as unknown as { settings?: { writeStylePrompt?: (id: string, content: string) => Promise<{ ok: boolean; filePath?: string; error?: string }> } }).settings;
       const result = await settingsApi?.writeStylePrompt?.("soul", content);
       if (result?.ok) {
-        setStatus("保存成功", "success");
+        setStatus(tOr("characterStyle.styleSaveSuccess", "保存成功"), "success");
       } else {
-        setStatus("保存失败: " + (result?.error || "未知错误"), "error");
+        setStatus(tOr("characterStyle.styleSaveFailedPrefix", "保存失败: ") + (result?.error || tOr("characterStyle.unknownError", "未知错误")), "error");
       }
     } catch (error) {
-      setStatus("保存失败: " + (error instanceof Error ? error.message : String(error)), "error");
+      setStatus(tOr("characterStyle.styleSaveFailedPrefix", "保存失败: ") + (error instanceof Error ? error.message : String(error)), "error");
     }
   }
 

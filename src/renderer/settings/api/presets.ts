@@ -4,6 +4,7 @@
 
 import type { ModelPreset } from "../shared/types";
 import { CUSTOM_ENDPOINT_PROVIDERS } from "../custom-endpoint-state";
+import { tOr } from "../i18n";
 
 export const MODEL_PRESETS: ModelPreset[] = [
   // 当前已适配 9 家：MiniMax / DeepSeek / 豆包 / 智谱 GLM / Kimi / Qwen / ChatGPT / Claude / MiMo
@@ -112,7 +113,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   },
   {
     providerName: CUSTOM_ENDPOINT_PROVIDERS.cloud,
-    shortName: "自定义",
+    shortName: tOr("api.presets.customShortName", "自定义"),
     baseUrl: "",
     transport: "openai",
     mainModels: [],
@@ -121,7 +122,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   },
   {
     providerName: CUSTOM_ENDPOINT_PROVIDERS.local,
-    shortName: "本地模型",
+    shortName: tOr("api.presets.localShortName", "本地模型"),
     baseUrl: "",
     transport: "openai",
     mainModels: [],

@@ -10,6 +10,7 @@
  */
 
 import { showModal } from "../shared/modal";
+import { tOr } from "../i18n";
 import "./lsp.css";
 
 // ── 类型定义 ────────────────────────────────────────────────
@@ -74,7 +75,7 @@ function renderServers(): void {
   if (!listEl) return;
 
   if (currentConfig.servers.length === 0) {
-    listEl.innerHTML = '<p class="form-hint">暂无语言服务器，点击下方按钮添加。</p>';
+    listEl.innerHTML = `<p class="form-hint">${tOr("lsp.empty", "暂无语言服务器，点击下方按钮添加。")}</p>`;
     return;
   }
 
@@ -82,29 +83,29 @@ function renderServers(): void {
     .map((server, index) => `
       <div class="lsp-server-card" data-index="${index}">
         <div class="lsp-server-card__header">
-          <input type="text" class="lsp-server-name" value="${escapeHtml(server.name || "")}" placeholder="服务器名称（如：TypeScript）" data-field="name" />
+          <input type="text" class="lsp-server-name" value="${escapeHtml(server.name || "")}" placeholder="${tOr("lsp.namePlaceholder", "服务器名称（如：TypeScript）")}" data-field="name" />
           <label class="toggle-switch">
             <input type="checkbox" class="lsp-server-enabled" ${server.enabled ? "checked" : ""} data-field="enabled" />
             <span class="toggle-switch__slider"></span>
           </label>
-          <button type="button" class="btn-danger btn-sm lsp-server-delete" data-index="${index}">删除</button>
+          <button type="button" class="btn-danger btn-sm lsp-server-delete" data-index="${index}">${tOr("common.delete", "删除")}</button>
         </div>
         <div class="lsp-server-card__body">
           <div class="form-row">
-            <label class="form-label">启动命令</label>
+            <label class="form-label">${tOr("lsp.commandLabel", "启动命令")}</label>
             <div class="form-control">
-              <input type="text" class="lsp-server-command" value="${escapeHtml(server.command)}" placeholder="如：typescript-language-server --stdio" data-field="command" />
-              <span class="form-hint">语言服务器的启动命令，需包含 --stdio 参数。</span>
+              <input type="text" class="lsp-server-command" value="${escapeHtml(server.command)}" placeholder="${tOr("lsp.commandPlaceholder", "如：typescript-language-server --stdio")}" data-field="command" />
+              <span class="form-hint">${tOr("lsp.commandHint", "语言服务器的启动命令，需包含 --stdio 参数。")}</span>
             </div>
           </div>
           <div class="form-row">
-            <label class="form-label">工作区根目录</label>
+            <label class="form-label">${tOr("lsp.workspaceLabel", "工作区根目录")}</label>
             <div class="form-control">
-              <input type="text" class="lsp-server-workspace" value="${escapeHtml(server.workspaceRoot || "")}" placeholder="可选，默认为当前项目目录" data-field="workspaceRoot" />
+              <input type="text" class="lsp-server-workspace" value="${escapeHtml(server.workspaceRoot || "")}" placeholder="${tOr("lsp.workspacePlaceholder", "可选，默认为当前项目目录")}" data-field="workspaceRoot" />
             </div>
           </div>
           <div class="form-actions">
-            <button type="button" class="btn-secondary btn-sm lsp-server-test" data-index="${index}">测试连接</button>
+            <button type="button" class="btn-secondary btn-sm lsp-server-test" data-index="${index}">${tOr("common.testConnection", "测试连接")}</button>
             <span class="lsp-server-status" data-status-for="${index}"></span>
           </div>
         </div>
@@ -158,14 +159,14 @@ function bindServerEvents(): void {
       const server = currentConfig.servers[index];
       const statusEl = listEl.querySelector(`[data-status-for="${index}"]`) as HTMLElement;
       if (statusEl) {
-        statusEl.textContent = "测试中...";
+        statusEl.textContent = tOr("lsp.testing", "测试中...");
         statusEl.className = "lsp-server-status lsp-server-status--testing";
       }
 
       const api = getLspApi();
       if (!api) {
         if (statusEl) {
-          statusEl.textContent = "LSP API 不可用";
+          statusEl.textContent = tOr("lsp.apiUnavailable", "LSP API 不可用");
           statusEl.className = "lsp-server-status lsp-server-status--error";
         }
         return;
@@ -175,16 +176,16 @@ function bindServerEvents(): void {
         const result = await api.testConnection(server.command);
         if (statusEl) {
           if (result.connected) {
-            statusEl.textContent = `✓ 连接成功（${result.serverName}${result.serverVersion ? " v" + result.serverVersion : ""}）`;
+            statusEl.textContent = tOr("lsp.connectedPrefix", "✓ 连接成功（") + result.serverName + (result.serverVersion ? " v" + result.serverVersion : "") + tOr("lsp.connectedSuffix", "）");
             statusEl.className = "lsp-server-status lsp-server-status--success";
           } else {
-            statusEl.textContent = `✗ 连接失败：${result.error}`;
+            statusEl.textContent = tOr("lsp.connectFailedPrefix", "✗ 连接失败：") + result.error;
             statusEl.className = "lsp-server-status lsp-server-status--error";
           }
         }
       } catch (error) {
         if (statusEl) {
-          statusEl.textContent = `✗ 测试异常：${(error as Error).message}`;
+          statusEl.textContent = tOr("lsp.testErrorPrefix", "✗ 测试异常：") + (error as Error).message;
           statusEl.className = "lsp-server-status lsp-server-status--error";
         }
       }
@@ -274,12 +275,12 @@ export async function initLspPanel(): Promise<void> {
       try {
         const result = await api.saveConfig(currentConfig);
         if (result.success) {
-          showSaveStatus("配置已保存", "success");
+          showSaveStatus(tOr("lsp.saved", "配置已保存"), "success");
         } else {
-          showSaveStatus("保存失败", "error");
+          showSaveStatus(tOr("common.saveFailed", "保存失败"), "error");
         }
       } catch (error) {
-        showSaveStatus(`保存失败：${(error as Error).message}`, "error");
+        showSaveStatus(tOr("lsp.saveFailedPrefix", "保存失败：") + (error as Error).message, "error");
       }
     });
   }

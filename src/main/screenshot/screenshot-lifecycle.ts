@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as fs from "fs";
 import { spawn } from "node:child_process";
-import { app, BrowserWindow, globalShortcut, nativeImage } from "electron";
+import { app, BrowserWindow, nativeImage } from "electron";
 import { randomUUID } from "crypto";
 import { IPC } from "../../shared/ipc-channels";
 import { createIpcScope, type IpcScope } from "../application/ipc-scope";
@@ -17,7 +17,6 @@ import {
 export type { ScreenshotService };
 
 export interface ScreenshotLifecycleOptions {
-  initialHotkey: string;
   getReactChatWindow: () => BrowserWindow | null;
   capturePetWindow: () => Promise<Electron.NativeImage | null>;
   /** 传入共享 scope 以便退出时统一注销；缺省时使用独立 scope。 */
@@ -112,9 +111,6 @@ export function initializeScreenshotService(
 
   const service = createScreenshotService({
     client,
-    registerShortcut: (accelerator, callback) =>
-      globalShortcut.register(accelerator, callback),
-    unregisterShortcut: (accelerator) => globalShortcut.unregister(accelerator),
     sendInsert: (data) => {
       const validated = validateInsert(data);
       const reactChatWindow = getReactChatWindow();
@@ -137,14 +133,6 @@ export function initializeScreenshotService(
   ipc.handle(IPC.SCREENSHOT_SAVE_TEMP, (_event, base64: string, mime: string) =>
     saveScreenshotPasteTemp(base64, mime),
   );
-  ipc.handle(IPC.SCREENSHOT_HOTKEY_CAPTURE_START, () => {
-    service.suspendHotkey();
-    return true;
-  });
-  ipc.handle(IPC.SCREENSHOT_HOTKEY_CAPTURE_END, () => {
-    service.resumeHotkey();
-    return true;
-  });
 
   ipc.handle("debug:screenshot", async () => {
     const image = await capturePetWindow();
@@ -155,6 +143,5 @@ export function initializeScreenshotService(
     return outPath;
   });
 
-  service.init(options.initialHotkey);
   return service;
 }

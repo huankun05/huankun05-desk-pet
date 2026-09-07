@@ -12,6 +12,7 @@ import {
   obsidianVaultAutoSync,
   obsidianVaultHint,
 } from "./dom";
+import { tOr } from "../i18n";
 
 async function refreshObsidianVaultUI(): Promise<void> {
   const api = window.memoryPanel;
@@ -22,10 +23,10 @@ async function refreshObsidianVaultUI(): Promise<void> {
       // 已绑定
       obsidianVaultUnbound?.classList.add("is-hidden");
       obsidianVaultBound?.classList.remove("is-hidden");
-      if (obsidianVaultPath) obsidianVaultPath.textContent = `绑定路径：${config.vaultPath}`;
+      if (obsidianVaultPath) obsidianVaultPath.textContent = tOr("memory.obsidian.vaultPathPrefix", "绑定路径：") + config.vaultPath;
       if (obsidianVaultAutoSync) obsidianVaultAutoSync.checked = config.autoSync;
       if (config.lastSyncAt > 0 && obsidianVaultHint) {
-        obsidianVaultHint.textContent = `上次同步：${new Date(config.lastSyncAt).toLocaleString()}`;
+        obsidianVaultHint.textContent = tOr("memory.obsidian.lastSyncPrefix", "上次同步：") + new Date(config.lastSyncAt).toLocaleString();
       }
     } else {
       // 未绑定
@@ -48,18 +49,18 @@ export function initObsidianVaultUI(): void {
     if (!btn) return;
     btn.disabled = true;
     const original = btn.textContent;
-    btn.textContent = "绑定中...";
+    btn.textContent = tOr("memory.obsidian.binding", "绑定中...");
     if (obsidianVaultHint) obsidianVaultHint.textContent = "";
     try {
       const result = await api.bindVault();
       if (result.ok) {
-        if (obsidianVaultHint) obsidianVaultHint.textContent = `已绑定并同步 ${result.fileCount} 个文件`;
+        if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.boundSyncPrefix", "已绑定并同步 ") + result.fileCount + tOr("memory.obsidian.fileCountSuffix", " 个文件");
       } else if (!result.canceled) {
-        if (obsidianVaultHint) obsidianVaultHint.textContent = `绑定失败：${result.error}`;
+        if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.bindFailedPrefix", "绑定失败：") + result.error;
       }
       await refreshObsidianVaultUI();
     } catch (err) {
-      if (obsidianVaultHint) obsidianVaultHint.textContent = `绑定失败：${err instanceof Error ? err.message : String(err)}`;
+      if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.bindFailedPrefix", "绑定失败：") + (err instanceof Error ? err.message : String(err));
     } finally {
       btn.disabled = false;
       btn.textContent = original;
@@ -73,17 +74,17 @@ export function initObsidianVaultUI(): void {
     if (!btn) return;
     btn.disabled = true;
     const original = btn.textContent;
-    btn.textContent = "同步中...";
+    btn.textContent = tOr("memory.obsidian.syncing", "同步中...");
     if (obsidianVaultHint) obsidianVaultHint.textContent = "";
     try {
       const result = await api.syncNow();
       if (result.ok) {
-        if (obsidianVaultHint) obsidianVaultHint.textContent = `已同步 ${result.fileCount} 个文件 · ${new Date().toLocaleString()}`;
+        if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.syncedPrefix", "已同步 ") + result.fileCount + tOr("memory.obsidian.syncedSuffix", " 个文件 · ") + new Date().toLocaleString();
       } else {
-        if (obsidianVaultHint) obsidianVaultHint.textContent = `同步失败：${result.error}`;
+        if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.syncFailedPrefix", "同步失败：") + result.error;
       }
     } catch (err) {
-      if (obsidianVaultHint) obsidianVaultHint.textContent = `同步失败：${err instanceof Error ? err.message : String(err)}`;
+      if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.syncFailedPrefix", "同步失败：") + (err instanceof Error ? err.message : String(err));
     } finally {
       btn.disabled = false;
       btn.textContent = original;
@@ -94,7 +95,7 @@ export function initObsidianVaultUI(): void {
     const api = window.memoryPanel;
     if (!api) return;
     await api.unbindVault();
-    if (obsidianVaultHint) obsidianVaultHint.textContent = "已解绑（vault 文件夹里的 md 不会被删除）";
+    if (obsidianVaultHint) obsidianVaultHint.textContent = tOr("memory.obsidian.unbound", "已解绑（vault 文件夹里的 md 不会被删除）");
     await refreshObsidianVaultUI();
   });
 
@@ -102,6 +103,6 @@ export function initObsidianVaultUI(): void {
     const api = window.memoryPanel;
     if (!api) return;
     await api.setAutoSync(obsidianVaultAutoSync.checked);
-    if (obsidianVaultHint) obsidianVaultHint.textContent = obsidianVaultAutoSync.checked ? "已开启自动同步" : "已关闭自动同步";
+    if (obsidianVaultHint) obsidianVaultHint.textContent = obsidianVaultAutoSync.checked ? tOr("memory.obsidian.autoSyncOn", "已开启自动同步") : tOr("memory.obsidian.autoSyncOff", "已关闭自动同步");
   });
 }

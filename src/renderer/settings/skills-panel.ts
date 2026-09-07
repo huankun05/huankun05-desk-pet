@@ -4,6 +4,7 @@
  */
 
 import "./skills.css";
+import { tOr } from "./i18n";
 import { CustomSelect } from "./components/custom-select/custom-select";
 
 interface SkillInfo {
@@ -46,8 +47,8 @@ function getSourceType(source: string): "self" | "external" {
 }
 
 function getSourceLabel(source: string): string {
-  if (source === "self-evolving" || source === "self") return "自进化";
-  return "外部获取";
+  if (source === "self-evolving" || source === "self") return tOr("skills.selfEvolving", "自进化");
+  return tOr("skills.sourceFetched", "外部获取");
 }
 
 function filterSkills(): SkillInfo[] {
@@ -68,7 +69,7 @@ function updateFilterCount(): void {
   const countEl = document.getElementById("skills-filter-count");
   if (countEl) {
     const filtered = filterSkills();
-    countEl.textContent = `显示 ${filtered.length} / ${allSkills.length} 个技能`;
+    countEl.textContent = `${tOr("skills.filterCountPrefix", "显示 ")}${filtered.length}${tOr("skills.filterCountMid", " / 共 ")}${allSkills.length}${tOr("skills.skillCountSuffix", " 个技能")}`;
   }
 }
 
@@ -76,7 +77,7 @@ async function loadSkills(): Promise<void> {
   const listEl = document.getElementById("skills-list");
   if (!listEl) return;
 
-  listEl.innerHTML = '<p class="skills-loading">加载中...</p>';
+  listEl.innerHTML = `<p class="skills-loading">${tOr("skills.loadingLabel", "加载中...")}</p>`;
 
   try {
     const api = getSettingsApi();
@@ -88,13 +89,13 @@ async function loadSkills(): Promise<void> {
       allSkills = result.skills;
     } else {
       allSkills = [];
-      listEl.innerHTML = `<p class="skills-error">加载失败：${result?.error || "未知错误"}</p>`;
+      listEl.innerHTML = `<p class="skills-error">${tOr("skills.loadFailed", "加载失败：")}${result?.error || tOr("skills.unknownError", "未知错误")}</p>`;
       return;
     }
     
     renderSkills();
   } catch (err) {
-    listEl.innerHTML = `<p class="skills-error">加载异常：${String(err)}</p>`;
+    listEl.innerHTML = `<p class="skills-error">${tOr("skills.loadException", "加载异常：")}${String(err)}</p>`;
   }
 }
 
@@ -106,15 +107,15 @@ function renderSkills(): void {
   updateFilterCount();
 
   if (filtered.length === 0) {
-    listEl.innerHTML = '<p class="skills-empty">没有符合筛选条件的技能。</p>';
+    listEl.innerHTML = `<p class="skills-empty">${tOr("skills.noFilterMatch", "没有符合筛选条件的技能。")}</p>`;
     return;
   }
 
   let html = '';
   for (const skill of filtered) {
     const id = skill.id || skill.name || "unknown";
-    const name = skill.name || skill.id || "未知技能";
-    const description = skill.description || "暂无描述";
+    const name = skill.name || skill.id || tOr("skills.unknownSkill", "未知技能");
+    const description = skill.description || tOr("skills.noDescriptionYet", "暂无描述");
     const enabled = skill.enabled !== false;
     const source = skill.source || "external";
     const sourceType = getSourceType(source);
@@ -166,9 +167,9 @@ function renderSkills(): void {
         // 更新本地数据
         const skill = allSkills.find((s) => s.id === id);
         if (skill) skill.enabled = target.checked;
-        setStatus(`技能 "${id}" 已${target.checked ? "启用" : "禁用"}`, "success");
+        setStatus(`${tOr("skills.namePrefixDq", '技能 "')}${id}${tOr("skills.nameQuoteTailDq", '" 已')}${target.checked ? tOr("skills.enabled", "启用") : tOr("skills.disabled", "禁用")}`, "success");
       } catch (err) {
-        setStatus(`操作失败：${String(err)}`, "error");
+        setStatus(`${tOr("skills.operationFailed", "操作失败：")}${String(err)}`, "error");
         target.checked = !target.checked;
       }
     });
@@ -203,13 +204,13 @@ export function initSkillsPanel(): void {
   const rescanBtn = document.getElementById("skill-rescan-btn");
   rescanBtn?.addEventListener("click", async () => {
     try {
-      setStatus("正在重新扫描技能目录...");
+      setStatus(tOr("skills.rescanning", "正在重新扫描技能目录..."));
       const api = getSettingsApi();
       await api?.rescanSkills?.();
-      setStatus("重新扫描完成", "success");
+      setStatus(tOr("skills.rescanDone", "重新扫描完成"), "success");
       await loadSkills();
     } catch (err) {
-      setStatus(`重新扫描失败：${String(err)}`, "error");
+      setStatus(`${tOr("skills.rescanFailed", "重新扫描失败：")}${String(err)}`, "error");
     }
   });
 

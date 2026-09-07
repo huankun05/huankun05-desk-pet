@@ -1,6 +1,7 @@
 // 商汤 SenseAudio TTS 配置面板逻辑
 
 import { ttsState } from "./state";
+import { tOr } from "../i18n";
 
 // ===== 商汤 TTS 配置 =====
 export function initSenseAudioTts(): void {
@@ -154,14 +155,14 @@ export function initSenseAudioTts(): void {
   testBtn?.addEventListener("click", async () => {
     if (!apiKeyInput?.value.trim()) {
       if (testStatus) {
-        testStatus.textContent = "❌ 请先填写 API Key";
+        testStatus.textContent = "❌ " + tOr("tts.senseaudio.requireApiKey", "请先填写 API Key");
         testStatus.style.color = "#ef4444";
       }
       return;
     }
 
     if (testStatus) {
-      testStatus.textContent = "⏳ 正在合成...";
+      testStatus.textContent = "⏳ " + tOr("tts.senseaudio.synthesizing", "正在合成...");
       testStatus.style.color = "#6b7280";
     }
     testBtn.disabled = true;
@@ -170,7 +171,7 @@ export function initSenseAudioTts(): void {
       const voiceId = voiceSelect?.value || "female_0033_b";
       const model = modelSelect?.value || "senseaudio-tts-1.5-260319";
       const speed = speedInput ? parseFloat(speedInput.value) : 1;
-      const text = "你好，这是商汤 SenseAudio 语音合成测试。";
+      const text = tOr("tts.senseaudio.testText", "你好，这是商汤 SenseAudio 语音合成测试。");
       
       console.log("[SenseAudio TTS] 开始合成:", { voiceId, model, speed, text });
       
@@ -245,7 +246,7 @@ export function initSenseAudioTts(): void {
             }).catch((wavErr) => {
               console.warn("[SenseAudio TTS] 使用 audio/wav 格式也失败:", wavErr);
               if (testStatus) {
-                testStatus.textContent = `⚠️ 合成成功但播放失败: ${playErr.message}`;
+                testStatus.textContent = `⚠️ ${tOr("tts.senseaudio.playFailed", "合成成功但播放失败: ")}${playErr.message}`;
                 testStatus.style.color = "#f59e0b";
               }
             });
@@ -265,20 +266,20 @@ export function initSenseAudioTts(): void {
           };
 
           if (testStatus) {
-            testStatus.textContent = "✅ 合成成功，正在播放";
+            testStatus.textContent = "✅ " + tOr("tts.senseaudio.synthesizeSuccessPlaying", "合成成功，正在播放");
             testStatus.style.color = "#22c55e";
           }
         } catch (decodeErr) {
           console.warn("[SenseAudio TTS] 音频解码失败:", decodeErr);
-          throw new Error(`音频解码失败: ${decodeErr instanceof Error ? decodeErr.message : String(decodeErr)}`);
+          throw new Error(`${tOr("tts.senseaudio.decodeFailed", "音频解码失败: ")}${decodeErr instanceof Error ? decodeErr.message : String(decodeErr)}`);
         }
       } else {
-        throw new Error("未返回音频数据");
+        throw new Error(tOr("tts.senseaudio.noAudioData", "未返回音频数据"));
       }
     } catch (err) {
       console.error("[SenseAudio TTS] 测试合成失败:", err);
       if (testStatus) {
-        testStatus.textContent = `❌ 合成失败: ${err instanceof Error ? err.message : String(err)}`;
+        testStatus.textContent = `❌ ${tOr("tts.senseaudio.synthesizeFailed", "合成失败: ")}${err instanceof Error ? err.message : String(err)}`;
         testStatus.style.color = "#ef4444";
       }
     } finally {
@@ -317,7 +318,7 @@ export function initSenseAudioTts(): void {
         console.log("[SenseAudio TTS] 配置已保存到持久化存储");
       }
       if (saveStatus) {
-        saveStatus.textContent = "✅ 配置已保存";
+        saveStatus.textContent = "✅ " + tOr("tts.senseaudio.configSaved", "配置已保存");
         saveStatus.style.color = "#22c55e";
       }
       setTimeout(() => {
@@ -326,7 +327,7 @@ export function initSenseAudioTts(): void {
     } catch (err) {
       console.error("[SenseAudio TTS] 保存配置失败:", err);
       if (saveStatus) {
-        saveStatus.textContent = `❌ 保存失败: ${err instanceof Error ? err.message : String(err)}`;
+        saveStatus.textContent = `❌ ${tOr("tts.senseaudio.saveFailed", "保存失败: ")}${err instanceof Error ? err.message : String(err)}`;
         saveStatus.style.color = "#ef4444";
       }
     }
@@ -336,14 +337,14 @@ export function initSenseAudioTts(): void {
   listVoicesBtn?.addEventListener("click", async () => {
     if (!apiKeyInput?.value.trim()) {
       if (listVoicesStatus) {
-        listVoicesStatus.textContent = "❌ 请先填写 API Key";
+        listVoicesStatus.textContent = "❌ " + tOr("tts.senseaudio.requireApiKey", "请先填写 API Key");
         listVoicesStatus.style.color = "#ef4444";
       }
       return;
     }
 
     if (listVoicesStatus) {
-      listVoicesStatus.textContent = "⏳ 正在获取音色列表...";
+      listVoicesStatus.textContent = "⏳ " + tOr("tts.senseaudio.fetchingVoices", "正在获取音色列表...");
       listVoicesStatus.style.color = "#6b7280";
     }
     listVoicesBtn.disabled = true;
@@ -359,13 +360,13 @@ export function initSenseAudioTts(): void {
       // 收集所有音色
       const allVoices: Array<{ voice_id: string; voice_name?: string; description?: string[]; type: string }> = [];
       if (result?.system_voice) {
-        result.system_voice.forEach((v) => allVoices.push({ ...v, type: "系统音色" }));
+        result.system_voice.forEach((v) => allVoices.push({ ...v, type: tOr("tts.senseaudio.voiceTypeSystem", "系统音色") }));
       }
       if (result?.voice_cloning) {
-        result.voice_cloning.forEach((v) => allVoices.push({ ...v, type: "克隆音色" }));
+        result.voice_cloning.forEach((v) => allVoices.push({ ...v, type: tOr("tts.senseaudio.voiceTypeClone", "克隆音色") }));
       }
       if (result?.voice_generation) {
-        result.voice_generation.forEach((v) => allVoices.push({ ...v, type: "文生音色" }));
+        result.voice_generation.forEach((v) => allVoices.push({ ...v, type: tOr("tts.senseaudio.voiceTypeGenerated", "文生音色") }));
       }
 
       console.log("[SenseAudio TTS] 收集到的音色数量:", allVoices.length);
@@ -395,19 +396,19 @@ export function initSenseAudioTts(): void {
         });
 
         if (listVoicesStatus) {
-          listVoicesStatus.textContent = `✅ 已获取 ${allVoices.length} 个音色，请在下拉框中选择`;
+          listVoicesStatus.textContent = `✅ ${tOr("tts.senseaudio.fetchedCountPrefix", "已获取 ")}${allVoices.length}${tOr("tts.senseaudio.fetchedCountSuffix", " 个音色，请在下拉框中选择")}`;
           listVoicesStatus.style.color = "#22c55e";
         }
       } else {
         if (listVoicesStatus) {
-          listVoicesStatus.textContent = "⚠️ 未获取到可用音色";
+          listVoicesStatus.textContent = "⚠️ " + tOr("tts.senseaudio.noVoicesFound", "未获取到可用音色");
           listVoicesStatus.style.color = "#f59e0b";
         }
       }
     } catch (err) {
       console.error("[SenseAudio TTS] 获取音色列表失败:", err);
       if (listVoicesStatus) {
-        listVoicesStatus.textContent = `❌ 获取失败: ${err instanceof Error ? err.message : String(err)}`;
+        listVoicesStatus.textContent = `❌ ${tOr("tts.senseaudio.fetchFailed", "获取失败: ")}${err instanceof Error ? err.message : String(err)}`;
         listVoicesStatus.style.color = "#ef4444";
       }
     } finally {

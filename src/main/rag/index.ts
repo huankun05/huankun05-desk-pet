@@ -20,7 +20,7 @@ let store: JsonVectorStore | null = null;
 let retriever: HybridRetriever | null = null;
 let worldbook: WorldbookManager | null = null;
 let provider: EmbeddingProvider | null = null;
-// 每轮对话递增，用于 DMAE repeatWindow 统计（worldbook 状态不持久化，重启回 0 可接受）
+// 每轮对话递增，用于 DMAE repeatWindow 统计（turn 编号从 0 重新累计，可接受）
 let worldbookTurnCounter = 0;
 
 function getDataDir(): string {

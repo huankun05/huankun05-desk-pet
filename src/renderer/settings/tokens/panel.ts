@@ -6,6 +6,7 @@ import { Chart, registerables, type ChartConfiguration } from "chart.js";
 import { tokensState } from "./state";
 import { formatCacheRate } from "./cache-statistics";
 import { showModal } from "../shared/modal";
+import { tOr } from "../i18n";
 
 Chart.register(...registerables);
 
@@ -70,8 +71,8 @@ function formatCostText(cost: number, symbol: "$" | "¥"): string {
 }
 
 function formatCacheMetric(value: number, data: TokenDayData): string {
-  if (data.cacheUsageRequests <= 0) return "暂无数据";
-  const suffix = data.cacheUsageRequests < data.requests ? "（部分请求未提供）" : "";
+  if (data.cacheUsageRequests <= 0) return tOr("common.noData", "暂无数据");
+  const suffix = data.cacheUsageRequests < data.requests ? tOr("tokens.partialRequestsNote", "（部分请求未提供）") : "";
   return `${value.toLocaleString()}${suffix}`;
 }
 
@@ -127,7 +128,7 @@ function renderTokenBarChart(data: TokenDayData[]): void {
   const avgEl = document.getElementById("token-avg-label");
   if (avgEl) {
     const avg = Math.round(data.reduce((s, d) => s + d.input + d.output, 0) / data.length);
-    avgEl.textContent = `日均 ${formatTokenShort(avg)}`;
+    avgEl.textContent = `${tOr("tokens.dailyAverage", "日均 ")}${formatTokenShort(avg)}`;
   }
 }
 
@@ -142,12 +143,12 @@ function showTokenTooltip(e: MouseEvent, d: TokenDayData): void {
   if (!tip) return;
   tip.innerHTML = `
     <div class="token-tooltip__date">${d.date} ${d.weekday}</div>
-    <div class="token-tooltip__row"><span>📥 输入</span><span>${d.input.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>📤 输出</span><span>${d.output.toLocaleString()}</span></div>
-    <div class="token-tooltip__row"><span>🎯 缓存命中</span><span>${formatCacheMetric(d.hit, d)}</span></div>
-    <div class="token-tooltip__row"><span>❌ 缓存未命中</span><span>${formatCacheMetric(d.miss, d)}</span></div>
-    <div class="token-tooltip__row"><span>📝 缓存创建</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}</span></div>
-    <div class="token-tooltip__row"><span>🔢 请求</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>📥 ${tOr("tokens.input", "输入")}</span><span>${d.input.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>📤 ${tOr("tokens.output", "输出")}</span><span>${d.output.toLocaleString()}</span></div>
+    <div class="token-tooltip__row"><span>🎯 ${tOr("tokens.cacheHit", "缓存命中")}</span><span>${formatCacheMetric(d.hit, d)}</span></div>
+    <div class="token-tooltip__row"><span>❌ ${tOr("tokens.cacheMiss", "缓存未命中")}</span><span>${formatCacheMetric(d.miss, d)}</span></div>
+    <div class="token-tooltip__row"><span>📝 ${tOr("tokens.cacheCreation", "缓存创建")}</span><span>${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : tOr("common.noData", "暂无数据")}</span></div>
+    <div class="token-tooltip__row"><span>🔢 ${tOr("tokens.requests", "请求")}</span><span>${d.requests.toLocaleString()} / ${d.attemptedRequests.toLocaleString()}</span></div>
   `;
   tip.hidden = false;
   moveTokenTooltip(e);
@@ -190,7 +191,7 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
       labels,
       datasets: [
         {
-          label: "📥 输入",
+          label: "📥 " + tOr("tokens.input", "输入"),
           data: inputData,
           borderColor: "#3b82f6",
           backgroundColor: "rgba(59, 130, 246, 0.15)",
@@ -202,7 +203,7 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
           pointHoverBackgroundColor: "#3b82f6",
         },
         {
-          label: "📤 输出",
+          label: "📤 " + tOr("tokens.output", "输出"),
           data: outputData,
           borderColor: "#ff8ccc",
           backgroundColor: "rgba(255, 140, 204, 0.15)",
@@ -246,16 +247,16 @@ function renderTokenTrendChart(data: TokenDayData[]): void {
               const d = data[idx];
               const which = item.datasetIndex === 0 ? "input" : "output";
               const val = which === "input" ? d.input : d.output;
-              return `${which === "input" ? "📥 输入" : "📤 输出"}: ${val.toLocaleString()}`;
+              return `${which === "input" ? "📥 " + tOr("tokens.input", "输入") : "📤 " + tOr("tokens.output", "输出")}: ${val.toLocaleString()}`;
             },
             afterBody: (items) => {
               const idx = items[0].dataIndex;
               const d = data[idx];
               return [
-                `🎯 缓存命中: ${formatCacheMetric(d.hit, d)}`,
-                `❌ 缓存未命中: ${formatCacheMetric(d.miss, d)}`,
-                `📝 缓存创建: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : "暂无数据"}`,
-                `🔢 请求: ${d.requests} / ${d.attemptedRequests}`,
+                `🎯 ${tOr("tokens.cacheHit", "缓存命中")}: ${formatCacheMetric(d.hit, d)}`,
+                `❌ ${tOr("tokens.cacheMiss", "缓存未命中")}: ${formatCacheMetric(d.miss, d)}`,
+                `📝 ${tOr("tokens.cacheCreation", "缓存创建")}: ${d.cacheCreation > 0 ? d.cacheCreation.toLocaleString() : tOr("common.noData", "暂无数据")}`,
+                `🔢 ${tOr("tokens.requests", "请求")}: ${d.requests} / ${d.attemptedRequests}`,
               ];
             },
           },
@@ -294,7 +295,7 @@ function renderModelUsage(models: TokenModelData[]): void {
   const visible = models.slice(0, 6);
   const total = visible.reduce((sum, item) => sum + item.input + item.output, 0);
   if (total <= 0) {
-    list.innerHTML = '<p class="token-models__empty">暂无可归类的模型用量</p>';
+    list.innerHTML = `<p class="token-models__empty">${tOr("tokens.noCategorizedModelUsage", "暂无可归类的模型用量")}</p>`;
     return;
   }
   tokensState.modelChart = new Chart(canvas, {
@@ -337,8 +338,8 @@ function updateTokenStats(data: TokenDayData[]): void {
   set("token-input", totalInput.toLocaleString());
   set("token-output", totalOutput.toLocaleString());
   set("token-hit", cacheUsageRequests > 0
-    ? `${totalCacheHit.toLocaleString()}${cacheUsageRequests < requests ? "（部分）" : ""}`
-    : "暂无数据");
+    ? `${totalCacheHit.toLocaleString()}${cacheUsageRequests < requests ? tOr("tokens.partialSuffix", "（部分）") : ""}`
+    : tOr("common.noData", "暂无数据"));
 
   set("token-cache-requests", requests.toLocaleString());
   set("token-cache-total", total.toLocaleString());
@@ -419,11 +420,11 @@ async function refreshTokenPanel(days: number): Promise<void> {
     set("token-requests", "0");
     set("token-input", "0");
     set("token-output", "0");
-    set("token-hit", "暂无数据");
+    set("token-hit", tOr("common.noData", "暂无数据"));
     set("token-cache-requests", "0");
     set("token-cache-total", "0");
     set("token-cache-hit", "0");
-    set("token-cache-rate", "模型未提供缓存统计");
+    set("token-cache-rate", tOr("tokens.noCacheStatistics", "模型未提供缓存统计"));
     return;
   }
 
@@ -452,10 +453,10 @@ document.querySelectorAll<HTMLButtonElement>(".token-range__btn").forEach((btn) 
 
 document.getElementById("token-usage-clear")?.addEventListener("click", async () => {
   const confirmed = await showModal({
-    title: "重置 Token 统计",
-    message: "这会清空全部本地 Token、请求数和缓存统计，且无法恢复。",
+    title: tOr("tokens.resetTitle", "重置 Token 统计"),
+    message: tOr("tokens.resetMessage", "这会清空全部本地 Token、请求数和缓存统计，且无法恢复。"),
     icon: "🗑️",
-    confirmText: "全部清空",
+    confirmText: tOr("tokens.resetConfirm", "全部清空"),
   });
   if (!confirmed) return;
   const button = document.getElementById("token-usage-clear") as HTMLButtonElement | null;

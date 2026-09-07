@@ -304,10 +304,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           getConfigServers: () => getLspConfig().servers,
         });
 
-        // 截图：原生 helper IPC、全局热键。预热在 background 阶段执行。
-        const initialSettings = loadGeneralSettings();
+        // 截图：原生 helper IPC（聊天截图插入）。预热在 background 阶段执行。
         const screenshot = initializeScreenshotService({
-          initialHotkey: initialSettings.screenshotHotkey ?? "Alt+Shift+S",
           getReactChatWindow: () => reactChatWindow,
           capturePetWindow: () => shell.windowManager.capturePetWindow(),
           ipc: shell.ipc,
@@ -426,12 +424,11 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       }),
 
       registerCoreIpc: ({ ipc, runtime, services }) => {
-        // 设置变更反应：窗口/托盘/截图热键/主动服务联动
+        // 设置变更反应：窗口/托盘/主动服务联动
         onGeneralSettingsChanged((before, after) =>
           handleGeneralSettingsChanged(before, after, {
             windowManager: shell.windowManager,
             tray: shell.tray,
-            screenshotService: services.screenshot,
             proactiveLifecycle: services.proactive,
             broadcastToAuxWindows,
           }),
@@ -540,7 +537,6 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       applyGeneralSettings: (settings, services) => applyGeneralSettings(settings, {
         windowManager: shell.windowManager,
         tray: shell.tray,
-        screenshotService: services.screenshot,
         proactiveLifecycle: services.proactive,
         broadcastToAuxWindows,
       }),

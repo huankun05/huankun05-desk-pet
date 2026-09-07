@@ -5,6 +5,7 @@
 // 才能用，这不合理。
 import type { MusicApi } from "./types";
 import { getMusicApi } from "./panel";
+import { tOr } from "../i18n";
 
 const statusLine = () => document.getElementById("local-status-line");
 const tagEl = () => document.getElementById("local-tag");
@@ -20,22 +21,22 @@ interface ImportOutcome {
 
 /** 导入结果 → 一句人话。截断和「一首没导入」都要说清楚，别让用户以为成功了。 */
 export function describeImport(r: ImportOutcome): string {
-  if (r.cancelled) return "已取消导入。";
+  if (r.cancelled) return tOr("music.local.importCancelled", "已取消导入。");
   // 失败要说是失败。报成「没有找到可导入的音频文件」的话，
   // 用户会跑去翻文件夹，而不是重试。
-  if (r.failed) return "导入失败，请重试。";
-  if (r.imported === 0 && r.skipped === 0) return "没有找到可导入的音频文件。";
-  const parts = [`导入 ${r.imported} 首`];
-  if (r.skipped > 0) parts.push(`跳过 ${r.skipped} 首（已存在）`);
-  if (r.truncated) parts.push("已达单次导入上限，剩余文件未处理");
+  if (r.failed) return tOr("music.local.importFailed", "导入失败，请重试。");
+  if (r.imported === 0 && r.skipped === 0) return tOr("music.local.importEmpty", "没有找到可导入的音频文件。");
+  const parts = [tOr("music.local.importedPrefix", "导入 ") + r.imported + tOr("music.local.songCountUnit", " 首")];
+  if (r.skipped > 0) parts.push(tOr("music.local.skippedPrefix", "跳过 ") + r.skipped + tOr("music.local.skippedSuffix", " 首（已存在）"));
+  if (r.truncated) parts.push(tOr("music.local.importTruncated", "已达单次导入上限，剩余文件未处理"));
   return parts.join("，") + "。";
 }
 
 /** 缓存池里已有多少首本地音乐。 */
 export function describeLibrary(count: number): { text: string; tag: string | null } {
   return count > 0
-    ? { text: `曲库已有 ${count} 首，可直接播放。`, tag: `${count} 首` }
-    : { text: "还没有本地音乐，导入文件夹开始使用。", tag: null };
+    ? { text: tOr("music.local.libraryCountPrefix", "曲库已有 ") + count + tOr("music.local.libraryCountSuffix", " 首，可直接播放。"), tag: count + tOr("music.local.songCountUnit", " 首") }
+    : { text: tOr("music.local.libraryEmpty", "还没有本地音乐，导入文件夹开始使用。"), tag: null };
 }
 
 async function refresh(api: MusicApi): Promise<void> {
@@ -52,7 +53,7 @@ async function refresh(api: MusicApi): Promise<void> {
     }
   } catch {
     const line = statusLine();
-    if (line) line.textContent = "读取曲库失败。";
+    if (line) line.textContent = tOr("music.local.libraryLoadFailed", "读取曲库失败。");
   }
 }
 
@@ -65,7 +66,7 @@ export function initLocalMusicPanel(): void {
   const api = getMusicApi();
   if (!api?.getCachedTracks) {
     const line = statusLine();
-    if (line) line.textContent = "当前环境不支持本地音乐。";
+    if (line) line.textContent = tOr("music.local.envUnsupported", "当前环境不支持本地音乐。");
     return;
   }
 
@@ -83,7 +84,7 @@ export function initLocalMusicPanel(): void {
 
     if (btn.id === "local-import-folder" && api.importLocalFolder) {
       const line = statusLine();
-      if (line) line.textContent = "正在扫描文件夹…";
+      if (line) line.textContent = tOr("music.local.scanningFolder", "正在扫描文件夹…");
       void api.importLocalFolder()
         .then((res) => {
           done(res.ok ? (res.data as ImportOutcome) : { imported: 0, skipped: 0, failed: true });

@@ -9,21 +9,14 @@ export type ScreenshotInsertCandidate =
   & { previewUrl?: string };
 
 export interface ScreenshotService {
-  init(initialHotkey: string): void;
   prewarm(): Promise<void>;
-  startFromHotkey(): Promise<{ ok: boolean; reason?: string }>;
   startFromChatButton(sendInsert?: (data: ScreenshotInsertData) => void): Promise<{ ok: boolean; reason?: string }>;
-  replaceHotkey(next: string): { ok: boolean; activeHotkey: string | null };
-  suspendHotkey(): void;
-  resumeHotkey(): void;
   shutdown(): Promise<void>;
 }
 
 export interface ScreenshotServiceDeps {
   client: ScreenshotHelperClient;
   sendInsert(data: ScreenshotInsertData): void;
-  registerShortcut(accelerator: string, callback: () => void): boolean;
-  unregisterShortcut(accelerator: string): void;
 }
 
 export interface ScreenshotImageProbe {
@@ -72,18 +65,6 @@ function reasonFrom(error: unknown): string {
 }
 
 export function createScreenshotService(deps: ScreenshotServiceDeps): ScreenshotService {
-  let activeHotkey: string | null = null;
-  let suspendedHotkey: string | null = null;
-
-  const startFromHotkey = async (): Promise<{ ok: boolean; reason?: string }> => {
-    try {
-      await deps.client.start("clipboard-only", "hotkey");
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, reason: reasonFrom(error) };
-    }
-  };
-
   const startFromChatButton = async (
     sendInsert: (data: ScreenshotInsertData) => void = deps.sendInsert,
   ): Promise<{ ok: boolean; reason?: string }> => {
@@ -106,41 +87,7 @@ export function createScreenshotService(deps: ScreenshotServiceDeps): Screenshot
     }
   };
 
-  const register = (accelerator: string): boolean => {
-    try {
-      return deps.registerShortcut(accelerator, () => {
-        void startFromHotkey();
-      });
-    } catch {
-      return false;
-    }
-  };
-
-  const replaceHotkey = (
-    next: string,
-  ): { ok: boolean; activeHotkey: string | null } => {
-    const previous = activeHotkey;
-    if (previous === next) {
-      return { ok: true, activeHotkey: previous };
-    }
-    if (previous) {
-      deps.unregisterShortcut(previous);
-      activeHotkey = null;
-    }
-    if (register(next)) {
-      activeHotkey = next;
-      return { ok: true, activeHotkey };
-    }
-    if (previous && register(previous)) {
-      activeHotkey = previous;
-    }
-    return { ok: false, activeHotkey };
-  };
-
   return {
-    init(initialHotkey) {
-      replaceHotkey(initialHotkey);
-    },
     async prewarm() {
       try {
         await deps.client.ensureStarted();
@@ -150,28 +97,8 @@ export function createScreenshotService(deps: ScreenshotServiceDeps): Screenshot
         console.warn("[Screenshot] native helper prewarm failed:", error);
       }
     },
-    startFromHotkey,
     startFromChatButton,
-    replaceHotkey,
-    suspendHotkey() {
-      if (!activeHotkey || suspendedHotkey) return;
-      suspendedHotkey = activeHotkey;
-      deps.unregisterShortcut(activeHotkey);
-      activeHotkey = null;
-    },
-    resumeHotkey() {
-      if (!suspendedHotkey) return;
-      if (register(suspendedHotkey)) {
-        activeHotkey = suspendedHotkey;
-        suspendedHotkey = null;
-      }
-    },
     async shutdown() {
-      if (activeHotkey) {
-        deps.unregisterShortcut(activeHotkey);
-      }
-      activeHotkey = null;
-      suspendedHotkey = null;
       await deps.client.shutdown();
     },
   };

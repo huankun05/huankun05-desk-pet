@@ -297,8 +297,6 @@ export interface SettingsApi {
   channelsWechatLoginStart: () => Promise<{ ok: boolean; error?: string }>;
   channelsGetStatus: () => Promise<Record<string, { phase?: string; message?: string }>>;
   onChannelsStatusChanged: (callback: (status: unknown) => void) => (() => void) | void;
-  beginScreenshotHotkeyCapture: () => Promise<boolean>;
-  endScreenshotHotkeyCapture: () => Promise<boolean>;
 }
 
 /** 凭据导出/导入/审计（preload 暴露为 window.credentials）。 */

@@ -2,6 +2,8 @@
 // 从 settings.ts 抽离。完全自含（IIFE 闭包 + localStorage + window.settings IPC）。
 // 副作用导入：模块加载时执行事件绑定 + 状态初始化。
 
+import { tOr } from "../i18n";
+
 /* ===== RAG model card toggle (embedding only) ===== */
 (function () {
   const cards = document.querySelectorAll<HTMLButtonElement>(".rag-model-card:not([data-reranker])");
@@ -26,7 +28,7 @@
         if (result?.ok) {
           console.log("[settings] embedding switched to", value, "cleared:", result.clearedEntries);
           if (result.clearedEntries && result.clearedEntries > 0) {
-            window.alert("已切换至 BGE-M3。由于向量维度不同，已清除 " + result.clearedEntries + " 条旧向量记忆。");
+            window.alert(tOr("rag.switchedBGE", "已切换至 BGE-M3。由于向量维度不同，已清除 ") + result.clearedEntries + tOr("rag.clearedSuffix", " 条旧向量记忆。"));
           }
         } else {
           // Rollback on failure
@@ -36,7 +38,7 @@
             prevCard?.classList.add("is-active");
             localStorage.setItem(KEY, previousValue);
           }
-          window.alert("切换失败：" + (result?.error || "未知错误"));
+          window.alert(tOr("rag.switchFailed", "切换失败：") + (result?.error || tOr("common.unknown", "未知")));
         }
       } catch (err) {
         // Rollback on error
@@ -89,10 +91,10 @@
   try {
     const status = await (window as any).settings?.getRerankerStatus?.();
     if (!status) return;
-    if (standardEl) standardEl.textContent = status.standard ? "已下载 · 约 279MB" : "未下载 · 可选";
+    if (standardEl) standardEl.textContent = status.standard ? tOr("rag.downloadedStandard", "已下载 · 约 279MB") : tOr("rag.notDownloadedOptional", "未下载 · 可选");
   } catch (err) {
     console.warn("[Reranker] status check failed:", err);
-    if (standardEl) standardEl.textContent = "状态未知";
+    if (standardEl) standardEl.textContent = tOr("rag.statusUnknown", "状态未知");
   }
 })();
 
@@ -102,13 +104,13 @@
   try {
     const status = await window.modelConfig?.getModelInstallStatus?.();
     if (!status) {
-      if (bgem3El) bgem3El.textContent = "状态未知";
+      if (bgem3El) bgem3El.textContent = tOr("rag.statusUnknown", "状态未知");
       return;
     }
-    if (bgem3El) bgem3El.textContent = status.embedding?.bgem3 ? "已下载 · 约 570MB" : "未下载";
+    if (bgem3El) bgem3El.textContent = status.embedding?.bgem3 ? tOr("rag.downloadedBGE", "已下载 · 约 570MB") : tOr("rag.notDownloaded", "未下载");
   } catch (err) {
     console.warn("[Embedding] status check failed:", err);
-    if (bgem3El) bgem3El.textContent = "状态未知";
+    if (bgem3El) bgem3El.textContent = tOr("rag.statusUnknown", "状态未知");
   }
 })();
 
@@ -143,7 +145,7 @@
       ov = document.createElement("div");
       ov.id = "cy-modal-overlay";
       ov.className = "cy-modal-overlay is-hidden";
-      ov.innerHTML = '<div class="cy-modal" role="alertdialog" aria-modal="true"><div class="cy-modal__head"><span class="cy-modal__icon" id="cy-modal-icon">📌</span><h3 class="cy-modal__title" id="cy-modal-title">提示</h3></div><hr class="cy-modal__divider"><p class="cy-modal__body" id="cy-modal-message">确认执行此操作吗？</p><div class="cy-modal__actions"><button type="button" class="ghost-btn" id="cy-modal-cancel">取消</button><button type="button" class="btn-primary" id="cy-modal-confirm">确定</button></div></div>';
+      ov.innerHTML = '<div class="cy-modal" role="alertdialog" aria-modal="true"><div class="cy-modal__head"><span class="cy-modal__icon" id="cy-modal-icon">📌</span><h3 class="cy-modal__title" id="cy-modal-title">' + tOr("common.hint", "提示") + '</h3></div><hr class="cy-modal__divider"><p class="cy-modal__body" id="cy-modal-message">' + tOr("rag.confirmExecute", "确认执行此操作吗？") + '</p><div class="cy-modal__actions"><button type="button" class="ghost-btn" id="cy-modal-cancel">' + tOr("common.cancel", "取消") + '</button><button type="button" class="btn-primary" id="cy-modal-confirm">' + tOr("common.confirm", "确定") + '</button></div></div>';
       document.body.appendChild(ov);
     }
     var iconEl = ov.querySelector("#cy-modal-icon") as HTMLElement;
@@ -154,8 +156,8 @@
     iconEl.innerHTML = opts.icon || "📌";
     titleEl.textContent = opts.title;
     msgEl.textContent = opts.message;
-    cancelBtn.textContent = opts.cancelText || "取消";
-    confirmBtn.textContent = opts.confirmText || "确定";
+    cancelBtn.textContent = opts.cancelText || tOr("common.cancel", "取消");
+    confirmBtn.textContent = opts.confirmText || tOr("common.confirm", "确定");
     ov.classList.remove("is-hidden");
     return new Promise(function (resolve) {
       var cleanup = function (result: boolean) {
@@ -173,21 +175,21 @@
   deleteBtn?.addEventListener("click", async () => {
     const model = getSelectedModel();
     const name = "BGE-M3";
-    var confirmed = await _showModal({ title: "删 除 模 型", message: "确 定 删 除 " + name + " 模 型 缓 存？下 次 使 用 需 重 新 下 载。", icon: "⚠️", confirmText: "删 除", cancelText: "取 消" });
+    var confirmed = await _showModal({ title: tOr("rag.deleteModelTitle", "删 除 模 型"), message: tOr("rag.deleteModelMsgPrefix", "确 定 删 除 ") + name + tOr("rag.deleteModelMsgSuffix", " 模 型 缓 存？下 次 使 用 需 重 新 下 载。"), icon: "⚠️", confirmText: tOr("rag.deleteModelConfirm", "删 除"), cancelText: tOr("common.cancel", "取消") });
     if (!confirmed) return;
     deleteBtn.disabled = true;
-    deleteBtn.textContent = "\u5220\u9664\u4E2D\u2026";
+    deleteBtn.textContent = tOr("rag.deleting", "删除中…");
     try {
       const result = await window.settings?.deleteEmbeddingModel?.(model);
       if (result?.ok) {
-        deleteBtn.textContent = "\u2705 \u5DF2\u5220\u9664";
+        deleteBtn.textContent = tOr("rag.deleted", "✅ 已删除");
         setTimeout(() => location.reload(), 800);
       } else {
-        deleteBtn.textContent = "\u274C \u5931\u8D25";
+        deleteBtn.textContent = tOr("rag.deleteFailed", "❌ 失败");
         deleteBtn.disabled = false;
       }
     } catch (err) {
-      deleteBtn.textContent = "\u274C \u5931\u8D25";
+      deleteBtn.textContent = tOr("rag.deleteFailed", "❌ 失败");
       deleteBtn.disabled = false;
     }
   });
@@ -217,10 +219,10 @@
 (function () {
   const updateBtn = document.getElementById("embedding-update-btn") as HTMLButtonElement | null;
   updateBtn?.addEventListener("click", () => {
-    updateBtn.textContent = "已是最新版本";
+    updateBtn.textContent = tOr("rag.latestVersion", "已是最新版本");
     updateBtn.disabled = true;
     setTimeout(() => {
-      updateBtn.textContent = "检查更新";
+      updateBtn.textContent = tOr("rag.checkUpdate", "检查更新");
       updateBtn.disabled = false;
     }, 2000);
   });

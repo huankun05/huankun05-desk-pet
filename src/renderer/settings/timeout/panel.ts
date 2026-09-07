@@ -10,6 +10,7 @@ import {
 import { modelRequestTimeoutSecInput, modelRequestTimeoutSecReset } from "../api/dom";
 import { setSaveStatus, setRuntimeSaveStatus } from "../shared/save-status";
 import { parsePositiveIntOrThrow } from "../shared/parse";
+import { tOr } from "../i18n";
 import type { TimeoutSettings } from "../../../shared/timeout-types";
 
 export async function loadTimeoutSettings(): Promise<void> {
@@ -20,9 +21,9 @@ export async function loadTimeoutSettings(): Promise<void> {
     modelRequestTimeoutSecInput.value = cfg.modelRequestTimeoutSec != null ? String(cfg.modelRequestTimeoutSec) : "";
     const generalSettings = await window.settings!.getGeneral();
     maxParallelToolCallsInput.value = String(generalSettings.maxParallelToolCalls ?? 4);
-    setRuntimeSaveStatus("时间设置保存后，对后续请求生效。");
+    setRuntimeSaveStatus(tOr("timeout.effectiveNote", "时间设置保存后，对后续请求生效。"));
   } catch {
-    setRuntimeSaveStatus("读取偏好失败", "is-error");
+    setRuntimeSaveStatus(tOr("timeout.loadFailed", "读取偏好失败"), "is-error");
   }
 }
 
@@ -31,19 +32,19 @@ export async function saveTimeoutSettings(saveTestTimeout: boolean): Promise<boo
   try {
     if (!saveTestTimeout) {
       settings = {
-        userChoiceTimeout: 1000 * parsePositiveIntOrThrow(timeoutUserChoiceInput.value, "询问等待时间"),
-        modelRequestTimeoutSec: modelRequestTimeoutSecInput.value === "" ? undefined : parsePositiveIntOrThrow(modelRequestTimeoutSecInput.value, "模型请求超时"),
+        userChoiceTimeout: 1000 * parsePositiveIntOrThrow(timeoutUserChoiceInput.value, tOr("timeout.userChoiceTimeout", "询问等待时间")),
+        modelRequestTimeoutSec: modelRequestTimeoutSecInput.value === "" ? undefined : parsePositiveIntOrThrow(modelRequestTimeoutSecInput.value, tOr("timeout.modelRequestTimeout", "模型请求超时")),
       };
     } else {
       settings = {
-        testTimeout: parsePositiveIntOrThrow(timeoutTestInput.value, "测试超时"),
+        testTimeout: parsePositiveIntOrThrow(timeoutTestInput.value, tOr("timeout.testTimeout", "测试超时")),
       };
     }
   } catch (e) {
     if (saveTestTimeout) {
-      setSaveStatus("无效输入：" + e, "is-error");
+      setSaveStatus(tOr("timeout.invalidInput", "无效输入：") + e, "is-error");
     } else {
-      setRuntimeSaveStatus("无效输入：" + e, "is-error");
+      setRuntimeSaveStatus(tOr("timeout.invalidInput", "无效输入：") + e, "is-error");
     }
     return false;
   }
@@ -56,16 +57,16 @@ export async function saveTimeoutSettings(saveTestTimeout: boolean): Promise<boo
       });
     }
     if (saveTestTimeout) {
-      setSaveStatus("已保存", "is-ok");
+      setSaveStatus(tOr("common.saved", "已保存"), "is-ok");
     } else {
-      setRuntimeSaveStatus("已保存", "is-ok");
+      setRuntimeSaveStatus(tOr("common.saved", "已保存"), "is-ok");
     }
     return true;
   } catch {
     if (saveTestTimeout) {
-      setSaveStatus("保存失败", "is-error");
+      setSaveStatus(tOr("common.saveFailed", "保存失败"), "is-error");
     } else {
-      setRuntimeSaveStatus("保存失败", "is-error");
+      setRuntimeSaveStatus(tOr("common.saveFailed", "保存失败"), "is-error");
     }
   }
   return false;
