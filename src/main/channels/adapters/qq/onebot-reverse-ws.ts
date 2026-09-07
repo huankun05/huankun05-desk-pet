@@ -43,13 +43,16 @@ export function resolveOneBotListenHost(
     if (!host) throw new Error("QQ 自定义监听地址为空");
     return { host, resolvedMode: "custom" };
   }
-
-  const wslAddress = Object.entries(interfaces)
-    .filter(([name]) => /wsl/i.test(name))
-    .flatMap(([, addresses]) => addresses ?? [])
-    .find((item) => item.family === "IPv4" && !item.internal)?.address;
-  if (wslAddress) return { host: wslAddress, resolvedMode: "wsl" };
-  if (mode === "wsl") throw new Error("未检测到 Windows WSL 虚拟网卡 IPv4 地址");
+  if (mode === "wsl") {
+    const wslAddress = Object.entries(interfaces)
+      .filter(([name]) => /wsl/i.test(name))
+      .flatMap(([, addresses]) => addresses ?? [])
+      .find((item) => item.family === "IPv4" && !item.internal)?.address;
+    if (!wslAddress) throw new Error("未检测到 Windows WSL 虚拟网卡 IPv4 地址");
+    return { host: wslAddress, resolvedMode: "wsl" };
+  }
+  // auto：NapCat 通常运行在 Windows 本机，回环地址最安全且免 Access Token；
+  // 若 NapCat 跑在 WSL/虚拟机里，需显式选择 wsl 或 custom 模式并配置 Access Token。
   return { host: "127.0.0.1", resolvedMode: "loopback" };
 }
 

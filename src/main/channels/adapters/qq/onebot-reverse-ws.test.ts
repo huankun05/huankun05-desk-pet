@@ -10,6 +10,10 @@ describe("OneBotReverseWsServer", () => {
       "vEthernet (WSL)": [{ address: "172.20.0.1", netmask: "255.255.240.0", family: "IPv4", mac: "00:00:00:00:00:00", internal: false, cidr: "172.20.0.1/20" }],
     })).toEqual({ host: "172.20.0.1", resolvedMode: "wsl" });
     expect(resolveOneBotListenHost("auto", undefined, {})).toEqual({ host: "127.0.0.1", resolvedMode: "loopback" });
+    // auto 即使检测到 WSL 网卡也回退到回环：NapCat 本机场景最常见且免 token
+    expect(resolveOneBotListenHost("auto", undefined, {
+      "vEthernet (WSL)": [{ address: "172.20.0.1", netmask: "255.255.240.0", family: "IPv4", mac: "00:00:00:00:00:00", internal: false, cidr: "172.20.0.1/20" }],
+    })).toEqual({ host: "127.0.0.1", resolvedMode: "loopback" });
   });
 
   it("classifies loopback hosts", () => {

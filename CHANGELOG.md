@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **QQ 渠道自动拉起 NapCat**：QQ 渠道启用时，应用启动自动检测并拉起 NapCat（注入 QQ 进程），替代手动运行 launcher-user.bat；新增 napcat-process 模块（tasklist 进程检测 / NapCatShell 目录自动探测 + 可选 napcatPath 配置 / 注册表读取 QQ 安装路径 / 重写 loadNapCat.js + detached spawn）；已在运行则幂等跳过，失败只记日志不阻塞应用；NapCat 进程 detached 不随应用退出，避免频繁重登触发风控
 - **自然语言创建定时任务**：移植 Hermes cronjob 工具设计，新增 schedule_task 内置工具（LLM 把自然语言翻译成调度字符串 → parse-schedule.ts 解析 → 写入 scheduler store）；ScheduleConfig 新增 `cron` 类型（5 字段表达式，croner 计算下次触发，明确拒绝带年字段表达式）；parse-schedule 支持 `every 30m`/`2h`/`1d`（周期）、`30m`/`2h`/`1d`（一次性）、5 字段 cron、ISO 时间戳；定时任务执行过滤 schedule_task（对齐 Hermes cron 上下文禁用 cronjob，防止递归建任务）；设置面板新增 cron 频率选项与表达式输入
 - **并行子 Agent（task_group）**：Work/Code 模式新增 `task_group` 内置工具，一次调用可并行委派多个互不依赖的子任务（默认并发上限 4，结果按输入顺序聚合返回）；子任务各自独立会话/checkpoint/角色租约，单个失败不影响其余
 - **AGENTS.md 项目上下文**：Code（及绑定工作目录的 Work）模式启动时读取工作区根目录 AGENTS.md 注入启动 transcript，让模型看到项目级构建/测试/架构约定；超长自动截断，无文件时零侵入

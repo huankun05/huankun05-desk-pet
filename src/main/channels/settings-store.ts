@@ -159,6 +159,8 @@ export interface QqChannelConfig extends ChannelRuntimeConfig {
   customHost?: string;
   port: number;
   accessToken?: string;
+  /** NapCatShell 目录。空时应用启动自动探测（应用目录上级的 NapCatShell）；填写后优先使用。 */
+  napcatPath?: string;
   allowedPrivateUserIds: string[];
   allowedGroupIds: string[];
   groupRequireMention: true;
