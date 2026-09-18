@@ -111,9 +111,26 @@ export function createApplication(deps: ApplicationDependencies): Application {
         } catch { /* ignore */ }
       }
 
-      const message = error instanceof Error ? `${error.message}\n\n${error.stack ?? ""}` : String(error);
+      const raw = error instanceof Error ? `${error.message}` : String(error);
+      const isDevUrl =
+        /ERR_CONNECTION_REFUSED|did-fail-load|localhost:\d+/i.test(raw) && process.env.VITE_DEV === "1";
+      const message = isDevUrl
+        ? [
+            "开发服务器未就绪或端口已变。",
+            "",
+            "处理步骤：",
+            "1. 以管理员身份在项目目录执行 scripts\\diagnostics\\restart-dev-full.ps1",
+            "2. 或手动：npm run dev 后等待 Vite 就绪再打开应用",
+            "3. 确认 dist/main/.vite-dev-url.json 与实际 Vite 端口一致",
+            "",
+            "技术细节：",
+            raw.slice(0, 400),
+          ].join("\n")
+        : error instanceof Error
+          ? `${error.message}\n\n${(error.stack ?? "").slice(0, 800)}`
+          : String(error);
       try {
-        deps.dialog.showErrorBox("Cyrene 启动失败", message);
+        deps.dialog.showErrorBox("应用启动失败", message);
       } catch (dialogError) {
         deps.logFatal(dialogError);
       }

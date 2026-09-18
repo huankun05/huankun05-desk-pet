@@ -1,6 +1,7 @@
 {
   "appTitle": "汐月 · 设置",
   "nav": {
+    "storage": "存储与备份",
     "brand": "汐月",
     "api": "模型服务",
     "apiAdvanced": "高级设置",
@@ -15,7 +16,7 @@
     "plugins": "工具配置",
     "lsp": "代码辅助",
     "skills": "技能管理",
-    "backup": "备份管理",
+    "backup": "存储与备份",
     "tasks": "定时任务",
     "general": "通用设置",
     "user": "用户信息",
