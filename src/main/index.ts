@@ -26,9 +26,19 @@ try {
   /* non-Windows */
 }
 const envUserData = (process.env.CYRENE_USER_DATA_DIR ?? "").trim();
+// 读取设置页写入的重定向文件（%APPDATA%/live2d-cyrene.redirect）
+let redirectUserData = "";
+try {
+  const redirectFile = path.join(app.getPath("appData"), "live2d-cyrene.redirect");
+  if (fs.existsSync(redirectFile)) redirectUserData = fs.readFileSync(redirectFile, "utf8").trim();
+} catch {
+  /* ignore */
+}
 const fixedUserDataPath = envUserData
   ? path.resolve(envUserData)
-  : path.join(app.getPath("appData"), FIXED_USER_DATA_DIR);
+  : redirectUserData
+    ? path.resolve(redirectUserData)
+    : path.join(app.getPath("appData"), FIXED_USER_DATA_DIR);
 if (app.getPath("userData") !== fixedUserDataPath) {
   try {
     fs.mkdirSync(fixedUserDataPath, { recursive: true });

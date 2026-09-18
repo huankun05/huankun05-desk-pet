@@ -34,6 +34,7 @@ import {
 import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
 import { registerHermesSettingsIpc } from "../hermes/hermes-settings-ipc";
+import { registerStorageIpc } from "../storage/storage-ipc";
 import { maybeNotifyBudgetExceeded } from "../settings/cost-config";
 import { registerSkillsIpc } from "../skills/skills-ipc";
 import {
@@ -470,6 +471,8 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // 大脑 Hermes：壳内设置（路径/端口/密钥/模型同步）
         registerHermesSettingsIpc({ ipc });
+        // 存储目录：占用分析、缓存清理、数据根重定向、备份
+        registerStorageIpc({ ipc });
 
         registerMemoryUserToolIpc({
           ipc,

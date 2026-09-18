@@ -11,7 +11,7 @@ import { logger, LogTag } from "../logger";
 
 // ========== 类型定义 ==========
 
-export type BackupCategory = "all" | "soul" | "styles" | "characters" | "settings" | "skills";
+export type BackupCategory = "all" | "soul" | "styles" | "characters" | "settings" | "skills" | "chats" | "data";
 
 export type BackupType = "manual" | "auto";
 
@@ -131,6 +131,51 @@ export function createBackup(
         const skillCount = fs.readdirSync(skillsDir, { withFileTypes: true }).filter(d => d.isDirectory()).length;
         items.push(`skills/ (${skillCount} 个技能)`);
         logger.info(LogTag.Skills, `备份: skills/ (${skillCount} 个技能)`);
+      }
+    }
+
+    // 聊天会话 + 检查点（关系资产）
+    if (category === "all" || category === "chats") {
+      for (const rel of ["cyrene-chats", "checkpoints", "cyrene-tasks"]) {
+        const src = path.join(app.getPath("userData"), rel);
+        if (fs.existsSync(src)) {
+          const dest = path.join(backupDir, rel);
+          fs.cpSync(src, dest, { recursive: true });
+          items.push(`${rel}/`);
+          logger.info(LogTag.Skills, `备份: ${rel}/`);
+        }
+      }
+    }
+
+    // 关键配置 JSON（模型 Key、渠道、任务、记忆等）
+    if (category === "all" || category === "data" || category === "settings") {
+      const root = app.getPath("userData");
+      const files = [
+        "model-settings.json",
+        "channels-settings.json",
+        "app-settings.json",
+        "scheduled-tasks.json",
+        "memory.json",
+        "worldbook-state.json",
+        "user-profile.json",
+        "token-usage.json",
+        "agent-permission.json",
+        "timeout-settings.json",
+        "relationship-log.json",
+        "lsp-config.json",
+      ];
+      const destData = path.join(backupDir, "data");
+      let copied = 0;
+      for (const name of files) {
+        const src = path.join(root, name);
+        if (!fs.existsSync(src)) continue;
+        fs.mkdirSync(destData, { recursive: true });
+        fs.copyFileSync(src, path.join(destData, name));
+        copied += 1;
+      }
+      if (copied > 0) {
+        items.push(`data/ (${copied} 个配置文件)`);
+        logger.info(LogTag.Skills, `备份: data/ (${copied} 个配置文件)`);
       }
     }
 
@@ -267,6 +312,42 @@ export function restoreBackup(backupId: string): boolean {
           }
           throw err;
         }
+      }
+    }
+
+    // 恢复聊天会话与检查点
+    for (const rel of ["cyrene-chats", "checkpoints", "cyrene-tasks"]) {
+      if (!metadata.items.some((i) => i.startsWith(`${rel}`))) continue;
+      const src = path.join(dirPath, rel);
+      const dest = path.join(app.getPath("userData"), rel);
+      if (!fs.existsSync(src)) continue;
+      if (fs.existsSync(dest)) {
+        const temp = `${dest}_restore_backup_${Date.now()}`;
+        fs.renameSync(dest, temp);
+        try {
+          fs.cpSync(src, dest, { recursive: true });
+          fs.rmSync(temp, { recursive: true, force: true });
+        } catch (err) {
+          if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+          fs.renameSync(temp, dest);
+          throw err;
+        }
+      } else {
+        fs.cpSync(src, dest, { recursive: true });
+      }
+      logger.info(LogTag.Skills, `恢复: ${rel}/`);
+    }
+
+    // 恢复 data/ 下配置 JSON
+    const hasData = metadata.items.some((i) => i.startsWith("data/"));
+    if (hasData) {
+      const srcData = path.join(dirPath, "data");
+      if (fs.existsSync(srcData)) {
+        const root = app.getPath("userData");
+        for (const name of fs.readdirSync(srcData)) {
+          fs.copyFileSync(path.join(srcData, name), path.join(root, name));
+        }
+        logger.info(LogTag.Skills, `恢复: data/ 配置`);
       }
     }
 
