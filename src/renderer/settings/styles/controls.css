@@ -1,0 +1,213 @@
+/**
+ * 设置页通用控件（规范组件层）
+ * 来源：从 settings.css 收敛出的稳定控件；新面板优先使用这些 class。
+ * 颜色/间距引用 theme 中的 --ui-* / --brand-* 语义别名。
+ */
+
+/* ── 导航分组标签（通俗分类） ── */
+.settings-nav__group-label {
+  display: block;
+  padding: 10px 14px 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-faint, #8a99a8);
+  user-select: none;
+}
+
+/* ── 按钮 ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--ui-control-h, 34px);
+  padding: 0 16px;
+  border-radius: var(--ui-radius-control, 8px);
+  background: var(--brand-primary, var(--rb-pink-500, #ff5b8a));
+  color: var(--brand-on-primary, #fff);
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.btn-primary:hover {
+  background: var(--brand-primary-hover, var(--rb-pink-600, #e84a78));
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--ui-control-h, 34px);
+  padding: 0 14px;
+  border-radius: var(--ui-radius-control, 8px);
+  background: var(--ui-bg-panel, #fff);
+  color: var(--ui-text-default, #2c2c2e);
+  border: 1px solid var(--ui-border, #e5e5ea);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-secondary:hover {
+  background: var(--rb-hover-light, rgba(0, 0, 0, 0.04));
+  border-color: var(--ui-border-strong, #d2d2d7);
+}
+
+/* ── 表单 ── */
+.form-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: var(--ui-space-3, 12px);
+  align-items: start;
+  margin-bottom: var(--ui-space-4, 16px);
+}
+@media (max-width: 720px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+.form-label {
+  padding-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text-default, #2c2c2e);
+}
+
+.form-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-control input[type="text"],
+.form-control input[type="number"],
+.form-control input[type="password"],
+.form-control textarea,
+.form-control select {
+  width: 100%;
+  min-height: var(--ui-control-h, 34px);
+  padding: 6px 10px;
+  border-radius: var(--ui-radius-control, 8px);
+  border: 1px solid var(--ui-input-border, #d2d2d7);
+  background: var(--ui-input-bg, #fff);
+  color: var(--ui-input-text, var(--ui-text-strong, #1d1d1f));
+  font-size: 13px;
+}
+.form-control input:focus,
+.form-control textarea:focus,
+.form-control select:focus {
+  outline: 2px solid var(--brand-primary, #ff5b8a);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--ui-text-muted, #4f4a57);
+  line-height: 1.5;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2, 8px);
+  margin-top: var(--ui-space-2, 8px);
+}
+.form-actions--sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: var(--ui-space-5, 24px);
+  padding: 12px 0 4px;
+  background: linear-gradient(to top, var(--ui-bg-page, #f5f5f7) 70%, transparent);
+}
+
+.save-status {
+  font-size: 12px;
+  color: var(--ui-text-muted, #4f4a57);
+  margin-right: auto;
+}
+
+/* ── 开关 ── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex: none;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-switch__slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--ui-border-strong, #d2d2d7);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.toggle-switch__slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease;
+}
+.toggle-switch input:checked + .toggle-switch__slider {
+  background: var(--brand-primary, #ff5b8a);
+}
+.toggle-switch input:checked + .toggle-switch__slider::before {
+  transform: translateX(18px);
+}
+.toggle-switch input:focus-visible + .toggle-switch__slider {
+  outline: 2px solid var(--brand-primary, #ff5b8a);
+  outline-offset: 2px;
+}
+
+/* ── 分区标题 ── */
+.settings-section {
+  margin-bottom: var(--ui-space-5, 24px);
+  padding-bottom: var(--ui-space-4, 16px);
+  border-bottom: 1px solid var(--ui-border, rgba(0, 0, 0, 0.06));
+}
+.settings-section:last-child {
+  border-bottom: none;
+}
+.settings-section__header {
+  margin-bottom: var(--ui-space-4, 16px);
+}
+.settings-section__title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ui-text-strong, #1d1d1f);
+}
+.settings-section__hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ui-text-muted, #4f4a57);
+  line-height: 1.55;
+}
+
+/* ── 状态色文字 ── */
+.save-status.is-ok { color: var(--ui-success, #0b6b5c); }
+.save-status.is-error { color: var(--ui-danger, #a63a49); }

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>desk-pet 架构整合方案：Hermes 大脑 + Electron 壳 + Rust 性能件</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230e9f8c'/%3E%3Ctext x='12' y='17' font-size='13' font-weight='bold' text-anchor='middle' fill='white' font-family='sans-serif'%3Ed%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#1f2933; --ink-2:#5b6b7b; --ink-3:#8a99a8;
+    --line:#d8dde3; --line-2:#e8ecf1;
+    --bg:#f6f8fa; --card:#ffffff;
+    --teal:#0e9f8c; --teal-d:#0b6b5c; --teal-bg:#e4f4ef; --teal-line:#bde7dc;
+    --blue:#2f7fe0; --blue-d:#24518f; --blue-bg:#e9f0fb; --blue-line:#c3d9f1;
+    --amber:#c07f12; --amber-d:#9c6a13; --amber-bg:#fff8ec; --amber-line:#f0d9ad;
+    --red:#d1495b; --red-d:#a63a49; --red-bg:#fdecee; --red-line:#f4c6cc;
+    --purple:#9a5bcf; --purple-d:#6b3fa0; --purple-bg:#f3ecfb; --purple-line:#e0cdf3;
+    --mono:'Consolas','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.75;font-size:15px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 80px;}
+
+  /* ===== 头部 ===== */
+  .doc-head{background:linear-gradient(135deg,#0b2e3f 0%,#0e4d45 55%,#0e9f8c 100%);border-radius:16px;padding:36px 36px 30px;color:#fff;margin-bottom:24px;}
+  .doc-head .kicker{font-size:12.5px;letter-spacing:2px;color:#9fd8cd;font-weight:600;}
+  .doc-head h1{font-size:27px;font-weight:800;margin:8px 0 10px;line-height:1.35;}
+  .doc-head .sub{font-size:14px;color:#c9e8e2;max-width:760px;}
+  .doc-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
+  .doc-meta .m{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:5px 12px;font-size:12.5px;}
+  .doc-meta .m b{font-weight:600;color:#fff;}
+  .status-pill{display:inline-block;background:#ffd76a;color:#5c4206;font-weight:700;font-size:12px;border-radius:20px;padding:2px 12px;margin-left:8px;vertical-align:middle;}
+
+  /* ===== 区块 ===== */
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px;margin-bottom:20px;}
+  section h2{font-size:19px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+  section h2 .no{display:inline-flex;width:28px;height:28px;border-radius:8px;background:var(--teal);color:#fff;font-size:14px;align-items:center;justify-content:center;flex:none;}
+  section h3{font-size:15.5px;font-weight:700;margin:22px 0 8px;color:var(--ink);}
+  section h3:first-of-type{margin-top:14px;}
+  section p{color:var(--ink-2);font-size:14px;margin:8px 0;}
+  section p b,section li b,td b{color:var(--ink);}
+  .lead{background:var(--blue-bg);border-left:4px solid var(--blue);border-radius:8px;padding:12px 16px;font-size:14px;color:var(--blue-d);margin:12px 0;}
+  .warn{background:var(--red-bg);border-left:4px solid var(--red);border-radius:8px;padding:12px 16px;font-size:14px;color:var(--red-d);margin:12px 0;}
+  .ok{background:var(--teal-bg);border-left:4px solid var(--teal);border-radius:8px;padding:12px 16px;font-size:14px;color:var(--teal-d);margin:12px 0;}
+  ul,ol{padding-left:22px;color:var(--ink-2);font-size:14px;margin:8px 0;}
+  li{margin:4px 0;}
+
+  /* ===== 表格 ===== */
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;table-layout:fixed;}
+  th{background:#f0f4f7;font-weight:700;text-align:left;padding:9px 12px;border:1px solid var(--line);color:var(--ink);}
+  td{padding:8px 12px;border:1px solid var(--line);color:var(--ink-2);vertical-align:top;}
+  tr:nth-child(even) td{background:#fafcfd;}
+  code{font-family:var(--mono);background:#eef2f5;border:1px solid var(--line-2);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#c7254e;}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:1px 8px;margin-right:4px;}
+  .tag.t0{background:var(--teal-bg);color:var(--teal-d);border:1px solid var(--teal-line);}
+  .tag.t1{background:var(--blue-bg);color:var(--blue-d);border:1px solid var(--blue-line);}
+  .tag.t2{background:var(--amber-bg);color:var(--amber-d);border:1px solid var(--amber-line);}
+
+  /* ===== 架构图 ===== */
+  .arch{display:flex;flex-direction:column;gap:0;margin:16px 0;}
+  .arch .layer{border-radius:12px;padding:14px 16px;border:2px solid;}
+  .arch .layer .lname{font-size:14.5px;font-weight:800;margin-bottom:8px;}
+  .arch .layer .lname span{font-weight:500;font-size:12px;margin-left:8px;}
+  .arch .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .arch .chip{border-radius:8px;padding:5px 10px;font-size:12.5px;line-height:1.5;}
+  .arch .chip small{display:block;font-size:11px;opacity:.75;}
+  .arch .flow{text-align:center;font-size:12.5px;font-weight:600;padding:6px 0;margin:0;}
+  .arch .note{font-size:11.5px;color:var(--ink-3);margin-top:6px;}
+
+  /* ===== 时间轴（grid 三列） ===== */
+  .timeline{display:grid;grid-template-columns:72px 28px 1fr;gap:0;margin:16px 0;}
+  .tl-item{display:contents;}
+  .tl-time{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);text-align:right;padding:10px 10px 10px 0;font-weight:700;}
+  .tl-dot{justify-self:center;position:relative;}
+  .tl-dot i{display:block;width:13px;height:13px;border-radius:50%;background:var(--teal);border:3px solid var(--teal-bg);margin-top:13px;}
+  .tl-dot::before{content:'';position:absolute;top:0;bottom:-2px;left:50%;width:2px;background:var(--teal-line);transform:translateX(-50%);}
+  .tl-item:last-child .tl-dot::before{display:none;}
+  .tl-dot.amber i{background:var(--amber);border-color:var(--amber-bg);}
+  .tl-dot.amber::before{background:var(--amber-line);}
+  .tl-dot.blue i{background:var(--blue);border-color:var(--blue-bg);}
+  .tl-dot.blue::before{background:var(--blue-line);}
+  .tl-card{padding:8px 0 18px 10px;}
+  .tl-card .tt{font-size:14px;font-weight:700;color:var(--ink);}
+  .tl-card .td{font-size:12.5px;color:var(--ink-2);line-height:1.6;}
+
+  /* ===== 流程 ===== */
+  .flowbox{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:14px 0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .fstep{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;position:relative;}
+  .fstep b{display:block;font-size:13px;margin-bottom:3px;}
+  .fstep .fn{font-size:11px;color:var(--ink-3);}
+  .farrow{align-self:center;font-size:16px;color:var(--ink-3);padding:0 6px;font-weight:700;}
+
+  /* ===== 金字塔 ===== */
+  .pyramid{display:flex;flex-direction:column;align-items:center;gap:6px;margin:16px 0;}
+  .py{width:100%;border-radius:8px;padding:8px 14px;font-size:13px;text-align:center;color:#fff;font-weight:700;}
+  .py small{display:block;font-weight:400;font-size:11.5px;opacity:.92;}
+
+  @media (max-width:720px){
+    .wrap{padding:16px 12px 60px;}
+    .doc-head{padding:24px 20px;}
+    .doc-head h1{font-size:21px;}
+    section{padding:20px 16px;}
+    .timeline{grid-template-columns:60px 22px 1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ===== 文档头 ===== -->
+<header class="doc-head">
+  <div class="kicker">ARCHITECTURE DECISION RECORD · 架构决策文档</div>
+  <h1>desk-pet 架构整合方案<span class="status-pill">决策草案</span></h1>
+  <div class="sub">Hermes 大脑 + Electron 壳 + Rust 性能件 + 旧版体验层回迁。整合 Cyrene 框架的工作模式、Hermes 的 Agent 循环与学习进化机制、旧版自研的 L0-L3 分层记忆与情绪/互动/语音资产。</div>
+  <div class="doc-meta">
+    <span class="m">版本 <b>v1.0</b></span>
+    <span class="m">日期 <b>2026-09-17</b></span>
+    <span class="m">状态 <b>待 PoC 验证后转正式</b></span>
+    <span class="m">适用仓库 <b>huankun05/huankun05-desk-pet</b></span>
+  </div>
+</header>
+
+<!-- ===== 1 背景 ===== -->
+<section>
+  <h2><span class="no">1</span>背景与问题</h2>
+  <p><b>旧版 desk-pet-old</b>（273 commits，Tauri 2 + React 19 + Python）：自研桌宠，"身体很全、脑子很浅"——L0-L3 金字塔记忆、情绪/人格状态机（PAD+激素）、本地真人声（CosyVoice 纳西妲微调）、互动低频聚合沉淀、摄像头感知。但 Agent 循环是"玩具级"，且打包一直未完成。</p>
+  <p><b>当前 desk-pet</b>（345 commits，Electron 43 + TS + Pixi.js）：2026-09-03 整体迁移到第三方开源底座 Cyrene-Agent（Playa-0v0/Cyrene-Agent），Agent 能力直接到工业级（CyreneHarness、L0/L1/L2 记忆、DMAE Worldbook、RAG/MCP/Skill、多渠道），迁移后 71 commits 补齐了技能系统、LSP、凭据加密、i18n、QQ/NapCat 等。</p>
+  <h3>驱动本方案的三个问题</h3>
+  <ol>
+    <li><b>大脑信任度</b>：CyreneHarness 从未被充分测试（第三方个人项目，迁移后 71 个提交里修复了大量上游 bug：端口漂移、白屏、设置面板无法点击等）；而 Hermes Agent 实际使用过、行为可预期，且持续活跃维护（32.1k stars，最新 patch v2026.9.11，单版本窗口 5,139 个非 merge 提交）。</li>
+    <li><b>性能诉求</b>：希望热点计算原生化。实测 Agent 循环是 I/O 密集（瓶颈在网络延迟），真正热点在混合检索（BM25+reranker，现为纯 JS）、Embedding 推理、音频处理——这些适合 Rust 局部替换，而非整体重写。</li>
+    <li><b>旧版资产平衡</b>：旧版独有能力（L0-L3 记忆、情绪耦合、互动沉淀、CosyVoice 语音）在迁移后零残留（实测关键词 0 命中），需要在新架构中接回并平衡。</li>
+  </ol>
+</section>
+
+<!-- ===== 2 决策记录 ===== -->
+<section>
+  <h2><span class="no">2</span>决策记录（ADR）</h2>
+  <p>八个决策构成完整方案。每项含结论与核心理由，详细设计见对应章节。</p>
+  <table>
+    <colgroup><col style="width:10%"><col style="width:22%"><col style="width:26%"><col style="width:42%"></colgroup>
+    <tr><th>编号</th><th>决策点</th><th>结论</th><th>核心理由</th></tr>
+    <tr><td><b>D1</b></td><td>Agent 大脑（循环/工具执行/学习）</td><td><span class="tag t0">Hermes Python</span>常驻进程</td><td>实际使用过 + 顶级活跃度；CyreneHarness 未充分测试</td></tr>
+    <tr><td><b>D2</b></td><td>桌面壳与渲染</td><td><span class="tag t1">Electron 保留</span></td><td>渲染/渠道/打包已就绪，不重复投入</td></tr>
+    <tr><td><b>D3</b></td><td>性能件语言</td><td><span class="tag t2">Rust</span>（非 C++）</td><td>内存安全 + 与 lancedb/node-rs 生态同族 + 可作 native addon / 独立进程 / WASM</td></tr>
+    <tr><td><b>D4</b></td><td>记忆分层</td><td><span class="tag t0">L0-L3 规范保留</span>，实现落位 Hermes</td><td>旧版金字塔语义与 Hermes 原生记忆层级一一对应，零转换；差异化字段作增强层</td></tr>
+    <tr><td><b>D5</b></td><td>工具生态接入</td><td><span class="tag t1">MCP 桥</span></td><td>Electron 侧现有 TS 工具打包为 MCP server，Hermes 原生支持客户端 MCP（v0.7.0+）</td></tr>
+    <tr><td><b>D6</b></td><td>安全等级（工具权限审批）</td><td><span class="tag t2">三级审批</span>，融合 Cyrene permission + Hermes tool_guardrails</td><td>双保险 + 副作用账本审计，详见第 5 章</td></tr>
+    <tr><td><b>D7</b></td><td>本地真人声语音</td><td><span class="tag t1">CosyVoice sidecar</span>（唯一 Python 例外）</td><td>差异化声音资产，依赖 torch 生态，独立进程托管</td></tr>
+    <tr><td><b>D8</b></td><td>迁移方式</td><td><span class="tag t0">先 PoC 后全量</span></td><td>协议层隔离，PoC 失败可退回现有 Cyrene 基线</td></tr>
+  </table>
+  <div class="lead">总体判断：三个诉求（放心、高效、掌控）在"不推倒重来"前提下达成——<b>放心</b>靠 Hermes 大脑 + PoC 先行，<b>高效</b>靠 Rust 局部原生化，<b>掌控</b>靠白盒化（测试锁定 + 协议层隔离）。</div>
+</section>
+
+<!-- ===== 3 目标架构 ===== -->
+<section>
+  <h2><span class="no">3</span>目标架构总览</h2>
+  <p>四层分工：<b>壳</b>（Electron 渲染与桌宠体验）→ <b>大脑</b>（Hermes Agent 循环与学习进化）→ <b>肌肉</b>（Rust 性能件）→ <b>体验</b>（旧版情绪/互动/语音回迁）。协议层隔离保证大脑可替换。</p>
+
+  <div class="arch">
+    <div class="layer" style="border-color:var(--blue);background:#fff;">
+      <div class="lname" style="color:var(--blue-d);">壳 · Electron 43<span>保持不动（渲染/渠道/打包已就绪）</span></div>
+      <div class="chips">
+        <span class="chip" style="background:var(--blue-bg);border:1px solid var(--blue-line);">React19 / Pixi7 / Live2D 渲染</span>
+        <span class="chip" style="background:var(--blue-bg);border:1px solid var(--blue-line);">聊天窗 · 设置 · 托盘</span>
+        <span class="chip" style="background:var(--blue-bg);border:1px solid var(--blue-line);">工具打包为 MCP server</span>
+        <span class="chip" style="background:var(--blue-bg);border:1px solid var(--blue-line);">权限审批 UI（三级）</span>
+        <span class="chip" style="background:var(--blue-bg);border:1px solid var(--blue-line);">渠道适配 飞书/微信/QQ</span>
+      </div>
+      <div class="note">desktop channel 适配器 ⇄ Hermes gateway（WebSocket 本地回环）</div>
+    </div>
+    <div class="flow" style="color:var(--blue);">▲ 消息/事件/工具结果 ｜ 回复/情绪/语音指令 ▼</div>
+    <div class="layer" style="border-color:var(--teal);background:#fff;">
+      <div class="lname" style="color:var(--teal-d);">大脑 · Hermes Python Agent<span>常驻进程（D1）</span></div>
+      <div class="chips">
+        <span class="chip" style="background:var(--teal-bg);border:1px solid var(--teal-line);">conversation_loop + 工具执行</span>
+        <span class="chip" style="background:var(--teal-bg);border:1px solid var(--teal-line);">学习闭环（自进化技能/Honcho/FTS5 回忆）</span>
+        <span class="chip" style="background:var(--teal-bg);border:1px solid var(--teal-line);">MCP 客户端（调 Electron 工具）</span>
+        <span class="chip" style="background:var(--teal-bg);border:1px solid var(--teal-line);">tool_guardrails 第一道过滤</span>
+        <span class="chip" style="background:var(--teal-bg);border:1px solid var(--teal-line);">多 channel：桌面/Telegram/CLI</span>
+      </div>
+      <div class="note">Work / Code / Learn / Chat 工作模式由 Cyrene 框架概念迁移到 Hermes 侧或以提示词模式实现（PoC 确认）</div>
+    </div>
+    <div class="flow" style="color:var(--teal);">▲ 检索/推理请求 ｜ 结果 ▼</div>
+    <div class="layer" style="border-color:var(--purple);background:#fff;">
+      <div class="lname" style="color:var(--purple-d);">肌肉 · Rust 性能件<span>独立服务 / native addon（D3）</span></div>
+      <div class="chips">
+        <span class="chip" style="background:var(--purple-bg);border:1px solid var(--purple-line);">混合检索 BM25+reranker（替换纯 JS）</span>
+        <span class="chip" style="background:var(--purple-bg);border:1px solid var(--purple-line);">音频 VAD / 重采样</span>
+        <span class="chip" style="background:var(--purple-bg);border:1px solid var(--purple-line);">JSON-RPC over stdio · 主进程托管启停</span>
+      </div>
+    </div>
+    <div class="layer" style="border-color:var(--amber);background:#fff;margin-top:10px;">
+      <div class="lname" style="color:var(--amber-d);">体验 · 旧版回迁<span>Electron 侧 TS（D4/D7）</span></div>
+      <div class="chips">
+        <span class="chip" style="background:var(--amber-bg);border:1px solid var(--amber-line);">情绪/人格状态机（PAD+激素）</span>
+        <span class="chip" style="background:var(--amber-bg);border:1px solid var(--amber-line);">互动低频聚合沉淀 → 记忆</span>
+        <span class="chip" style="background:var(--amber-bg);border:1px solid var(--amber-line);">CosyVoice 语音 sidecar（Python）</span>
+        <span class="chip" style="background:var(--amber-bg);border:1px solid var(--amber-line);">表情映射 Live2D/feeling 联动</span>
+      </div>
+      <div class="note">情绪事件 → 注入 Hermes 回复生成上下文；互动事件 → 写入 Hermes 记忆（经历）+ 更新好感度（体验层）</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4 记忆分层 ===== -->
+<section>
+  <h2><span class="no">4</span>记忆分层设计（L0-L3 平衡）</h2>
+  <p>核实结论：<b>旧版自研 L0-L3 金字塔记忆确认存在</b>（<code>server/hermes_core/memory/fragment.py</code>，注释"借鉴 TencentDB Agent Memory 的 L0-L3 金字塔"）。新版 Cyrene 为 L0/L1/L2（无 L3）。Hermes 原生记忆层级与旧版金字塔<b>语义一一对应</b>，因此采用"<b>L0-L3 作为组织规范保留，实现落位 Hermes 原生，差异化字段作增强层</b>"。</p>
+
+  <h3>4.1 旧版金字塔定义（资产盘点）</h3>
+  <div class="pyramid">
+    <div class="py" style="background:#8f6bbf;width:44%;">L3 · persona 长期用户画像<small>learning_scheduler 聚合 · Honcho 语义对应</small></div>
+    <div class="py" style="background:#b08ad6;width:62%;">L2 · scene 场景块（话题簇聚合）<small>librarian 按层召回 · 摘要/压缩语义对应</small></div>
+    <div class="py" style="background:#d3b4ec;width:82%;color:#4a3565;">L1 · 原子事实<small>fact/preference/rule/feedback/event + persona/episodic/instruction 子类型</small></div>
+    <div class="py" style="background:#efe2f8;width:100%;color:#6b3fa0;border:1px solid #d3b4ec;">L0 · raw 原始对话片段<small>scribe 保留 N 条原文 · state.db 语义对应</small></div>
+  </div>
+  <p>配套机制：<code>decay.py</code> 遗忘曲线、<code>is_permanent</code> 永久标记、按层召回过滤，以及最独特的 <code>emotion_snapshot</code>（记忆创建时的整轮对话平均 PAD 情绪快照）。</p>
+
+  <h3>4.2 三套体系对照与映射</h3>
+  <table>
+    <colgroup><col style="width:10%"><col style="width:26%"><col style="width:28%"><col style="width:36%"></colgroup>
+    <tr><th>层级</th><th>旧版（自研）</th><th>Hermes（目标实现）</th><th>落位方式</th></tr>
+    <tr><td><b>L0</b></td><td>raw 原始对话片段</td><td>state.db（messages + FTS5 全文索引）</td><td><span class="tag t0">零转换</span>旧版 hermes_state.db 格式与 Hermes 一致（schema 已实测核对）</td></tr>
+    <tr><td><b>L1</b></td><td>原子事实 + 子类型</td><td>Honcho 记忆条目 + FTS5 召回</td><td>碎片导出映射为记忆条目，保留 category/mem_type</td></tr>
+    <tr><td><b>L2</b></td><td>scene 场景块聚合</td><td>LLM 摘要 / 压缩 / 会话聚类</td><td>learning_scheduler 聚合语义由 Hermes 调度承担</td></tr>
+    <tr><td><b>L3</b></td><td>persona 长期画像</td><td>Honcho 用户建模</td><td>碎片 persona 类导入 Honcho 画像</td></tr>
+  </table>
+
+  <h3>4.3 旧版差异化增强层（Hermes 没有，必须保留）</h3>
+  <table>
+    <colgroup><col style="width:24%"><col style="width:40%"><col style="width:36%"></colgroup>
+    <tr><th>增强点</th><th>说明</th><th>实现形态</th></tr>
+    <tr><td><b>emotion_snapshot</b></td><td>记忆条目附加创建时 PAD 情绪快照，"角色记得当时的心情"</td><td>记忆条目扩展字段，随导入/写入附带</td></tr>
+    <tr><td><b>is_permanent</b></td><td>永久记忆跳过遗忘曲线</td><td>映射到 Hermes 记忆的 permanent/pin 语义</td></tr>
+    <tr><td><b>按层召回</b></td><td>L0-L3 过滤注入（按场景选择注入层级）</td><td>Hermes 记忆检索侧做 layer 过滤适配层</td></tr>
+    <tr><td><b>sensitivity 分级</b>（建议新增）</td><td>public / private / secret 三级，控制记忆是否可跨渠道/被脱敏</td><td>记忆条目附加字段，配合 Hermes redact 脱敏</td></tr>
+  </table>
+  <div class="ok">平衡原则：<b>每种记忆只有一个主人</b>——会话历史归 state.db、画像归 Honcho、技能归自进化系统、情绪耦合与互动沉淀作为附加层挂载，不另建第二套记忆库。</div>
+</section>
+
+<!-- ===== 5 安全等级（工具权限审批） ===== -->
+<section>
+  <h2><span class="no">5</span>安全等级：工具权限审批体系（D6）</h2>
+  <p>用户确认："安全等级"指<b>工具权限审批</b>。设计为<b>三级静态分级 + 运行时上下文调整 + 双保险 + 审计</b>，融合两侧现有资产：Cyrene 的 <code>permission/bootstrap</code>、<code>runtime-policy</code>（超时/token 预算）、<code>side-effect-resolver</code>（副作用账本）、<code>uncertain-effect-guard</code>；Hermes 的 <code>tool_guardrails</code>、<code>redact</code> 脱敏、<code>authz_mixin</code>、<code>credential_pool</code>。</p>
+
+  <h3>5.1 三级安全等级定义</h3>
+  <table>
+    <colgroup><col style="width:18%"><col style="width:24%"><col style="width:30%"><col style="width:28%"></colgroup>
+    <tr><th>等级</th><th>策略</th><th>典型工具</th><th>判定依据</th></tr>
+    <tr><td><b>L0 · 自动放行</b></td><td><span class="tag t0">auto-approve</span>无需确认</td><td>时间查询、搜索、读文件、skill_list、会话回忆</td><td>只读、无副作用、无敏感数据</td></tr>
+    <tr><td><b>L1 · 确认执行</b></td><td><span class="tag t1">ask</span>弹窗确认</td><td>写文件、网络请求、发消息、运行脚本、安装依赖</td><td>有副作用但可逆、影响面可控</td></tr>
+    <tr><td><b>L2 · 高风险</b></td><td><span class="tag t2">confirm-critical</span>双重确认 / 可配置 deny</td><td>删除/覆盖文件、凭据读写、任意命令执行、系统配置修改</td><td>不可逆、影响系统、涉及敏感数据</td></tr>
+  </table>
+  <p>分级依据两个静态信号 + 一个运行时信号：①工具声明的副作用类别（读/写/网络/执行/凭据）；②操作目标（文件路径、URL 域、进程范围）；③运行时上下文（当前工作模式、用户在场状态——Chat 模式默认更严，Work 模式可放宽）。</p>
+
+  <h3>5.2 双保险执行流</h3>
+  <div class="flowbox">
+    <div class="fstep"><b>① Hermes tool_guardrails</b><span class="fn">静态规则第一道过滤：危险参数模式、路径白名单、命令黑名单</span></div>
+    <div class="farrow">→</div>
+    <div class="fstep"><b>② 等级判定</b><span class="fn">按 5.1 信号路由到 L0/L1/L2</span></div>
+    <div class="farrow">→</div>
+    <div class="fstep"><b>③ Electron 审批 UI</b><span class="fn">L1 弹窗确认；L2 双确认（工具名/参数/风险说明/一次或永久授权）</span></div>
+    <div class="farrow">→</div>
+    <div class="fstep"><b>④ 副作用账本</b><span class="fn">全量记录：调用方/参数/审批结果/耗时，可回滚提示</span></div>
+  </div>
+  <ul>
+    <li><b>授权记忆</b>：支持"本次会话记住"与"永久记住"（可随时在设置面板撤销），永久授权进入加密存储。</li>
+    <li><b>凭据安全</b>：LLM/搜索/渠道密钥走 <code>safeStorage</code> 加密（复用迁移后已完成的凭据加密模块），Hermes 侧 <code>credential_pool</code> 管理轮转。</li>
+    <li><b>消息脱敏</b>：跨渠道/日志输出前经 <code>redact</code> 脱敏（已移植），sensitivity=secret 的记忆条目不进入可跨渠道上下文。</li>
+    <li><b>超时与预算</b>：沿用 runtime-policy 的超时/Token 预算策略，作为审批之外的第二层运行时护栏。</li>
+  </ul>
+</section>
+
+<!-- ===== 6 服务接入 ===== -->
+<section>
+  <h2><span class="no">6</span>服务接入设计</h2>
+
+  <h3>6.1 进程拓扑与协议</h3>
+  <table>
+    <colgroup><col style="width:26%"><col style="width:24%"><col style="width:24%"><col style="width:26%"></colgroup>
+    <tr><th>服务</th><th>技术</th><th>接入协议</th><th>生命周期</th></tr>
+    <tr><td>Hermes Agent 大脑</td><td>Python（PyInstaller 打包）</td><td>WebSocket 本地回环（desktop channel）</td><td>Electron 主进程 spawn，健康检查 + 崩溃重启</td></tr>
+    <tr><td>Rust 检索引擎</td><td>Rust native addon（N-API）</td><td>进程内同步调用，接口不变</td><td>随主进程</td></tr>
+    <tr><td>Rust 音频引擎</td><td>Rust 独立进程</td><td>JSON-RPC over stdio（与截图助手 NDJSON 同模式）</td><td>主进程托管启停</td></tr>
+    <tr><td>CosyVoice 语音 sidecar</td><td>Python（唯一例外，torch 生态）</td><td>JSON-RPC over stdio</td><td>主进程托管启停，按需懒启动</td></tr>
+  </table>
+
+  <h3>6.2 关键接入点</h3>
+  <ul>
+    <li><b>Electron ⇄ Hermes</b>：Hermes gateway 新增 <code>desktop</code> channel（其 gateway 本为多 channel 设计：Telegram/Discord/CLI，加 channel 是设计内扩展点），消息/事件/流式 token 走 WebSocket 本地回环，延迟可忽略。</li>
+    <li><b>工具生态（MCP 桥）</b>：Electron 侧保留的 Cyrene TS 工具（40+ 个）打包为 MCP server，Hermes 原生支持"客户端提供 MCP server"（v0.7.0+），工具资产零重写。</li>
+    <li><b>工作模式</b>：Chat/Work/Code/Learn 四种模式作为 Hermes 的会话级配置（系统提示 + 工具集 + 权限策略的绑定组），由 desktop channel 的 session 参数切换。</li>
+    <li><b>渠道</b>：飞书/微信/QQ 先在 Electron 侧保留现成适配并转发到 Hermes（保资产）；长期可迁移为 Hermes 原生 Python channel。</li>
+    <li><b>情绪注入</b>：Hermes 回复生成前注入当前情绪上下文（体验层状态机产出）；表情/语气联动在 Electron 侧消费情绪事件，双向往来。</li>
+  </ul>
+</section>
+
+<!-- ===== 7 数据迁移 ===== -->
+<section>
+  <h2><span class="no">7</span>数据迁移路径</h2>
+  <table>
+    <colgroup><col style="width:28%"><col style="width:38%"><col style="width:34%"></colgroup>
+    <tr><th>旧版数据</th><th>处理方式</th><th>工作量</th></tr>
+    <tr><td><code>hermes_state.db</code>（会话历史）</td><td><b>直接沿用/导入</b>——schema 已实测为 Hermes 会话存储格式（sessions/messages/FTS5/gateway_routing/async_delegations），零转换</td><td>半天（验证 + 索引重建）</td></tr>
+    <tr><td><code>memory/</code> 碎片数据（偏好/事实/规则）</td><td>导出工具：碎片按 layer 映射——L1/L2 → Hermes 记忆条目，L3 → Honcho 画像；<code>emotion_snapshot</code>/<code>is_permanent</code> 随条目带走</td><td>2-3 天</td></tr>
+    <tr><td><code>emotion.json</code>（情绪/好感度/表情映射）</td><td>直接导入 Electron 体验层状态机作为初始状态（favorability、人格、expressionMap 原样保留）</td><td>半天</td></tr>
+  </table>
+  <div class="ok">关键红利：旧版当年按 Hermes 思路建库，<b>会话历史格式天然兼容</b>——"关系资产"（你和角色积累的对话、回忆）不会随换底座丢失。</div>
+</section>
+
+<!-- ===== 8 实施路线 ===== -->
+<section>
+  <h2><span class="no">8</span>实施路线（时间轴）</h2>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-time">第 1 周</div>
+      <div class="tl-dot amber"><i></i></div>
+      <div class="tl-card">
+        <div class="tt">阶段 0 · PoC 验证（硬门槛，不跳过）</div>
+        <div class="td">Hermes 进程 + 最小 Electron 壳，验收 5 点：① 流式对话 ② 工具调用（MCP 桥）③ 情绪事件注入 ④ 崩溃恢复（杀进程自动重启、会话不丢）⑤ PyInstaller 可执行产物落地。通过 → 全量迁移；不通过 → 退回 Cyrene 基线（协议层隔离保证可回退）。</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">第 2-4 周</div>
+      <div class="tl-dot blue"><i></i></div>
+      <div class="tl-card">
+        <div class="tt">阶段 1 · 全量迁移</div>
+        <div class="td">desktop channel 适配器；MCP 桥（Electron 工具 → Hermes）；工作模式会话化；情绪/人格状态机 TS 重写（emotion.json 导入）；互动沉淀接入；三级权限审批 UI。</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">第 5-6 周</div>
+      <div class="tl-dot blue"><i></i></div>
+      <div class="tl-card">
+        <div class="tt">阶段 2 · 记忆迁移</div>
+        <div class="td">三份数据导入（state.db 沿用 / 碎片导出映射 / emotion.json）；L0-L3 落地 Hermes；emotion_snapshot 增强字段；sensitivity 分级；按层召回适配层。</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">第 7-8 周</div>
+      <div class="tl-dot"><i></i></div>
+      <div class="tl-card">
+        <div class="tt">阶段 3 · 性能件</div>
+        <div class="td">Rust 混合检索引擎（BM25+reranker，替换纯 JS，接口不变）；Rust 音频引擎（VAD/重采样）；基准对比（P99 检索延迟、内存占用）。</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">后续</div>
+      <div class="tl-dot"><i></i></div>
+      <div class="tl-card">
+        <div class="tt">阶段 4 · P2 可选增强</div>
+        <div class="td">CosyVoice 语音 sidecar 接入；摄像头感知（opt-in）；唤醒词；番茄钟/每日问候等小功能；渠道迁移 Hermes 原生。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 9 风险与回退 ===== -->
+<section>
+  <h2><span class="no">9</span>风险与回退</h2>
+  <table>
+    <colgroup><col style="width:34%"><col style="width:32%"><col style="width:34%"></colgroup>
+    <tr><th>风险</th><th>缓解</th><th>回退</th></tr>
+    <tr><td>Python 运行时打包回归（旧版痛点）</td><td>PyInstaller 打包 Hermes 核心，官方有 packaging/installer 自愈支持；electron-builder 打壳，首次运行落地</td><td>自用可先不打包，直接运行 Python 环境</td></tr>
+    <tr><td>Hermes "桌宠形态"未验证（GUI 审批/表情联动/流式 UI）</td><td><b>PoC 先行</b>，5 个验收点锁死；desktop channel 独立成模块</td><td>PoC 失败退回 Cyrene 基线，损失 1 周</td></tr>
+    <tr><td>双栈调试成本（TS + Python）</td><td>协议层隔离 + 统一日志格式（结构化 JSON）</td><td>故障边界清晰，单侧可独立排查</td></tr>
+    <tr><td>Cyrene 工具资产在 MCP 桥下行为差异</td><td>MCP 桥做兼容层，保留原有工具接口语义</td><td>个别工具可在 Electron 侧直连处理</td></tr>
+    <tr><td>上游 Hermes 快速迭代导致 API 变动</td><td>锁版本（v2026.x 固定），升级走变更评审</td><td>协议层隔离，channel 适配器单点更新</td></tr>
+  </table>
+</section>
+
+<!-- ===== 10 待确认 ===== -->
+<section>
+  <h2><span class="no">10</span>待确认事项</h2>
+  <table>
+    <colgroup><col style="width:34%"><col style="width:34%"><col style="width:32%"></colgroup>
+    <tr><th>事项</th><th>当前推荐</th><th>状态</th></tr>
+    <tr><td>安全等级所指</td><td>工具权限审批（三级）</td><td><span class="tag t0">已确认</span></td></tr>
+    <tr><td>Worldbook / 角色知识处理</td><td>导出为静态角色设定，注入 Hermes 系统提示；动态演化部分交 Honcho</td><td><span class="tag t2">待定</span></td></tr>
+    <tr><td>碎片记忆机制形态</td><td>不搬代码，做成 Hermes 记忆写入插件（保留情绪耦合差异化）</td><td><span class="tag t2">待定</span></td></tr>
+    <tr><td>打包分发目标</td><td>自用优先（可暂不打包 Python），发布需走 PyInstaller 链路</td><td><span class="tag t2">待定</span></td></tr>
+    <tr><td>工作模式（Chat/Work/Code/Learn）实现方式</td><td>Hermes 会话级配置（系统提示+工具集+权限策略绑定组），PoC 确认</td><td><span class="tag t2">待定</span></td></tr>
+  </table>
+</section>
+
+<!-- ===== 页脚 ===== -->
+<div style="text-align:center;font-size:12px;color:var(--ink-3);padding:24px 0 8px;">desk-pet 架构整合方案 v1.0 · 2026-09-17 · 决策草案（待 PoC 验证）</div>
+
+</div>
+</body>
+</html>

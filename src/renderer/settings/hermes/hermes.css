@@ -1,0 +1,14 @@
+/* AI 引擎（Hermes）设置面板 — 模块样式 */
+
+#hermes-panel .form-control input[readonly] {
+  font-family: var(--ui-font-mono, Consolas, monospace);
+  font-size: 12px;
+}
+
+#hermes-health {
+  word-break: break-all;
+}
+
+#hermes-panel .settings-section__title::after {
+  content: none;
+}

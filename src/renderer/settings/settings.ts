@@ -89,6 +89,7 @@ import { initCharacterStylePanel } from "./character-style/panel";
 import { initBackupPanel } from "./backup/backup-panel";
 import { initSkillsPanel } from "./skills-panel";
 import { initLspPanel } from "./lsp/panel";
+import { initHermesPanel } from "./hermes/panel";
 import { pluginsState } from "./plugins/state";
 import type {
   GeneralSettings,
@@ -315,7 +316,7 @@ document.querySelectorAll<HTMLImageElement>("[data-music-logo]").forEach((image)
 
 
 const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }> = {
-  memory: { emoji: `<img src="/icons/mimi.png" width="24" height="24" alt="" aria-hidden="true" style="vertical-align:-3px" />`, title: t("nav.memory"), hint: t("hint.memory") },
+  memory: { emoji: `<img src="../icons/mimi.png" width="24" height="24" alt="" aria-hidden="true" style="vertical-align:-3px" />`, title: t("nav.memory"), hint: t("hint.memory") },
   chat: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M33 38H22V30H36V22H44V38H39L36 41L33 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6H36V30H17L13 34L9 30H4V6Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 18H20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M26 18H27" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M12 18H13" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("nav.chat"), hint: t("hint.chat") },
   user: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.user"), hint: t("hint.user") },
   tasks: { emoji: `<svg style="vertical-align:-3px" width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M23.9998 44.3332C34.1251 44.3332 42.3332 36.1251 42.3332 25.9999C42.3332 15.8747 34.1251 7.66656 23.9998 7.66656C13.8746 7.66656 5.6665 15.8747 5.6665 25.9999C5.6665 36.1251 13.8746 44.3332 23.9998 44.3332Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M23.7594 15.3536L23.7582 26.3624L31.5305 34.1347" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.00001L11 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 9.00001L37 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.tasks"), hint: t("hint.tasks") },
@@ -325,13 +326,14 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   "character-style": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>角色与风格</title><circle cx="24" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M10 42C10 34.268 16.268 28 24 28C31.732 28 38 34.268 38 42" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 8L42 12L38 16" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.characterStyle"), hint: t("hint.characterStyle") },
   appearance: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>外观设置</title><path d="M24 44C29.9601 44 26.3359 35.136 30 31C33.1264 27.4709 44 29.0856 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M28 17C29.6569 17 31 15.6569 31 14C31 12.3431 29.6569 11 28 11C26.3431 11 25 12.3431 25 14C25 15.6569 26.3431 17 28 17Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 21C17.6569 21 19 19.6569 19 18C19 16.3431 17.6569 15 16 15C14.3431 15 13 16.3431 13 18C13 19.6569 14.3431 21 16 21Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M17 34C18.6569 34 20 32.6569 20 31C20 29.3431 18.6569 28 17 28C15.3431 28 14 29.3431 14 31C14 32.6569 15.3431 34 17 34Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.appearance"), hint: t("hint.appearance") },
   general: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>通用设置</title><path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.general"), hint: t("hint.general") },
-  api: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>API 设置</title><g clip-path="url(#api-key-nav-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-nav-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg>`, title: t("nav.api"), hint: t("hint.api") },
+  api: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>模型服务</title><g clip-path="url(#api-key-nav-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-nav-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg>`, title: "模型服务", hint: "配置模型厂商与 API Key" },
   "api-advanced": { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.apiAdvanced"), hint: t("hint.apiAdvanced") },
   cyrene: { emoji: "🌸", title: t("nav.cyrene"), hint: t("hint.cyrene") },
-  tts: { emoji: "🎙️", title: t("nav.tts"), hint: t("hint.tts") },
-  asr: { emoji: "🎧", title: t("nav.asr"), hint: t("hint.asr") },
-  channels: { emoji: "📱", title: t("nav.channels"), hint: t("hint.channels") },
-  lsp: { emoji: "🧩", title: t("nav.lsp"), hint: t("hint.lsp") },
+  tts: { emoji: "🎙️", title: "语音合成", hint: "让角色说话的声音引擎" },
+  asr: { emoji: "🎧", title: "语音识别", hint: "听懂你说的话" },
+  channels: { emoji: "📱", title: "消息渠道", hint: "连接 QQ / 微信 / 飞书 等" },
+  lsp: { emoji: "🧩", title: "代码辅助", hint: "语言服务器，辅助写代码" },
+  hermes: { emoji: "🧠", title: "AI 引擎", hint: "Hermes 运行配置：路径、端口、密钥、模型同步" },
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.tokens"), hint: t("hint.tokens") },
 	  disclaimer: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.disclaimer"), hint: t("hint.disclaimer") },
   skills: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("nav.skills"), hint: t("hint.skills") },
@@ -793,6 +795,25 @@ function applyEditingStateUI(): void {
   deleteProfileBtn.hidden = !apiState.editingProfileId;
 }
 
+/**
+ * 上下文窗口自动填充：输入框为空时，按（厂商, 模型）从主进程知识表解析
+ * 并填入。模型未知/接口缺失/查询失败都静默跳过——用户手动输入永不被覆盖。
+ */
+function fillContextWindowIfEmpty(): void {
+  if (!contextWindowInput.value.trim()) {
+    const provider = apiState.activeProvider;
+    const model = getCurrentModelValue().trim();
+    window.settings?.lookupModelContextWindow?.(provider, model)
+      .then((value) => {
+        // 查询返回期间用户可能已手填/切换，二次校验再落值
+        if (value && !contextWindowInput.value.trim()) {
+          contextWindowInput.value = String(value);
+        }
+      })
+      .catch(() => { /* 知识表查询失败静默：保持空，保存时走运行时回退 */ });
+  }
+}
+
 /** 载入档案到编辑表单。 */
 function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
   const visionSnapshot = snapshotVisionInputs();
@@ -811,6 +832,8 @@ function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void
   restoreAuxiliaryInputs(auxiliarySnapshot);
   // 档案级字段：未定义 = 老档案，回退全局值显示
   contextWindowInput.value = profile.contextWindowTokens ? String(profile.contextWindowTokens) : "";
+  // 未手动填过 → 从知识表自动解析并填充（不覆盖用户已输入的值）
+  fillContextWindowIfEmpty();
   multimodalToggle.checked = profile.multimodal ?? globalMultimodal;
   applyMultimodalUI();
   applyEditingStateUI();
@@ -828,6 +851,8 @@ function startNewDraft(providerName: string): void {
   restoreVisionInputs(visionSnapshot);
   restoreAuxiliaryInputs(auxiliarySnapshot);
   contextWindowInput.value = "";
+  // 新草稿：按预设默认模型自动解析上下文长度并填充
+  fillContextWindowIfEmpty();
   // 新建草稿默认开多模态；applyPreset 已不再按厂商门控
   multimodalToggle.checked = true;
   applyMultimodalUI();
@@ -1966,8 +1991,9 @@ apiForm.addEventListener("submit", async (e) => {
       return;
     }
     // 档案保存：editingProfileId 存在 = 更新（字段全量覆盖），否则新增。
-    // 上下文窗口与多模态跟随档案；留空/非法按 256000 兜底。
+    // 上下文窗口与多模态跟随档案；留空 = 自动（运行时按模型知识表解析，不再固化 256000）。
     const isEditing = Boolean(apiState.editingProfileId);
+    const typedContextWindow = parseInt(contextWindowInput.value.trim(), 10);
     const profile = {
       id: apiState.editingProfileId,
       provider: apiState.activeProvider,
@@ -1977,7 +2003,9 @@ apiForm.addEventListener("submit", async (e) => {
       apiKey: getApiKeyForRequest(),
       explicitTransport: transportSelect.value as ApiTransport,
       reasoning: apiState.editingReasoning,
-      contextWindowTokens: Math.max(4096, parseInt(contextWindowInput.value, 10) || 256000),
+      contextWindowTokens: Number.isFinite(typedContextWindow) && typedContextWindow >= 1
+        ? Math.max(4096, typedContextWindow)
+        : undefined,
       multimodal: multimodalToggle.checked,
     };
     const result = await window.settings!.saveModelProfile?.(profile);
@@ -2065,6 +2093,7 @@ function switchSection(section: string): void {
   const isMusic = section === "music";
   const isSkills = section === "skills";
   const isLsp = section === "lsp";
+  const isHermes = section === "hermes";
   const isBackup = section === "backup";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -2101,13 +2130,16 @@ function switchSection(section: string): void {
   const lspPanel = document.getElementById("lsp-panel");
   if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
   if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
+  const hermesPanel = document.getElementById("hermes-panel");
+  if (hermesPanel) hermesPanel.classList.toggle("is-hidden", !isHermes);
+  if (isHermes) { try { void initHermesPanel(); } catch (e) { console.error("[Hermes] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
 
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isLsp || isBackup,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isLsp || isHermes || isBackup,
   );
 
   if (
@@ -2130,6 +2162,7 @@ function switchSection(section: string): void {
     !isMusic &&
     !isSkills &&
     !isLsp &&
+    !isHermes &&
     !isBackup
   ) {
 	    placeholderIcon.innerHTML = label.emoji;

@@ -139,12 +139,12 @@ body {
 	}
 
 	[data-ui-theme="pearl-white"] .nav-item__avatar {
-	  content: url("/icons/cyrene-avatar-line.svg");
+	  content: url("./icons/cyrene-avatar-line.svg");
 	  display: block;
 	}
 
 	[data-ui-theme="pearl-white"] .panel-heading__avatar {
-	  content: url("/icons/cyrene-avatar-line.svg");
+	  content: url("./icons/cyrene-avatar-line.svg");
 	  display: block;
 	}
 
@@ -2764,7 +2764,7 @@ body {
 
 /* 白调主题下 Kimi logo 换用深色版本 */
 [data-ui-theme="pearl-white"] .preset-card[data-provider="Kimi（月之暗面）"] .preset-card__logo img {
-  content: url("/icons/providers/kimi-light.svg");
+  content: url("./icons/providers/kimi-light.svg");
 }
 
 /* 昵称 + 前往官网按钮并排 */

@@ -33,6 +33,7 @@ import {
 } from "../windows/window-state";
 import { loadModelSettings, saveModelSettings } from "../settings/model-settings";
 import { registerSettingsIpc } from "../settings/settings-ipc";
+import { registerHermesSettingsIpc } from "../hermes/hermes-settings-ipc";
 import { maybeNotifyBudgetExceeded } from "../settings/cost-config";
 import { registerSkillsIpc } from "../skills/skills-ipc";
 import {
@@ -462,6 +463,9 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
           syncVolcanoSearchMcp,
           syncPlaywrightMcp,
         });
+
+        // 大脑 Hermes：壳内设置（路径/端口/密钥/模型同步）
+        registerHermesSettingsIpc({ ipc });
 
         registerMemoryUserToolIpc({
           ipc,

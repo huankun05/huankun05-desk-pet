@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title data-i18n="appTitle">昔涟 · 设置</title>
+  <title data-i18n="appTitle">汐月 · 设置</title>
   <link rel="stylesheet" href="../ui/tokens.css" />
   <link rel="stylesheet" href="../ui/fonts.css" />
   <link rel="stylesheet" href="../ui/base.css" />
   <link rel="stylesheet" href="./settings.css" />
+  <link rel="stylesheet" href="./styles/controls.css" />
+  <link rel="stylesheet" href="./hermes/hermes.css" />
   <link rel="stylesheet" href="./components/custom-select/custom-select.css" />
   <link rel="stylesheet" href="../ui/theme.css" />
 </head>
@@ -15,32 +17,44 @@
   <div class="settings-shell">
     <aside class="settings-nav" aria-label="设置导航" data-i18n-aria="navAria">
       <header class="settings-nav__header">
-        <div class="settings-nav__brand"><img class="settings-nav__logo" src="./100.png" alt="" aria-hidden="true" /><span data-i18n="nav.brand">昔涟</span></div>
+        <div class="settings-nav__brand"><img class="settings-nav__logo" src="./100.png" alt="" aria-hidden="true" /><span data-i18n="nav.brand">汐月</span></div>
       </header>
 
             <nav class="settings-nav__list">
-        <button type="button" class="nav-item" data-section="api"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.api">API 设置</title><g clip-path="url(#api-key-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></span><span class="nav-item__label" data-i18n="nav.api">API 设置</span></button>
+        <span class="settings-nav__group-label">模型与智能</span>
+        <button type="button" class="nav-item" data-section="api"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>模型服务</title><g clip-path="url(#api-key-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></span><span class="nav-item__label">模型服务</span></button>
+        <button type="button" class="nav-item" data-section="hermes"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>AI 引擎</title><path d="M24 6C14 6 8 13 8 22c0 7 4 12 10 14v6h12v-6c6-2 10-7 10-14 0-9-6-16-16-16z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><circle cx="18" cy="22" r="2.5" fill="currentColor"/><circle cx="30" cy="22" r="2.5" fill="currentColor"/><path d="M18 30c2 2 10 2 12 0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></span><span class="nav-item__label">AI 引擎</span></button>
         <button type="button" class="nav-item" data-section="api-advanced"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.apiAdvanced">高级设置</span></button>
         <button type="button" class="nav-item" data-section="tokens"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.tokens">Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.tokens">Token 用量</span></button>
         <hr class="nav-divider" />
+        <span class="settings-nav__group-label">角色与体验</span>
+
         <button type="button" class="nav-item" data-section="character-style"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.characterStyle">角色与风格</title><circle cx="24" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M10 42C10 34.268 16.268 28 24 28C31.732 28 38 34.268 38 42" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 8L42 12L38 16" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.characterStyle">角色与风格</span></button>
         <hr class="nav-divider" />
         <button type="button" class="nav-item" data-section="appearance"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.appearance">外观设置</title><path d="M24 44C29.9601 44 26.3359 35.136 30 31C33.1264 27.4709 44 29.0856 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M28 17C29.6569 17 31 15.6569 31 14C31 12.3431 29.6569 11 28 11C26.3431 11 25 12.3431 25 14C25 15.6569 26.3431 17 28 17Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 21C17.6569 21 19 19.6569 19 18C19 16.3431 17.6569 15 16 15C14.3431 15 13 16.3431 13 18C13 19.6569 14.3431 21 16 21Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M17 34C18.6569 34 20 32.6569 20 31C20 29.3431 18.6569 28 17 28C15.3431 28 14 29.3431 14 31C14 32.6569 15.3431 34 17 34Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.appearance">外观设置</span></button>
         <hr class="nav-divider" />
         <button type="button" class="nav-item" data-section="preferences"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.preferences">偏好设置</title><path d="M12 35.0137H9H4V8.01273C4 6.90868 4.89543 6.01367 6 6.01367H42C43.1046 6.01367 44 6.90868 44 8.01273V35.0137H36" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 32L14 42H34L24 32Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.preferences">偏好设置</span></button>
-        <button type="button" class="nav-item" data-section="memory"><span><img class="nav-item__avatar" src="/icons/mimi.png" width="18" height="18" alt="" aria-hidden="true" /></span><span class="nav-item__label" data-i18n="nav.memory">记忆</span></button>
+        <button type="button" class="nav-item" data-section="memory"><span><img class="nav-item__avatar" src="../icons/mimi.png" width="18" height="18" alt="" aria-hidden="true" /></span><span class="nav-item__label" data-i18n="nav.memory">记忆</span></button>
         <hr class="nav-divider" />
-        <button type="button" class="nav-item" data-section="tts"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>TTS</title><rect x="17" y="4" width="14" height="27" rx="7" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M9 23C9 31.2843 15.7157 38 24 38C32.2843 38 39 31.2843 39 23" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 38V44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.tts">TTS 设置</span></button>
-        <button type="button" class="nav-item" data-section="asr"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>ASR</title><path d="M36 32V32C40.4183 32 44 28.4183 44 24C44 19.5817 40.4183 16 36 16" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 16C7.58172 16 4 19.5817 4 24C4 28.4183 7.58172 32 12 32V32" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 32V31.5V29V24V16C12 9.37258 17.3726 4 24 4C30.6274 4 36 9.37258 36 16V32C36 38.6274 30.6274 44 24 44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.asr">ASR 设置</span></button>
+        <span class="settings-nav__group-label">语音</span>
+
+        <button type="button" class="nav-item" data-section="tts"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>TTS</title><rect x="17" y="4" width="14" height="27" rx="7" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M9 23C9 31.2843 15.7157 38 24 38C32.2843 38 39 31.2843 39 23" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 38V44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label">语音合成</span></button>
+        <button type="button" class="nav-item" data-section="asr"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>ASR</title><path d="M36 32V32C40.4183 32 44 28.4183 44 24C44 19.5817 40.4183 16 36 16" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 16C7.58172 16 4 19.5817 4 24C4 28.4183 7.58172 32 12 32V32" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M12 32V31.5V29V24V16C12 9.37258 17.3726 4 24 4C30.6274 4 36 9.37258 36 16V32C36 38.6274 30.6274 44 24 44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label">语音识别</span></button>
         <hr class="nav-divider" />
-        <button type="button" class="nav-item" data-section="channels"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.channels">连接手机</title><rect x="11" y="4" width="26" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="4"/><path d="M22 10L26 10" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 38H28" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.channels">连接手机</span></button>
+        <span class="settings-nav__group-label">连接与工具</span>
+
+        <button type="button" class="nav-item" data-section="channels"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>消息渠道</title><rect x="11" y="4" width="26" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="4"/><path d="M22 10L26 10" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 38H28" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label">消息渠道</span></button>
         <hr class="nav-divider" />
         <button type="button" class="nav-item" data-section="plugins"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><title data-i18n="nav.plugins">工具配置</title><path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z"/><path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z"/></svg></span><span class="nav-item__label" data-i18n="nav.plugins">工具配置</span></button>
-                <button type="button" class="nav-item" data-section="lsp"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>LSP 设置</title><path d="M8 8H40C42.2091 8 44 9.79086 44 12V36C44 38.2091 42.2091 40 40 40H8C5.79086 40 4 38.2091 4 36V12C4 9.79086 5.79086 8 8 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 20L20 26L14 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 32H34" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></span><span class="nav-item__label" data-i18n="nav.lsp">LSP 设置</span></button>
+                <button type="button" class="nav-item" data-section="lsp"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>代码辅助</title><path d="M8 8H40C42.2091 8 44 9.79086 44 12V36C44 38.2091 42.2091 40 40 40H8C5.79086 40 4 38.2091 4 36V12C4 9.79086 5.79086 8 8 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 20L20 26L14 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 32H34" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></span><span class="nav-item__label">代码辅助</span></button>
         <button type="button" class="nav-item" data-section="skills"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.skills">技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></span><span class="nav-item__label" data-i18n="nav.skills">技能管理</span></button>
+        <span class="settings-nav__group-label">数据与任务</span>
+
         <button type="button" class="nav-item" data-section="backup"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.backup">备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20C12 20 16 16 24 16C32 16 36 20 36 20" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></span><span class="nav-item__label" data-i18n="nav.backup">备份管理</span></button>
         <button type="button" class="nav-item" data-section="tasks"><span><svg width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M23.9998 44.3332C34.1251 44.3332 42.3332 36.1251 42.3332 25.9999C42.3332 15.8747 34.1251 7.66656 23.9998 7.66656C13.8746 7.66656 5.6665 15.8747 5.6665 25.9999C5.6665 36.1251 13.8746 44.3332 23.9998 44.3332Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M23.7594 15.3536L23.7582 26.3624L31.5305 34.1347" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.00001L11 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 9.00001L37 4.00001" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.tasks">定时任务</span></button>
         <hr class="nav-divider" />
+        <span class="settings-nav__group-label">其他</span>
+
         <button type="button" class="nav-item" data-section="general"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.general">通用设置</title><path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.general">通用设置</span></button>
         <button type="button" class="nav-item" data-section="user"><span><svg width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M44 8H4V38H19L24 43L29 38H44V8Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="19" r="5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 32C33 27.5817 28.9706 24 24 24C19.0294 24 15 27.5817 15 32" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.user">用户信息</span></button>
         <button type="button" class="nav-item" data-section="disclaimer"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.disclaimer">免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.disclaimer">免责声明</span></button>
@@ -71,10 +85,10 @@
       <section class="settings-content">
         <form class="settings-panel is-hidden" id="api-form" data-panel="api">
           <div class="panel-heading">
-            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="panel.api">API 设置</title><g clip-path="url(#api-key-heading-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-heading-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></div>
+            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="panel.api">模型服务</title><g clip-path="url(#api-key-heading-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-heading-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></div>
             <div>
-              <h1 data-i18n="panel.api">API 设置</h1>
-              <p data-i18n="api.headingDesc">先配置一个模型服务，后面昔涟会用它进行聊天和状态判断。</p>
+              <h1 data-i18n="panel.api">模型服务</h1>
+              <p data-i18n="api.headingDesc">先配置模型服务，后面昔涟会用它进行聊天和状态判断。</p>
             </div>
           </div>
 
@@ -153,15 +167,15 @@
               <span data-i18n="api.protocol">API 协议</span>
               <div class="transport-cards" id="transport-select" role="group" aria-label="API 协议" data-i18n-aria="api.protocol">
                 <button type="button" class="preset-card" data-value="openai" aria-pressed="false">
-                  <span class="preset-card__logo"><img src="/icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
                   <span class="preset-card__name">chat/completion</span>
                 </button>
                 <button type="button" class="preset-card" data-value="anthropic" aria-pressed="false">
-                  <span class="preset-card__logo"><img src="/icons/providers/claude.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__logo"><img src="../icons/providers/claude.svg" alt="" width="24" height="24" draggable="false" /></span>
                   <span class="preset-card__name">anthropic</span>
                 </button>
                 <button type="button" class="preset-card" data-value="responses" aria-pressed="false">
-                  <span class="preset-card__logo"><img src="/icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
                   <span class="preset-card__name">Responses</span>
                 </button>
               </div>
@@ -648,7 +662,7 @@
             <div class="agent-settings-grid">
               <article class="agent-setting-card agent-setting-card--full">
               <div class="agent-setting-card__head">
-                <span><img src="/icons/sticker-picker.png" width="22" height="22" alt="" aria-hidden="true" /></span>
+                <span><img src="../icons/sticker-picker.png" width="22" height="22" alt="" aria-hidden="true" /></span>
                 <div>
                   <h2 data-i18n="sticker.sendTitle">表情包发送</h2>
                   <p data-i18n="sticker.sendHint">控制昔涟是否在聊天框里发送表情包，以及表情包显示大小。</p>
@@ -778,8 +792,8 @@
               <div class="appearance-icon-control">
                 <div class="appearance-font-control__copy"><strong data-i18n="appearance.desktopIcon">桌面图标</strong><small data-i18n="appearance.desktopIconHint">切换系统托盘与应用窗口图标。</small></div>
                 <div class="appearance-icon-options" id="ui-icon-select" role="radiogroup" aria-label="桌面图标" data-i18n-aria="appearance.desktopIcon">
-                  <button type="button" class="appearance-icon-option" data-icon="cyrene-pink" aria-pressed="false" aria-label="图标 1" data-i18n-aria="appearance.icon1"><img src="/icons/cyrene-pink.png" alt="" /></button>
-                  <button type="button" class="appearance-icon-option is-active" data-icon="cyrene-sun" aria-pressed="true" aria-label="图标 2" data-i18n-aria="appearance.icon2"><img src="/icons/cyrene-sun.png" alt="" /></button>
+                  <button type="button" class="appearance-icon-option" data-icon="cyrene-pink" aria-pressed="false" aria-label="图标 1" data-i18n-aria="appearance.icon1"><img src="../icons/cyrene-pink.png" alt="" /></button>
+                  <button type="button" class="appearance-icon-option is-active" data-icon="cyrene-sun" aria-pressed="true" aria-label="图标 2" data-i18n-aria="appearance.icon2"><img src="../icons/cyrene-sun.png" alt="" /></button>
                 </div>
               </div>
               <button type="button" class="appearance-placeholder" disabled><span data-i18n="appearance.chatBackground">聊天背景</span><span class="soon-badge">SOON</span></button>
@@ -910,7 +924,7 @@
 
         <form class="settings-panel is-hidden" id="cyrene-panel" data-panel="cyrene">
           <div class="panel-heading">
-            <div class="panel-heading__icon"><img class="panel-heading__avatar" src="/icons/cyrene-avatar-line-white.png" width="32" height="32" alt="" aria-hidden="true" /></div>
+            <div class="panel-heading__icon"><img class="panel-heading__avatar" src="../icons/cyrene-avatar-line-white.png" width="32" height="32" alt="" aria-hidden="true" /></div>
             <div>
               <h1 data-i18n="panel.cyrene">Agent 行为</h1>
               <p data-i18n="cyrene.headingDesc">控制状态栏实时更新等 Agent 行为设置。</p>
@@ -948,7 +962,7 @@
 
                 <section class="settings-panel is-hidden" id="memory-panel" data-panel="memory">
           <div class="panel-heading">
-            <div class="panel-heading__icon"><img class="panel-heading__avatar" src="/icons/mimi.png" width="32" height="32" alt="" aria-hidden="true" /></div>
+            <div class="panel-heading__icon"><img class="panel-heading__avatar" src="../icons/mimi.png" width="32" height="32" alt="" aria-hidden="true" /></div>
             <div>
               <h1 data-i18n="panel.memory">昔涟记忆</h1>
               <p data-i18n="memory.headingDesc">昔涟对你的认知和记忆，你可以查看、编辑和管理。</p>
@@ -1132,6 +1146,108 @@
             </div>
           </div>
         </section>
+
+                                <section class="settings-panel is-hidden" id="hermes-panel" data-panel="hermes">
+                  <div class="settings-section">
+                    <div class="settings-section__header">
+                      <h3 class="settings-section__title">AI 引擎 · Hermes</h3>
+                      <p class="settings-section__hint">AI 引擎（Hermes Agent）负责思考与执行任务，这里配置它的运行方式。保存后写入 HERMES_HOME/.env，无需手改源文件。</p>
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-source-dir">Hermes 源码目录</label>
+                      <div class="form-control">
+                        <input id="hermes-source-dir" type="text" placeholder="...\desk_pet\hermes-agent" autocomplete="off" />
+                        <span class="form-hint">含 cli.py / pyproject.toml 的官方检出目录</span>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-home-dir">HERMES_HOME</label>
+                      <div class="form-control">
+                        <input id="hermes-home-dir" type="text" placeholder="...\desk_pet\.runtime\hermes-home" autocomplete="off" />
+                        <span class="form-hint" id="hermes-env-hint">会话、技能与日志数据目录</span>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-uv-path">uv 路径</label>
+                      <div class="form-control">
+                        <input id="hermes-uv-path" type="text" placeholder="uv.exe 全路径或 uv" autocomplete="off" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-section">
+                    <div class="settings-section__header">
+                      <h3 class="settings-section__title">API Server</h3>
+                      <p class="settings-section__hint">Electron 通过 http://host:port + Bearer Key 调用 Hermes。</p>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-api-host">监听地址</label>
+                      <div class="form-control"><input id="hermes-api-host" type="text" value="127.0.0.1" /></div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-api-port">端口</label>
+                      <div class="form-control"><input id="hermes-api-port" type="number" min="1" max="65535" value="8642" /></div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-api-key">API_SERVER_KEY</label>
+                      <div class="form-control">
+                        <input id="hermes-api-key" type="text" autocomplete="off" placeholder="保存或生成后写入 .env" />
+                        <div class="form-actions" style="margin-top:8px">
+                          <button type="button" class="btn-secondary" id="hermes-generate-key-btn">生成密钥</button>
+                          <button type="button" class="btn-secondary" id="hermes-health-btn">检查健康</button>
+                        </div>
+                        <span class="form-hint" id="hermes-health">未检测</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-section">
+                    <div class="settings-section__header">
+                      <h3 class="settings-section__title">模型与同步</h3>
+                      <p class="settings-section__hint">主模型 Key 仍以「API 设置」为准；这里可一键同步到 Hermes。</p>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-model-provider">Provider</label>
+                      <div class="form-control">
+                        <input id="hermes-model-provider" type="text" placeholder="openrouter / xiaomi / openai / ollama ..." />
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-default-model">默认模型</label>
+                      <div class="form-control">
+                        <input id="hermes-default-model" type="text" placeholder="写入 Hermes config.yaml model.default" />
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-sync-model">保存模型设置后自动同步</label>
+                      <div class="form-control">
+                        <label class="toggle-switch">
+                          <input type="checkbox" id="hermes-sync-model" checked />
+                          <span class="toggle-switch__slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="hermes-auto-start">启动应用时拉起 Gateway</label>
+                      <div class="form-control">
+                        <label class="toggle-switch">
+                          <input type="checkbox" id="hermes-auto-start" />
+                          <span class="toggle-switch__slider"></span>
+                        </label>
+                        <span class="form-hint">进程托管在 P1 HermesProcMgr 完善；当前仅保存配置</span>
+                      </div>
+                    </div>
+                    <div class="form-actions">
+                      <button type="button" class="btn-secondary" id="hermes-sync-model-btn">立即同步模型凭据到 Hermes</button>
+                    </div>
+                  </div>
+
+                  <div class="form-actions form-actions--sticky">
+                    <span class="save-status" id="hermes-save-status" hidden></span>
+                    <button type="button" class="btn-primary" id="hermes-save-btn">保存 Hermes 设置</button>
+                  </div>
+                </section>
 
                                 <section class="settings-panel is-hidden" id="lsp-panel" data-panel="lsp">
                   <div class="settings-section">

@@ -48,6 +48,39 @@
   --rb-input-bg:       #ffffff;
   --rb-input-border:   #d2d2d7;
   --rb-input-text:     #1d1d1f;
+
+  /* ── 语义别名（汐月 UI 规范：业务样式优先使用下列 --ui-* / --brand-*）── */
+  --brand-primary:     var(--rb-pink-500);
+  --brand-primary-hover: var(--rb-pink-600);
+  --brand-primary-soft:  var(--rb-pink-50);
+  --brand-on-primary:  var(--rb-text-on-pink);
+
+  --ui-bg-page:        var(--rb-bg-1);
+  --ui-bg-panel:       var(--rb-bg-0);
+  --ui-bg-elevated:    var(--rb-bg-elevated);
+  --ui-text-strong:    var(--rb-text-strong);
+  --ui-text-default:   var(--rb-text-default);
+  --ui-text-muted:     var(--rb-text-muted);
+  --ui-text-faint:     var(--rb-text-faint);
+  --ui-border:         var(--rb-border-soft);
+  --ui-border-strong:  var(--rb-border-strong);
+  --ui-input-bg:       var(--rb-input-bg);
+  --ui-input-border:   var(--rb-input-border);
+  --ui-success:        #0b6b5c;
+  --ui-warning:        #9c6a13;
+  --ui-danger:         #a63a49;
+  --ui-info:           #24518f;
+  --ui-radius-control: 8px;
+  --ui-radius-card:    12px;
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 24px;
+  --ui-space-6: 32px;
+  --ui-control-h:      34px;
+  --ui-font-body:      "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --ui-font-mono:      Consolas, "Courier New", monospace;
   --rb-input-placeholder: #6f6876;
   --rb-slider-track:   rgba(0, 0, 0, 0.08);
   --rb-slider-fill:    var(--rb-pink-500);

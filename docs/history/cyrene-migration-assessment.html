@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyrene-Agent 迁移评估报告 · desk-pet → Cyrene</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2933; --sub:#5b6b7b; --line:#e3e9ef;
+    --acc:#0e9f8c; --acc2:#2f7fe0; --green:#0e9f6e; --amber:#c07f12; --red:#cf3f4f;
+    --cyan:#0e9f8c; --blue:#2f7fe0; --chip:#eef3f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+  .hero{background:linear-gradient(135deg,#0b3d42 0%,#0e6f6a 55%,#1d8a77 100%);color:#fff;border-radius:16px;padding:36px 40px;margin-bottom:28px}
+  .hero .tag{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);padding:3px 12px;border-radius:999px;font-size:12.5px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{font-size:30px;font-weight:700;margin-bottom:10px}
+  .hero p{opacity:.92;font-size:15px;max-width:760px}
+  .meta{margin-top:18px;font-size:12.5px;opacity:.75}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px;margin-bottom:22px;box-shadow:0 1px 3px rgba(20,40,60,.05)}
+  .card h2{font-size:20px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+  .card h2 .no{background:var(--acc);color:#fff;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .card .lead{color:var(--sub);font-size:13.5px;margin-bottom:18px}
+  .concl{background:#f0faf7;border:1px solid #bde7dc;border-radius:12px;padding:18px 22px;margin-bottom:6px}
+  .concl b{color:#0b6b5c}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .prof{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:#fbfdfe}
+  .prof h3{font-size:17px;margin-bottom:4px}
+  .prof .sub{font-size:12.5px;color:var(--sub);margin-bottom:12px}
+  .prof ul{list-style:none}
+  .prof li{font-size:13.5px;padding:4px 0;border-bottom:1px dashed #edf1f5}
+  .prof li:last-child{border-bottom:none}
+  .prof .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;margin-right:6px;vertical-align:1px}
+  .pill.c{background:#e4f4ef;color:#0b6b5c}
+  .pill.d{background:#e9f0fb;color:#24518f}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+  th{background:#f3f7fa;font-weight:600;color:#33404c;font-size:12.5px}
+  td .c{color:#0b6b5c;font-weight:600}
+  td .d{color:#24518f;font-weight:600}
+  .bar-row{margin:10px 0}
+  .bar-row .lab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--sub);margin-bottom:3px}
+  .bar{height:10px;border-radius:6px;background:#eef2f6;overflow:hidden;position:relative}
+  .bar>span{display:block;height:100%;border-radius:6px}
+  .b-c{background:linear-gradient(90deg,#0e9f8c,#1bb8a3)}
+  .b-d{background:linear-gradient(90deg,#2f7fe0,#5b9cf0)}
+  .num-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:760px){.num-grid{grid-template-columns:repeat(2,1fr)}}
+  .num{background:#fbfdfe;border:1px solid var(--line);border-radius:12px;padding:16px 14px;text-align:center}
+  .num .v{font-size:26px;font-weight:700;color:var(--ink)}
+  .num .v small{font-size:13px;color:var(--sub);font-weight:600}
+  .num .k{font-size:12px;color:var(--sub);margin-top:4px}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:900px){.three{grid-template-columns:1fr}}
+  .box{border-radius:12px;padding:18px 20px;border:1px solid var(--line)}
+  .box.gain{background:#f0faf6;border-color:#c2e8d8}
+  .box.lose{background:#fdf6ec;border-color:#f0d9ad}
+  .box.port{background:#eef4fb;border-color:#c3d9f1}
+  .box h4{font-size:15px;margin-bottom:10px}
+  .box.gain h4{color:#0b6b5c}.box.lose h4{color:#9c6a13}.box.port h4{color:#24518f}
+  .box ul{list-style:none}
+  .box li{font-size:13.5px;padding:5px 0 5px 18px;position:relative}
+  .box li::before{content:"";position:absolute;left:0;top:13px;width:7px;height:7px;border-radius:50%}
+  .box.gain li::before{background:#2fae8c}.box.lose li::before{background:#e0a63f}.box.port li::before{background:#4d8fe0}
+  .box .why{color:var(--sub);font-size:12px}
+  .phase{display:flex;gap:16px;margin-top:8px}
+  @media(max-width:760px){.phase{flex-direction:column}}
+  .pstep{flex:1;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:14px 16px;background:#fbfdfe}
+  .pstep .pt{font-size:13px;font-weight:700;color:#0b6b5c}
+  .pstep .pd{font-size:12px;color:var(--sub)}
+  .pstep ul{list-style:none;margin-top:8px}
+  .pstep li{font-size:12.8px;padding:2.5px 0 2.5px 14px;position:relative}
+  .pstep li::before{content:"•";position:absolute;left:2px;color:var(--acc)}
+  .pstep.risk{border-left-color:var(--amber)}
+  .pstep.risk .pt{color:#9c6a13}
+  .warn{background:#fff8ec;border:1px solid #f0d9ad;border-radius:12px;padding:16px 20px;margin-top:8px;font-size:13.5px}
+  .warn b{color:#9c6a13}
+  .decision{counter-reset:dc}
+  .decision li{counter-increment:dc;list-style:none;background:#fbfdfe;border:1px solid var(--line);border-radius:10px;padding:14px 18px 14px 54px;position:relative;margin-bottom:10px;font-size:14px}
+  .decision li::before{content:counter(dc);position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .decision .opt{color:var(--sub);font-size:12.5px;margin-top:4px}
+  .foot{color:var(--sub);font-size:12px;text-align:center;margin-top:26px}
+  .tag-small{display:inline-block;background:var(--chip);color:#43566a;border-radius:6px;padding:1px 8px;font-size:11.5px;margin-left:6px;vertical-align:1px}
+  .hl{background:#fff4d6;border-radius:4px;padding:0 4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="tag">迁移评估 · MIGRATION ASSESSMENT</span>
+    <h1>Cyrene-Agent 迁移评估报告</h1>
+    <p>从自研 desk-pet（Tauri + Python 三栈）迁移到 Cyrene-Agent-master（Electron + 纯 TypeScript Agent）的可行性、得失与落地路径。结论先行：<b>方向可行、收益巨大，但不是“换壳”，而是“以 Cyrene 为新底座重建 + 把 desk-pet 的差异化能力移植进去”</b>。</p>
+    <div class="meta">评估日期：2026-09-03 ｜ 评估方式：双侧源码深度阅读（Cyrene README/package/orchestrator/memory + desk-pet README/PLAN/DEVELOPMENT/git log）｜ 非运行验证</div>
+  </div>
+
+  <!-- 一、一句话结论 -->
+  <div class="card">
+    <h2><span class="no">1</span>一句话结论</h2>
+    <div class="lead">两个项目不是同一个量级的 Agent，而是“脑子”和“身体”错位互补。</div>
+    <div class="concl">
+      <b>Cyrene</b> = 纯 TypeScript Electron 桌宠，<b>“脑子”极深</b>：工业级 Agent 主循环（CyreneHarness）、L0/L1/L2 分层记忆 + 自研 DMAE v5、40+ 工具、多厂商适配、飞书/微信/QQ 多渠道，测试覆盖 390 文件，打包链路已就绪。<br>
+      <b>desk-pet</b> = React + Tauri(Rust) + Python 三栈混合，<b>“身体”很全</b>：本地真人声 TTS（CosyVoice 纳西妲微调）/STT/唤醒词、MediaPipe 摄像头感知、激素+PAD 情绪与 HEXACO 人格内在状态系统；但 Agent 循环仍是“玩具级” for 循环，记忆只有碎片级。<br><br>
+      迁移到 Cyrene <b>一次拿到它整套“大脑”</b>，代价是把 desk-pet 的语音/感知/情绪三条“身体”能力作为 sidecar 重新接回去——<b>工程量的重心从“造轮子”变成“接插头”</b>。
+    </div>
+  </div>
+
+  <!-- 二、项目画像 -->
+  <div class="card">
+    <h2><span class="no">2</span>两个项目各自是什么</h2>
+    <div class="lead">技术底座完全不同，决定了“迁移”的真实含义。</div>
+    <div class="grid2">
+      <div class="prof">
+        <h3>Cyrene-Agent <span class="pill c">v1.1.9</span><span class="tag-small">Electron 43 · 纯 TS</span></h3>
+        <div class="sub">开源桌面 Agent（GitHub Playa-0v0/Cyrene-Agent，2026-08 仍在更新；社区已出现多个“fork 改角色”的衍生作品）</div>
+        <ul>
+          <li><span class="pill c">Agent</span>CyreneHarness：while + Function Calling 主循环，checkpoint / 副作用账本 / mid-loop 压缩 / 双时钟超时</li>
+          <li><span class="pill c">记忆</span>L0/L1/L2 分层 + DMAE v5 Worldbook + 冲突检测 + 实体图谱</li>
+          <li><span class="pill c">工具</span>40+ 类：fs / git / lsp / email / music / travel / document / web-search / run-shell / ast-grep…</li>
+          <li><span class="pill c">渠道</span>飞书 WebSocket / 微信 iLink / QQ NapCat OneBot11 多平台统一人格</li>
+          <li><span class="pill c">其他</span>RAG 混合检索、MCP、Skill 系统、主动聊天、音乐陪伴、LSP 代码协作、游戏自动化</li>
+          <li><span class="pill c">Live2D</span>昔涟角色（米哈游 IP 同人，非商用），pixi-live2d-display 渲染</li>
+        </ul>
+      </div>
+      <div class="prof">
+        <h3>desk-pet <span class="pill d">v0.1.0</span><span class="tag-small">Tauri 2 · React 19 · Python</span></h3>
+        <div class="sub">你的自研桌宠，273 次提交，最近一次 2026-08-31，仍在活跃开发（打包 Phase5 未完成）</div>
+        <ul>
+          <li><span class="pill d">语音</span>本地真人声 TTS（CosyVoice V3 纳西妲微调 / GPT-SoVITS / Edge）+ STT（FunASR / SenseVoice）+ VAD + 唤醒词，ServiceLifecycle 统一资源调度</li>
+          <li><span class="pill d">感知</span>MediaPipe 手部 21 点 / 面部 468 点 + WebSocket 实时流</li>
+          <li><span class="pill d">内在状态</span>三激素（多巴胺/皮质醇/催产素）+ PAD 情绪 + HEXACO 人格漂移 + 昼夜节律 + 重逢引擎 + Archivist 夜间整理</li>
+          <li><span class="pill d">记忆</span>Hermes SessionDB + FTS5 + 碎片系统（Scribe/Librarian/衰减）</li>
+          <li><span class="pill d">其他</span>番茄钟、每日问候、行为系统、技能系统、RAG、MCP、主动聊天（骨架）、多窗口悬浮</li>
+          <li><span class="pill d">Live2D</span>纳西妲模型 + hiyori 官方样例，Cubism SDK v5 原生 WebGL2</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 三、技术底座对比 -->
+  <div class="card">
+    <h2><span class="no">3</span>技术底座对比</h2>
+    <div class="lead">这是“迁移成本”的根源：两者不在同一个壳里。</div>
+    <table>
+      <tr><th style="width:18%">维度</th><th>Cyrene-Agent</th><th>desk-pet</th><th style="width:22%">迁移含义</th></tr>
+      <tr><td>桌面框架</td><td><span class="c">Electron 43</span>（Chromium + Node 主进程）</td><td><span class="d">Tauri 2</span>（Rust + 系统 WebView）</td><td>渲染层同为 Web，但“壳”完全不同</td></tr>
+      <tr><td>后端</td><td><span class="c">无</span>，纯 TS 主进程 Agent，零 Python</td><td><span class="d">Python FastAPI</span>：TTS/STT/感知/情绪，单 venv</td><td>Python 侧需以独立进程 sidecar 接回</td></tr>
+      <tr><td>前端 / 渲染</td><td><span class="c">Vite + React 19 + Pixi.js 7</span></td><td><span class="d">Vite + React 19 + Cubism SDK v5 原生</span></td><td>Live2D 模型 .moc3 通用，渲染层要重接</td></tr>
+      <tr><td>记忆存储</td><td><span class="c">纯 TS</span>（L0/L1/L2 + DMAE + 向量）</td><td><span class="d">Python SQLite</span>（FTS5 + 碎片）</td><td>记忆体系整体被 Cyrene 取代</td></tr>
+      <tr><td>模型厂商</td><td><span class="c">9 家</span>：豆包/Kimi/DeepSeek/Qwen/GLM/MiMo/MiniMax/OpenAI/Anthropic，分级 Structured Output</td><td><span class="d">StepFun + OpenAI 兼容</span>多 Provider</td><td>Cyrene 覆盖面更广</td></tr>
+      <tr><td>打包分发</td><td><span class="c">electron-builder 已就绪</span>（package:win:dir）</td><td><span class="d">Tauri 打包未完成</span>（PLAN Phase5 🔲）</td><td>迁移顺带解决“一直没打包”的痛点</td></tr>
+      <tr><td>构建环境</td><td><span class="c">Node 24 + npm + Rust(截图) + VS2022 BuildTools</span></td><td><span class="d">Node 22 + pnpm + Rust + Python 3.10+</span></td><td>本机已具备 Rust/Python 环境，门槛可控</td></tr>
+      <tr><td>语言栈</td><td><span class="c">单栈 TypeScript</span>（约 1075 个 .ts）</td><td><span class="d">三栈</span>：385 TS + 327 Py + 38 Rust</td><td>迁移后维护面收窄到 TS 为主</td></tr>
+    </table>
+  </div>
+
+  <!-- 四、能力对比矩阵 -->
+  <div class="card">
+    <h2><span class="no">4</span>能力对比矩阵（0–5 评估，源码审查口径）</h2>
+    <div class="lead">评分基于双侧源码深读（Cyrene README/主进程源码 + desk-pet 源码与运行时接线核对），是评估值非官方分；青色=Cyrene，蓝色=desk-pet。</div>
+    <div class="bar-row"><div class="lab"><span>Agent 工具循环（Harness）</span><span><span class="c">Cyrene 5</span> · <span class="d">desk-pet 2</span></span></div><div class="bar"><span class="b-c" style="width:100%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>记忆引擎（分层 / DMAE / 冲突）</span><span><span class="c">5</span> · <span class="d">2</span></span></div><div class="bar"><span class="b-c" style="width:100%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>工具生态</span><span><span class="c">5</span> · <span class="d">2.5</span></span></div><div class="bar"><span class="b-c" style="width:100%"></span><span class="b-d" style="width:50%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>多模型厂商适配</span><span><span class="c">4</span> · <span class="d">2.5</span></span></div><div class="bar"><span class="b-c" style="width:80%"></span><span class="b-d" style="width:50%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>多平台渠道（飞书/微信/QQ）</span><span><span class="c">4</span> · <span class="d">0.5</span></span></div><div class="bar"><span class="b-c" style="width:80%"></span><span class="b-d" style="width:10%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>RAG / MCP / Skill 生态</span><span><span class="c">4.5</span> · <span class="d">2.5</span></span></div><div class="bar"><span class="b-c" style="width:90%"></span><span class="b-d" style="width:50%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>主动聊天</span><span><span class="c">4</span> · <span class="d">3</span></span></div><div class="bar"><span class="b-c" style="width:80%"></span><span class="b-d" style="width:60%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>本地真人声语音链路（TTS/STT/唤醒）</span><span><span class="c">1.5</span> · <span class="d">5</span></span></div><div class="bar"><span class="b-c" style="width:30%"></span><span class="b-d" style="width:100%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>摄像头感知（MediaPipe）</span><span><span class="c">0</span> · <span class="d">4</span></span></div><div class="bar"><span class="b-d" style="width:80%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>内在状态（情绪/人格/节律）</span><span><span class="c">2</span> · <span class="d">4.5</span></span></div><div class="bar"><span class="b-c" style="width:40%"></span><span class="b-d" style="width:90%"></span></div></div>
+    <div class="bar-row"><div class="lab"><span>工程化 / 测试覆盖 / 打包</span><span><span class="c">5</span> · <span class="d">3</span></span></div><div class="bar"><span class="b-c" style="width:100%"></span><span class="b-d" style="width:60%"></span></div></div>
+    <div style="margin-top:14px;font-size:12.5px;color:var(--sub)">核心结论：Cyrene 在“思考与执行”维度全面碾压；desk-pet 在“语音身体、感知、内在状态”三项独有。这恰好构成互补——迁移的价值就在“把 Cyrene 的大脑装进 desk-pet 的身体”。</div>
+  </div>
+
+  <!-- 五、规模硬数据 -->
+  <div class="card">
+    <h2><span class="no">5</span>规模硬数据</h2>
+    <div class="lead">实测统计（2026-09-03）：</div>
+    <div class="num-grid">
+      <div class="num"><div class="v">1075 <small>TS</small></div><div class="k">Cyrene 源码文件</div></div>
+      <div class="num"><div class="v">390</div><div class="k">Cyrene 测试文件（Vitest）</div></div>
+      <div class="num"><div class="v">40+</div><div class="k">Cyrene 内置工具类</div></div>
+      <div class="num"><div class="v">3</div><div class="k">Cyrene 外部渠道</div></div>
+      <div class="num"><div class="v">385</div><div class="k">desk-pet 前端 TS/TSX</div></div>
+      <div class="num"><div class="v">327</div><div class="k">desk-pet Python 服务</div></div>
+      <div class="num"><div class="v">38</div><div class="k">desk-pet Rust 文件</div></div>
+      <div class="num"><div class="v">21</div><div class="k">desk-pet 内置工具</div></div>
+    </div>
+    <div style="margin-top:12px;font-size:13px;color:var(--sub)">desk-pet 三栈合计约 750 个源文件，接近 Cyrene 单栈 1075 的规模——两边都是“能跑的真项目”，Cyrene 只是把复杂度放进了更深的 Agent 层。Cyrene 侧当前未安装 node_modules（需 npm ci），无 dist/main 构建产物；desk-pet 侧 venv 与 node_modules 齐备、可直接运行。</div>
+  </div>
+
+  <!-- 六、迁移得失 -->
+  <div class="card">
+    <h2><span class="no">6</span>迁移得失分析</h2>
+    <div class="lead">“迁移” = 白得 Cyrene 的大脑 + 移植 desk-pet 的身体 + 丢弃双方重复且 Cyrene 更强的部分。</div>
+    <div class="three">
+      <div class="box gain">
+        <h4>✅ 白得（Cyrene 强项，迁移即到手）</h4>
+        <ul>
+          <li>工业级 CyreneHarness：checkpoint 崩溃恢复、副作用账本、mid-loop 压缩、双时钟超时、保守并行、大输出落盘</li>
+          <li>L0/L1/L2 分层记忆 + DMAE v5 + 冲突检测 + 实体图谱 + 记忆调度</li>
+          <li>40+ 工具生态（fs/git/lsp/email/music/travel/document/web-search/run-shell/ast-grep）</li>
+          <li>多平台渠道：飞书 / 微信 iLink / QQ NapCat —— 正好接上你之前的 QQ 机器人诉求</li>
+          <li>多厂商分级适配 + reasoning + Structured Output，9 家模型厂商</li>
+          <li>RAG 混合检索 + reranker + 后台索引；MCP 生态；Skill 系统（snapshot/slash）</li>
+          <li>主动聊天完整（状态感知 + 不打扰策略 + 多渠道投递）</li>
+          <li>音乐陪伴（网易云 + 内置 mpv）、CLI 入口、场景模拟</li>
+          <li>390 个测试文件 + 成熟 electron-builder 打包链路</li>
+        </ul>
+      </div>
+      <div class="box lose">
+        <h4>⚠️ 失去（desk-pet 独有，迁移会丢）</h4>
+        <ul>
+          <li>本地真人声 TTS：CosyVoice V3 纳西妲微调 / GPT-SoVITS / Edge（Cyrene 只有云端 API）</li>
+          <li>本地 STT：FunASR / SenseVoice + VAD + 唤醒词</li>
+          <li>MediaPipe 摄像头感知（手部 21 点 / 面部 468 点）</li>
+          <li>激素 + PAD 情绪 + HEXACO 人格漂移 + 昼夜节律 + 重逢引擎 + Archivist 整理</li>
+          <li>番茄钟 / 每日问候 / 行为系统 / 多窗口悬浮布局</li>
+          <li>ServiceLifecycle 统一资源调度（大脑管身体的架构）</li>
+        </ul>
+      </div>
+      <div class="box port">
+        <h4>🔧 需移植（把“身体”接回 Cyrene）</h4>
+        <ul>
+          <li>本地语音链路 → 作为 Python sidecar 子进程，由 Electron 主进程 spawn 托管</li>
+          <li>摄像头感知 → 前端 Web 侧 MediaPipe 可行，注意 opt-in 隐私</li>
+          <li>内在状态系统 → 二选一：改写为 TS 服务，或保留 Python sidecar</li>
+          <li>Live2D 渲染层重接 → Cubism v5 原生 ↔ pixi-live2d-display，模型 .moc3 通用可换</li>
+          <li>角色模型与 persona prompt → 换模型 + 改写角色设定</li>
+          <li>番茄钟/问候等小功能 → 低成本重写</li>
+        </ul>
+      </div>
+    </div>
+    <div class="warn" style="margin-top:16px"><b>可直接丢弃的部分：</b>desk-pet 的 tool-loop（被 CyreneHarness 取代）、碎片级记忆体系（被 L0/L1/L2 取代）、自有 RAG/技能/主动/工具实现（Cyrene 更强）、MCP 管理（Cyrene 内置）。这些“旧轮子”不要搬，搬了反而是负担。</div>
+  </div>
+
+  <!-- 七、迁移路线 -->
+  <div class="card">
+    <h2><span class="no">7</span>推荐迁移路线（渐进，先跑起来再移植）</h2>
+    <div class="lead">原则：先在 Cyrene 上跑通并确认“你想要的样子”，再逐模块移植，每阶段都可回退。</div>
+    <div class="phase">
+      <div class="pstep">
+        <div class="pt">Phase 0 · 跑起来（约 1 天）</div>
+        <div class="pd">验证 + 对齐需求</div>
+        <ul>
+          <li>npm ci（需 Node 24 + VS Build Tools + Rust 截图）</li>
+          <li>配 LLM Key，验证 Chat / Work / Code 模式</li>
+          <li>列出“我想要的样子”需求清单，划边界</li>
+        </ul>
+      </div>
+      <div class="pstep">
+        <div class="pt">Phase 1 · 底座定制（2–3 天）</div>
+        <div class="pd">建自己的版本基线</div>
+        <ul>
+          <li>复制为独立仓库 git init，建立基线</li>
+          <li>换 Live2D 模型（纳西妲/昔涟/其他）</li>
+          <li>改写 persona prompt 与界面外观</li>
+          <li>配置自家 LLM / TTS 预设</li>
+        </ul>
+      </div>
+      <div class="pstep">
+        <div class="pt">Phase 2 · 移植身体（按优先级）</div>
+        <div class="pd">把 desk-pet 独有能力接回</div>
+        <ul>
+          <li>P0：本地语音链路（TTS/STT/唤醒）sidecar 接入</li>
+          <li>P0：内在状态/情绪系统（若保留）</li>
+          <li>P1：摄像头感知（opt-in）</li>
+          <li>P1：番茄钟 / 问候等小功能</li>
+        </ul>
+      </div>
+      <div class="pstep">
+        <div class="pt">Phase 3 · 平台与打磨</div>
+        <div class="pd">对外与分发</div>
+        <ul>
+          <li>QQ / 飞书渠道接入（承接旧 QQ 机器人）</li>
+          <li>主动聊天调优、成本治理</li>
+          <li>electron-builder 打包分发</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 八、风险 -->
+  <div class="card">
+    <h2><span class="no">8</span>风险与注意点</h2>
+    <div class="phase">
+      <div class="pstep risk"><div class="pt">角色 IP / 授权</div><ul>
+        <li>Cyrene 的昔涟模型是米哈游同人、<b>非商用</b>；desk-pet 的纳西妲同理</li>
+        <li>自用可放心；对外商用两项目都受限</li>
+        <li>换用模型时注意作者署名与授权范围</li></ul></div>
+      <div class="pstep risk"><div class="pt">技术栈切换成本</div><ul>
+        <li>Electron + 纯 TS 与 Tauri + 三栈差异大</li>
+        <li>语音/感知/情绪是“重写接入层”而非复制</li>
+        <li>需适应 Cyrene 的 IPC / 模块约定（90+ 通道）</li></ul></div>
+      <div class="pstep risk"><div class="pt">上游更新与体积</div><ul>
+        <li>Cyrene 迭代快，本地大改后 merge 上游会难——建议 fork 或只选关键更新合入</li>
+        <li>Electron 体积/内存大于 Tauri；Cyrene 已做优化，可关 Reranker/MCP 降内存</li>
+        <li>npm ci 需下载 Electron 等大依赖，网络要求</li></ul></div>
+      <div class="pstep risk"><div class="pt">工程承接</div><ul>
+        <li>desk-pet 的 273 次提交积累不能“直接搬”，要按模块评估价值</li>
+        <li>建议把 desk-pet 冻结为“遗产仓库”，新开发全在 Cyrene 基线上</li></ul></div>
+    </div>
+  </div>
+
+  <!-- 九、决策 -->
+  <div class="card">
+    <h2><span class="no">9</span>待你拍板的关键决策</h2>
+    <div class="lead">这些直接决定迁移工作量和“最终的样子”，建议开工前逐条定下来：</div>
+    <ol class="decision">
+      <li><b>角色用谁？</b><div class="opt">保留纳西妲模型？直接用昔涟？还是换其他 Live2D 模型？（决定模型与 persona 改动量）</div></li>
+      <li><b>语音走本地还是云？</b><div class="opt">保留 CosyVoice 纳西妲微调等本地真人声，还是改用 Cyrene 的云 API（Mossland/MiniMax）？（决定 sidecar 工程量，这也是你最大的差异化资产）</div></li>
+      <li><b>摄像头感知要不要？</b><div class="opt">手部/面部互动是 desk-pet 独有的交互卖点，但涉及隐私，建议 opt-in 默认关。</div></li>
+      <li><b>情绪/人格内在状态系统保不保留？</b><div class="opt">这是 desk-pet 花大力气做的“灵魂”，Cyrene 没有，需要作为模块移植。</div></li>
+      <li><b>多平台要不要？</b><div class="opt">QQ/飞书/微信 接入正好衔接你之前的 QQ 机器人项目，但要投入配置。</div></li>
+      <li><b>“想要的样子”具体指哪些？</b><div class="opt">外观/角色设定/功能清单/对话风格——越具体，Phase 1 越能一步到位。</div></li>
+    </ol>
+  </div>
+
+  <!-- 十、参考 -->
+  <div class="card">
+    <h2><span class="no">10</span>关键路径速查</h2>
+    <table>
+      <tr><th>能力</th><th>Cyrene 路径</th><th>desk-pet 路径</th></tr>
+      <tr><td>Agent 主循环</td><td>src/main/orchestrator/harness/cyrene-harness.ts</td><td>src/services/pipeline/tool-loop.ts</td></tr>
+      <tr><td>记忆引擎</td><td>src/main/memory/（memory-manager / l2-dmae-manager / memory-conflict）</td><td>server/hermes_core/memory/（碎片）</td></tr>
+      <tr><td>工具注册表</td><td>src/main/orchestrator/tools/registry/tool-registry.ts</td><td>src/services/tools/registry.ts</td></tr>
+      <tr><td>语音</td><td>src/main/tts/ + src/main/asr/（云端）</td><td>server/hermes_core/voice/ + modules/（本地）</td></tr>
+      <tr><td>感知</td><td>—（无）</td><td>src/services/perception/ + server/perception/</td></tr>
+      <tr><td>内在状态</td><td>—（弱）</td><td>server/hermes_core/emotion|soul|time/</td></tr>
+      <tr><td>渠道层</td><td>src/main/channels/</td><td>—（无内嵌，QQ 走 Hermes gateway）</td></tr>
+      <tr><td>主动聊天</td><td>src/main/proactive/</td><td>src/services/proactive/</td></tr>
+      <tr><td>Live2D 模型</td><td>dist/renderer/models/cyrene/（昔涟）</td><td>public/models/nahida|hiyori/（纳西妲）</td></tr>
+    </table>
+    <div class="foot">本报告由本地源码调查生成 · 双侧文件规模为 2026-09-03 实测 · 评分口径见第四节 · desk-pet 侧另有已存在的能力对比文档 docs/cyrene-vs-deskpet-comparison.md（立场为“借鉴”，本文档立场为“迁移”）</div>
+  </div>
+
+</div>
+</body>
+</html>
