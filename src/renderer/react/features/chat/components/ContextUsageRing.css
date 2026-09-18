@@ -228,3 +228,28 @@
   font: 11px/1.4 var(--rb-font-sans, sans-serif);
   color: var(--cy-text-muted);
 }
+
+
+/* 输入框上方/旁的用量文案（对齐常见 Agent 输入区样式） */
+.cy-context-usage-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cy-context-usage-label {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cy-text-muted, #6f6876);
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
+}
+.cy-context-usage-label.is-warm {
+  color: var(--ui-warning, #9c6a13);
+  background: rgba(255, 180, 40, 0.12);
+}
+.cy-context-usage-label.is-alert {
+  color: var(--ui-danger, #a63a49);
+  background: rgba(220, 60, 80, 0.1);
+}

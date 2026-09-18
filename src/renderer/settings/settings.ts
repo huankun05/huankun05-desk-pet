@@ -1840,7 +1840,7 @@ if (testConnectionBtn) {
           if (!result.ok || !result.models?.length) {
             const meta = document.getElementById("context-window-auto-hint");
             if (meta && result.error) {
-              meta.textContent = tOr("settings.providerModelsFailed", "服务商模型列表获取失败") + ": " + result.error;
+              meta.textContent = tOr("settings.providerModelsFailed", "官方接口未提供模型列表，请手动填写模型名") + ": " + result.error;
             }
             return;
           }
@@ -1857,7 +1857,7 @@ if (testConnectionBtn) {
           if (!hit) {
             if (meta) {
               meta.textContent =
-                tOr("settings.modelNotInProviderList", "该模型不在服务商列表中，请核对模型 ID")
+                tOr("settings.modelNotInProviderList", "服务商未返回完整模型列表或该模型不在列表中，请手动填写模型 ID")
                 + " · " + tOr("settings.providerModelCount", "服务商共")
                 + " " + result.models.length + " " + tOr("settings.providerModelCountUnit", "个");
             }
@@ -1869,7 +1869,7 @@ if (testConnectionBtn) {
               meta.textContent = tOr("settings.contextFromProvider", "上下文窗口来自服务商 API");
             }
           } else if (meta) {
-            meta.textContent = tOr("settings.modelInProviderList", "模型已在服务商列表中（接口未返回上下文，可手填或用目录值）");
+            meta.textContent = tOr("settings.modelInProviderList", "模型已在服务商列表中；官方未提供上下文长度，请手动填写 Token");
             fillContextWindowIfEmpty();
           }
         } catch { /* ignore */ }

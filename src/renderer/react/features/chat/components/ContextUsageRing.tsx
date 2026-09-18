@@ -247,6 +247,11 @@ export function ContextUsageRing({ usage, sessionId, busy }: ContextUsageRingPro
         title={title}
         onClick={() => setOpen(!open)}
       >
+        <span className={`cy-context-usage-label is-${tone}`}>
+          {showRatio
+            ? `${percentText} · ${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(usage.contextWindowTokens)} ${t("contextRing.usedLabel", "上下文已使用")}`
+            : `${formatTokenCount(usage.totalTokens)} ${t("contextRing.usedLabel", "上下文已使用")}`}
+        </span>
         <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} aria-hidden="true">
           <circle
             className="cy-context-usage-ring__track"

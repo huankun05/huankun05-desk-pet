@@ -230,7 +230,7 @@ export function ChatComposer({
   const [enabledStickers, setEnabledStickers] = useState<EnabledSticker[]>([]);
   const supportsWorkFiles = ["work", "code"].includes(mode);
   const supportsObsidianLibrary = mode === "learn";
-  const supportsPermission = supportsWorkFiles || supportsObsidianLibrary;
+  const supportsPermission = true; // 四模式均显示权限等级
   const supportsPlanToggle = mode === "code";
   const supportsStyle = mode === "chat" || mode === "learn";
   const supportsStickers = mode !== "code";
