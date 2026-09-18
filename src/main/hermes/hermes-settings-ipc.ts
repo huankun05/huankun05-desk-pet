@@ -9,12 +9,12 @@ import {
 import {
   getHermesSettingsPublic,
   loadHermesSettings,
-  probeHermesHealth,
   resolveEffectiveHermesSettings,
   saveHermesSettings,
   syncModelCredentialsToHermes,
   writeHermesRuntimeEnv,
 } from "./hermes-settings";
+import { getAiEngineStatus } from "./proc-mgr";
 import { loadModelSettings } from "../settings/model-settings";
 
 export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
@@ -22,7 +22,13 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
 
   ipc.handle(IPC.HERMES_GET_SETTINGS, async () => {
     const settings = getHermesSettingsPublic();
-    const health = await probeHermesHealth();
+    const status = await getAiEngineStatus();
+    const health: HermesHealthStatus = {
+      ok: status.healthy,
+      status: status.healthy ? 200 : 0,
+      body: status.detail,
+      baseUrl: "",
+    };
     return { settings, health } as { settings: HermesSettingsPublic; health: HermesHealthStatus };
   });
 
@@ -57,5 +63,13 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
     return { ...result, configOk: true };
   });
 
-  ipc.handle(IPC.HERMES_TEST_HEALTH, async () => probeHermesHealth());
+  ipc.handle(IPC.HERMES_TEST_HEALTH, async () => {
+    const st = await getAiEngineStatus();
+    return {
+      ok: st.healthy,
+      status: st.healthy ? 200 : 0,
+      body: st.detail,
+      baseUrl: "",
+    } satisfies HermesHealthStatus;
+  });
 }

@@ -69,6 +69,15 @@ export function createApplication(deps: ApplicationDependencies): Application {
         background,
       };
       await background.settled;
+      // 内置 AI 引擎：随应用自动连接，失败不阻塞壳
+      void import("../hermes/proc-mgr")
+        .then((m) => m.ensureAiEngineRunning())
+        .then((st) => {
+          console.log("[AI引擎]", st.detail);
+        })
+        .catch((err) => {
+          console.warn("[AI引擎] 启动失败", err);
+        });
     },
 
     installLifecycleHandlers(): void {
