@@ -1208,6 +1208,8 @@ export function applyPreset(
 
   apiState.activeProvider = preset.providerName;
   applyMultimodalUI();
+  // 必须在 baseUrl / apiKey / transport 填完之后再自动解析，避免串用上一家 Key
+  void autoResolveModelMeta("preset");
 }
 
 async function loadConfig(): Promise<void> {
