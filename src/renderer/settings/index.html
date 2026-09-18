@@ -1250,7 +1250,7 @@
             <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="panel.backup">备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <div>
               <h1 data-i18n="panel.backup">备份管理</h1>
-              <p data-i18n="backup.headingDesc">备份和恢复人设、风格、角色配置和应用设置。修改人设或风格时会自动备份。</p>
+              <p data-i18n="backup.headingDesc">备份/恢复配置、聊天、技能与人设。可查看数据目录占用并清理缓存。</p>
             </div>
           </div>
 
@@ -1265,12 +1265,14 @@
                 <label class="character-field" style="margin:0;min-width:240px;flex:1;">
                   <span data-i18n="backup.content">备份内容</span>
                   <select class="setting-select" id="backup-category-select">
-                    <option value="all" data-i18n="backup.all">全部（人设 + 风格 + 配置）</option>
+                    <option value="all" data-i18n="backup.all">全部（配置 + 聊天 + 技能 + 人设）</option>
                     <option value="soul" data-i18n="backup.soulOnly">仅人设 (soul.md)</option>
                     <option value="styles" data-i18n="backup.stylesOnly">仅风格 (styles/)</option>
                     <option value="characters" data-i18n="backup.charactersOnly">仅角色配置</option>
                     <option value="settings" data-i18n="backup.settingsOnly">仅应用设置</option>
                     <option value="skills" data-i18n="backup.skillsOnly">仅技能</option>
+                    <option value="chats">仅聊天与检查点</option>
+                    <option value="data">仅关键配置（模型/渠道等）</option>
                   </select>
                 </label>
                 <button type="button" class="save-btn" id="backup-create-btn" style="padding:10px 24px;font-size:14px;" data-i18n="backup.createNow">立即备份</button>

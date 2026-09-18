@@ -491,6 +491,10 @@ export const IPC = {
   BACKUP_RESTORE: "backup:restore",
   BACKUP_DELETE: "backup:delete",
   BACKUP_CLEANUP: "backup:cleanup",
+  DATA_USAGE_SCAN: "data-usage:scan",
+  DATA_USAGE_CLEAN: "data-usage:clean",
+  DATA_USAGE_PATHS: "data-usage:paths",
+  DATA_USAGE_OPEN_PATH: "data-usage:open-path",
 
 } as const;
 
