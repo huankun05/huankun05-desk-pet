@@ -217,6 +217,8 @@ export interface SettingsApi {
   saveModelProfile?: (profile: { id?: string; provider: string; displayName?: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: ApiTransport; reasoning?: ReasoningPreference; contextWindowTokens?: number; multimodal?: boolean }) => Promise<{ added: boolean; profiles: unknown[]; defaultModelProfileId?: string }>;
   deleteModelProfile?: (id: string) => Promise<unknown>;
   setDefaultModelProfile?: (id: string) => Promise<unknown>;
+  /** 按（厂商, 模型）查询知识表中的上下文窗口长度；未收录返回 null。 */
+  lookupModelContextWindow?: (provider: string, model: string) => Promise<number | null>;
   getGeneral: () => Promise<GeneralSettings>;
   saveGeneral: (config: Partial<GeneralSettings>) => Promise<GeneralSettings>;
   openCustomStylePrompt?: () => Promise<{ ok: boolean; filePath?: string; error?: string }>;

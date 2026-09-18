@@ -29,6 +29,7 @@ import { testVendorConnection } from "../orchestrator/vendors/test-connection";
 import type { VendorConfig } from "../orchestrator/vendors";
 import { normalizeModelSettings, getPublicModelConfig, listSavedModelProfiles, saveModelProfile, setDefaultModelProfile, saveModelSettings } from "./model-settings";
 import type { ModelSettings } from "./model-settings";
+import { lookupModelContextWindow } from "../orchestrator/model-config/model-context-catalog";
 import { collectMcpEnvCredentials, importMcpServerEnv } from "../orchestrator/mcp-manager";
 import { buildExportBundle, encryptBundle, decryptBundle } from "./credential-transfer";
 import { logCredentialChange, listCredentialAudit } from "./credential-audit";
@@ -126,6 +127,12 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
     const saved = setDefaultModelProfile(id);
     broadcastModelConfigChanged(saved);
     return { profiles: listSavedModelProfiles(saved), defaultModelProfileId: saved.defaultModelProfileId };
+  });
+
+  // 知识表查询：渲染端空输入时自动填充上下文窗口长度；未收录返回 null。
+  ipc.handle(IPC.SETTINGS_LOOKUP_CONTEXT_WINDOW, (_event, provider: unknown, model: unknown) => {
+    if (typeof provider !== "string" || typeof model !== "string") return null;
+    return lookupModelContextWindow(provider, model) ?? null;
   });
 
   ipc.handle(IPC.SETTINGS_GET_GENERAL, () => getGeneralSettings());

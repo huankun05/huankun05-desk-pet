@@ -10,9 +10,9 @@ describe("ModelModePanel", () => {
     expect(source).toContain("deleteModelProfile");
   });
 
-  it("uses the public /icons/ path for provider icons", () => {
+  it("uses a scheme-relative icons path that works under file:// too", () => {
     const source = fs.readFileSync(path.join(__dirname, "ModelModePanel.tsx"), "utf8");
-    expect(source).toContain('`/icons/providers/${key}.svg`');
-    expect(source).not.toContain("`../icons/providers/${key}.svg`");
+    expect(source).toContain('`../icons/providers/${key}.svg`');
+    expect(source).not.toContain('`/icons/providers/${key}.svg`');
   });
 });

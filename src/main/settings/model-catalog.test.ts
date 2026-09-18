@@ -151,9 +151,10 @@ describe("model catalog", () => {
     expect(full.contextWindowTokens).toBe(128000);
     expect(full.multimodal).toBe(true);
 
-    // 老档案无档案级字段 → 回退全局值
+    // 老档案无档案级字段 → 不再回退全局值，而按该档案（厂商, 模型）从知识表自动解析
+    // （GLM 厂商默认 131072；未知模型才回退全局值）
     const legacyProfile = resolveModelSettingsProfile(settings, "p-legacy");
-    expect(legacyProfile.contextWindowTokens).toBe(256000);
+    expect(legacyProfile.contextWindowTokens).toBe(131072);
     expect(legacyProfile.multimodal).toBe(false);
 
     // 未持久化 multimodal → 默认 true（多模态模型用户开箱即直发图片，

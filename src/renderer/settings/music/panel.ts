@@ -61,7 +61,7 @@ export function renderMusicStatus(snapshot: MusicStatusSnapshot): void {
   const loggedIn = state === "connected" || state === "connected_without_client";
   musicSearchForm?.classList.toggle("is-hidden", !loggedIn);
   if (musicSearchHint) musicSearchHint.textContent = loggedIn ? tOr("music.searchHint.loggedIn", "搜索网易云曲库。") : tOr("music.searchHint.loggedOut", "连接网易云后即可搜索歌曲和获取每日推荐。");
-  musicQrBox?.classList.toggle("is-hidden", !(state === "creating_qr" || state === "waiting_scan" || state === "waiting_confirm" || state === "login_expired"));
+  musicQrBox?.classList.toggle("is-hidden", !(state === "creating_qr" || state === "waiting_scan" || state === "waiting_confirm" || state === "login_expired") || !musicState.lastQrDataUrl);
   if (musicQrStatus) musicQrStatus.textContent = state === "connected" || state === "connected_without_client" ? tOr("music.qrStatus.connected", "当前状态：网易云音乐已连接") : state === "waiting_confirm" ? tOr("music.qrStatus.waitingConfirm", "当前状态：等待手机确认") : state === "login_expired" ? tOr("music.qrStatus.expired", "当前状态：二维码过期") : tOr("music.qrStatus.waitingScan", "当前状态：等待扫码");
 }
 

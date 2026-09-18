@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS } from "../orchestrator/model-config";
+import { lookupModelContextWindow } from "../orchestrator/model-config/model-context-catalog";
 import { foldReasoning, normalizeReasoningPreference, type ReasoningPreference } from "../../shared/reasoning";
 import type { StickerSize } from "../../shared/sticker-types";
 import { getSettingsPath } from "../settings-store";
@@ -461,7 +462,8 @@ export function normalizeModelSettings(input: Partial<ModelSettings> | null | un
     contextWindowTokens: typeof input?.contextWindowTokens === "number" && Number.isFinite(input.contextWindowTokens)
       && input.contextWindowTokens > 0
       ? Math.round(input.contextWindowTokens)
-      : DEFAULT_CONTEXT_WINDOW_TOKENS,
+      // 未手动填写 → 按（厂商, 模型）从知识表自动解析；未知模型回退全局默认。
+      : lookupModelContextWindow(provider, profile.model) ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
   };
 }
 
@@ -497,8 +499,10 @@ export function resolveModelSettingsProfile(settings: ModelSettings, id?: string
     apiKey: profile.apiKey,
     explicitTransport: profile.explicitTransport,
     reasoning: profile.reasoning,
-    // 档案级字段覆盖镜像；未定义时回退全局值（老档案 = 现行为）
-    contextWindowTokens: profile.contextWindowTokens ?? settings.contextWindowTokens,
+    // 档案级字段覆盖镜像；未定义时按该档案模型从知识表自动解析，最后回退全局值。
+    contextWindowTokens: profile.contextWindowTokens
+      ?? lookupModelContextWindow(profile.provider, profile.model)
+      ?? settings.contextWindowTokens,
     multimodal: profile.multimodal ?? settings.multimodal,
   };
 }

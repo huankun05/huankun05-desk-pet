@@ -83,7 +83,7 @@ body {
 }
 
 [data-ui-theme="pearl-white"] .sidebar__name-avatar {
-  content: url("/icons/cyrene-avatar-line.svg");
+  content: url("./icons/cyrene-avatar-line.svg");
   display: block;
 }
 
