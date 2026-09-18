@@ -73,8 +73,8 @@ function formatTimestamp(isoString: string): string {
   }
 }
 
-function api() {
-  return (window as unknown as { settings?: Record<string, (...args: never[]) => Promise<unknown>> }).settings;
+function api(): any {
+  return (window as unknown as { settings?: any }).settings;
 }
 
 function setStatus(text: string, type?: string): void {

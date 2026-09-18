@@ -25,6 +25,9 @@ import { normalizeProactiveDeliveryTarget } from "../../../shared/preferences";
 import { isProactiveDeliveryTargetSelectable } from "../../../shared/proactive-delivery";
 import { tOr } from "../i18n";
 
+/** 保存监听器与加载函数共享：是否已有 QQ Access Token */
+let hadQqToken = false;
+
 // 通用：根据渠道状态更新"主动投递目标"选项的可选择性
 // （从 settings.ts 移过来；settings.ts 反向 import 此函数以保持其他面板调用不变）
 export function renderProactiveDeliveryAvailability(statuses: Record<string, { phase?: string }>): void {
@@ -199,7 +202,7 @@ export async function loadChannelsPanel(): Promise<void> {
       ? tOr("channels.savedOverwrite", "已保存（输入新值会覆盖）")
       : tOr("channels.qqTokenPlaceholderHint", "留空仅允许本机 127.0.0.1 监听；WSL/跨网卡请先生成");
     // 已保存的 token 不回显；保存时若输入为空且没有已存值，非回环监听需要先补生成
-    let hadQqToken = !!cfg.qq?.hasAccessToken;
+    hadQqToken = !!cfg.qq?.hasAccessToken;
 
     // QQ 官方机器人字段填充（secret 加密存盘，UI 不回填明文）
     if (channelsQqBotEnabledEl) channelsQqBotEnabledEl.checked = !!cfg.qqbot?.enabled;

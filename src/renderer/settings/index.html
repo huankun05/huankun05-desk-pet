@@ -1245,6 +1245,62 @@
           </div>
         </section>
 
+        <section class="settings-panel is-hidden" id="storage-panel" data-panel="storage">
+          <div class="panel-heading">
+            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>存储与备份</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div>
+              <h1>存储与备份</h1>
+              <p>查看数据目录占用、清理缓存、自定义数据位置并管理备份。</p>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>数据位置</h2>
+              <p class="settings-section__hint" id="storage-location-note">加载中…</p>
+            </div>
+            <div class="settings-section__body">
+              <div style="font-size:12.5px;line-height:1.8;">
+                <div>用户数据：<code id="storage-user-data">—</code></div>
+                <div>程序目录：<code id="storage-program-dir">—</code></div>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" class="btn-secondary" id="storage-open-user-data-btn">打开数据文件夹</button>
+                <button type="button" class="btn-secondary" id="storage-refresh-btn">刷新占用</button>
+                <button type="button" class="btn-secondary" id="storage-clean-all-btn">清理全部可清理项</button>
+              </div>
+              <div style="margin-top:10px;font-size:13px;">合计 <strong id="storage-total">—</strong> · 可清理 <strong id="storage-cleanable">—</strong></div>
+              <div class="save-status" id="storage-status" hidden></div>
+              <div id="storage-dir-list" style="margin-top:12px;"></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>数据目录（可选自定义）</h2>
+              <p class="settings-section__hint">留空恢复默认 %APPDATA%\live2d-cyrene；修改后重启应用生效。</p>
+            </div>
+            <div class="settings-section__body">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="text" id="storage-location-input" class="form-input form-input--wide" placeholder="例如 D:\Data\deskpet" style="min-width:280px;" />
+                <button type="button" class="btn-secondary" id="storage-save-location-btn">保存目录</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2>备份</h2>
+              <p class="settings-section__hint">与「备份管理」共用备份目录。</p>
+            </div>
+            <div class="settings-section__body">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                <button type="button" class="btn-secondary" id="storage-backup-all-btn">备份全部</button>
+                <button type="button" class="btn-secondary" id="storage-backup-chats-btn">备份聊天</button>
+                <button type="button" class="btn-secondary" id="storage-backup-data-btn">备份关键配置</button>
+              </div>
+              <div id="storage-backup-list"></div>
+            </div>
+          </div>
+        </section>
+
         <section class="settings-panel is-hidden" id="backup-panel" data-panel="backup">
           <div class="panel-heading">
             <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="panel.backup">备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
