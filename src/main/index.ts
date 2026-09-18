@@ -8,7 +8,10 @@
  */
 
 import { app } from "electron";
+import * as fs from "fs";
 import * as path from "path";
+import { createApplication } from "./application/application";
+import { createDefaultApplicationDependencies } from "./application/default-dependencies";
 
 /**
  * 数据目录冻结：产品不再改名，默认 %APPDATA%\live2d-cyrene
@@ -34,10 +37,6 @@ if (app.getPath("userData") !== fixedUserDataPath) {
   }
   app.setPath("userData", fixedUserDataPath);
 }
-
-import { createApplication } from "./application/application";
-import { createDefaultApplicationDependencies } from "./application/default-dependencies";
-import * as fs from "fs";
 
 // 调试日志：把 console.error 写入文件，方便排查问题
 const logDir = path.join(app.getPath("userData"), "logs");
