@@ -74,7 +74,7 @@
   "api": {
     "apiKey": "API Key",
     "contextWindow": "上下文窗口（Token）",
-    "contextWindowHint": "按档案保存；留空按 256000。",
+    "contextWindowHint": "选择/填写模型后自动带出；可手改，保存进档案。",
     "credentials": {
       "action": {
         "credentialExport": "导出凭据",

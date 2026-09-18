@@ -71,7 +71,7 @@ import { modalState } from "./shared/modal-state";
 import { formatDateTime, escapeHtml } from "./shared/format";
 import { parsePositiveIntOrThrow, parseCommandLine } from "./shared/parse";
 import { apiState, type SavedProfileLite } from "./api/state";
-import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, workFlowAdaptBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, thinkingModeSelect, toggleDisableMaxToken } from "./api/dom";
+import { apiForm, apiRuntimeForm, presetCards, profileList, profileListCount, profileEditorTitle, deleteProfileBtn, presetWebsiteLink, displayNameInput, baseUrlInput, baseUrlResetBtn, modelInput, modelInputSuggestions, contextWindowInput, apiKeyInput, apiKeyLabel, apiKeyHint, testConnectionBtn, transportSelect, transportHint, endpointPreview, customEndpointControls, customEndpointOverrides, customEndpointSummary, customEndpointGuideBtn, apiNoteText, multimodalToggle, embeddingDimensionsInput, thinkingModeSelect, toggleDisableMaxToken } from "./api/dom";
 import "./api/credentials";  // 凭据迁移：导出 / 导入 / 变更记录（副作用导入）
 import { visionBaseUrlInput, visionApiKeyInput, visionModelInput, visionFieldsWrap, testVisionBtn, visionTestStatus, visionOcrToggle, testOcrBtn, ocrTestStatus } from "./vision/dom";
 import { auxiliaryDedicatedToggle, auxiliaryDedicatedFields, auxiliaryBaseUrlInput, auxiliaryApiKeyInput, auxiliaryModelInput } from "./auxiliary/dom";
@@ -332,8 +332,7 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   tts: { emoji: "🎙️", title: "语音合成", hint: "让角色说话的声音引擎" },
   asr: { emoji: "🎧", title: "语音识别", hint: "听懂你说的话" },
   channels: { emoji: "📱", title: "消息渠道", hint: "连接 QQ / 微信 / 飞书 等" },
-  lsp: { emoji: "🧩", title: "代码辅助", hint: "语言服务器，辅助写代码" },
-  hermes: { emoji: "🧠", title: "AI 引擎", hint: "内置智能核心，随应用自动连接" },
+  lsp: { emoji: "🧩", title: "代码辅助", hint: "语言服务器，辅助写代码" },
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.tokens"), hint: t("hint.tokens") },
 	  disclaimer: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.disclaimer"), hint: t("hint.disclaimer") },
   skills: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("nav.skills"), hint: t("hint.skills") },
@@ -799,6 +798,7 @@ function applyEditingStateUI(): void {
  * 上下文窗口自动填充：输入框为空时，按（厂商, 模型）从主进程知识表解析
  * 并填入。模型未知/接口缺失/查询失败都静默跳过——用户手动输入永不被覆盖。
  */
+const CATALOG_DEFAULT_CONTEXT = 256000;
 function fillContextWindowIfEmpty(): void {
   if (!contextWindowInput.value.trim()) {
     const provider = apiState.activeProvider;
@@ -998,6 +998,7 @@ export function applyPreset(
           : restoredBaseUrl;
 
   fillModelOptions(preset, preferredModel);
+  fillContextWindowIfEmpty(true);
 
   // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
   // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
@@ -2092,8 +2093,7 @@ function switchSection(section: string): void {
   const isAsr = section === "asr";
   const isMusic = section === "music";
   const isSkills = section === "skills";
-  const isLsp = section === "lsp";
-  const isHermes = section === "hermes";
+  const isLsp = section === "lsp";
   const isBackup = section === "backup";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -2129,17 +2129,14 @@ function switchSection(section: string): void {
   if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
   const lspPanel = document.getElementById("lsp-panel");
   if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
-  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
-  const hermesPanel = document.getElementById("hermes-panel");
-  if (hermesPanel) hermesPanel.classList.toggle("is-hidden", !isHermes);
-  if (isHermes) { try { void initHermesPanel(); } catch (e) { console.error("[Hermes] 初始化失败:", e); } }
+  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
 
   placeholderPanel.classList.toggle(
     "is-hidden",
-    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isLsp || isHermes || isBackup,
+    isApi || isApiAdvanced || isAppearance || isGeneral || isPreferences || isCharacterStyle || isCyrene || isDisclaimer || isMemory || isUser || isTasks || isPlugins || isTokens || isChannels || isTts || isAsr || isMusic || isSkills || isLsp || isBackup,
   );
 
   if (
@@ -2161,8 +2158,7 @@ function switchSection(section: string): void {
     !isAsr &&
     !isMusic &&
     !isSkills &&
-    !isLsp &&
-    !isHermes &&
+    !isLsp &&
     !isBackup
   ) {
 	    placeholderIcon.innerHTML = label.emoji;

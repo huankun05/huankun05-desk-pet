@@ -26,7 +26,18 @@ interface ContextWindowCatalogEntry {
 const CONTEXT_WINDOW_CATALOG: Record<string, ContextWindowCatalogEntry> = {
   "minimax（稀宇科技）": { providerDefault: 1_000_000, models: { "minimax-m3": 1_000_000, "minimax-m2.7": 1_000_000, "minimax-m2.5": 1_000_000 } },
   minimax: { providerDefault: 1_000_000 },
-  "deepseek（深度求索）": { providerDefault: 131_072, models: { "deepseek-v4-pro": 131_072, "deepseek-v4-flash": 131_072 } },
+  "deepseek（深度求索）": {
+    providerDefault: 131_072,
+    models: {
+      "deepseek-v4-pro": 131_072,
+      "deepseek-v4-flash": 131_072,
+      "deepseek-chat": 131_072,
+      "deepseek-reasoner": 131_072,
+      "deepseek-v3": 131_072,
+      "deepseek-v3.1": 131_072,
+      "deepseek-r1": 131_072,
+    },
+  },
   deepseek: { providerDefault: 131_072 },
   "豆包（火山方舟）": { providerDefault: 262_144, models: { "doubao-seed-2-1-pro-260628": 262_144, "doubao-seed-2-0-pro-260215": 262_144, "doubao-seed-2-0-lite-260428": 262_144, "doubao-seed-2-0-mini-260428": 262_144 } },
   doubao: { providerDefault: 262_144 },

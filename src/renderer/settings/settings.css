@@ -2569,6 +2569,7 @@ body {
 
 /* ── 凭据迁移（导出 / 导入 / 变更记录） ── */
 .credential-migrate-row {
+  color: var(--ui-text-default, #2c2c2e);
   margin-top: 12px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 182, 220, 0.14);
@@ -2580,15 +2581,15 @@ body {
 }
 .credential-migrate-row__title {
   display: block;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: var(--rb-text-strong);
+  color: var(--ui-text-strong, var(--rb-text-strong, #1d1d1f));
 }
 .credential-migrate-row__hint {
   margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: rgba(235, 229, 245, 0.45);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ui-text-muted, var(--rb-text-muted, #4f4a57));
 }
 .credential-migrate-row__actions {
   display: flex;
@@ -2597,14 +2598,15 @@ body {
 }
 .credential-migrate-row__status {
   margin-top: 10px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: rgba(235, 229, 245, 0.75);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ui-text-default, var(--rb-text-default, #2c2c2e));
 }
 .credential-migrate-row__status.is-error {
   color: #ff8fa3;
 }
 .credential-migrate-row__audit {
+  color: var(--ui-text-default, var(--rb-text-default, #2c2c2e));
   margin-top: 10px;
   max-height: 180px;
   overflow-y: auto;

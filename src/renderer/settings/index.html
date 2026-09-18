@@ -23,7 +23,6 @@
             <nav class="settings-nav__list">
         <span class="settings-nav__group-label">模型与智能</span>
         <button type="button" class="nav-item" data-section="api"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>模型服务</title><g clip-path="url(#api-key-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></span><span class="nav-item__label">模型服务</span></button>
-        <button type="button" class="nav-item" data-section="hermes"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>AI 引擎</title><path d="M24 6C14 6 8 13 8 22c0 7 4 12 10 14v6h12v-6c6-2 10-7 10-14 0-9-6-16-16-16z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><circle cx="18" cy="22" r="2.5" fill="currentColor"/><circle cx="30" cy="22" r="2.5" fill="currentColor"/><path d="M18 30c2 2 10 2 12 0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></span><span class="nav-item__label">AI 引擎</span></button>
         <button type="button" class="nav-item" data-section="api-advanced"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.apiAdvanced">高级设置</span></button>
         <button type="button" class="nav-item" data-section="tokens"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.tokens">Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.tokens">Token 用量</span></button>
         <hr class="nav-divider" />
@@ -193,7 +192,8 @@
             <label class="field">
               <span data-i18n="api.contextWindow">上下文窗口（Token）</span>
               <input id="context-window-input" type="number" min="4096" step="1" placeholder="256000" autocomplete="off" />
-              <span class="form-hint" data-i18n="api.contextWindowHint">按档案保存；留空按 256000。</span>
+              <span class="form-hint" id="context-window-auto-hint" style="margin-top:4px"></span>
+              <span class="form-hint" data-i18n="api.contextWindowHint">选择/填写模型后自动带出；可手改，保存进档案。</span>
             </label>
 
             <label class="setting-row profile-multimodal-row">
@@ -208,12 +208,6 @@
           <div class="api-note">
             <span><svg width="22" height="22" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="display:block"><title data-i18n="api.security">安全</title><rect x="6" y="22" width="36" height="22" rx="2" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M14 22V14C14 8.47715 18.4772 4 24 4C29.5228 4 34 8.47715 34 14V22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 30V36" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <p id="api-note-text" data-i18n="settings.apiNoteDefault">选择模型预设后会自动填入 Provider、Base URL 和模型名；你只需要填写对应平台的 API Key。配置只保存在本机 Electron 用户数据目录。</p>
-          </div>
-
-          <div class="work-flow-adapt-row">
-            <button type="button" class="custom-endpoint-guide-btn" id="work-flow-adapt-btn">
-              <span aria-hidden="true">ⓘ</span> <span data-i18n="settings.workflowModalTitle">模型厂商 Work 流程适配</span>
-            </button>
           </div>
 
           <div class="credential-migrate-row">
@@ -1149,65 +1143,6 @@
           </div>
         </section>
 
-                                <section class="settings-panel is-hidden" id="hermes-panel" data-panel="hermes">
-          <div class="panel-heading">
-            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>AI 引擎</title><path d="M24 6C14 6 8 13 8 22c0 7 4 12 10 14v6h12v-6c6-2 10-7 10-14 0-9-6-16-16-16z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><circle cx="18" cy="22" r="2.5" fill="currentColor"/><circle cx="30" cy="22" r="2.5" fill="currentColor"/><path d="M18 30c2 2 10 2 12 0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></div>
-            <div>
-              <h1>AI 引擎</h1>
-              <p>应用内置的智能核心，负责思考与执行。随应用自动连接，无需配置路径。</p>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section__header">
-              <h3 class="settings-section__title">连接状态</h3>
-              <p class="settings-section__hint" id="hermes-env-hint">引擎与应用一体，启动后自动就绪</p>
-            </div>
-            <div class="form-row">
-              <label class="form-label">引擎</label>
-              <div class="form-control">
-                <span class="form-hint" id="hermes-health">检测中…</span>
-                <div class="form-actions">
-                  <button type="button" class="btn-secondary" id="hermes-health-btn">刷新状态</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section__header">
-              <h3 class="settings-section__title">模型</h3>
-              <p class="settings-section__hint">厂商与密钥在「模型服务」配置；引擎自动使用同一套配置。</p>
-            </div>
-            <div class="form-row">
-              <label class="form-label" for="hermes-sync-model">模型服务变更后自动同步引擎</label>
-              <div class="form-control">
-                <label class="toggle-switch">
-                  <input type="checkbox" id="hermes-sync-model" checked />
-                  <span class="toggle-switch__slider"></span>
-                </label>
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="form-label" for="hermes-auto-start">随应用自动启动引擎</label>
-              <div class="form-control">
-                <label class="toggle-switch">
-                  <input type="checkbox" id="hermes-auto-start" checked />
-                  <span class="toggle-switch__slider"></span>
-                </label>
-                <span class="form-hint">默认开启；关闭后需在进程层手动维护引擎</span>
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn-secondary" id="hermes-sync-model-btn">立即同步模型配置</button>
-            </div>
-          </div>
-
-          <div class="form-actions form-actions--sticky">
-            <span class="save-status" id="hermes-save-status" hidden></span>
-            <button type="button" class="btn-primary" id="hermes-save-btn">保存</button>
-          </div>
-        </section>
 
                                 <section class="settings-panel is-hidden" id="lsp-panel" data-panel="lsp">
                   <div class="settings-section">
