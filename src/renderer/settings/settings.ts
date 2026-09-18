@@ -1781,24 +1781,6 @@ const WORK_FLOW_COMPAT_MD = `
 </ul>
 `.trim();
 
-function buildWorkFlowAdaptBody(): string {
-  return [
-    '<div class="custom-endpoint-guide-warning work-flow-adapt-meta">',
-    `  <strong>${tOr("settings.workflowModalTitle", "模型厂商 Work 流程适配")}</strong>`,
-    `  <span class="work-flow-adapt-date">${tOr("settings.workflowUpdatedPrefix", "最新更新于 ")}2026/7/24</span>`,
-    "</div>",
-    `<div class="work-flow-adapt-table">${WORK_FLOW_COMPAT_MD}</div>`,
-  ].join("\n");
-}
-
-workFlowAdaptBtn?.addEventListener("click", () => {
-  void showHtmlModal({
-    title: tOr("settings.workflowModalTitle", "模型厂商 Work 流程适配"),
-    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 10.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.25" r="1.1" fill="currentColor"/></svg>',
-    htmlBody: buildWorkFlowAdaptBody(),
-  });
-});
-
 // 测试连接按钮：调用厂商 adapter 的真实连接测试
 if (testConnectionBtn) {
   const btn = testConnectionBtn;
@@ -2229,7 +2211,22 @@ function switchSection(section: string): void {
 document.querySelectorAll(".nav-item").forEach((el) => {
   el.addEventListener("click", () => {
     const section = (el as HTMLElement).dataset.section;
-    if (section) switchSection(section);
+    if (!section) return;
+    try {
+      switchSection(section);
+    } catch (err) {
+      console.error("[Settings] switchSection failed", section, err);
+      // 即使面板初始化失败，也要切换标题与激活态，保证导航仍可用
+      try {
+        currentSection = section;
+        const label = NAV_LABELS[section] ?? NAV_LABELS.api;
+        sectionTitle.textContent = tOr(`nav.${sectionDictKey(section)}`, label.title);
+        sectionHint.textContent = tOr(`hint.${sectionDictKey(section)}`, label.hint);
+        document.querySelectorAll(".nav-item").forEach((n) => {
+          n.classList.toggle("is-active", (n as HTMLElement).dataset.section === section);
+        });
+      } catch { /* ignore */ }
+    }
   });
 });
 
