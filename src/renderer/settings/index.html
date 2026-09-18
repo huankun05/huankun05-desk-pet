@@ -193,9 +193,23 @@
 
             <label class="field">
               <span data-i18n="api.contextWindow">上下文窗口（Token）</span>
-              <input id="context-window-input" type="number" min="4096" step="1" placeholder="256000" autocomplete="off" />
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+                <select id="context-window-preset" class="setting-select" style="min-width:180px;">
+                  <option value="">常用规格…</option>
+                  <option value="8192">8K（8192）</option>
+                  <option value="32768">32K（32768）</option>
+                  <option value="65536">64K（65536）</option>
+                  <option value="131072">128K（131072）</option>
+                  <option value="200000">200K（200000）</option>
+                  <option value="262144">256K（262144）</option>
+                  <option value="524288">512K（524288）</option>
+                  <option value="1048576">1M（1048576）</option>
+                  <option value="__custom__">自定义…</option>
+                </select>
+                <input id="context-window-input" type="number" min="4096" step="1" placeholder="例如 131072" autocomplete="off" style="min-width:140px;" />
+              </div>
               <span class="form-hint" id="context-window-auto-hint" style="margin-top:4px"></span>
-              <span class="form-hint" data-i18n="api.contextWindowHint">单位 Token。131072≈128K，属常见规格；选择/填写模型后自动带出，可手改。</span>
+              <span class="form-hint" data-i18n="api.contextWindowHint">单位 Token。可选 8K/32K/128K/256K/1M，也可手填；选模型后自动带出。</span>
             </label>
 
             <label class="setting-row profile-multimodal-row">

@@ -1024,6 +1024,32 @@ function bindModelAutoResolve(): void {
   };
   modelInput?.addEventListener("change", () => run("input"));
   modelInput?.addEventListener("blur", () => run("select"));
+
+  const presetSelect = document.getElementById("context-window-preset") as HTMLSelectElement | null;
+  const syncPresetFromValue = (val: string) => {
+    if (!presetSelect) return;
+    const n = String(val).trim();
+    const matched = Array.from(presetSelect.options).some(
+      (o) => o.value === n && o.value !== "" && o.value !== "__custom__",
+    );
+    presetSelect.value = matched ? n : n ? "__custom__" : "";
+  };
+  presetSelect?.addEventListener("change", () => {
+    const v = presetSelect.value;
+    if (!v) return;
+    if (v === "__custom__") {
+      contextWindowInput?.focus();
+      return;
+    }
+    contextWindowInput.value = v;
+    setModelAutoHint(
+      `已选择常用上下文 ${v} tokens（约 ${Math.round(Number(v) / 1000)}K）`,
+      "ok",
+    );
+  });
+  contextWindowInput?.addEventListener("change", () => {
+    syncPresetFromValue(contextWindowInput.value);
+  });
 }
 
 
