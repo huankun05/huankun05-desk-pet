@@ -29,10 +29,14 @@ const CONTEXT_WINDOW_CATALOG: Record<string, ContextWindowCatalogEntry> = {
   "deepseek（深度求索）": {
     providerDefault: 131_072,
     models: {
-      "deepseek-v4-pro": 131_072,
+      // 渠道别名 / 新一代命名（SenseNova 等可能用 v4-*）
+      "deepseek-v4-pro": 262_144,
       "deepseek-v4-flash": 131_072,
+      // 官方 API 常见 ID
       "deepseek-chat": 131_072,
       "deepseek-reasoner": 131_072,
+      "deepseek-chat-v3": 131_072,
+      "deepseek-chat-v3.1": 131_072,
       "deepseek-v3": 131_072,
       "deepseek-v3.1": 131_072,
       "deepseek-r1": 131_072,
