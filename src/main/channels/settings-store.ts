@@ -161,6 +161,8 @@ export interface QqChannelConfig extends ChannelRuntimeConfig {
   accessToken?: string;
   /** NapCatShell 目录。空时应用启动自动探测（应用目录上级的 NapCatShell）；填写后优先使用。 */
   napcatPath?: string;
+  /** QQ 启用时是否自动拉起 NapCat（默认 true）；false = 手动启动 NapCat */
+  napcatAutoStart?: boolean;
   allowedPrivateUserIds: string[];
   allowedGroupIds: string[];
   groupRequireMention: true;
@@ -219,6 +221,7 @@ const DEFAULT_SETTINGS: ChannelsSettings = {
     enabled: false,
     listenMode: "auto",
     port: 6200,
+    napcatAutoStart: true,
     allowedPrivateUserIds: [],
     allowedGroupIds: [],
     groupRequireMention: true,

@@ -156,17 +156,20 @@ export class NapCatAdapter implements ChannelAdapter {
         message: "监听中，等待 NapCat 连接",
         detail: this.statusDetail(),
       });
-      // QQ 渠道已启用：确保 NapCat 注入进程在跑（已在跑则跳过；失败只记日志不阻塞）。
-      // 延迟一小段等监听就绪，再用火并忘的方式拉起，避免拖慢应用启动。
-      setTimeout(() => {
-        const appPath =
-          typeof app?.getAppPath === "function" ? app.getAppPath() : process.cwd();
-        void ensureNapCatRunning({ napcatPath: config.napcatPath, appPath }).then((result) => {
-          if (!result.launched && result.reason && result.reason !== "NapCat/QQ 已在运行") {
-            console.warn("[NapCatAdapter] 自动拉起 NapCat 未完成:", result.reason);
-          }
-        });
-      }, 300);
+      // QQ 渠道已启用：按设置决定是否自动拉起 NapCat（默认开启）。
+      if (config.napcatAutoStart !== false) {
+        setTimeout(() => {
+          const appPath =
+            typeof app?.getAppPath === "function" ? app.getAppPath() : process.cwd();
+          void ensureNapCatRunning({ napcatPath: config.napcatPath, appPath }).then((result) => {
+            if (!result.launched && result.reason && result.reason !== "NapCat/QQ 已在运行") {
+              console.warn("[NapCatAdapter] 自动拉起 NapCat 未完成:", result.reason);
+            }
+          });
+        }, 300);
+      } else {
+        console.log("[NapCatAdapter] 已关闭 NapCat 自动启动（手动模式）");
+      }
     } catch (error) {
       this.media.stop();
       this.server = null;

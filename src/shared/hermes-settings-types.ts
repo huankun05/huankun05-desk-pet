@@ -13,7 +13,7 @@ export type HermesSettings = {
   apiHost: string;
   /** 与 gateway 通信的密钥（写入 HERMES_HOME/.env 的 API_SERVER_KEY） */
   apiServerKey: string;
-  /** 启动应用时是否自动拉起 gateway */
+  /** 启动应用时自动拉起引擎（默认开启） */
   autoStartGateway: boolean;
   /** 保存模型设置后是否自动同步凭据到 Hermes .env */
   syncModelCredentials: boolean;
@@ -49,7 +49,7 @@ export const DEFAULT_HERMES_SETTINGS: HermesSettings = {
   apiPort: 8642,
   apiHost: "127.0.0.1",
   apiServerKey: "",
-  autoStartGateway: false,
+  autoStartGateway: true,
   syncModelCredentials: true,
   defaultModel: "",
   modelProvider: "",
@@ -65,7 +65,8 @@ export function normalizeHermesSettings(input: Partial<HermesSettings> | null | 
     apiPort: Number.isFinite(port) && port > 0 && port < 65535 ? Math.floor(port) : DEFAULT_HERMES_SETTINGS.apiPort,
     apiHost: typeof raw.apiHost === "string" && raw.apiHost.trim() ? raw.apiHost.trim() : DEFAULT_HERMES_SETTINGS.apiHost,
     apiServerKey: typeof raw.apiServerKey === "string" ? raw.apiServerKey.trim() : "",
-    autoStartGateway: Boolean(raw.autoStartGateway),
+    // 默认自动启动；仅显式 false 才关闭
+    autoStartGateway: raw.autoStartGateway !== false,
     syncModelCredentials: raw.syncModelCredentials !== false,
     defaultModel: typeof raw.defaultModel === "string" ? raw.defaultModel.trim() : "",
     modelProvider: typeof raw.modelProvider === "string" ? raw.modelProvider.trim() : "",

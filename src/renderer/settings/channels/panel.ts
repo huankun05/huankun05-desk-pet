@@ -189,6 +189,10 @@ export async function loadChannelsPanel(): Promise<void> {
     if (channelsQqListenModeEl) channelsQqListenModeEl.value = cfg.qq?.listenMode ?? "auto";
     if (channelsQqCustomHostEl) channelsQqCustomHostEl.value = cfg.qq?.customHost ?? "";
     if (channelsQqPortEl) channelsQqPortEl.value = String(cfg.qq?.port ?? 6200);
+    const napcatAutoEl = document.getElementById("channels-qq-napcat-autostart") as HTMLInputElement | null;
+    if (napcatAutoEl) napcatAutoEl.checked = cfg.qq?.napcatAutoStart !== false;
+    const napcatPathEl = document.getElementById("channels-qq-napcat-path") as HTMLInputElement | null;
+    if (napcatPathEl) napcatPathEl.value = cfg.qq?.napcatPath ?? "";
     if (channelsQqPrivateAllowlistEl) channelsQqPrivateAllowlistEl.value = (cfg.qq?.allowedPrivateUserIds ?? []).join("\n");
     if (channelsQqGroupAllowlistEl) channelsQqGroupAllowlistEl.value = (cfg.qq?.allowedGroupIds ?? []).join("\n");
     if (channelsQqTokenEl) channelsQqTokenEl.placeholder = cfg.qq?.hasAccessToken
@@ -443,6 +447,8 @@ export async function loadChannelsPanel(): Promise<void> {
       listenMode,
       customHost: channelsQqCustomHostEl?.value.trim() || undefined,
       port: Number(channelsQqPortEl?.value) || 6200,
+      napcatAutoStart: document.getElementById("channels-qq-napcat-autostart")?.["checked"] !== false,
+      napcatPath: (document.getElementById("channels-qq-napcat-path") as HTMLInputElement | null)?.value.trim() || undefined,
       allowedPrivateUserIds: parseIdList(channelsQqPrivateAllowlistEl?.value ?? ""),
       allowedGroupIds: parseIdList(channelsQqGroupAllowlistEl?.value ?? ""),
     };

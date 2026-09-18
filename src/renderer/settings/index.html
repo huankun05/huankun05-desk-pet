@@ -1666,6 +1666,23 @@
                 <input type="number" min="1" max="65535" id="channels-qq-port" class="form-input" value="6200" />
               </div>
               <div class="form-row">
+                <label class="form-label" for="channels-qq-napcat-autostart">启动应用时自动拉起 NapCat</label>
+                <div class="form-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="channels-qq-napcat-autostart" checked />
+                    <span class="toggle-switch__slider"></span>
+                  </label>
+                  <span class="form-hint">仅在 QQ 渠道启用时生效；关闭后需自行启动 NapCat，应用只监听连接。</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="channels-qq-napcat-path">NapCat 目录（可选）</label>
+                <div class="form-control">
+                  <input type="text" id="channels-qq-napcat-path" class="form-input form-input--wide" placeholder="留空自动探测（工作区 NapCatShell）" />
+                  <span class="form-hint">默认使用应用目录上级的 NapCatShell</span>
+                </div>
+              </div>
+              <div class="form-row">
                 <label class="form-label" for="channels-qq-url" data-i18n="channels.napcatUrl">NapCat 连接 URL</label>
                 <div class="form-input-with-action">
                   <input type="text" id="channels-qq-url" class="form-input form-input--wide" readonly placeholder="保存并启动后显示" data-i18n="channels.urlPlaceholder" />

@@ -89,6 +89,13 @@ export function loadHermesSettings(): HermesSettings {
     const file = settingsFilePath();
     if (fs.existsSync(file)) {
       const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<HermesSettings>;
+      // 旧配置里若写成 false，纠正为默认自动启动（产品预期：引擎随应用自动连接）
+      if (parsed.autoStartGateway === false) {
+        parsed.autoStartGateway = true;
+        try {
+          fs.writeFileSync(file, JSON.stringify(normalizeHermesSettings(parsed), null, 2), "utf8");
+        } catch { /* ignore */ }
+      }
       cache = normalizeHermesSettings(parsed);
       return cache;
     }
