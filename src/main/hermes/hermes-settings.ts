@@ -11,23 +11,70 @@ import {
 } from "../../shared/hermes-settings-types";
 
 function workspaceRootFromApp(): string {
-  // dev: .../desk-pet；生产 userData 旁也可覆盖 sourceDir/homeDir
-  const appPath = app.getAppPath();
-  // desk-pet → desk_pet workspace root
-  return path.resolve(appPath, "..");
+  return path.resolve(app.getAppPath(), "..");
+}
+
+/** 自动探测 Hermes 源码目录：应用旁 / 打包资源 / 环境变量 / 常见安装位 */
+export function discoverHermesSourceDir(): string {
+  const resources = typeof process.resourcesPath === "string" ? process.resourcesPath : "";
+  const candidates = [
+    process.env.HERMES_SOURCE_DIR?.trim() ?? "",
+    path.join(workspaceRootFromApp(), "hermes-agent"),
+    path.join(workspaceRootFromApp(), "..", "hermes-agent"),
+    resources ? path.join(resources, "hermes-agent") : "",
+    path.join(process.env.LOCALAPPDATA ?? "", "hermes", "hermes-agent"),
+  ].filter((d): d is string => Boolean(d));
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "cli.py")) || fs.existsSync(path.join(dir, "pyproject.toml"))) {
+      return dir;
+    }
+  }
+  return path.join(workspaceRootFromApp(), "hermes-agent");
+}
+
+export function discoverHermesHome(): string {
+  const candidates = [
+    process.env.HERMES_HOME?.trim() ?? "",
+    path.join(workspaceRootFromApp(), ".runtime", "hermes-home"),
+    path.join(app.getPath("userData"), "hermes-home"),
+    path.join(process.env.LOCALAPPDATA ?? "", "hermes"),
+  ].filter((d): d is string => Boolean(d));
+  for (const dir of candidates) {
+    if (fs.existsSync(dir)) return dir;
+  }
+  return path.join(workspaceRootFromApp(), ".runtime", "hermes-home");
+}
+
+export function discoverUvPath(): string {
+  const candidates = [
+    process.env.UV_PATH?.trim(),
+    "E:\\software\\Python3.12\\Scripts\\uv.exe",
+    path.join(process.env.LOCALAPPDATA ?? "", "Programs", "uv", "uv.exe"),
+  ].filter(Boolean);
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return "uv";
 }
 
 export function resolveDefaultHermesPaths(): { sourceDir: string; homeDir: string; uvPath: string } {
-  const root = workspaceRootFromApp();
-  const sourceDir = path.join(root, "hermes-agent");
-  const homeDir = path.join(root, ".runtime", "hermes-home");
-  const candidates = [
-    process.env.UV_PATH ?? "",
-    "E:\\software\\Python3.12\\Scripts\\uv.exe",
-    path.join(process.env.LOCALAPPDATA ?? "", "Programs", "uv", "uv.exe"),
-  ];
-  const uvPath = candidates.find((p) => p && fs.existsSync(p)) ?? "uv";
-  return { sourceDir, homeDir, uvPath };
+  return {
+    sourceDir: discoverHermesSourceDir(),
+    homeDir: discoverHermesHome(),
+    uvPath: discoverUvPath(),
+  };
+}
+
+/** 应用默认：不写盘前的运行配置（路径自动探测，用户可不填） */
+export function resolveEffectiveHermesSettings(settings?: HermesSettings): HermesSettings {
+  const saved = settings ?? loadHermesSettings();
+  const auto = resolveDefaultHermesPaths();
+  return normalizeHermesSettings({
+    ...saved,
+    sourceDir: saved.sourceDir || auto.sourceDir,
+    homeDir: saved.homeDir || auto.homeDir,
+    uvPath: saved.uvPath || auto.uvPath,
+  });
 }
 
 function settingsFilePath(): string {
@@ -48,13 +95,7 @@ export function loadHermesSettings(): HermesSettings {
   } catch {
     /* fall through */
   }
-  const defaults = resolveDefaultHermesPaths();
-  cache = normalizeHermesSettings({
-    ...DEFAULT_HERMES_SETTINGS,
-    sourceDir: defaults.sourceDir,
-    homeDir: defaults.homeDir,
-    uvPath: defaults.uvPath,
-  });
+  cache = normalizeHermesSettings(DEFAULT_HERMES_SETTINGS);
   return cache;
 }
 
@@ -86,9 +127,9 @@ function writeEnvFile(envPath: string, map: Map<string, string>): void {
   fs.writeFileSync(envPath, lines.join("\n") + "\n", "utf8");
 }
 
-/** 把壳内 Hermes 设置落到 HERMES_HOME/.env（api key / host / port 等） */
-export function writeHermesRuntimeEnv(settings: HermesSettings = loadHermesSettings()): { envPath: string; ok: boolean } {
-  const home = settings.homeDir || resolveDefaultHermesPaths().homeDir;
+export function writeHermesRuntimeEnv(raw?: HermesSettings): { envPath: string; ok: boolean } {
+  const settings = resolveEffectiveHermesSettings(raw);
+  const home = settings.homeDir;
   const envPath = path.join(home, ".env");
   try {
     fs.mkdirSync(home, { recursive: true });
@@ -98,12 +139,9 @@ export function writeHermesRuntimeEnv(settings: HermesSettings = loadHermesSetti
     map.set("API_SERVER_PORT", String(settings.apiPort || 8642));
     map.set("API_SERVER_HOST", settings.apiHost || "127.0.0.1");
     map.set("HERMES_HOME", home);
-    if (settings.defaultModel) map.set("HERMES_MODEL", settings.defaultModel);
-    if (!map.has("API_SERVER_KEY")) map.set("API_SERVER_KEY", generateApiServerKey());
     writeEnvFile(envPath, map);
-    // 回写生成的 key，避免用户看到空值
     if (!settings.apiServerKey && map.get("API_SERVER_KEY")) {
-      saveHermesSettings({ apiServerKey: map.get("API_SERVER_KEY") ?? "", homeDir: home });
+      saveHermesSettings({ apiServerKey: map.get("API_SERVER_KEY") ?? "" });
     }
     return { envPath, ok: true };
   } catch (err) {
@@ -112,16 +150,15 @@ export function writeHermesRuntimeEnv(settings: HermesSettings = loadHermesSetti
   }
 }
 
-/** 从 ModelSettings 抽取常见厂商 key，合并进 Hermes .env */
 export function syncModelCredentialsToHermes(
-  modelSettings: { provider?: string; apiKey?: string; perProvider?: Record<string, { apiKey?: string }> },
-  settings: HermesSettings = loadHermesSettings(),
-): { envPath: string; written: string[] } {
-  const home = settings.homeDir || resolveDefaultHermesPaths().homeDir;
+  modelSettings: { provider?: string; apiKey?: string; model?: string; perProvider?: Record<string, { apiKey?: string; model?: string }> },
+  raw?: HermesSettings,
+): { envPath: string; written: string[]; configPath: string } {
+  const settings = resolveEffectiveHermesSettings(raw);
+  const home = settings.homeDir;
   const envPath = path.join(home, ".env");
   const map = readEnvFile(envPath);
   const written: string[] = [];
-
   const put = (envKey: string, value?: string) => {
     const v = (value ?? "").trim();
     if (!v) return;
@@ -162,15 +199,56 @@ export function syncModelCredentialsToHermes(
   map.set("HERMES_HOME", home);
   fs.mkdirSync(home, { recursive: true });
   writeEnvFile(envPath, map);
-  return { envPath, written };
-}
 
-/** 尽力写入/合并 HERMES_HOME/config.yaml 的 model 段（最小 YAML 补丁） */
-export function writeHermesModelConfig(settings: HermesSettings = loadHermesSettings()): { configPath: string; ok: boolean } {
-  const home = settings.homeDir || resolveDefaultHermesPaths().homeDir;
+  const modelDefault = settings.defaultModel || modelSettings.model || "";
+  const providerOut = settings.modelProvider || modelSettings.provider || "";
   const configPath = path.join(home, "config.yaml");
   try {
-    fs.mkdirSync(home, { recursive: true });
+    let text = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+    const block = [
+      "model:",
+      `  default: ${modelDefault ? `"${modelDefault}"` : '"hermes-agent"'}`,
+      providerOut ? `  provider: "${providerOut}"` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!text.trim()) text = block + "\n";
+    else if (/^model:/m.test(text)) {
+      const lines = text.split(/\r?\n/);
+      const out: string[] = [];
+      let skip = false;
+      for (const line of lines) {
+        if (/^model:/.test(line)) {
+          skip = true;
+          out.push(...block.split("\n"));
+          continue;
+        }
+        if (skip) {
+          if (/^\S/.test(line)) {
+            skip = false;
+            out.push(line);
+          }
+          continue;
+        }
+        out.push(line);
+      }
+      text = out.join("\n");
+    } else {
+      text = text.trimEnd() + "\n" + block + "\n";
+    }
+    fs.writeFileSync(configPath, text, "utf8");
+  } catch (err) {
+    console.error("[HermesSettings] write config.yaml failed", err);
+  }
+
+  return { envPath, written, configPath };
+}
+
+export function writeHermesModelConfig(raw?: HermesSettings): { configPath: string; ok: boolean } {
+  const settings = resolveEffectiveHermesSettings(raw);
+  const configPath = path.join(settings.homeDir, "config.yaml");
+  try {
+    fs.mkdirSync(settings.homeDir, { recursive: true });
     let text = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
     const modelDefault = settings.defaultModel;
     const provider = settings.modelProvider;
@@ -181,16 +259,13 @@ export function writeHermesModelConfig(settings: HermesSettings = loadHermesSett
     ]
       .filter(Boolean)
       .join("\n");
-
-    if (!text.trim()) {
-      text = block + "\n";
-    } else if (/^model:\s*$/m.test(text) || /^model:/m.test(text)) {
-      // 替换已有 model: 段（简单场景：到下一个顶层键为止）
+    if (!text.trim()) text = block + "\n";
+    else if (/^model:/m.test(text)) {
       const lines = text.split(/\r?\n/);
       const out: string[] = [];
       let skip = false;
       for (const line of lines) {
-        if (/^model:\s*$/.test(line) || /^model:/.test(line)) {
+        if (/^model:/.test(line)) {
           skip = true;
           out.push(...block.split("\n"));
           continue;
@@ -216,7 +291,8 @@ export function writeHermesModelConfig(settings: HermesSettings = loadHermesSett
   }
 }
 
-export async function probeHermesHealth(settings: HermesSettings = loadHermesSettings()): Promise<HermesHealthStatus> {
+export async function probeHermesHealth(raw?: HermesSettings): Promise<HermesHealthStatus> {
+  const settings = resolveEffectiveHermesSettings(raw);
   const baseUrl = `http://${settings.apiHost || "127.0.0.1"}:${settings.apiPort || 8642}`;
   try {
     const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(3000) });
@@ -228,27 +304,17 @@ export async function probeHermesHealth(settings: HermesSettings = loadHermesSet
 }
 
 export function getHermesSettingsPublic(): HermesSettingsPublic {
-  const settings = loadHermesSettings();
+  const saved = loadHermesSettings();
+  const effective = resolveEffectiveHermesSettings(saved);
   const defaults = resolveDefaultHermesPaths();
-  const home = settings.homeDir || defaults.homeDir;
   return {
-    ...settings,
+    ...effective,
+    // 回填探测结果，便于 UI 只读展示
+    sourceDir: effective.sourceDir,
+    homeDir: effective.homeDir,
+    uvPath: effective.uvPath,
     defaults,
     health: null,
-    envExists: fs.existsSync(path.join(home, ".env")),
-  };
-}
-
-export function getHermesRuntimeSnapshot(): {
-  settings: HermesSettingsPublic;
-  health: HermesHealthStatus | null;
-  envExists: boolean;
-} {
-  const settings = loadHermesSettings();
-  const home = settings.homeDir || resolveDefaultHermesPaths().homeDir;
-  return {
-    settings: getHermesSettingsPublic(),
-    health: null,
-    envExists: fs.existsSync(path.join(home, ".env")),
+    envExists: fs.existsSync(path.join(effective.homeDir, ".env")),
   };
 }

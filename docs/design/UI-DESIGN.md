@@ -1,3 +1,5 @@
+
+> **名称冻结（2026-09-18）**：产品 UI/打包统一为 **昔涟 / Cyrene**；**不再改名**。设置功能名保持原样（API 设置、TTS 设置等）；Hermes 在设置中称 **本地引擎**，路径自动探测，无需手填。
 # UI 设计系统与界面规范
 
 **状态**：现行规范（2026-09-18）  
@@ -206,3 +208,4 @@
 - [../standards/ui-and-branding.md](../standards/ui-and-branding.md) — 品牌迁移检查单  
 - [../architecture/DESIGN.md](../architecture/DESIGN.md) — 智核/心核/壳  
 - [../standards/development-process.md](../standards/development-process.md) — 工程流程  
+

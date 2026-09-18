@@ -10,9 +10,9 @@ import {
   getHermesSettingsPublic,
   loadHermesSettings,
   probeHermesHealth,
+  resolveEffectiveHermesSettings,
   saveHermesSettings,
   syncModelCredentialsToHermes,
-  writeHermesModelConfig,
   writeHermesRuntimeEnv,
 } from "./hermes-settings";
 import { loadModelSettings } from "../settings/model-settings";
@@ -29,9 +29,6 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
   ipc.handle(IPC.HERMES_SAVE_SETTINGS, async (_event, patch) => {
     const saved = saveHermesSettings((patch ?? {}) as Partial<HermesSettings>);
     writeHermesRuntimeEnv(saved);
-    if (saved.defaultModel || saved.modelProvider) {
-      writeHermesModelConfig(saved);
-    }
     return getHermesSettingsPublic();
   });
 
@@ -45,23 +42,19 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
   ipc.handle(IPC.HERMES_WRITE_ENV, async () => writeHermesRuntimeEnv());
 
   ipc.handle(IPC.HERMES_SYNC_MODEL_CREDENTIALS, async () => {
-    const hermes = loadHermesSettings();
+    const hermes = resolveEffectiveHermesSettings(loadHermesSettings());
     const model = loadModelSettings();
-    const envResult = syncModelCredentialsToHermes(
+    const result = syncModelCredentialsToHermes(
       {
         provider: model.provider,
         apiKey: model.apiKey,
+        model: model.model,
         perProvider: model.perProvider,
       },
       hermes,
     );
     writeHermesRuntimeEnv(hermes);
-    const cfg = writeHermesModelConfig({
-      ...hermes,
-      defaultModel: hermes.defaultModel || model.model || "",
-      modelProvider: hermes.modelProvider || model.provider || "",
-    });
-    return { ...envResult, configPath: cfg.configPath, configOk: cfg.ok };
+    return { ...result, configOk: true };
   });
 
   ipc.handle(IPC.HERMES_TEST_HEALTH, async () => probeHermesHealth());
