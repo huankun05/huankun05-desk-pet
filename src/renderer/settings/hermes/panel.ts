@@ -52,8 +52,6 @@ function fillForm(s: HermesPublic): void {
   setVal("hermes-api-key", s.apiServerKey || "");
   setVal("hermes-auto-start", s.autoStartGateway);
   setVal("hermes-sync-model", s.syncModelCredentials !== false);
-  setVal("hermes-default-model", s.defaultModel || "");
-  setVal("hermes-model-provider", s.modelProvider || "");
   const hint = el("hermes-env-hint");
   if (hint) {
     hint.textContent = s.envExists
@@ -73,8 +71,6 @@ function collectPatch(): Record<string, unknown> {
     apiServerKey: el<HTMLInputElement>("hermes-api-key")?.value.trim() ?? "",
     autoStartGateway: Boolean(el<HTMLInputElement>("hermes-auto-start")?.checked),
     syncModelCredentials: el<HTMLInputElement>("hermes-sync-model")?.checked !== false,
-    defaultModel: el<HTMLInputElement>("hermes-default-model")?.value.trim() ?? "",
-    modelProvider: el<HTMLInputElement>("hermes-model-provider")?.value.trim() ?? "",
   };
 }
 
@@ -144,7 +140,7 @@ export async function initHermesPanel(): Promise<void> {
     void (async () => {
       try {
         const res = (await bridge.syncModelCredentials()) as { written?: string[]; configPath?: string };
-        const keys = res.written?.length ? res.written.join(", ") : "(未找到可同步的模型 Key，请先在「API 设置」填写)";
+        const keys = res.written?.length ? res.written.join(", ") : "(未找到可同步的模型 Key，请先在「模型服务」填写)";
         setStatus(`同步完成：${keys}`, true);
         await load();
       } catch (err) {

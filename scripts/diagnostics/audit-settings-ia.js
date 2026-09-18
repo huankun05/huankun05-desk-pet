@@ -1,0 +1,16 @@
+const fs = require("fs");
+const f = "F:/Work/Create/desk_pet/desk-pet/src/renderer/settings/index.html";
+const t = fs.readFileSync(f, "utf8");
+const sections = [...t.matchAll(/data-section="([^"]+)"/g)].map((m) => m[1]);
+const panels = [...t.matchAll(/data-panel="([^"]+)"/g)].map((m) => m[1]);
+const unique = (a) => [...new Set(a)];
+console.log("NAV:", unique(sections).join(", "));
+console.log("PANELS:", unique(panels).join(", "));
+console.log("panel-no-nav:", unique(panels).filter((p) => !sections.includes(p)).join(", "));
+console.log("nav-no-panel:", unique(sections).filter((s) => !panels.includes(s)).join(", "));
+console.log("group-labels:", [...t.matchAll(/settings-nav__group-label">([^<]+)/g)].map((m) => m[1]).join(" | "));
+console.log("nav-divider count:", (t.match(/nav-divider/g) || []).length);
+console.log("汐月 count:", (t.match(/汐月/g) || []).length);
+console.log("昔涟 count:", (t.match(/昔涟/g) || []).length);
+console.log("Marea count:", (t.match(/Marea/g) || []).length);
+console.log("Cyrene count:", (t.match(/Cyrene/g) || []).length);

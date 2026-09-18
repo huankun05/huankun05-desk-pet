@@ -211,3 +211,27 @@
 /* ── 状态色文字 ── */
 .save-status.is-ok { color: var(--ui-success, #0b6b5c); }
 .save-status.is-error { color: var(--ui-danger, #a63a49); }
+
+
+/* 统一分区标题：有/无 panel-heading 的面板都使用同一层级样式 */
+.settings-panel > .settings-section:first-child {
+  margin-top: 4px;
+}
+.settings-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-section__title::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--brand-primary, var(--rb-pink-500, #ff5b8a));
+  flex: none;
+}
+.panel-heading + .settings-section .settings-section__title::before {
+  /* 面板已有大标题时，小节仍保留短竖线，层级一致 */
+  opacity: 0.85;
+}
