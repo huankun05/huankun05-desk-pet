@@ -7,6 +7,8 @@ export interface CreateTrayDependencies {
   requestActivation(request: WindowActivationRequest): void;
   /** 桌宠开关保持立即执行：桌宠不接收通用主窗口激活请求。 */
   togglePetWindow(): void;
+  /** 重启应用（relaunch + exit）；用于改配置/热更失效后快速重启。 */
+  restart(): void;
   quit(): void;
 }
 
@@ -33,6 +35,10 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
       click: () => { deps.togglePetWindow(); },
     },
     { type: "separator" },
+    {
+      label: "重启应用",
+      click: () => { deps.restart(); },
+    },
     {
       label: "退出",
       click: () => { deps.quit(); },

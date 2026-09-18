@@ -224,6 +224,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       createTray: (input) => createTray({
         togglePetWindow: input.togglePetWindow,
         requestActivation: input.requestActivation,
+        restart: () => {
+          app.relaunch();
+          app.exit(0);
+        },
         quit: () => app.quit(),
       }),
       flushTokenUsage,

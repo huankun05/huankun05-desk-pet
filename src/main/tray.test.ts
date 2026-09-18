@@ -21,6 +21,7 @@ function makeDeps(): { deps: CreateTrayDependencies; requests: WindowActivationR
     deps: {
       requestActivation: (request) => { requests.push(request); },
       togglePetWindow: vi.fn(),
+      restart: vi.fn(),
       quit: vi.fn(),
     },
   };
@@ -48,14 +49,16 @@ describe("buildTrayMenuTemplate", () => {
     ]);
   });
 
-  it("keeps pet toggle and quit immediate instead of activation requests", () => {
+  it("keeps pet toggle, restart, and quit immediate instead of activation requests", () => {
     const { deps, requests } = makeDeps();
     const clicks = clickByLabel(buildTrayMenuTemplate(deps));
 
     clicks.get("显示/隐藏桌宠")!();
+    clicks.get("重启应用")!();
     clicks.get("退出")!();
 
     expect(deps.togglePetWindow).toHaveBeenCalledOnce();
+    expect(deps.restart).toHaveBeenCalledOnce();
     expect(deps.quit).toHaveBeenCalledOnce();
     expect(requests).toEqual([]);
   });
