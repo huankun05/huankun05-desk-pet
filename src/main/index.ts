@@ -8,10 +8,28 @@
  */
 
 import { app } from "electron";
+import * as path from "path";
+
+/**
+ * 数据目录冻结：产品不再改名，统一使用 %APPDATA%\live2d-cyrene
+ * （与历史安装版共用同一份用户数据；marea 目录已废弃）。
+ * 必须在任何 app.getPath("userData") 之前执行。
+ */
+const FIXED_USER_DATA_DIR = "live2d-cyrene";
+app.setName(FIXED_USER_DATA_DIR);
+try {
+  app.setAppUserModelId("com.cyrene.live2d");
+} catch {
+  /* non-Windows */
+}
+const fixedUserDataPath = path.join(app.getPath("appData"), FIXED_USER_DATA_DIR);
+if (app.getPath("userData") !== fixedUserDataPath) {
+  app.setPath("userData", fixedUserDataPath);
+}
+
 import { createApplication } from "./application/application";
 import { createDefaultApplicationDependencies } from "./application/default-dependencies";
 import * as fs from "fs";
-import * as path from "path";
 
 // 调试日志：把 console.error 写入文件，方便排查问题
 const logDir = path.join(app.getPath("userData"), "logs");
