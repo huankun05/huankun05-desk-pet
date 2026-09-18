@@ -965,19 +965,8 @@ function bindModelAutoResolve(): void {
   };
   modelInput?.addEventListener("change", () => run("input"));
   modelInput?.addEventListener("blur", () => run("select"));
-  // 选厂商/档案后
-  if (!String(fillModelOptions).includes("autoResolveModelMeta")) {
-    const original = fillModelOptions;
-    (fillModelOptions as unknown as typeof fillModelOptions) = function patched(
-      preset: Parameters<typeof original>[0],
-      preferred?: Parameters<typeof original>[1],
-    ): void {
-      original(preset, preferred);
-      run("preset");
-    } as typeof fillModelOptions;
-  }
 }
-bindModelAutoResolve();
+
 
 /** 载入档案到编辑表单。 */
 function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
