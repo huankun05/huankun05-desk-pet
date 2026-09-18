@@ -209,3 +209,9 @@ sticker-descriptions/
 # 测试运行时生成的临时工作区目录
 .cyrene-temp/
 
+
+# 本机 git 配置，不入库
+.gitconfig
+
+# Cubism core 由本地/构建放置
+src/renderer/live2dcubismcore.min.js
