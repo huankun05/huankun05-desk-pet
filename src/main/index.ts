@@ -11,8 +11,8 @@ import { app } from "electron";
 import * as path from "path";
 
 /**
- * 数据目录冻结：产品不再改名，统一使用 %APPDATA%\live2d-cyrene
- * （与历史安装版共用同一份用户数据；marea 目录已废弃）。
+ * 数据目录冻结：产品不再改名，默认 %APPDATA%\live2d-cyrene
+ * 可通过环境变量 CYRENE_USER_DATA_DIR 自定义存放位置（绝对路径）。
  * 必须在任何 app.getPath("userData") 之前执行。
  */
 const FIXED_USER_DATA_DIR = "live2d-cyrene";
@@ -22,8 +22,16 @@ try {
 } catch {
   /* non-Windows */
 }
-const fixedUserDataPath = path.join(app.getPath("appData"), FIXED_USER_DATA_DIR);
+const envUserData = (process.env.CYRENE_USER_DATA_DIR ?? "").trim();
+const fixedUserDataPath = envUserData
+  ? path.resolve(envUserData)
+  : path.join(app.getPath("appData"), FIXED_USER_DATA_DIR);
 if (app.getPath("userData") !== fixedUserDataPath) {
+  try {
+    fs.mkdirSync(fixedUserDataPath, { recursive: true });
+  } catch {
+    /* 权限等异常时仍尝试 setPath */
+  }
   app.setPath("userData", fixedUserDataPath);
 }
 
