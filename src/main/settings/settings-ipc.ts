@@ -317,6 +317,14 @@ export function registerSettingsIpc(deps: SettingsIpcDependencies): void {
 
   ipc.handle(IPC.RUNTIME_STATE_GET, () => runtimeStateService.getState());
 
+  ipc.handle(IPC.SETTINGS_FETCH_PROVIDER_MODELS, async (_event, config: { baseUrl: string; apiKey: string }) => {
+    const { fetchProviderModels } = await import("../orchestrator/vendors/fetch-provider-models");
+    return fetchProviderModels({
+      baseUrl: String(config?.baseUrl ?? ""),
+      apiKey: String(config?.apiKey ?? ""),
+    });
+  });
+
   ipc.handle(IPC.SETTINGS_SAVE_CONFIG, (_event, settings: Partial<ModelSettings>) => {
     const saved = saveModelSettings(settings);
     broadcastModelConfigChanged(saved);

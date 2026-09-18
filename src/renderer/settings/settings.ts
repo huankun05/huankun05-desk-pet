@@ -1830,7 +1830,51 @@ if (testConnectionBtn) {
     } catch (e) {
       setSaveStatus(tOr("settings.connFailed", "连接失败：") + (e instanceof Error ? e.message : String(e)), "is-error");
     } finally {
-      btn.disabled = false;
+      
+      // 测试成功后从服务商拉取模型列表，自动检查模型名与上下文
+      void (async () => {
+        try {
+          const fetchModels = window.settings?.fetchProviderModels;
+          if (!fetchModels) return;
+          const result = await fetchModels({ baseUrl, apiKey });
+          if (!result.ok || !result.models?.length) {
+            const meta = document.getElementById("context-window-auto-hint");
+            if (meta && result.error) {
+              meta.textContent = tOr("settings.providerModelsFailed", "服务商模型列表获取失败") + ": " + result.error;
+            }
+            return;
+          }
+          // 更新 datalist
+          modelInputSuggestions.replaceChildren();
+          for (const m of result.models) {
+            const option = document.createElement("option");
+            option.value = m.id;
+            modelInputSuggestions.appendChild(option);
+          }
+          const current = getCurrentModelValue().trim();
+          const hit = result.models.find((m) => m.id === current);
+          const meta = document.getElementById("context-window-auto-hint");
+          if (!hit) {
+            if (meta) {
+              meta.textContent =
+                tOr("settings.modelNotInProviderList", "该模型不在服务商列表中，请核对模型 ID")
+                + " · " + tOr("settings.providerModelCount", "服务商共")
+                + " " + result.models.length + " " + tOr("settings.providerModelCountUnit", "个");
+            }
+            return;
+          }
+          if (hit.contextWindow && hit.contextWindow > 0) {
+            contextWindowInput.value = String(hit.contextWindow);
+            if (meta) {
+              meta.textContent = tOr("settings.contextFromProvider", "上下文窗口来自服务商 API");
+            }
+          } else if (meta) {
+            meta.textContent = tOr("settings.modelInProviderList", "模型已在服务商列表中（接口未返回上下文，可手填或用目录值）");
+            fillContextWindowIfEmpty();
+          }
+        } catch { /* ignore */ }
+      })();
+btn.disabled = false;
     }
   });
 }

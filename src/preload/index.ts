@@ -350,6 +350,13 @@ const settingsApi = {
   setDefaultModelProfile: (id: string) => ipcRenderer.invoke(IPC.SETTINGS_MODEL_PROFILE_SET_DEFAULT, id),
   lookupModelContextWindow: (provider: string, model: string) => ipcRenderer.invoke(IPC.SETTINGS_LOOKUP_CONTEXT_WINDOW, provider, model) as Promise<number | null>,
   testConnection: (config: { provider: string; baseUrl: string; model: string; apiKey: string; explicitTransport?: "openai" | "anthropic"; reasoning?: ReasoningPreference }) => ipcRenderer.invoke(IPC.SETTINGS_TEST_CONNECTION, config),
+  fetchProviderModels: (config: { baseUrl: string; apiKey: string }) =>
+    ipcRenderer.invoke(IPC.SETTINGS_FETCH_PROVIDER_MODELS, config) as Promise<{
+      ok: boolean;
+      models: Array<{ id: string; contextWindow?: number }>;
+      error?: string;
+      url: string;
+    }>,
   testVision: (config: { baseUrl: string; apiKey: string; model: string }) => ipcRenderer.invoke(IPC.SETTINGS_TEST_VISION, config),
   testOcr: () => ipcRenderer.invoke(IPC.SETTINGS_TEST_OCR),
   // main → settings：要求切到指定标签（窗口已打开时由 main 发这个事件）

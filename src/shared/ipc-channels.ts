@@ -93,6 +93,7 @@ export const IPC = {
   // 按（厂商, 模型）查询知识表中的上下文窗口长度；未收录返回 null
   SETTINGS_LOOKUP_CONTEXT_WINDOW: "settings:lookup-context-window",
   SETTINGS_TEST_CONNECTION: "settings:test-connection",
+  SETTINGS_FETCH_PROVIDER_MODELS: "settings:fetch-provider-models",
   SETTINGS_TEST_VISION: "settings:test-vision",
   SETTINGS_TEST_OCR: "settings:test-ocr",
   // 凭据导出/导入/审计（换机迁移 + 变更追踪）
