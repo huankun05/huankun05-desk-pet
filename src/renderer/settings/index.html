@@ -187,13 +187,15 @@
               <span data-i18n="api.modelName">模型名</span>
               <input id="model-input" type="text" placeholder="选厂商后自动填入，可手填覆盖" autocomplete="off" list="model-input-suggestions" data-i18n="settings.modelPlaceholderDefault" />
               <datalist id="model-input-suggestions"></datalist>
+              <span class="form-hint" style="margin-top:4px;display:block;">从服务商拉取到的模型会出现在下方，点击即可选用。</span>
+              <div id="provider-model-picker" style="margin-top:8px;display:none;max-height:160px;overflow:auto;border:1px solid var(--ui-border,#e5e5ea);border-radius:8px;padding:6px;"></div>
             </label>
 
             <label class="field">
               <span data-i18n="api.contextWindow">上下文窗口（Token）</span>
               <input id="context-window-input" type="number" min="4096" step="1" placeholder="256000" autocomplete="off" />
               <span class="form-hint" id="context-window-auto-hint" style="margin-top:4px"></span>
-              <span class="form-hint" data-i18n="api.contextWindowHint">选择/填写模型后自动带出；可手改，保存进档案。</span>
+              <span class="form-hint" data-i18n="api.contextWindowHint">单位 Token。131072≈128K，属常见规格；选择/填写模型后自动带出，可手改。</span>
             </label>
 
             <label class="setting-row profile-multimodal-row">

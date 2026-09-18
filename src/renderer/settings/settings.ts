@@ -818,6 +818,45 @@ function fillContextWindowIfEmpty(): void {
 }
 
 
+
+/** 服务商模型下拉：点击可选用 */
+function renderProviderModelPicker(
+  models: Array<{ id: string; contextWindow?: number }>,
+  currentModel: string,
+): void {
+  const box = document.getElementById("provider-model-picker");
+  if (!box) return;
+  if (!models.length) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  box.style.display = "block";
+  box.innerHTML = models
+    .map((m) => {
+      const active = m.id === currentModel ? "font-weight:700;" : "";
+      const ctx = m.contextWindow ? ` · ${m.contextWindow}` : "";
+      return `<button type="button" class="btn-secondary provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:block;width:100%;text-align:left;margin:2px 0;min-height:30px;${active}">${m.id}${ctx}</button>`;
+    })
+    .join("");
+  box.querySelectorAll<HTMLButtonElement>(".provider-model-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id || "";
+      if (!id) return;
+      modelInput.value = id;
+      const ctx = btn.dataset.ctx;
+      if (ctx && Number(ctx) > 0) {
+        contextWindowInput.value = String(ctx);
+        setModelAutoHint(`已选择服务商模型 ${id} · 上下文 ${ctx}`, "ok");
+      } else {
+        setModelAutoHint(`已选择服务商模型 ${id}`, "ok");
+        void autoResolveModelMeta("select");
+      }
+      renderProviderModelPicker(models, id);
+    });
+  });
+}
+
 /** 设置页底部提示：模型/上下文自动获取状态 */
 function setModelAutoHint(text: string, tone?: "ok" | "err"): void {
   const meta = document.getElementById("context-window-auto-hint");
@@ -909,20 +948,40 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
       }
       const hit = result.models.find((m) => m.id === model);
       if (!hit) {
+        const fallback = result.models[0];
+        modelInput.value = fallback.id;
+        renderProviderModelPicker(result.models, fallback.id);
+        if (fallback.contextWindow && fallback.contextWindow > 0) {
+          contextWindowInput.value = String(fallback.contextWindow);
+        } else if (catalogValue) {
+          contextWindowInput.value = String(catalogValue);
+        }
+        const ctxNote = fallback.contextWindow
+          ? `，上下文 ${fallback.contextWindow}（约 ${Math.round(fallback.contextWindow / 1000)}K）`
+          : catalogValue
+            ? `，上下文 ${catalogValue}（约 ${Math.round(catalogValue / 1000)}K，目录）`
+            : "";
         setModelAutoHint(
-          `「${provider}」共 ${result.models.length} 个模型，无「${model}」；请核对 ID。上下文${catalogValue ? `用目录 ${catalogValue}` : "请手填"}`,
-          "err",
+          `「${provider}」返回 ${result.models.length} 个模型（见下方列表，可点击选用）。原「${model}」不在官方列表，已自动选用「${fallback.id}」${ctxNote}。`,
+          "ok",
         );
         return;
       }
+      renderProviderModelPicker(result.models, hit.id);
       if (hit.contextWindow && hit.contextWindow > 0) {
         contextWindowInput.value = String(hit.contextWindow);
-        setModelAutoHint(`已匹配 ${provider} · ${model} · 上下文 ${hit.contextWindow}（服务商）`, "ok");
+        setModelAutoHint(
+          `已匹配 ${provider} · ${hit.id} · 上下文 ${hit.contextWindow} tokens（约 ${Math.round(hit.contextWindow / 1000)}K，服务商返回）`,
+          "ok",
+        );
       } else if (catalogValue) {
         contextWindowInput.value = String(catalogValue);
-        setModelAutoHint(`已匹配 ${provider} · ${model} · 上下文 ${catalogValue}（内置目录）`, "ok");
+        setModelAutoHint(
+          `已匹配 ${provider} · ${hit.id} · 上下文 ${catalogValue} tokens（约 ${Math.round(catalogValue / 1000)}K，内置目录）`,
+          "ok",
+        );
       } else {
-        setModelAutoHint(`已匹配 ${provider} 中的 ${model}；服务商未返回上下文，请手动填写`, "err");
+        setModelAutoHint(`已匹配 ${provider} 中的 ${hit.id}；服务商未返回上下文，请手动填写`, "err");
       }
       return;
     }

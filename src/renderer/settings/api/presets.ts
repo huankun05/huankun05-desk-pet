@@ -30,7 +30,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     baseUrl: "https://api.deepseek.com",
     anthropicBaseUrl: "https://api.deepseek.com/anthropic",
     transport: "openai",
-    mainModels: ["deepseek-v4-pro", "deepseek-v4-flash"],
+    mainModels: ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"],
     iconUrl: "../icons/providers/deepseek.svg",
     websiteUrl: "https://platform.deepseek.com/",
   },

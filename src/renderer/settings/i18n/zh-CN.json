@@ -75,7 +75,7 @@
   "api": {
     "apiKey": "API Key",
     "contextWindow": "上下文窗口（Token）",
-    "contextWindowHint": "选择/填写模型后自动带出；可手改，保存进档案。",
+    "contextWindowHint": "单位 Token。131072≈128K，属常见规格；选择/填写模型后自动带出，可手改。",
     "credentials": {
       "action": {
         "credentialExport": "导出凭据",
