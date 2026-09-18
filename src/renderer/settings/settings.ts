@@ -670,8 +670,7 @@ function fillModelOptions(preset: ModelPreset, preferredModel?: string): void {
 
   const fallback = preset.mainModels[0] ?? "";
   modelInput.value = preferredModel ?? fallback;
-  // 选厂商/模型后自动拉取上下文与服务商模型列表
-  void autoResolveModelMeta("preset");
+  // 不在此处 autoResolve：applyPreset 会在填完 Key/URL 后统一触发
 }
 
 // ── 档案编辑（表单绑定档案，不再绑定"当前厂商"） ────────────────
@@ -842,9 +841,6 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
     return;
   }
 
-  // A. 目录上下文
-  const currentCtx = contextWindowInput.value.trim();
-  const looksUnset = !currentCtx || currentCtx === "256000" || currentCtx === "0";
   let catalogValue: number | null = null;
   try {
     const v = await window.settings?.lookupModelContextWindow?.(provider, model);
@@ -853,87 +849,113 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
     catalogValue = null;
   }
 
-  // B. 服务商模型列表（需要已填 URL+Key）
-  if (baseUrl && (apiKey || provider?.includes("ollama") || provider?.includes("Ollama"))) {
-    setModelAutoHint(tOr("settings.autoMetaFetching", "正在从服务商获取模型信息…"));
-    try {
-      const fetchModels = window.settings?.fetchProviderModels;
-      if (!fetchModels) {
-        setModelAutoHint(tOr("settings.autoMetaNoApi", "无法访问服务商接口，请手动填写上下文 Token"), "err");
-      } else {
-        const result = await fetchModels({ baseUrl, apiKey: apiKey || "ollama" });
-        if (result.ok && result.models?.length) {
-          modelInputSuggestions.replaceChildren();
-          for (const m of result.models) {
-            const option = document.createElement("option");
-            option.value = m.id;
-            modelInputSuggestions.appendChild(option);
-          }
-          const hit = result.models.find((m) => m.id === model);
-          if (!hit) {
-            setModelAutoHint(
-              tOr("settings.autoMetaNotInProvider", "服务商列表中无此模型 ID，请核对或手动填写") +
-                ` · ${tOr("settings.autoMetaCount", "共")} ${result.models.length}`,
-              "err",
-            );
-          } else if (hit.contextWindow && hit.contextWindow > 0) {
-            contextWindowInput.value = String(hit.contextWindow);
-            setModelAutoHint(tOr("settings.autoMetaFromProvider", "上下文来自服务商 API"), "ok");
-          } else if (catalogValue) {
-            contextWindowInput.value = String(catalogValue);
-            setModelAutoHint(tOr("settings.autoMetaFromCatalog", "服务商未返回上下文，已用内置目录值"), "ok");
-          } else {
-            setModelAutoHint(
-              tOr("settings.autoMetaNoContext", "服务商未提供上下文长度，请手动填写 Token"),
-              "err",
-            );
-          }
-          return;
-        }
-        {
-          const errText = String(result.error || "");
-          if (/认证失败|401|403|Authentication/i.test(errText)) {
-            setModelAutoHint(
-              "服务商拒绝认证（API Key 无效或与厂商不匹配）。请到「模型服务」核对厂商与 Key；也可手动填写模型与上下文。",
-              "err",
-            );
-          } else {
-            setModelAutoHint(
-              tOr("settings.autoMetaFetchFailed", "服务商接口获取失败，请手动填写模型/上下文") +
-                (errText ? `：${errText.slice(0, 120)}` : ""),
-              "err",
-            );
-          }
-        }
-      }
-    } catch (e) {
-      setModelAutoHint(
-        tOr("settings.autoMetaFetchFailed", "服务商接口获取失败，请手动填写模型/上下文") +
-          `：${String(e).slice(0, 80)}`,
-        "err",
-      );
-    }
+  const currentCtx = contextWindowInput.value.trim();
+  const looksUnset = !currentCtx || currentCtx === "256000" || currentCtx === "0";
+  if (catalogValue && (looksUnset || reason === "preset")) {
+    contextWindowInput.value = String(catalogValue);
   }
 
-  // C. 仅目录（未配 Key 或拉取失败后）
-  if (catalogValue) {
-    const now = contextWindowInput.value.trim();
-    if (!now || now === "256000" || reason === "preset" || reason === "select") {
-      if (!now || now === "256000") {
-        contextWindowInput.value = String(catalogValue);
-      }
-      setModelAutoHint(
-        tOr("settings.autoMetaFromCatalog", "上下文来自内置目录") + `：${catalogValue}`,
-        "ok",
-      );
-    }
+  let host = baseUrl;
+  try {
+    host = new URL(baseUrl).host;
+  } catch { /* keep raw */ }
+
+  const isLocal = /ollama/i.test(provider) || /^http:\/\/localhost/i.test(baseUrl);
+  const keyOk =
+    isLocal ||
+    Boolean(
+      apiKey &&
+        apiKey !== LOCAL_ENDPOINT_AUTH_FALLBACK &&
+        !/^\*+$/.test(apiKey) &&
+        apiKey.length >= 8,
+    );
+
+  if (!baseUrl) {
+    setModelAutoHint(
+      catalogValue
+        ? `上下文（内置目录）${catalogValue} · 请填写「${provider}」的 Base URL`
+        : `请填写「${provider}」的 Base URL`,
+      catalogValue ? "ok" : "err",
+    );
     return;
   }
-  if (looksUnset) {
+  if (!keyOk) {
     setModelAutoHint(
-      tOr("settings.autoMetaUnknownModel", "目录无此模型，且未配置服务商 API，请手动填写上下文"),
-      "err",
+      catalogValue
+        ? `上下文（内置目录）${catalogValue} · 「${provider}」未填 API Key，无法向 ${host} 拉取模型列表`
+        : `「${provider}」未填 API Key（须与 ${host} 匹配），请手动填写模型与上下文`,
+      catalogValue ? "ok" : "err",
     );
+    return;
+  }
+
+  setModelAutoHint(`正在向 ${provider}（${host}）获取模型信息…`);
+  try {
+    const fetchModels = window.settings?.fetchProviderModels;
+    if (!fetchModels) {
+      setModelAutoHint(
+        catalogValue ? `上下文（目录）${catalogValue} · 无列表接口` : "无法访问服务商接口",
+        catalogValue ? "ok" : "err",
+      );
+      return;
+    }
+    const result = await fetchModels({ baseUrl, apiKey: isLocal && !apiKey ? "ollama" : apiKey });
+    if (result.ok && result.models?.length) {
+      modelInputSuggestions.replaceChildren();
+      for (const m of result.models) {
+        const option = document.createElement("option");
+        option.value = m.id;
+        modelInputSuggestions.appendChild(option);
+      }
+      const hit = result.models.find((m) => m.id === model);
+      if (!hit) {
+        setModelAutoHint(
+          `「${provider}」共 ${result.models.length} 个模型，无「${model}」；请核对 ID。上下文${catalogValue ? `用目录 ${catalogValue}` : "请手填"}`,
+          "err",
+        );
+        return;
+      }
+      if (hit.contextWindow && hit.contextWindow > 0) {
+        contextWindowInput.value = String(hit.contextWindow);
+        setModelAutoHint(`已匹配 ${provider} · ${model} · 上下文 ${hit.contextWindow}（服务商）`, "ok");
+      } else if (catalogValue) {
+        contextWindowInput.value = String(catalogValue);
+        setModelAutoHint(`已匹配 ${provider} · ${model} · 上下文 ${catalogValue}（内置目录）`, "ok");
+      } else {
+        setModelAutoHint(`已匹配 ${provider} 中的 ${model}；服务商未返回上下文，请手动填写`, "err");
+      }
+      return;
+    }
+
+    const errText = String(result.error || "");
+    if (/认证失败|401|403|Authentication/i.test(errText)) {
+      if (catalogValue) {
+        contextWindowInput.value = String(catalogValue);
+        setModelAutoHint(
+          `「${provider}」列表接口拒绝认证（${host}）：Key 无效/不匹配，或该厂商不支持 /models。已用目录上下文 ${catalogValue}；对话配置未被更改。`,
+          "ok",
+        );
+      } else {
+        setModelAutoHint(
+          `「${provider}」拒绝认证：请核对厂商与 API Key 是否都属于 ${host}；上下文请手动填写。`,
+          "err",
+        );
+      }
+      return;
+    }
+    if (catalogValue) {
+      contextWindowInput.value = String(catalogValue);
+      setModelAutoHint(`「${provider}」列表失败：${errText.slice(0, 80)} · 已用目录 ${catalogValue}`, "ok");
+    } else {
+      setModelAutoHint(`「${provider}」列表失败：${errText.slice(0, 100)} · 请手动填写`, "err");
+    }
+  } catch (e) {
+    if (catalogValue) {
+      contextWindowInput.value = String(catalogValue);
+      setModelAutoHint(`「${provider}」请求异常，已用目录 ${catalogValue}`, "ok");
+    } else {
+      setModelAutoHint(`「${provider}」请求异常：${String(e).slice(0, 80)}`, "err");
+    }
   }
 }
 
