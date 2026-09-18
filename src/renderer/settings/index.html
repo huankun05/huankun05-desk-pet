@@ -1287,129 +1287,23 @@
           <div class="settings-section">
             <div class="settings-section__heading">
               <h2>备份</h2>
-              <p class="settings-section__hint">与「备份管理」共用备份目录。</p>
+              <p class="settings-section__hint">创建 / 恢复 / 删除备份。备份内容见下方列表。</p>
             </div>
             <div class="settings-section__body">
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                 <button type="button" class="btn-secondary" id="storage-backup-all-btn">备份全部</button>
                 <button type="button" class="btn-secondary" id="storage-backup-chats-btn">备份聊天</button>
                 <button type="button" class="btn-secondary" id="storage-backup-data-btn">备份关键配置</button>
+                <button type="button" class="btn-secondary" id="storage-backup-skills-btn">备份技能</button>
+                <button type="button" class="btn-secondary" id="storage-backup-settings-btn">备份应用设置</button>
+                <button type="button" class="btn-secondary" id="storage-backup-refresh-btn">刷新列表</button>
               </div>
               <div id="storage-backup-list"></div>
             </div>
           </div>
         </section>
 
-        <section class="settings-panel is-hidden" id="backup-panel" data-panel="backup" hidden>
-          <div class="panel-heading">
-            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="panel.backup">备份管理</title><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 14V24L31 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div>
-              <h1 data-i18n="panel.backup">备份管理</h1>
-              <p data-i18n="backup.headingDesc">备份/恢复配置、聊天、技能与人设。可查看数据目录占用并清理缓存。</p>
-            </div>
-          </div>
-
-          <!-- 数据目录与占用 -->
-          <div class="settings-section">
-            <div class="settings-section__heading">
-              <h2>数据目录</h2>
-              <p class="settings-section__hint" id="data-root-path">数据根目录加载中…</p>
-            </div>
-            <div class="settings-section__body">
-              <div id="data-paths-list" style="font-size:12.5px;line-height:1.7;color:var(--ui-text-default,#2c2c2e);"></div>
-              <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                <button type="button" class="btn-secondary" id="data-usage-scan-btn">刷新占用</button>
-                <button type="button" class="btn-secondary" id="data-usage-clean-btn">清理缓存</button>
-                <button type="button" class="btn-secondary" id="data-usage-open-root-btn">打开数据文件夹</button>
-                <span class="save-status" id="data-usage-summary"></span>
-              </div>
-              <div id="data-usage-table" style="margin-top:12px;font-size:12.5px;"></div>
-            </div>
-          </div>
-
-          <!-- 手动备份区域 -->
-          <div class="settings-section">
-            <div class="settings-section__heading">
-              <h2 data-i18n="backup.manual">手动备份</h2>
-              <p data-i18n="backup.manualHint">选择要备份的内容，立即创建一个备份点。</p>
-            </div>
-            <div class="settings-section__body">
-              <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;">
-                <label class="character-field" style="margin:0;min-width:240px;flex:1;">
-                  <span data-i18n="backup.content">备份内容</span>
-                  <select class="setting-select" id="backup-category-select">
-                    <option value="all" data-i18n="backup.all">全部（配置 + 聊天 + 技能 + 人设）</option>
-                    <option value="soul" data-i18n="backup.soulOnly">仅人设 (soul.md)</option>
-                    <option value="styles" data-i18n="backup.stylesOnly">仅风格 (styles/)</option>
-                    <option value="characters" data-i18n="backup.charactersOnly">仅角色配置</option>
-                    <option value="settings" data-i18n="backup.settingsOnly">仅应用设置</option>
-                    <option value="skills" data-i18n="backup.skillsOnly">仅技能</option>
-                    <option value="chats">仅聊天与检查点</option>
-                    <option value="data">仅关键配置（模型/渠道等）</option>
-                  </select>
-                </label>
-                <button type="button" class="save-btn" id="backup-create-btn" style="padding:10px 24px;font-size:14px;" data-i18n="backup.createNow">立即备份</button>
-              </div>
-              <p class="save-status" id="backup-status" style="margin-top:12px;" data-i18n="backup.waiting">等待操作</p>
-            </div>
-          </div>
-
-          <!-- 自动备份设置 -->
-          <div class="settings-section">
-            <div class="settings-section__heading">
-              <h2 data-i18n="backup.autoTitle">自动备份设置</h2>
-              <p data-i18n="backup.autoHint">配置自动备份的触发条件和保留策略。</p>
-            </div>
-            <div class="settings-section__body">
-              <div style="display:flex;flex-direction:column;gap:16px;">
-                <label class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;">
-                  <div>
-                    <div style="font-weight:500;color:var(--text-primary);" data-i18n="backup.autoSoul">人设修改自动备份</div>
-                    <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;" data-i18n="backup.autoSoulHint">保存 soul.md 前自动创建备份</div>
-                  </div>
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="auto-backup-soul" checked />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </label>
-                <label class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;">
-                  <div>
-                    <div style="font-weight:500;color:var(--text-primary);" data-i18n="backup.autoStyles">风格修改自动备份</div>
-                    <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;" data-i18n="backup.autoStylesHint">保存风格 Prompt 前自动创建备份</div>
-                  </div>
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="auto-backup-styles" checked />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </label>
-                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-                  <label class="character-field" style="margin:0;min-width:200px;">
-                    <span data-i18n="backup.keepCount">自动备份保留数量</span>
-                    <select class="setting-select" id="backup-keep-count">
-                      <option value="3" data-i18n="backup.keep3">最近 3 个</option>
-                      <option value="5" selected data-i18n="backup.keep5">最近 5 个</option>
-                      <option value="10" data-i18n="backup.keep10">最近 10 个</option>
-                      <option value="20" data-i18n="backup.keep20">最近 20 个</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 备份列表 -->
-          <div class="settings-section">
-            <div class="settings-section__heading">
-              <h2 data-i18n="backup.listTitle">备份列表</h2>
-              <p data-i18n="backup.listHint">所有备份按时间倒序排列。恢复前会自动备份当前状态。</p>
-            </div>
-            <div class="settings-section__body">
-              <div id="backup-list" style="display:flex;flex-direction:column;gap:12px;">
-                <p style="color:var(--text-secondary);font-size:13px;" data-i18n="common.loading">加载中...</p>
-              </div>
-            </div>
-          </div>
-        </section>
+        
 
 
 

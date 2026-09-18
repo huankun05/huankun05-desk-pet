@@ -91,6 +91,7 @@ import { initBackupPanel } from "./backup/backup-panel";
 import { initLspPanel } from "./lsp/panel";
 import { initStoragePanel } from "./storage/panel";
 import "./storage/storage.css";
+import "./storage/storage.css";
 import { pluginsState } from "./plugins/state";
 import type {
   GeneralSettings,
@@ -889,11 +890,21 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
           }
           return;
         }
-        setModelAutoHint(
-          tOr("settings.autoMetaFetchFailed", "服务商接口获取失败，请手动填写模型/上下文") +
-            (result.error ? `：${String(result.error).slice(0, 80)}` : ""),
-          "err",
-        );
+        {
+          const errText = String(result.error || "");
+          if (/认证失败|401|403|Authentication/i.test(errText)) {
+            setModelAutoHint(
+              "服务商拒绝认证（API Key 无效或与厂商不匹配）。请到「模型服务」核对厂商与 Key；也可手动填写模型与上下文。",
+              "err",
+            );
+          } else {
+            setModelAutoHint(
+              tOr("settings.autoMetaFetchFailed", "服务商接口获取失败，请手动填写模型/上下文") +
+                (errText ? `：${errText.slice(0, 120)}` : ""),
+              "err",
+            );
+          }
+        }
       }
     } catch (e) {
       setModelAutoHint(
