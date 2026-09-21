@@ -1,8 +1,8 @@
 
 > **名称冻结（2026-09-18）**：产品 UI/打包统一为 **昔涟 / Cyrene**；**不再改名**。设置功能名保持原样（API 设置、TTS 设置等）；Hermes 在设置中称 **本地引擎**，路径自动探测，无需手填。
-# PLAN — 汐月 Marea 产品与工程路线
+# PLAN — 昔涟 Marea 产品与工程路线
 
-> **产品名**：汐月 · Marea（数字生命体桌宠；角色卡与产品名分离）  
+> **产品名**：昔涟 / Cyrene（品牌冻结）（数字生命体桌宠；角色卡与产品名分离）  
 > **当前方向（2026-09-18）**：壳（Electron）+ **智核**（官方 Hermes）+ **心核**（LifeKernel）。  
 > CyreneHarness **不再作为运行时大脑**（历史见 `docs/history/`）。  
 > UI/品牌：[`docs/design/UI-DESIGN.md`](docs/design/UI-DESIGN.md) · [`docs/standards/ui-and-branding.md`](docs/standards/ui-and-branding.md)  
@@ -36,7 +36,7 @@
 
 | 模块 | 状态 |
 |---|---|
-| 品牌 | **汐月 · Marea**；设置层名 **AI 引擎 / 模型服务** 等已通俗化 |
+| 品牌 | **昔涟 / Cyrene（品牌冻结）**；设置层名 **AI 引擎 / 模型服务** 等已通俗化 |
 | UI 规范 | `docs/design/UI-DESIGN.md`；controls.css + 语义 token 已落地 |
 | Electron 壳 / 渠道 / 设置 | 保留可用 |
 | AI 引擎（Hermes） | 官方 v2026.9.14；Windows health 通过；**壳内设置页已接** |
@@ -72,7 +72,7 @@ npm run dev
 
 | 日期 | 变更 |
 |---|---|
-| 2026-09-18 | 产品名汐月·Marea；设置通俗化；UI 规范与控件层；P0 health/壳内设置 |
+| 2026-09-18 | 产品名昔涟·Marea；设置通俗化；UI 规范与控件层；P0 health/壳内设置 |
 | 2026-09-17 | Hermes+心核+壳方向；仓库整理；文档体系 |
 | 2026-09-05 | 曾规划保留 CyreneHarness（已被取代） |
 | 2026-09-03 | 迁移到 Cyrene-Agent 底座 |

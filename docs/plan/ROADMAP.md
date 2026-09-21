@@ -13,7 +13,7 @@
 |---|---|---|
 | **R0 仓库整理** | 归档旧仓、官方 Hermes、文档体系 | **完成** |
 | **R1 品牌与 UI 规范** | 汐月/Marea、AI 引擎命名、token/控件层、设置分类 | **完成（2026-09-18）** |
-| **P0 Hermes Spike** | Windows gateway + health；壳内设置；Client 骨架 | **进行中**：health/设置已通；待模型 + SSE |
+| **P0 Hermes Spike** | gateway health + 设置页模型/存储 | **进行中**：health 通过；待 SSE 对话 |
 | **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | 待动工（下一步） |
 | **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 待动工 |
 | **P3 记忆** | LifeMemoryProvider + 注入预算 + 角色卡 v0 | 待动工 |
@@ -24,6 +24,8 @@
 | **P8 代码清理** | 移除 legacy harness | 待动工 |
 
 ---
+
+设置说明：[`../design/settings-model-service-status.md`](../design/settings-model-service-status.md)
 
 ## P0 剩余验收
 
