@@ -951,11 +951,7 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
       if (!now || now === "256000" || reason === "preset" || reason === "select") {
         if (!now || now === "256000" || reason === "preset") {
           contextWindowInput.value = String(v);
-          const presetSelect = document.getElementById("context-window-preset") as HTMLSelectElement | null;
-          if (presetSelect) {
-            const matched = Array.from(presetSelect.options).some((o) => o.value === String(v));
-            presetSelect.value = matched ? String(v) : "__custom__";
-          }
+          updateContextUnitHint();
         }
       }
     }
@@ -964,47 +960,57 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
   }
 }
 
+function updateContextUnitHint(): void {
+  const unit = document.getElementById("context-window-unit");
+  if (!unit) return;
+  const raw = contextWindowInput.value.trim();
+  const n = Number(raw);
+  if (!raw) {
+    unit.textContent = "单位 Token · 可选可填";
+    return;
+  }
+  if (!Number.isFinite(n) || n <= 0) {
+    unit.textContent = "单位 Token";
+    return;
+  }
+  const k = n / 1024;
+  const kText = k >= 1000 ? `${(k / 1000).toFixed(k >= 10000 ? 0 : 1)}M` : `${Math.round(k)}K`;
+  unit.textContent = `≈ ${kText} · Token`;
+}
+
 function bindModelAutoResolve(): void {
   const run = (reason: "select" | "input" | "preset" | "test") => {
     void autoResolveModelMeta(reason);
+    updateContextUnitHint();
   };
   modelInput?.addEventListener("change", () => run("input"));
   modelInput?.addEventListener("blur", () => run("select"));
 
-  const presetSelect = document.getElementById("context-window-preset") as HTMLSelectElement | null;
-  const syncPresetFromValue = (val: string) => {
-    if (!presetSelect) return;
-    const n = String(val).trim();
-    const matched = Array.from(presetSelect.options).some(
-      (o) => o.value === n && o.value !== "" && o.value !== "__custom__",
-    );
-    presetSelect.value = matched ? n : n ? "__custom__" : "";
-  };
-  presetSelect?.addEventListener("change", () => {
-    const v = presetSelect.value;
-    if (!v) return;
-    if (v === "__custom__") {
-      contextWindowInput?.focus();
-      return;
-    }
-    contextWindowInput.value = v;
-    setModelAutoHint(
-      `已选择常用上下文 ${v} tokens（约 ${Math.round(Number(v) / 1000)}K）`,
-      "ok",
-    );
-  });
+  contextWindowInput?.addEventListener("input", () => updateContextUnitHint());
   contextWindowInput?.addEventListener("change", () => {
-    syncPresetFromValue(contextWindowInput.value);
+    updateContextUnitHint();
   });
 
-  document.getElementById("fetch-models-btn")?.addEventListener("click", () => {
+  // 获取模型列表：必须有反应（弹窗 + 下拉）
+  const btn = document.getElementById("fetch-models-btn");
+  btn?.addEventListener("click", () => {
+    console.log("[Settings] fetch-models-btn click");
     void fetchModelsForCurrentForm();
   });
   document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
     renderProviderModelList((e.target as HTMLInputElement).value);
   });
+  updateContextUnitHint();
 }
 
+// 自动填充后同步右侧单位
+const _autoResolveOrig = autoResolveModelMeta;
+autoResolveModelMeta = async function wrapped(reason) {
+  await _autoResolveOrig(reason);
+  updateContextUnitHint();
+};
+
+bindModelAutoResolve();
 
 /** 载入档案到编辑表单。 */
 function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
@@ -1506,6 +1512,8 @@ function initThemeSwitcher(): void {
 
 // 延迟初始化，确保 DOM 已加载
 function initSettingsPage(): void {
+  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind model ui", e); } // idempotent
+
   initThemeSwitcher();
   initCustomSelects();
   initPasswordToggles();
