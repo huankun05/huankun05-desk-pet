@@ -842,9 +842,12 @@ function renderProviderModelList(filter = ""): void {
   }
   box.innerHTML = list
     .map((m) => {
-      const active = m.id === current ? "font-weight:700;background:var(--brand-primary-soft,#fff1f6);" : "";
+      const active = m.id === current;
       const ctx = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}K` : "";
-      return `<button type="button" class="provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:block;width:100%;text-align:left;margin:2px 0;padding:8px 10px;min-height:34px;border:1px solid var(--ui-border,#e5e5ea);border-radius:8px;background:#fff;cursor:pointer;${active}">${m.id}<span style="opacity:.7;font-size:12px;">${ctx}</span></button>`;
+      return `<button type="button" class="provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;text-align:left;margin:2px 0;padding:10px 12px;min-height:40px;border:1px solid ${active ? "var(--brand-primary,#ff5b8a)" : "var(--ui-border,#e5e5ea)"};border-radius:10px;background:${active ? "var(--brand-primary-soft,#fff1f6)" : "#fff"};cursor:pointer;">
+        <span style="font-weight:${active ? 700 : 500};">${m.id}</span>
+        <span style="font-size:12px;opacity:.75;">${ctx || "—"}</span>
+      </button>`;
     })
     .join("");
   box.querySelectorAll<HTMLButtonElement>(".provider-model-item").forEach((btn) => {
@@ -885,22 +888,21 @@ async function fetchModelsForCurrentForm(): Promise<void> {
     try {
       return new URL(baseUrl).host;
     } catch {
-      return baseUrl || "—";
+      return baseUrl || "";
     }
   })();
   if (!baseUrl) {
-    setModelFetchStatus("请先填写 Base URL（如 https://api.stepfun.com/v1）", "err");
+    notifyModelFetch("获取模型列表", "请先填写 Base URL。<br/>例如 StepFun：<code>https://api.stepfun.com/v1</code>");
     return;
   }
   if (!apiKey && !/ollama|localhost/i.test(provider + baseUrl)) {
-    setModelFetchStatus(`请先填写「${provider || "当前厂商"}」的 API Key（须匹配 ${host}）`, "err");
+    notifyModelFetch("获取模型列表", `请先填写「${provider || "当前厂商"}」的 API Key（需与 ${host} 匹配）。`);
     return;
   }
-  setModelFetchStatus(`正在从 ${provider || host}（${host}）获取模型列表…`);
   try {
     const fetchModels = window.settings?.fetchProviderModels;
     if (!fetchModels) {
-      setModelFetchStatus("当前环境不支持获取模型列表", "err");
+      notifyModelFetch("获取模型列表", "当前环境不支持获取模型列表。");
       return;
     }
     const result = await fetchModels({
@@ -909,199 +911,31 @@ async function fetchModelsForCurrentForm(): Promise<void> {
     });
     if (result.ok && result.models?.length) {
       _providerModelsCache = result.models;
-      modelInputSuggestions.replaceChildren();
-      for (const m of result.models) {
-        const option = document.createElement("option");
-        option.value = m.id;
-        modelInputSuggestions.appendChild(option);
-      }
-      const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
-      if (search) search.value = "";
-      renderProviderModelList("");
       const current = getCurrentModelValue().trim();
       const hit = result.models.find((m) => m.id === current);
       if (hit?.contextWindow) {
         contextWindowInput.value = String(hit.contextWindow);
-        setModelFetchStatus(`获取成功：${result.models.length} 个模型 · 当前 ${current} 上下文 ${hit.contextWindow}`, "ok");
-      } else {
-        setModelFetchStatus(
-          `获取成功：${result.models.length} 个模型 · 请在下方列表选择「${current || "所需型号"}」`,
-          "ok",
-        );
+      } else if (!contextWindowInput.value.trim() || contextWindowInput.value === "256000") {
+        // 保持当前值或留给用户选
       }
+      const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
+      if (search) search.value = "";
+      renderProviderModelList("");
+      notifyModelFetch(
+        "获取模型列表",
+        `已获取 <strong>${result.models.length}</strong> 个模型。${current ? `当前「${current}」${hit ? "已在列表中" : "不在列表中，请在下拉中选择"}。` : "请在下拉中选择模型。"}`,
+      );
       return;
     }
     _providerModelsCache = [];
     renderProviderModelList("");
-    const err = String(result.error || "获取失败");
-    // 绝不展示 HTML 全文
-    const short = /<html|DOCTYPE|_next/i.test(err)
-      ? "接口返回网页而非模型数据，请检查 Base URL（StepFun 应为 https://api.stepfun.com/v1）"
-      : err.slice(0, 160);
-    setModelFetchStatus(`获取失败：${short}`, "err");
+    const raw = String(result.error || "获取失败");
+    const err = /<html|DOCTYPE|_next/i.test(raw)
+      ? "接口返回网页而非模型数据。请检查 Base URL（StepFun 应为 https://api.stepfun.com/v1）。"
+      : raw.slice(0, 200);
+    notifyModelFetch("获取模型列表失败", err);
   } catch (e) {
-    setModelFetchStatus(`获取失败：${String(e).slice(0, 120)}`, "err");
-  }
-}
-
-/** 设置页底部提示：模型/上下文自动获取状态 */
-function setModelAutoHint(text: string, tone?: "ok" | "err"): void {
-  const meta = document.getElementById("context-window-auto-hint");
-  if (!meta) return;
-  meta.textContent = text;
-  meta.style.color = tone === "err" ? "#a63a49" : tone === "ok" ? "#0b6b5c" : "";
-}
-
-/**
- * 选择/填写模型后自动处理：
- * 1) 本地目录查上下文窗口（有则填，失败提示）
- * 2) 若已配置 Base URL + API Key，尝试服务商 /v1/models 刷新列表并校验
- */
-async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "test"): Promise<void> {
-  const provider = apiState.activeProvider;
-  const model = getCurrentModelValue().trim();
-  const baseUrl = baseUrlInput.value.trim();
-  const apiKey = getApiKeyForRequest?.() ?? "";
-  if (!provider || !model) {
-    setModelAutoHint(tOr("settings.autoMetaNeedModel", "请先选择或填写模型"));
-    return;
-  }
-
-  let catalogValue: number | null = null;
-  try {
-    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
-    catalogValue = typeof v === "number" && v > 0 ? v : null;
-  } catch {
-    catalogValue = null;
-  }
-
-  const currentCtx = contextWindowInput.value.trim();
-  const looksUnset = !currentCtx || currentCtx === "256000" || currentCtx === "0";
-  if (catalogValue && (looksUnset || reason === "preset")) {
-    contextWindowInput.value = String(catalogValue);
-  }
-
-  let host = baseUrl;
-  try {
-    host = new URL(baseUrl).host;
-  } catch { /* keep raw */ }
-
-  const isLocal = /ollama/i.test(provider) || /^http:\/\/localhost/i.test(baseUrl);
-  const keyOk =
-    isLocal ||
-    Boolean(
-      apiKey &&
-        apiKey !== LOCAL_ENDPOINT_AUTH_FALLBACK &&
-        !/^\*+$/.test(apiKey) &&
-        apiKey.length >= 8,
-    );
-
-  if (!baseUrl) {
-    setModelAutoHint(
-      catalogValue
-        ? `上下文（内置目录）${catalogValue} · 请填写「${provider}」的 Base URL`
-        : `请填写「${provider}」的 Base URL`,
-      catalogValue ? "ok" : "err",
-    );
-    return;
-  }
-  if (!keyOk) {
-    setModelAutoHint(
-      catalogValue
-        ? `上下文（内置目录）${catalogValue} · 「${provider}」未填 API Key，无法向 ${host} 拉取模型列表`
-        : `「${provider}」未填 API Key（须与 ${host} 匹配），请手动填写模型与上下文`,
-      catalogValue ? "ok" : "err",
-    );
-    return;
-  }
-
-  setModelAutoHint(`正在向 ${provider}（${host}）获取模型信息…`);
-  try {
-    const fetchModels = window.settings?.fetchProviderModels;
-    if (!fetchModels) {
-      setModelAutoHint(
-        catalogValue ? `上下文（目录）${catalogValue} · 无列表接口` : "无法访问服务商接口",
-        catalogValue ? "ok" : "err",
-      );
-      return;
-    }
-    const result = await fetchModels({ baseUrl, apiKey: isLocal && !apiKey ? "ollama" : apiKey });
-    if (result.ok && result.models?.length) {
-      modelInputSuggestions.replaceChildren();
-      for (const m of result.models) {
-        const option = document.createElement("option");
-        option.value = m.id;
-        modelInputSuggestions.appendChild(option);
-      }
-      const hit = result.models.find((m) => m.id === model);
-      if (!hit) {
-        const fallback = result.models[0];
-        modelInput.value = fallback.id;
-        _providerModelsCache = result.models;
-        if (fallback.contextWindow && fallback.contextWindow > 0) {
-          contextWindowInput.value = String(fallback.contextWindow);
-        } else if (catalogValue) {
-          contextWindowInput.value = String(catalogValue);
-        }
-        const ctxNote = fallback.contextWindow
-          ? `，上下文 ${fallback.contextWindow}（约 ${Math.round(fallback.contextWindow / 1000)}K）`
-          : catalogValue
-            ? `，上下文 ${catalogValue}（约 ${Math.round(catalogValue / 1000)}K，目录）`
-            : "";
-        setModelAutoHint(
-          `「${provider}」返回 ${result.models.length} 个模型（见下方列表，可点击选用）。原「${model}」不在官方列表，已自动选用「${fallback.id}」${ctxNote}。`,
-          "ok",
-        );
-        return;
-      }
-      _providerModelsCache = result.models;
-      if (hit.contextWindow && hit.contextWindow > 0) {
-        contextWindowInput.value = String(hit.contextWindow);
-        setModelAutoHint(
-          `已匹配 ${provider} · ${hit.id} · 上下文 ${hit.contextWindow} tokens（约 ${Math.round(hit.contextWindow / 1000)}K，服务商返回）`,
-          "ok",
-        );
-      } else if (catalogValue) {
-        contextWindowInput.value = String(catalogValue);
-        setModelAutoHint(
-          `已匹配 ${provider} · ${hit.id} · 上下文 ${catalogValue} tokens（约 ${Math.round(catalogValue / 1000)}K，内置目录）`,
-          "ok",
-        );
-      } else {
-        setModelAutoHint(`已匹配 ${provider} 中的 ${hit.id}；服务商未返回上下文，请手动填写`, "err");
-      }
-      return;
-    }
-
-    const errText = String(result.error || "");
-    if (/认证失败|401|403|Authentication/i.test(errText)) {
-      if (catalogValue) {
-        contextWindowInput.value = String(catalogValue);
-        setModelAutoHint(
-          `「${provider}」列表接口拒绝认证（${host}）：Key 无效/不匹配，或该厂商不支持 /models。已用目录上下文 ${catalogValue}；对话配置未被更改。`,
-          "ok",
-        );
-      } else {
-        setModelAutoHint(
-          `「${provider}」拒绝认证：请核对厂商与 API Key 是否都属于 ${host}；上下文请手动填写。`,
-          "err",
-        );
-      }
-      return;
-    }
-    if (catalogValue) {
-      contextWindowInput.value = String(catalogValue);
-      setModelAutoHint(`「${provider}」列表失败：${errText.slice(0, 80)} · 已用目录 ${catalogValue}`, "ok");
-    } else {
-      setModelAutoHint(`「${provider}」列表失败：${errText.slice(0, 100)} · 请手动填写`, "err");
-    }
-  } catch (e) {
-    if (catalogValue) {
-      contextWindowInput.value = String(catalogValue);
-      setModelAutoHint(`「${provider}」请求异常，已用目录 ${catalogValue}`, "ok");
-    } else {
-      setModelAutoHint(`「${provider}」请求异常：${String(e).slice(0, 80)}`, "err");
-    }
+    notifyModelFetch("获取模型列表失败", String(e).slice(0, 200));
   }
 }
 
