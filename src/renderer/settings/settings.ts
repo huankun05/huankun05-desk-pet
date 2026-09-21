@@ -840,7 +840,7 @@ async function autoResolveModelMeta(_reason: string): Promise<void> {
 let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 
 /** 本页会话内缓存的模型列表（获取成功后才有；退出设置窗销毁） */
-let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
+
 let _modelListOpen = false;
 
 const CONTEXT_PRESETS: Array<{ label: string; value: number }> = [
@@ -1908,7 +1908,7 @@ function switchSection(section: string): void {
   if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
   const lspPanel = document.getElementById("lsp-panel");
   if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
-  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
+  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
