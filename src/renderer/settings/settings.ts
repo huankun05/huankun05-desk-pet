@@ -969,7 +969,7 @@ async function fetchModelsForCurrentForm(): Promise<void> {
 
 let _modelUiBound = false;
 
-let _modelUiBound = false;
+
 
 function bindModelAutoResolve(): void {
   if (_modelUiBound) return;
@@ -2408,7 +2408,7 @@ function switchSection(section: string): void {
   if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
   const lspPanel = document.getElementById("lsp-panel");
   if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
-  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
+  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
