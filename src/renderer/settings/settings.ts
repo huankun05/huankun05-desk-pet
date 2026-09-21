@@ -821,6 +821,22 @@ function fillContextWindowIfEmpty(): void {
 
 
 /** 服务商模型下拉：点击可选用 */
+/** 目录带出上下文（仅当输入框为空） */
+async function autoResolveModelMeta(_reason: string): Promise<void> {
+  const provider = apiState.activeProvider;
+  const model = getCurrentModelValue().trim();
+  if (!provider || !model) return;
+  try {
+    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
+    if (typeof v === "number" && v > 0) {
+      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
+      if (!input?.value.trim()) applyContextTokens(v, false);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 
 /** 本页会话内缓存的模型列表（退出设置窗即销毁） */
