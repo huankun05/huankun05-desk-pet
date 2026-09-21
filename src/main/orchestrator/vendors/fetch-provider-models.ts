@@ -1,6 +1,6 @@
 /**
- * 从模型服务商拉取可用模型列表（OpenAI 兼容 GET {baseUrl}/v1/models）。
- * Anthropic 路径（/anthropic）通常不提供该接口，会自动回退到 OpenAI 风格 base。
+ * 从模型服务商拉取可用模型列表（OpenAI 兼容 GET …/models）。
+ * HTML/404 时给出短错误，绝不把网页正文塞进 UI。
  */
 export type ProviderModelInfo = {
   id: string;
@@ -17,7 +17,6 @@ function maskKey(key: string): string {
   return `${k.slice(0, 3)}****${k.slice(-4)}`;
 }
 
-/** 生成候选 models URL（OpenAI 兼容优先，去掉 anthropic 专用路径） */
 export function candidateModelsUrls(baseUrl: string): string[] {
   const u = normalizeBaseUrl(baseUrl);
   const urls: string[] = [];
@@ -25,16 +24,18 @@ export function candidateModelsUrls(baseUrl: string): string[] {
     if (x && !urls.includes(x)) urls.push(x);
   };
   if (!u) return urls;
-  // anthropic-only 路径 → 回退到主机 OpenAI 风格
-  if (/\/anthropic$/i.test(u) || /\/anthropic\/v1$/i.test(u)) {
-    const host = u.replace(/\/anthropic(\/v1)?$/i, "");
-    push(`${host}/v1/models`);
+  if (/\/anthropic(\/v1)?$/i.test(u)) {
+    push(`${u.replace(/\/anthropic(\/v1)?$/i, "")}/v1/models`);
   }
   if (/\/v1$/i.test(u)) push(`${u}/models`);
   else if (/\/openai\/v1$/i.test(u)) push(`${u}/models`);
   else push(`${u}/v1/models`);
-  // 兜底：再试一次去掉 /v1
   push(`${u.replace(/\/v1$/i, "")}/v1/models`);
+  // 常见路径变体
+  if (/stepfun/i.test(u) || /api\.step/i.test(u)) {
+    push("https://api.stepfun.com/v1/models");
+    push(`${u.replace(/\/v1$/i, "")}/models`);
+  }
   return urls;
 }
 
@@ -44,16 +45,37 @@ function pickContext(obj: Record<string, unknown>): number | undefined {
     const v = obj[k];
     if (typeof v === "number" && Number.isFinite(v) && v > 0) return Math.floor(v);
   }
-  const nested = obj.context as Record<string, unknown> | undefined;
-  if (nested && typeof nested === "object") {
-    const w = nested.window ?? nested.max_tokens ?? nested.length;
-    if (typeof w === "number" && Number.isFinite(w) && w > 0) return Math.floor(w);
-  }
   return undefined;
 }
 
+/** 把接口错误压成一行，去掉 HTML */
+export function shortProviderError(status: number, text: string, url: string, maskedKey: string): string {
+  const body = (text || "").trim();
+  const isHtml = /^<!DOCTYPE|^<html/i.test(body) || body.includes("_next/static");
+  if (status === 404 || (isHtml && status >= 400)) {
+    return `接口地址可能不正确（HTTP ${status}，返回了网页而非 API）。请检查 Base URL，例如 StepFun 应为 https://api.stepfun.com/v1 · 请求 ${url}`;
+  }
+  if (status === 401 || status === 403) {
+    return `认证失败（HTTP ${status}）。请核对厂商与 API Key 是否匹配。Key：${maskedKey || "未填写"}`;
+  }
+  if (isHtml) {
+    return `服务商返回了网页而非 JSON（HTTP ${status}）。请检查 Base URL 是否为 OpenAI 兼容地址 · ${url}`;
+  }
+  try {
+    const j = JSON.parse(body) as { error?: { message?: string } };
+    const msg = j.error?.message || body;
+    return `HTTP ${status} ${String(msg).slice(0, 120)}`;
+  } catch {
+    return `HTTP ${status} ${body.slice(0, 120)}`;
+  }
+}
+
 function parseModels(text: string): ProviderModelInfo[] {
-  const data = JSON.parse(text);
+  const trimmed = text.trim();
+  if (/^<!DOCTYPE|^<html/i.test(trimmed)) {
+    throw new Error("RESPONSE_IS_HTML");
+  }
+  const data = JSON.parse(trimmed);
   const list =
     (data as { data?: unknown[]; models?: unknown[] }).data ??
     (data as { models?: unknown[] }).models ??
@@ -73,7 +95,10 @@ function parseModels(text: string): ProviderModelInfo[] {
       }
     }
   }
-  models.sort((a, b) => a.id.localeCompare(b.id));
+  // step-xxx 等自然排序更友好
+  models.sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }),
+  );
   return models;
 }
 
@@ -93,9 +118,7 @@ export async function fetchProviderModels(input: {
   const fetchImpl = input.fetchImpl ?? fetch;
   const masked = maskKey(input.apiKey);
   const tried: string[] = [];
-  const auth = input.apiKey?.trim()
-    ? `Bearer ${input.apiKey.trim()}`
-    : undefined;
+  const auth = input.apiKey?.trim() ? `Bearer ${input.apiKey.trim()}` : undefined;
 
   if (!urls.length) {
     return {
@@ -122,33 +145,19 @@ export async function fetchProviderModels(input: {
         if (models.length) {
           return { ok: true, models, url, triedUrls: tried };
         }
-        lastErr = "接口返回成功但列表为空";
+        lastErr = "接口返回成功但模型列表为空";
         continue;
       }
-      // 401/403：认证问题，不再继续试其它 URL 也可能一样
-      let msg = `HTTP ${res.status}`;
-      try {
-        const j = JSON.parse(text) as { error?: { message?: string } };
-        const raw = j.error?.message || text.slice(0, 160);
-        msg = raw.replace(input.apiKey || "\u0000", `****${masked.slice(-4)}`.slice(-8));
-        if (masked && msg.includes(input.apiKey?.trim() ?? "\u0000")) {
-          msg = msg.split(input.apiKey!.trim()).join(`key:${masked}`);
-        }
-      } catch {
-        msg = text.slice(0, 160);
-      }
+      lastErr = shortProviderError(res.status, text, url, masked);
       if (res.status === 401 || res.status === 403) {
-        return {
-          ok: false,
-          models: [],
-          error: `认证失败（HTTP ${res.status}）。请检查 API Key 是否正确、是否与当前厂商匹配。Key: ${masked || "未填写"} · 请勿填写错厂商。`,
-          url,
-          triedUrls: tried,
-        };
+        return { ok: false, models: [], error: lastErr, url, triedUrls: tried };
       }
-      lastErr = msg;
     } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e);
+      if (String(e).includes("RESPONSE_IS_HTML")) {
+        lastErr = `接口返回网页而非模型 JSON，请检查 Base URL · ${url}`;
+      } else {
+        lastErr = e instanceof Error ? e.message : String(e);
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -157,7 +166,7 @@ export async function fetchProviderModels(input: {
   return {
     ok: false,
     models: [],
-    error: lastErr || "获取失败",
+    error: lastErr || "获取模型列表失败",
     url: tried[tried.length - 1] ?? urls[0],
     triedUrls: tried,
   };

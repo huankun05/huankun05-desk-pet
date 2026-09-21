@@ -820,23 +820,31 @@ function fillContextWindowIfEmpty(): void {
 
 
 /** 服务商模型下拉：点击可选用 */
-function renderProviderModelPicker(
-  models: Array<{ id: string; contextWindow?: number }>,
-  currentModel: string,
-): void {
-  const box = document.getElementById("provider-model-picker");
-  if (!box) return;
-  if (!models.length) {
-    box.style.display = "none";
+/** 可搜索模型下拉（获取模型列表后展开） */
+let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
+
+function renderProviderModelList(filter = ""): void {
+  const box = document.getElementById("provider-model-list");
+  const drop = document.getElementById("provider-model-dropdown");
+  if (!box || !drop) return;
+  const q = filter.trim().toLowerCase();
+  const list = _providerModelsCache.filter((m) => !q || m.id.toLowerCase().includes(q));
+  if (!_providerModelsCache.length) {
+    drop.style.display = "none";
     box.innerHTML = "";
     return;
   }
-  box.style.display = "block";
-  box.innerHTML = models
+  drop.style.display = "block";
+  const current = getCurrentModelValue().trim();
+  if (!list.length) {
+    box.innerHTML = '<div class="form-hint">无匹配模型</div>';
+    return;
+  }
+  box.innerHTML = list
     .map((m) => {
-      const active = m.id === currentModel ? "font-weight:700;" : "";
-      const ctx = m.contextWindow ? ` · ${m.contextWindow}` : "";
-      return `<button type="button" class="btn-secondary provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:block;width:100%;text-align:left;margin:2px 0;min-height:30px;${active}">${m.id}${ctx}</button>`;
+      const active = m.id === current ? "font-weight:700;background:var(--brand-primary-soft,#fff1f6);" : "";
+      const ctx = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}K` : "";
+      return `<button type="button" class="provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:block;width:100%;text-align:left;margin:2px 0;padding:8px 10px;min-height:34px;border:1px solid var(--ui-border,#e5e5ea);border-radius:8px;background:#fff;cursor:pointer;${active}">${m.id}<span style="opacity:.7;font-size:12px;">${ctx}</span></button>`;
     })
     .join("");
   box.querySelectorAll<HTMLButtonElement>(".provider-model-item").forEach((btn) => {
@@ -847,14 +855,93 @@ function renderProviderModelPicker(
       const ctx = btn.dataset.ctx;
       if (ctx && Number(ctx) > 0) {
         contextWindowInput.value = String(ctx);
-        setModelAutoHint(`已选择服务商模型 ${id} · 上下文 ${ctx}`, "ok");
+        const presetSelect = document.getElementById("context-window-preset") as HTMLSelectElement | null;
+        if (presetSelect) {
+          const matched = Array.from(presetSelect.options).some((o) => o.value === String(ctx));
+          presetSelect.value = matched ? String(ctx) : "__custom__";
+        }
+        setModelAutoHint(`已选择 ${id} · 上下文 ${ctx} tokens（约 ${Math.round(Number(ctx) / 1000)}K）`, "ok");
       } else {
-        setModelAutoHint(`已选择服务商模型 ${id}`, "ok");
+        setModelAutoHint(`已选择 ${id}`, "ok");
         void autoResolveModelMeta("select");
       }
-      renderProviderModelPicker(models, id);
+      renderProviderModelList((document.getElementById("provider-model-search") as HTMLInputElement)?.value || "");
     });
   });
+}
+
+function setModelFetchStatus(text: string, tone?: "ok" | "err"): void {
+  const n = document.getElementById("model-fetch-status");
+  if (!n) return;
+  n.textContent = text;
+  n.style.color = tone === "err" ? "#a63a49" : tone === "ok" ? "#0b6b5c" : "";
+}
+
+async function fetchModelsForCurrentForm(): Promise<void> {
+  const provider = apiState.activeProvider || "";
+  const baseUrl = baseUrlInput.value.trim();
+  const apiKey = getApiKeyForRequest?.() ?? "";
+  const host = (() => {
+    try {
+      return new URL(baseUrl).host;
+    } catch {
+      return baseUrl || "—";
+    }
+  })();
+  if (!baseUrl) {
+    setModelFetchStatus("请先填写 Base URL（如 https://api.stepfun.com/v1）", "err");
+    return;
+  }
+  if (!apiKey && !/ollama|localhost/i.test(provider + baseUrl)) {
+    setModelFetchStatus(`请先填写「${provider || "当前厂商"}」的 API Key（须匹配 ${host}）`, "err");
+    return;
+  }
+  setModelFetchStatus(`正在从 ${provider || host}（${host}）获取模型列表…`);
+  try {
+    const fetchModels = window.settings?.fetchProviderModels;
+    if (!fetchModels) {
+      setModelFetchStatus("当前环境不支持获取模型列表", "err");
+      return;
+    }
+    const result = await fetchModels({
+      baseUrl,
+      apiKey: /ollama|localhost/i.test(provider + baseUrl) && !apiKey ? "ollama" : apiKey,
+    });
+    if (result.ok && result.models?.length) {
+      _providerModelsCache = result.models;
+      modelInputSuggestions.replaceChildren();
+      for (const m of result.models) {
+        const option = document.createElement("option");
+        option.value = m.id;
+        modelInputSuggestions.appendChild(option);
+      }
+      const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
+      if (search) search.value = "";
+      renderProviderModelList("");
+      const current = getCurrentModelValue().trim();
+      const hit = result.models.find((m) => m.id === current);
+      if (hit?.contextWindow) {
+        contextWindowInput.value = String(hit.contextWindow);
+        setModelFetchStatus(`获取成功：${result.models.length} 个模型 · 当前 ${current} 上下文 ${hit.contextWindow}`, "ok");
+      } else {
+        setModelFetchStatus(
+          `获取成功：${result.models.length} 个模型 · 请在下方列表选择「${current || "所需型号"}」`,
+          "ok",
+        );
+      }
+      return;
+    }
+    _providerModelsCache = [];
+    renderProviderModelList("");
+    const err = String(result.error || "获取失败");
+    // 绝不展示 HTML 全文
+    const short = /<html|DOCTYPE|_next/i.test(err)
+      ? "接口返回网页而非模型数据，请检查 Base URL（StepFun 应为 https://api.stepfun.com/v1）"
+      : err.slice(0, 160);
+    setModelFetchStatus(`获取失败：${short}`, "err");
+  } catch (e) {
+    setModelFetchStatus(`获取失败：${String(e).slice(0, 120)}`, "err");
+  }
 }
 
 /** 设置页底部提示：模型/上下文自动获取状态 */
@@ -950,7 +1037,7 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
       if (!hit) {
         const fallback = result.models[0];
         modelInput.value = fallback.id;
-        renderProviderModelPicker(result.models, fallback.id);
+        _providerModelsCache = result.models;
         if (fallback.contextWindow && fallback.contextWindow > 0) {
           contextWindowInput.value = String(fallback.contextWindow);
         } else if (catalogValue) {
@@ -967,7 +1054,7 @@ async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "tes
         );
         return;
       }
-      renderProviderModelPicker(result.models, hit.id);
+      _providerModelsCache = result.models;
       if (hit.contextWindow && hit.contextWindow > 0) {
         contextWindowInput.value = String(hit.contextWindow);
         setModelAutoHint(
@@ -1049,6 +1136,13 @@ function bindModelAutoResolve(): void {
   });
   contextWindowInput?.addEventListener("change", () => {
     syncPresetFromValue(contextWindowInput.value);
+  });
+
+  document.getElementById("fetch-models-btn")?.addEventListener("click", () => {
+    void fetchModelsForCurrentForm();
+  });
+  document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
+    renderProviderModelList((e.target as HTMLInputElement).value);
   });
 }
 
