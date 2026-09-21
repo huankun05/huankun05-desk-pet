@@ -839,39 +839,57 @@ async function autoResolveModelMeta(_reason: string): Promise<void> {
 
 let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 
-/** 本页会话内缓存的模型列表（退出设置窗即销毁） */
-
+/** 本页会话内缓存的模型列表（获取成功后才有；退出设置窗销毁） */
+let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 let _modelListOpen = false;
+
+const CONTEXT_PRESETS: Array<{ label: string; value: number }> = [
+  { label: "8K", value: 8192 },
+  { label: "32K", value: 32768 },
+  { label: "64K", value: 65536 },
+  { label: "128K", value: 131072 },
+  { label: "200K", value: 200000 },
+  { label: "256K", value: 262144 },
+  { label: "512K", value: 524288 },
+  { label: "1M", value: 1048576 },
+];
 
 function openModelDropdown(open: boolean): void {
   _modelListOpen = open;
   const drop = document.getElementById("provider-model-dropdown");
   const arrow = document.getElementById("model-list-toggle");
-  if (drop) drop.style.display = open ? "block" : "none";
-  if (arrow) arrow.textContent = open ? "▲" : "▼";
+  if (drop) drop.style.display = open && _providerModelsCache.length ? "block" : "none";
+  if (arrow) {
+    // 未获取成功 → 完全不显示箭头
+    if (!_providerModelsCache.length) {
+      arrow.style.display = "none";
+    } else {
+      arrow.style.display = "";
+      arrow.textContent = open ? "▲" : "▼";
+    }
+  }
 }
 
 function toggleModelDropdown(): void {
-  if (!_providerModelsCache.length) {
-    showToast("请先点击「获取模型列表」", "info", 2200);
-    return;
-  }
+  if (!_providerModelsCache.length) return;
   openModelDropdown(!_modelListOpen);
   if (_modelListOpen) {
-    renderProviderModelList((document.getElementById("provider-model-search") as HTMLInputElement | null)?.value || "");
+    renderProviderModelList(
+      (document.getElementById("provider-model-search") as HTMLInputElement | null)?.value || "",
+    );
   }
 }
 
 function renderProviderModelList(filter = ""): void {
   const box = document.getElementById("provider-model-list");
   if (!box) return;
-  const q = filter.trim().toLowerCase();
-  const list = _providerModelsCache.filter((m) => !q || m.id.toLowerCase().includes(q));
   if (!_providerModelsCache.length) {
     openModelDropdown(false);
     box.innerHTML = "";
     return;
   }
+  const q = filter.trim().toLowerCase();
+  const list = _providerModelsCache.filter((m) => !q || m.id.toLowerCase().includes(q));
   const current = getCurrentModelValue().trim();
   if (!list.length) {
     box.innerHTML = '<div style="padding:10px;color:#888;font-size:13px;">无匹配模型</div>';
@@ -902,23 +920,46 @@ function renderProviderModelList(filter = ""): void {
   });
 }
 
-/** tokens=0 或 blank=true → 输入框清空、下拉空白 */
-function applyContextTokens(tokens: number, blank = false): void {
-  const input = document.getElementById("context-window-input") as HTMLInputElement | null;
-  const sel = document.getElementById("context-window-k") as HTMLSelectElement | null;
-  if (blank || !tokens) {
-    if (input && blank) input.value = "";
-    if (sel) sel.value = "";
-    return;
-  }
-  if (input) input.value = String(tokens);
-  if (sel) {
-    const matched = Array.from(sel.options).some((o) => o.value === String(tokens));
-    sel.value = matched ? String(tokens) : "";
-  }
+/** 上下文推荐下拉（贴输入框，未展开时隐藏） */
+let _ctxListOpen = false;
+
+function openContextPresetDropdown(open: boolean): void {
+  _ctxListOpen = open;
+  const drop = document.getElementById("context-preset-dropdown");
+  const arrow = document.getElementById("context-preset-toggle");
+  if (drop) drop.style.display = open ? "block" : "none";
+  if (arrow) arrow.textContent = open ? "▲" : "▼";
+  if (open) renderContextPresetList();
 }
 
-/** 只弹一条 Toast */
+function renderContextPresetList(): void {
+  const box = document.getElementById("context-preset-dropdown");
+  if (!box) return;
+  const current = (document.getElementById("context-window-input") as HTMLInputElement | null)?.value.trim() || "";
+  const items = CONTEXT_PRESETS.map((p) => {
+    const active = current === String(p.value);
+    return `<button type="button" class="ctx-preset-item" data-value="${p.value}" style="display:flex;width:100%;justify-content:space-between;padding:9px 12px;min-height:38px;border:none;border-bottom:1px solid var(--ui-border,#f0f0f0);background:${active ? "var(--brand-primary-soft,#fff1f6)" : "transparent"};cursor:pointer;text-align:left;">
+      <span>${p.label}</span><span style="opacity:.65;font-size:12px;">${p.value}</span>
+    </button>`;
+  }).join("");
+  box.innerHTML =
+    items +
+    `<button type="button" class="ctx-preset-item" data-value="" style="display:block;width:100%;padding:9px 12px;min-height:38px;border:none;background:transparent;cursor:pointer;text-align:left;opacity:.75;">手填（清空推荐）</button>`;
+  box.querySelectorAll<HTMLButtonElement>(".ctx-preset-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.value || "";
+      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
+      if (input) input.value = v;
+      openContextPresetDropdown(false);
+    });
+  });
+}
+
+function applyContextTokens(tokens: number, blank = false): void {
+  const input = document.getElementById("context-window-input") as HTMLInputElement | null;
+  if (input) input.value = blank || !tokens ? "" : String(tokens);
+}
+
 function toastModels(msg: string, type: "ok" | "err" | "info"): void {
   showToast(msg, type, type === "err" ? 4000 : 2600);
 }
@@ -949,6 +990,7 @@ async function fetchModelsForCurrentForm(): Promise<void> {
       _providerModelsCache = result.models;
       const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
       if (search) search.value = "";
+      // 成功后才显示 ▼ 并展开列表
       openModelDropdown(true);
       renderProviderModelList("");
       const current = getCurrentModelValue().trim();
@@ -967,32 +1009,9 @@ async function fetchModelsForCurrentForm(): Promise<void> {
   }
 }
 
-let _modelUiBound = false;
-
-
-
 function bindModelAutoResolve(): void {
-  if (_modelUiBound) return;
-  _modelUiBound = true;
-
-  const kSelect = document.getElementById("context-window-k") as HTMLSelectElement | null;
-  const ctxInput = document.getElementById("context-window-input") as HTMLInputElement | null;
-
-  /** 下拉只显示「规格标签」；手填时不显示任何 K 值（保持空白） */
-  function setKSelectBlank(): void {
-    if (kSelect) kSelect.value = "";
-  }
-
-  function syncKSelectFromTokens(tokens: number): void {
-    if (!kSelect) return;
-    if (!tokens || !Number.isFinite(tokens)) {
-      setKSelectBlank();
-      return;
-    }
-    const matched = Array.from(kSelect.options).some((o) => o.value === String(tokens));
-    // 仅当数值恰好等于某档规格时才回显该档；否则下拉保持空白
-    kSelect.value = matched ? String(tokens) : "";
-  }
+  if ((globalThis as { _modelUiBound?: boolean })._modelUiBound) return;
+  (globalThis as { _modelUiBound?: boolean })._modelUiBound = true;
 
   modelInput?.addEventListener("change", () => void autoResolveModelMeta("input"));
   modelInput?.addEventListener("blur", () => void autoResolveModelMeta("select"));
@@ -1008,554 +1027,35 @@ function bindModelAutoResolve(): void {
   document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
     renderProviderModelList((e.target as HTMLInputElement).value);
   });
-  modelInput?.addEventListener("click", (e) => {
-    if (_providerModelsCache.length) {
-      e.preventDefault();
-      toggleModelDropdown();
-    }
+  // 仅在已有缓存时，点输入框切换下拉
+  modelInput?.addEventListener("click", () => {
+    if (_providerModelsCache.length) toggleModelDropdown();
   });
+
+  // 上下文推荐下拉
+  document.getElementById("context-preset-toggle")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextPresetDropdown(!_ctxListOpen);
+  });
+  document.getElementById("context-window-input")?.addEventListener("input", (e) => {
+    const el = e.target as HTMLInputElement;
+    const n = (el.value || "").replace(/[^0-9]/g, "");
+    if (el.value !== n) el.value = n;
+    if (_ctxListOpen) renderContextPresetList();
+  });
+
   document.addEventListener("click", (e) => {
-    if (!_modelListOpen) return;
     const target = e.target as HTMLElement;
-    if (
-      target.closest("#provider-model-dropdown") ||
-      target.closest("#model-list-toggle") ||
-      target.closest("#model-input") ||
-      target.closest("#fetch-models-btn")
-    ) {
-      return;
+    if (_modelListOpen && !target.closest("#provider-model-dropdown") && !target.closest("#model-list-toggle") && !target.closest("#model-input") && !target.closest("#fetch-models-btn")) {
+      openModelDropdown(false);
     }
-    openModelDropdown(false);
-  });
-
-  // ── 上下文：默认下拉空白；选规格才填数；手填则下拉变空白 ──
-  kSelect?.addEventListener("change", () => {
-    const v = kSelect.value;
-    if (!v) {
-      // 选中「空白」：不改输入框，只表示不锁定规格
-      return;
+    if (_ctxListOpen && !target.closest("#context-preset-dropdown") && !target.closest("#context-preset-toggle") && !target.closest("#context-window-input")) {
+      openContextPresetDropdown(false);
     }
-    applyContextTokens(Number(v), false);
-    void autoResolveModelMeta("select");
-  });
-
-  ctxInput?.addEventListener("input", () => {
-    const n = (ctxInput.value || "").replace(/[^0-9]/g, "");
-    if (ctxInput.value !== n) ctxInput.value = n;
-    // 手动修改 → 下拉不显示任何 K 值
-    setKSelectBlank();
-  });
-
-  // 初始化：默认下拉空白（输入框已有自动带出值时也先空白，避免误导）
-  if (kSelect && !kSelect.dataset.userTouched) {
-    setKSelectBlank();
-  }
-}
-
-
-
-
-/** 载入档案到编辑表单。 */
-function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
-  const visionSnapshot = snapshotVisionInputs();
-  const auxiliarySnapshot = snapshotAuxiliaryInputs();
-  apiState.editingProfileId = profile.id;
-  apiState.editingReasoning = profile.reasoning;
-  applyPreset(
-    profile.provider,
-    profile.model,
-    profile.apiKey,
-    profile.baseUrl,
-    profile.displayName,
-    profile.explicitTransport as ProviderProfile["explicitTransport"],
-  );
-  restoreVisionInputs(visionSnapshot);
-  restoreAuxiliaryInputs(auxiliarySnapshot);
-  // 档案级字段：未定义 = 老档案，回退全局值显示
-  contextWindowInput.value = profile.contextWindowTokens ? String(profile.contextWindowTokens) : "";
-  // 未手动填过 → 从知识表自动解析并填充（不覆盖用户已输入的值）
-  fillContextWindowIfEmpty();
-  multimodalToggle.checked = profile.multimodal ?? globalMultimodal;
-  applyMultimodalUI();
-  applyEditingStateUI();
-  renderProfileList();
-  setSaveStatus(`${tOr("settings.editingProfilePrefix", "正在编辑「")}${profile.displayName || profile.model}${tOr("settings.editingProfileSuffix", "」")}`);
-}
-
-/** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
-function startNewDraft(providerName: string): void {
-  const visionSnapshot = snapshotVisionInputs();
-  const auxiliarySnapshot = snapshotAuxiliaryInputs();
-  apiState.editingProfileId = undefined;
-  apiState.editingReasoning = undefined;
-  applyPreset(providerName);
-  restoreVisionInputs(visionSnapshot);
-  restoreAuxiliaryInputs(auxiliarySnapshot);
-  contextWindowInput.value = "";
-  // 新草稿：按预设默认模型自动解析上下文长度并填充
-  fillContextWindowIfEmpty();
-  // 新建草稿默认开多模态；applyPreset 已不再按厂商门控
-  multimodalToggle.checked = true;
-  applyMultimodalUI();
-  applyEditingStateUI();
-  renderProfileList();
-}
-
-/** 模式按钮已删除——模型名永远从 input 读取。保留函数名供旧调用点用，语义不变。 */
-function getCurrentModelValue(): string {
-  return modelInput.value;
-}
-
-/** 多模态开关 UI：ON 时隐藏视觉配置区，OFF 时显示。不清空输入框值。 */
-function applyMultimodalUI(): void {
-  const on = multimodalToggle.checked;
-  visionFieldsWrap.classList.toggle("is-hidden", on);
-}
-
-/** 填充视觉模型输入框的 datalist 候选。仅渲染候选，不修改 visionModelInput.value。 */
-function fillVisionModelOptions(preset: ModelPreset): void {
-  const datalist = document.getElementById("vision-model-suggestions") as HTMLDataListElement | null;
-  if (!datalist) return;
-  datalist.replaceChildren();
-  for (const m of preset.visionModels ?? []) {
-    const option = document.createElement("option");
-    option.value = m;
-    datalist.appendChild(option);
-  }
-}
-
-const LOCAL_ENDPOINT_AUTH_FALLBACK = "__CYRENE_LOCAL_NO_AUTH__";
-
-function getApiKeyForRequest(): string {
-  const value = apiKeyInput.value.trim();
-  return getCustomEndpointMode(apiState.activeProvider) === "local" && !value
-    ? LOCAL_ENDPOINT_AUTH_FALLBACK
-    : value;
-}
-
-function validateActiveCustomEndpoint(): string | null {
-  const mode = getCustomEndpointMode(apiState.activeProvider);
-  if (!mode) return null;
-  return validateCustomEndpointConfig(mode, {
-    baseUrl: baseUrlInput.value,
-    model: getCurrentModelValue(),
-    apiKey: apiKeyInput.value,
   });
 }
-
-function updateEndpointPreview(): void {
-  const transport = transportSelect.value as ApiTransport;
-  const baseUrl = baseUrlInput.value.trim();
-  const defaultSuffix = transport === "anthropic"
-    ? "/v1/messages"
-    : transport === "responses"
-      ? "/responses"
-      : "/chat/completions";
-
-  if (!baseUrl) {
-    endpointPreview.textContent = `${tOr("settings.endpointPreviewNoUrlPrefix", "程序会按所选协议自动追加请求路径（默认 ")}${defaultSuffix}${tOr("settings.endpointPreviewNoUrlSuffix", "）。")}`;
-    return;
-  }
-
-  const endpoint = resolveApiEndpoint(baseUrl, transport);
-  endpointPreview.textContent = endpoint.appendedSuffix
-    ? `${tOr("settings.endpointAppendPrefix", "程序会自动追加 ")}${endpoint.appendedSuffix}${tOr("settings.endpointAppendMid", "；最终请求地址：")}${endpoint.url}`
-    : `${tOr("settings.endpointFullPrefix", "已填写完整接口地址，不再追加后缀；最终请求地址：")}${endpoint.url}`;
-}
-
-function applyCustomEndpointUI(preset: ModelPreset): void {
-  const mode = getCustomEndpointMode(preset.providerName);
-  customEndpointControls.hidden = mode === null;
-  customEndpointOverrides.hidden = mode === null;
-  transportSelect.disabled = false;
-
-  if (!mode) {
-    apiKeyLabel.textContent = "API Key";
-    apiKeyHint.textContent = tOr("settings.apiKeyHintFill", "填写对应平台创建的 API Key");
-    apiKeyInput.placeholder = "sk-...";
-    baseUrlInput.placeholder = "https://api.deepseek.com";
-    modelInput.placeholder = tOr("settings.modelPlaceholderDefault", "选厂商后自动填入，可手填覆盖");
-    transportHint.textContent = tOr("settings.transportHintPick", "请按服务商实际提供的接口类型选择（OpenAI 兼容 / Anthropic 兼容 / OpenAI Responses）；程序不会自动识别协议。");
-    baseUrlResetBtn.title = tOr("settings.resetToPresetUrl", "重置为厂商默认 URL");
-    apiNoteText.textContent = tOr("settings.apiNoteDefault", "选择模型预设后会自动填入 Provider、Base URL 和模型名；你只需要填写对应平台的 API Key。配置只保存在本机 Electron 用户数据目录。");
-    return;
-  }
-
-  apiState.customEndpointMode = mode;
-  const presentation = getCustomEndpointPresentation(mode);
-  customEndpointControls.querySelectorAll<HTMLButtonElement>("[data-custom-endpoint-mode]").forEach((button) => {
-    const active = button.dataset.customEndpointMode === mode;
-    button.classList.toggle("is-active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-
-  customEndpointSummary.textContent = mode === "local"
-    ? tOr("settings.endpointSummaryLocal", "填写本机模型服务地址并明确选择接口协议；不扫描端口，也不探测模型能力。")
-    : tOr("settings.endpointSummaryCloud", "接入兼容 OpenAI 或 Anthropic 协议的云端服务，能力由服务提供方决定。");
-  apiKeyLabel.textContent = presentation.apiKeyOptional ? tOr("settings.apiKeyOptionalLabel", "API Key（可选）") : "API Key";
-  apiKeyHint.textContent = presentation.apiKeyOptional
-    ? tOr("settings.apiKeyHintLocal", "本地服务无需鉴权时可留空；如网关要求令牌，请在此填写")
-    : tOr("settings.apiKeyHintCustom", "填写自定义服务或第三方代理提供的 API Key");
-  apiKeyInput.placeholder = presentation.apiKeyOptional ? tOr("settings.apiKeyPlaceholderOptional", "无需鉴权时留空") : "sk-...";
-  baseUrlInput.placeholder = presentation.baseUrlPlaceholder;
-  modelInput.placeholder = tOr("settings.modelPlaceholderCustom", "填写服务实际提供的模型 ID");
-  transportHint.textContent = tOr("settings.transportHintCustom", "请按自定义服务实际提供的接口类型选择；程序不会自动探测。");
-  baseUrlResetBtn.title = tOr("settings.clearCustomBaseUrl", "清空自定义 Base URL");
-  apiNoteText.textContent = tOr("settings.apiNoteCustom", "自定义端点按保守兼容模式运行。保存后请先测试连接；连接成功不代表结构化输出、工具调用或思考模式一定可用。");
-}
-
-export function applyPreset(
-  providerName: string,
-  preferredModel?: string,
-  preferredApiKey?: string,
-  preferredBaseUrl?: string,
-  preferredDisplayName?: string,
-  preferredExplicitTransport?: ApiTransport,
-  preferredVision?: { baseUrl: string; apiKey: string; model: string; ocrEnabled?: boolean },
-  preferredMultimodal?: boolean,
-): void {
-  const preset = findPreset(providerName);
-
-  // 模式按钮已删除——ChatGPT / Claude 这种没预设型号的厂商，input 框空着让用户手填，
-  // datalist 没建议也不影响（用户知道自己型号）。
-
-  setActivePresetCard(preset.providerName);
-
-  // 昵称：优先用传入的（用户自定义过）；否则用厂商 shortName 作默认。
-  // 留空显示厂商短名——但这里主动填 shortName 让用户看到默认值，可改可清。
-  displayNameInput.value = preferredDisplayName ?? preset.shortName;
-
-  // baseUrl：仅对官方已确认的 A 口预设做协议配套切换；自定义 URL 永远不猜、不覆盖。
-  const selectedTransport = preferredExplicitTransport ?? preset.transport;
-  const restoredBaseUrl = preferredBaseUrl ?? preset.baseUrl;
-  baseUrlInput.value = selectedTransport === "anthropic"
-    && restoredBaseUrl === preset.baseUrl
-    && preset.anthropicBaseUrl
-      ? preset.anthropicBaseUrl
-      : (selectedTransport === "openai" || selectedTransport === "responses")
-        && preset.anthropicBaseUrl
-        && restoredBaseUrl === preset.anthropicBaseUrl
-          ? preset.baseUrl
-          : restoredBaseUrl;
-
-  fillModelOptions(preset, preferredModel);
-  fillContextWindowIfEmpty(true);
-
-  // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
-  // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
-  const customMode = getCustomEndpointMode(preset.providerName);
-  apiKeyInput.value = customMode === "local" && preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK
-    ? ""
-    : (preferredApiKey ?? "");
-
-  // 协议优先恢复用户保存值，否则使用预设的明确默认值；永远不按 URL 猜测。
-  transportSelect.value = selectedTransport;
-  applyCustomEndpointUI(preset);
-  updateEndpointPreview();
-
-  // 多模态默认开（与主进程 normalizeModelSettings 的默认值对齐）：
-  // 不按厂商/型号门控——直发判错有服务端仲裁 + caption 自动降级兜底。
-  // 要单配独立视觉模型是用户自己的事，用户自己关开关。
-  multimodalToggle.checked = preferredMultimodal ?? true;
-
-  // 视觉三框：始终写入值（从 preferredVision 或 preset 默认），不受开关影响
-  if (preferredVision) {
-    visionBaseUrlInput.value = preferredVision.baseUrl;
-    visionApiKeyInput.value = preferredVision.apiKey;
-    visionModelInput.value = preferredVision.model;
-    visionOcrToggle.checked = preferredVision.ocrEnabled === true;
-  } else {
-    visionBaseUrlInput.value = preset.visionBaseUrl ?? baseUrlInput.value;
-    visionApiKeyInput.value = apiKeyInput.value;
-    visionModelInput.value = preset.defaultVisionModel ?? modelInput.value;
-    visionOcrToggle.checked = false;
-  }
-
-  fillVisionModelOptions(preset);
-
-  // 官网链接：有 websiteUrl 就显示并指向，没有就隐藏。
-  if (preset.websiteUrl) {
-    presetWebsiteLink.href = preset.websiteUrl;
-    presetWebsiteLink.title = `${tOr("settings.visitSitePrefix", "前往 ")}${preset.shortName}${tOr("settings.visitSiteSuffix", " 官网")}`;
-    presetWebsiteLink.style.display = "";
-  } else {
-    presetWebsiteLink.style.display = "none";
-  }
-
-  apiState.activeProvider = preset.providerName;
-  applyMultimodalUI();
-  // 必须在 baseUrl / apiKey / transport 填完之后再自动解析，避免串用上一家 Key
-  void autoResolveModelMeta("preset");
-}
-
-async function loadConfig(): Promise<void> {
-  try {
-    fillPresetOptions();
-    const cfg = await window.settings!.getConfig();
-    // 模式按钮已删除——mode 字段不再用 UI 控制，直接忽略 cfg.mode
-    const vision = cfg.vision;
-    applyPreset(
-      cfg.provider,
-      cfg.model,
-      cfg.apiKey,
-      cfg.baseUrl,
-      cfg.displayName,
-      cfg.explicitTransport,
-      vision
-        ? {
-            baseUrl: vision.baseUrl,
-            apiKey: vision.apiKey,
-            model: vision.model,
-            ocrEnabled: vision.ocrEnabled === true,
-          }
-        : undefined,
-      cfg.multimodal,
-    );
-    applyRuntimeSyncSelection(cfg.runtimeSync);
-    stickerEnabledInput.checked = cfg.stickerEnabled !== false;
-    applyStickerSizeSelection(cfg.stickerSize);
-    const threshold = cfg.stickerSimilarityThreshold ?? 0.55;
-    stickerThresholdInput.value = String(threshold);
-    stickerThresholdVal.textContent = threshold.toFixed(2);
-    if (embeddingDimensionsInput) {
-      embeddingDimensionsInput.value = cfg.embeddingDimensions ? String(cfg.embeddingDimensions) : "";
-    }
-    if (thinkingModeSelect) {
-      const thinkingModeValue = cfg.thinkingOverride === 1 ? "enable" : cfg.thinkingOverride === -1 ? "disable" : "default";
-if (thinkingModeCustomSelect) {
-  console.log("[CustomSelect] 加载设置，设置值:", thinkingModeValue);
-  thinkingModeCustomSelect.setValue(thinkingModeValue, false);
-} else if (thinkingModeSelect) {
-  thinkingModeSelect.value = thinkingModeValue;
-}
-    }
-    toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
-
-    // 辅助模型配置加载
-    const aux = cfg.auxiliary;
-    if (aux) {
-      auxiliaryDedicatedToggle.checked = aux.mode === "dedicated";
-      auxiliaryBaseUrlInput.value = aux.baseUrl ?? "";
-      auxiliaryApiKeyInput.value = aux.apiKey ?? "";
-      auxiliaryModelInput.value = aux.model ?? "";
-      if (auxiliaryDedicatedFields) {
-        auxiliaryDedicatedFields.style.display = aux.mode === "dedicated" ? "block" : "none";
-      }
-    }
-
-    // 技能自整理开关加载
-    if (consolidationToggle) {
-      consolidationToggle.checked = cfg.skillConsolidationEnabled === true;
-    }
-
-    // 档案列表加载 + 默认进入默认档案的编辑态；
-    // 无档案时保持上方 applyPreset 的顶层镜像作为"新建草稿"起点。
-    await reloadProfiles();
-    const defaultProfile = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
-    if (defaultProfile) {
-      editProfile(defaultProfile, cfg.multimodal);
-    } else {
-      contextWindowInput.value = String(cfg.contextWindowTokens ?? 256000);
-      applyEditingStateUI();
-    }
-
-    setSaveStatus(tOr("common.pendingSave", "等待保存"));
-    setCyreneSaveStatus(tOr("common.pendingSave", "等待保存"));
-  } catch {
-    fillPresetOptions();
-    // 默认厂商已从 DeepSeek 改为 MiniMax（v1 vendor adapter 第一家落地的）
-    applyPreset("MiniMax（稀宇科技）");
-    setSaveStatus(tOr("settings.loadConfigFailed", "读取配置失败"), "is-error");
-    setCyreneSaveStatus(tOr("settings.loadConfigFailed", "读取配置失败"), "is-error");
-  }
-}
-
-async function loadGeneralSettings(): Promise<void> {
-  try {
-    const cfg = await window.settings!.getGeneral();
-    const cita = getCitaUiState({ enabled: cfg.citaEnabled, semanticEngine: cfg.citaSemanticEngine });
-    citaEnabledInput.checked = cita.enabled;
-    chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
-    citaEngineSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
-      const selected = button.dataset.value === cita.selectedEngine;
-      button.classList.toggle("is-active", selected);
-      button.setAttribute("aria-pressed", String(selected));
-    });
-    const windowCornerRadius = normalizeWindowCornerRadius(cfg.windowCornerRadius);
-    windowCornerRadiusInput.value = String(windowCornerRadius);
-    windowCornerRadiusVal.textContent = `${windowCornerRadius}px`;
-    applyWindowCornerRadius(windowCornerRadius);
-    petAlwaysOnTopInput.checked = cfg.petAlwaysOnTop;
-    petVisibleInput.checked = cfg.petVisible;
-    petZoomInput.value = String(cfg.petZoom ?? 1);
-    petZoomVal.textContent = Math.round((cfg.petZoom ?? 1) * 100) + "%";
-    // 角色选择器：从 characters 列表动态渲染自定义下拉选项，选中当前角色
-    const characters = Array.isArray(cfg.characters) && cfg.characters.length > 0
-      ? cfg.characters
-      : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json" }];
-    const currentCharacterId = cfg.currentCharacterId ?? characters[0].id;
-    const currentChar = characters.find((c) => c.id === currentCharacterId) ?? characters[0];
-    const currentStyleName = STYLE_DISPLAY_NAMES[currentChar.styleId] ?? currentChar.styleId;
-    characterDropdownValue.textContent = `${currentChar.name} · ${currentStyleName}`;
-    characterDropdownPanel.innerHTML = "";
-    for (const char of characters) {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.className = "character-dropdown__option" + (char.id === currentCharacterId ? " is-active" : "");
-      option.dataset.characterId = char.id;
-      option.dataset.styleId = char.styleId;
-      option.setAttribute("role", "option");
-      option.setAttribute("aria-selected", String(char.id === currentCharacterId));
-      const styleName = STYLE_DISPLAY_NAMES[char.styleId] ?? char.styleId;
-      option.textContent = `${char.name} · ${styleName}`;
-      characterDropdownPanel.appendChild(option);
-    }
-    chatLineHeightInput.value = String(cfg.chatLineHeight ?? 1.75);
-    chatLineHeightVal.textContent = (cfg.chatLineHeight ?? 1.75).toFixed(2);
-    document.documentElement.style.setProperty("--rb-chat-line-height", String(cfg.chatLineHeight ?? 1.75));
-    assistantBubbleEnabledInput.checked = cfg.assistantBubbleEnabled ?? true;
-    chatParaSpacingInput.value = String(cfg.chatParaSpacing ?? 0.5);
-    chatParaSpacingVal.textContent = (cfg.chatParaSpacing ?? 0.5).toFixed(2) + "em";
-    document.documentElement.style.setProperty("--rb-chat-para-spacing", (cfg.chatParaSpacing ?? 0.5) + "em");
-    disableGpuInput.checked = cfg.disableGpuElectron ?? false;
-    sidebarVisibleInput.checked = cfg.sidebarVisible ?? true;
-    tasksVisibleInput.checked = cfg.tasksVisible ?? true;
-    launchAtLoginInput.checked = cfg.launchAtLogin;
-    renderUiFont(normalizeUiFont(cfg.uiFont));
-    renderUiIcon(normalizeUiIcon(cfg.uiIcon));
-    applyDefaultChatModeSelection(normalizeDefaultChatMode(cfg.defaultChatMode));
-    preferencesState.currentCustomStyleConfig = normalizeCustomStyleConfig(cfg.customStyle);
-    applySegmentedOutputSelection(normalizeSegmentedOutputMode(cfg.segmentedOutputMode));
-    applyMobileMessageSegmentationSelection(normalizeMobileMessageSegmentationMode(cfg.mobileMessageSegmentation));
-    applyProactiveChatSelection(normalizeProactiveChatMode(cfg.proactiveChatMode));
-    applyProactiveDeliverySelection(normalizeProactiveDeliveryTarget(cfg.proactiveDeliveryTarget));
-    renderProactiveDeliveryVisibility();
-    if (screenshotHotkeyInput) {
-      screenshotHotkeyInput.value = cfg.screenshotHotkey ?? "Alt+Shift+S";
-    }
-    void window.settings!.channelsGetStatus()
-      .then((status: unknown) => renderProactiveDeliveryAvailability(status as Record<string, { phase?: string }>))
-      .catch(() => renderProactiveDeliveryAvailability({}));
-    applyLanguageSelection("zh-CN");
-    applySchedulerSilentHours(cfg.silentHoursStart ?? "", cfg.silentHoursEnd ?? "");
-    setPreferencesSaveStatus(tOr("common.pendingSave", "等待保存"));
-    setAppearanceSaveStatus(tOr("common.pendingSave", "等待保存"));
-    setGeneralSaveStatus(tOr("common.pendingSave", "等待保存"));
-  } catch {
-    setPreferencesSaveStatus(tOr("settings.loadPrefsFailed", "读取偏好失败"), "is-error");
-    setAppearanceSaveStatus(tOr("settings.loadAppearanceFailed", "读取外观失败"), "is-error");
-    setGeneralSaveStatus(tOr("settings.loadSettingsFailed", "读取设置失败"), "is-error");
-  }
-}
-
-
-// 替换原生 select 为自定义下拉组件
-let thinkingModeCustomSelect: CustomSelect | null = null;
-if (thinkingModeSelect) {
-  console.log("[CustomSelect] 开始替换 thinkingModeSelect");
-  try {
-    thinkingModeCustomSelect = CustomSelect.fromNativeSelect(thinkingModeSelect, () => {
-      console.log("[CustomSelect] 值改变:", thinkingModeCustomSelect?.getValue());
-      setSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
-    });
-    console.log("[CustomSelect] 替换成功，当前值:", thinkingModeCustomSelect.getValue());
-  } catch (error) {
-    console.error("[CustomSelect] 替换失败:", error);
-  }
-}
-
-runtimeSyncSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
-  button.addEventListener("click", () => {
-    const value = button.dataset.value as "off" | "local" | "llm";
-    applyRuntimeSyncSelection(value);
-    window.settings?.previewRuntimeSync(value);
-    setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
-  });
-});
-
-stickerEnabledInput.addEventListener("change", () => {
-  setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
-});
-
-stickerSizeSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
-  button.addEventListener("click", () => {
-    const value = button.dataset.value;
-    applyStickerSizeSelection(value === "small" || value === "large" ? value : "standard");
-    setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
-  });
-});
-
-stickerThresholdInput.addEventListener("input", () => {
-  stickerThresholdVal.textContent = parseFloat(stickerThresholdInput.value).toFixed(2);
-  setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
-});
-
-openChromeGpu.addEventListener("click", () => {
-  window.settings?.openChromeGpu();
-});
-
-disableGpuInput.addEventListener("change", () => {
-  void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
-});
-
-sidebarVisibleInput.addEventListener("change", () => {
-  if (sidebarVisibleInput.checked) window.settings?.openSidebar();
-  else window.settings?.closeSidebar();
-  void window.settings?.saveGeneral({ sidebarVisible: sidebarVisibleInput.checked });
-});
-
-tasksVisibleInput.addEventListener("change", () => {
-  if (tasksVisibleInput.checked) window.settings?.openTasks();
-  else window.settings?.closeTasks();
-  void window.settings?.saveGeneral({ tasksVisible: tasksVisibleInput.checked });
-});
-
-
-// ===== 主题切换逻辑 =====
-function initThemeSwitcher(): void {
-  const themeOptions = document.querySelectorAll<HTMLButtonElement>(".theme-option");
-  if (themeOptions.length === 0) return;
-
-  // 更新主题选项的激活状态
-  function updateActiveTheme(theme: string): void {
-    themeOptions.forEach((option) => {
-      const isActive = option.dataset.theme === theme;
-      option.classList.toggle("is-active", isActive);
-      option.setAttribute("aria-pressed", isActive ? "true" : "false");
-    });
-  }
-
-  // 为每个主题选项添加点击事件
-  themeOptions.forEach((option) => {
-    option.addEventListener("click", async () => {
-      const theme = option.dataset.theme;
-      if (!theme) return;
-      try {
-        // 通过保存 general settings 来设置主题
-        await window.settings!.saveGeneral({ uiTheme: theme as never });
-        updateActiveTheme(theme);
-        setAppearanceSaveStatus(tOr("settings.themeApplied", "主题已应用"), "is-ok");
-      } catch (error) {
-        console.error("切换主题失败:", error);
-        setAppearanceSaveStatus(tOr("settings.themeSwitchFailed", "切换主题失败"), "is-error");
-      }
-    });
-  });
-
-  // 初始化时读取当前主题
-  window.cyreneTheme?.get()
-    .then((theme) => updateActiveTheme(theme as string))
-    .catch(() => updateActiveTheme("pearl-white"));
-
-  // 监听主题变化
-  window.cyreneTheme?.onChanged((theme) => {
-    updateActiveTheme(theme as string);
-  });
-}
-
-// 延迟初始化，确保 DOM 已加载
-function initSettingsPage(): void {
-  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
+ } catch (e) { console.error("[Settings] bind", e); } // idempotent
 
   try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
 
