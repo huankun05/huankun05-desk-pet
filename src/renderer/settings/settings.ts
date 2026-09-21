@@ -951,7 +951,14 @@ async function fetchModelsForCurrentForm(): Promise<void> {
   }
 }
 
+let _modelUiBound = false;
+
 function bindModelAutoResolve(): void {
+  if (_modelUiBound) {
+    // 已绑定：仅同步单位/状态，不重复 addEventListener
+    return;
+  }
+  _modelUiBound = true;
   modelInput?.addEventListener("change", () => void autoResolveModelMeta("input"));
   modelInput?.addEventListener("blur", () => void autoResolveModelMeta("select"));
 
