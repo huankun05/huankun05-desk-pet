@@ -337,7 +337,7 @@ const NAV_LABELS: Record<string, { emoji: string; title: string; hint: string }>
   tts: { emoji: "🎙️", title: "语音合成", hint: "让角色说话的声音引擎" },
   asr: { emoji: "🎧", title: "语音识别", hint: "听懂你说的话" },
   channels: { emoji: "📱", title: "消息渠道", hint: "连接 QQ / 微信 / 飞书 等" },
-  lsp: { emoji: "🧩", title: "代码辅助", hint: "语言服务器，辅助写代码" },
+  lsp: { emoji: "🧩", title: "代码辅助", hint: "语言服务器，辅助写代码" },
 	  tokens: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`, title: t("nav.tokens"), hint: t("hint.tokens") },
 	  disclaimer: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>免责声明</title><rect x="13" y="10" width="28" height="34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M35 10V4H8C7.44772 4 7 4.44772 7 5V38H13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 22H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 30H33" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`, title: t("nav.disclaimer"), hint: t("hint.disclaimer") },
   skills: { emoji: `<svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true" style="vertical-align:-3px"><title>技能管理</title><path d="M14 8H34C37.3137 8 40 10.6863 40 14V34C40 37.3137 37.3137 40 34 40H14C10.6863 40 8 37.3137 8 34V14C8 10.6863 10.6863 8 14 8Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M16 18H32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 26H28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M16 34H24" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`, title: t("nav.skills"), hint: t("hint.skills") },
@@ -821,27 +821,13 @@ function fillContextWindowIfEmpty(): void {
 
 
 /** 服务商模型下拉：点击可选用 */
-/** 目录带出上下文（仅当输入框为空） */
-async function autoResolveModelMeta(_reason: string): Promise<void> {
-  const provider = apiState.activeProvider;
-  const model = getCurrentModelValue().trim();
-  if (!provider || !model) return;
-  try {
-    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
-    if (typeof v === "number" && v > 0) {
-      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
-      if (!input?.value.trim()) applyContextTokens(v, false);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 
-/** 本页会话内缓存的模型列表（获取成功后才有；退出设置窗销毁） */
-
+/** 本页缓存的模型列表：获取成功后才有 */
+let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 let _modelListOpen = false;
+let _ctxListOpen = false;
+let _modelUiBound = false;
 
 const CONTEXT_PRESETS: Array<{ label: string; value: number }> = [
   { label: "8K", value: 8192 },
@@ -855,18 +841,13 @@ const CONTEXT_PRESETS: Array<{ label: string; value: number }> = [
 ];
 
 function openModelDropdown(open: boolean): void {
-  _modelListOpen = open;
+  _modelListOpen = open && _providerModelsCache.length > 0;
   const drop = document.getElementById("provider-model-dropdown");
   const arrow = document.getElementById("model-list-toggle");
-  if (drop) drop.style.display = open && _providerModelsCache.length ? "block" : "none";
+  if (drop) drop.style.display = _modelListOpen ? "block" : "none";
   if (arrow) {
-    // 未获取成功 → 完全不显示箭头
-    if (!_providerModelsCache.length) {
-      arrow.style.display = "none";
-    } else {
-      arrow.style.display = "";
-      arrow.textContent = open ? "▲" : "▼";
-    }
+    arrow.style.display = _providerModelsCache.length ? "" : "none";
+    arrow.textContent = _modelListOpen ? "▲" : "▼";
   }
 }
 
@@ -898,10 +879,7 @@ function renderProviderModelList(filter = ""): void {
   box.innerHTML = list
     .map((m) => {
       const active = m.id === current;
-      return `<button type="button" class="provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;margin:2px 0;padding:9px 10px;min-height:38px;border:1px solid ${active ? "var(--brand-primary,#ff5b8a)" : "transparent"};border-radius:8px;background:${active ? "var(--brand-primary-soft,#fff1f6)" : "transparent"};cursor:pointer;">
-        <span>${m.id}</span>
-        <span style="font-size:12px;opacity:.7;">${m.contextWindow ? Math.round(m.contextWindow / 1000) + "K" : ""}</span>
-      </button>`;
+      return `<button type="button" class="provider-model-item" data-id="${m.id}" data-ctx="${m.contextWindow || ""}" style="display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;margin:2px 0;padding:9px 10px;min-height:38px;border:1px solid ${active ? "var(--brand-primary,#ff5b8a)" : "transparent"};border-radius:8px;background:${active ? "var(--brand-primary-soft,#fff1f6)" : "transparent"};cursor:pointer;"><span>${m.id}</span><span style="font-size:12px;opacity:.7;">${m.contextWindow ? Math.round(m.contextWindow / 1000) + "K" : ""}</span></button>`;
     })
     .join("");
   box.querySelectorAll<HTMLButtonElement>(".provider-model-item").forEach((btn) => {
@@ -910,18 +888,12 @@ function renderProviderModelList(filter = ""): void {
       if (!id) return;
       modelInput.value = id;
       const ctx = btn.dataset.ctx;
-      if (ctx && Number(ctx) > 0) {
-        applyContextTokens(Number(ctx), false);
-      } else {
-        void autoResolveModelMeta("select");
-      }
+      if (ctx && Number(ctx) > 0) applyContextTokens(Number(ctx));
+      else void autoResolveModelMeta("select");
       openModelDropdown(false);
     });
   });
 }
-
-/** 上下文推荐下拉（贴输入框，未展开时隐藏） */
-let _ctxListOpen = false;
 
 function openContextPresetDropdown(open: boolean): void {
   _ctxListOpen = open;
@@ -936,20 +908,16 @@ function renderContextPresetList(): void {
   const box = document.getElementById("context-preset-dropdown");
   if (!box) return;
   const current = (document.getElementById("context-window-input") as HTMLInputElement | null)?.value.trim() || "";
-  const items = CONTEXT_PRESETS.map((p) => {
-    const active = current === String(p.value);
-    return `<button type="button" class="ctx-preset-item" data-value="${p.value}" style="display:flex;width:100%;justify-content:space-between;padding:9px 12px;min-height:38px;border:none;border-bottom:1px solid var(--ui-border,#f0f0f0);background:${active ? "var(--brand-primary-soft,#fff1f6)" : "transparent"};cursor:pointer;text-align:left;">
-      <span>${p.label}</span><span style="opacity:.65;font-size:12px;">${p.value}</span>
-    </button>`;
-  }).join("");
   box.innerHTML =
-    items +
-    `<button type="button" class="ctx-preset-item" data-value="" style="display:block;width:100%;padding:9px 12px;min-height:38px;border:none;background:transparent;cursor:pointer;text-align:left;opacity:.75;">手填（清空推荐）</button>`;
+    CONTEXT_PRESETS.map((p) => {
+      const active = current === String(p.value);
+      return `<button type="button" class="ctx-preset-item" data-value="${p.value}" style="display:flex;width:100%;justify-content:space-between;padding:9px 12px;min-height:38px;border:none;border-bottom:1px solid var(--ui-border,#f0f0f0);background:${active ? "var(--brand-primary-soft,#fff1f6)" : "transparent"};cursor:pointer;text-align:left;"><span>${p.label}</span><span style="opacity:.65;font-size:12px;">${p.value}</span></button>`;
+    }).join("") +
+    '<button type="button" class="ctx-preset-item" data-value="" style="display:block;width:100%;padding:9px 12px;min-height:38px;border:none;background:transparent;cursor:pointer;text-align:left;">手填 / 清空</button>';
   box.querySelectorAll<HTMLButtonElement>(".ctx-preset-item").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const v = btn.dataset.value || "";
       const input = document.getElementById("context-window-input") as HTMLInputElement | null;
-      if (input) input.value = v;
+      if (input) input.value = btn.dataset.value || "";
       openContextPresetDropdown(false);
     });
   });
@@ -960,8 +928,19 @@ function applyContextTokens(tokens: number, blank = false): void {
   if (input) input.value = blank || !tokens ? "" : String(tokens);
 }
 
-function toastModels(msg: string, type: "ok" | "err" | "info"): void {
-  showToast(msg, type, type === "err" ? 4000 : 2600);
+async function autoResolveModelMeta(_reason: string): Promise<void> {
+  const provider = apiState.activeProvider;
+  const model = getCurrentModelValue().trim();
+  if (!provider || !model) return;
+  try {
+    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
+    if (typeof v === "number" && v > 0) {
+      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
+      if (!input?.value.trim()) applyContextTokens(v);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function fetchModelsForCurrentForm(): Promise<void> {
@@ -969,17 +948,17 @@ async function fetchModelsForCurrentForm(): Promise<void> {
   const baseUrl = baseUrlInput.value.trim();
   const apiKey = getApiKeyForRequest?.() ?? "";
   if (!baseUrl) {
-    toastModels("获取失败：请先填写 Base URL", "err");
+    showToast("获取失败：请先填写 Base URL", "err", 3500);
     return;
   }
   if (!apiKey && !/ollama|localhost/i.test(provider + baseUrl)) {
-    toastModels(`获取失败：请先填写「${provider || "当前厂商"}」的 API Key`, "err");
+    showToast(`获取失败：请先填写「${provider || "当前厂商"}」的 API Key`, "err", 3500);
     return;
   }
   try {
     const fetchModels = window.settings?.fetchProviderModels;
     if (!fetchModels) {
-      toastModels("获取失败：当前环境不支持", "err");
+      showToast("获取失败：当前环境不支持", "err");
       return;
     }
     const result = await fetchModels({
@@ -990,32 +969,29 @@ async function fetchModelsForCurrentForm(): Promise<void> {
       _providerModelsCache = result.models;
       const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
       if (search) search.value = "";
-      // 成功后才显示 ▼ 并展开列表
       openModelDropdown(true);
       renderProviderModelList("");
-      const current = getCurrentModelValue().trim();
-      const hit = result.models.find((m) => m.id === current);
-      if (hit?.contextWindow) applyContextTokens(hit.contextWindow, false);
-      toastModels(`获取到 ${result.models.length} 个模型`, "ok");
+      const hit = result.models.find((m) => m.id === getCurrentModelValue().trim());
+      if (hit?.contextWindow) applyContextTokens(hit.contextWindow);
+      showToast(`获取到 ${result.models.length} 个模型`, "ok", 2600);
       return;
     }
     _providerModelsCache = [];
     openModelDropdown(false);
     const raw = String(result.error || "未知错误");
     const err = /<html|DOCTYPE|_next/i.test(raw) ? "接口返回网页，请检查 Base URL" : raw.slice(0, 100);
-    toastModels(`获取失败：${err}`, "err");
+    showToast(`获取失败：${err}`, "err", 4000);
   } catch (e) {
-    toastModels(`获取失败：${String(e).slice(0, 100)}`, "err");
+    showToast(`获取失败：${String(e).slice(0, 100)}`, "err", 4000);
   }
 }
 
 function bindModelAutoResolve(): void {
-  if ((globalThis as { _modelUiBound?: boolean })._modelUiBound) return;
-  (globalThis as { _modelUiBound?: boolean })._modelUiBound = true;
+  if (_modelUiBound) return;
+  _modelUiBound = true;
 
   modelInput?.addEventListener("change", () => void autoResolveModelMeta("input"));
   modelInput?.addEventListener("blur", () => void autoResolveModelMeta("select"));
-
   document.getElementById("fetch-models-btn")?.addEventListener("click", () => {
     void fetchModelsForCurrentForm();
   });
@@ -1027,12 +1003,9 @@ function bindModelAutoResolve(): void {
   document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
     renderProviderModelList((e.target as HTMLInputElement).value);
   });
-  // 仅在已有缓存时，点输入框切换下拉
   modelInput?.addEventListener("click", () => {
     if (_providerModelsCache.length) toggleModelDropdown();
   });
-
-  // 上下文推荐下拉
   document.getElementById("context-preset-toggle")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1044,7 +1017,6 @@ function bindModelAutoResolve(): void {
     if (el.value !== n) el.value = n;
     if (_ctxListOpen) renderContextPresetList();
   });
-
   document.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
     if (_modelListOpen && !target.closest("#provider-model-dropdown") && !target.closest("#model-list-toggle") && !target.closest("#model-input") && !target.closest("#fetch-models-btn")) {
@@ -1054,18 +1026,522 @@ function bindModelAutoResolve(): void {
       openContextPresetDropdown(false);
     }
   });
+  openModelDropdown(false);
 }
 
-bindModelAutoResolve();
 
-function initSettingsPage(): void {
-  try {
-    bindModelAutoResolve();
-  } catch (e) {
-    console.error("[Settings] bind", e);
+
+
+/** 载入档案到编辑表单。 */
+function editProfile(profile: SavedProfileLite, globalMultimodal: boolean): void {
+  const visionSnapshot = snapshotVisionInputs();
+  const auxiliarySnapshot = snapshotAuxiliaryInputs();
+  apiState.editingProfileId = profile.id;
+  apiState.editingReasoning = profile.reasoning;
+  applyPreset(
+    profile.provider,
+    profile.model,
+    profile.apiKey,
+    profile.baseUrl,
+    profile.displayName,
+    profile.explicitTransport as ProviderProfile["explicitTransport"],
+  );
+  restoreVisionInputs(visionSnapshot);
+  restoreAuxiliaryInputs(auxiliarySnapshot);
+  // 档案级字段：未定义 = 老档案，回退全局值显示
+  contextWindowInput.value = profile.contextWindowTokens ? String(profile.contextWindowTokens) : "";
+  // 未手动填过 → 从知识表自动解析并填充（不覆盖用户已输入的值）
+  fillContextWindowIfEmpty();
+  multimodalToggle.checked = profile.multimodal ?? globalMultimodal;
+  applyMultimodalUI();
+  applyEditingStateUI();
+  renderProfileList();
+  setSaveStatus(`${tOr("settings.editingProfilePrefix", "正在编辑「")}${profile.displayName || profile.model}${tOr("settings.editingProfileSuffix", "」")}`);
+}
+
+/** 开始新建草稿：preset 预填 URL/模型/协议，清空 Key 与昵称。 */
+function startNewDraft(providerName: string): void {
+  const visionSnapshot = snapshotVisionInputs();
+  const auxiliarySnapshot = snapshotAuxiliaryInputs();
+  apiState.editingProfileId = undefined;
+  apiState.editingReasoning = undefined;
+  applyPreset(providerName);
+  restoreVisionInputs(visionSnapshot);
+  restoreAuxiliaryInputs(auxiliarySnapshot);
+  contextWindowInput.value = "";
+  // 新草稿：按预设默认模型自动解析上下文长度并填充
+  fillContextWindowIfEmpty();
+  // 新建草稿默认开多模态；applyPreset 已不再按厂商门控
+  multimodalToggle.checked = true;
+  applyMultimodalUI();
+  applyEditingStateUI();
+  renderProfileList();
+}
+
+/** 模式按钮已删除——模型名永远从 input 读取。保留函数名供旧调用点用，语义不变。 */
+function getCurrentModelValue(): string {
+  return modelInput.value;
+}
+
+/** 多模态开关 UI：ON 时隐藏视觉配置区，OFF 时显示。不清空输入框值。 */
+function applyMultimodalUI(): void {
+  const on = multimodalToggle.checked;
+  visionFieldsWrap.classList.toggle("is-hidden", on);
+}
+
+/** 填充视觉模型输入框的 datalist 候选。仅渲染候选，不修改 visionModelInput.value。 */
+function fillVisionModelOptions(preset: ModelPreset): void {
+  const datalist = document.getElementById("vision-model-suggestions") as HTMLDataListElement | null;
+  if (!datalist) return;
+  datalist.replaceChildren();
+  for (const m of preset.visionModels ?? []) {
+    const option = document.createElement("option");
+    option.value = m;
+    datalist.appendChild(option);
   }
+}
+
+const LOCAL_ENDPOINT_AUTH_FALLBACK = "__CYRENE_LOCAL_NO_AUTH__";
+
+function getApiKeyForRequest(): string {
+  const value = apiKeyInput.value.trim();
+  return getCustomEndpointMode(apiState.activeProvider) === "local" && !value
+    ? LOCAL_ENDPOINT_AUTH_FALLBACK
+    : value;
+}
+
+function validateActiveCustomEndpoint(): string | null {
+  const mode = getCustomEndpointMode(apiState.activeProvider);
+  if (!mode) return null;
+  return validateCustomEndpointConfig(mode, {
+    baseUrl: baseUrlInput.value,
+    model: getCurrentModelValue(),
+    apiKey: apiKeyInput.value,
+  });
+}
+
+function updateEndpointPreview(): void {
+  const transport = transportSelect.value as ApiTransport;
+  const baseUrl = baseUrlInput.value.trim();
+  const defaultSuffix = transport === "anthropic"
+    ? "/v1/messages"
+    : transport === "responses"
+      ? "/responses"
+      : "/chat/completions";
+
+  if (!baseUrl) {
+    endpointPreview.textContent = `${tOr("settings.endpointPreviewNoUrlPrefix", "程序会按所选协议自动追加请求路径（默认 ")}${defaultSuffix}${tOr("settings.endpointPreviewNoUrlSuffix", "）。")}`;
+    return;
+  }
+
+  const endpoint = resolveApiEndpoint(baseUrl, transport);
+  endpointPreview.textContent = endpoint.appendedSuffix
+    ? `${tOr("settings.endpointAppendPrefix", "程序会自动追加 ")}${endpoint.appendedSuffix}${tOr("settings.endpointAppendMid", "；最终请求地址：")}${endpoint.url}`
+    : `${tOr("settings.endpointFullPrefix", "已填写完整接口地址，不再追加后缀；最终请求地址：")}${endpoint.url}`;
+}
+
+function applyCustomEndpointUI(preset: ModelPreset): void {
+  const mode = getCustomEndpointMode(preset.providerName);
+  customEndpointControls.hidden = mode === null;
+  customEndpointOverrides.hidden = mode === null;
+  transportSelect.disabled = false;
+
+  if (!mode) {
+    apiKeyLabel.textContent = "API Key";
+    apiKeyHint.textContent = tOr("settings.apiKeyHintFill", "填写对应平台创建的 API Key");
+    apiKeyInput.placeholder = "sk-...";
+    baseUrlInput.placeholder = "https://api.deepseek.com";
+    modelInput.placeholder = tOr("settings.modelPlaceholderDefault", "选厂商后自动填入，可手填覆盖");
+    transportHint.textContent = tOr("settings.transportHintPick", "请按服务商实际提供的接口类型选择（OpenAI 兼容 / Anthropic 兼容 / OpenAI Responses）；程序不会自动识别协议。");
+    baseUrlResetBtn.title = tOr("settings.resetToPresetUrl", "重置为厂商默认 URL");
+    apiNoteText.textContent = tOr("settings.apiNoteDefault", "选择模型预设后会自动填入 Provider、Base URL 和模型名；你只需要填写对应平台的 API Key。配置只保存在本机 Electron 用户数据目录。");
+    return;
+  }
+
+  apiState.customEndpointMode = mode;
+  const presentation = getCustomEndpointPresentation(mode);
+  customEndpointControls.querySelectorAll<HTMLButtonElement>("[data-custom-endpoint-mode]").forEach((button) => {
+    const active = button.dataset.customEndpointMode === mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  customEndpointSummary.textContent = mode === "local"
+    ? tOr("settings.endpointSummaryLocal", "填写本机模型服务地址并明确选择接口协议；不扫描端口，也不探测模型能力。")
+    : tOr("settings.endpointSummaryCloud", "接入兼容 OpenAI 或 Anthropic 协议的云端服务，能力由服务提供方决定。");
+  apiKeyLabel.textContent = presentation.apiKeyOptional ? tOr("settings.apiKeyOptionalLabel", "API Key（可选）") : "API Key";
+  apiKeyHint.textContent = presentation.apiKeyOptional
+    ? tOr("settings.apiKeyHintLocal", "本地服务无需鉴权时可留空；如网关要求令牌，请在此填写")
+    : tOr("settings.apiKeyHintCustom", "填写自定义服务或第三方代理提供的 API Key");
+  apiKeyInput.placeholder = presentation.apiKeyOptional ? tOr("settings.apiKeyPlaceholderOptional", "无需鉴权时留空") : "sk-...";
+  baseUrlInput.placeholder = presentation.baseUrlPlaceholder;
+  modelInput.placeholder = tOr("settings.modelPlaceholderCustom", "填写服务实际提供的模型 ID");
+  transportHint.textContent = tOr("settings.transportHintCustom", "请按自定义服务实际提供的接口类型选择；程序不会自动探测。");
+  baseUrlResetBtn.title = tOr("settings.clearCustomBaseUrl", "清空自定义 Base URL");
+  apiNoteText.textContent = tOr("settings.apiNoteCustom", "自定义端点按保守兼容模式运行。保存后请先测试连接；连接成功不代表结构化输出、工具调用或思考模式一定可用。");
+}
+
+export function applyPreset(
+  providerName: string,
+  preferredModel?: string,
+  preferredApiKey?: string,
+  preferredBaseUrl?: string,
+  preferredDisplayName?: string,
+  preferredExplicitTransport?: ApiTransport,
+  preferredVision?: { baseUrl: string; apiKey: string; model: string; ocrEnabled?: boolean },
+  preferredMultimodal?: boolean,
+): void {
+  const preset = findPreset(providerName);
+
+  // 模式按钮已删除——ChatGPT / Claude 这种没预设型号的厂商，input 框空着让用户手填，
+  // datalist 没建议也不影响（用户知道自己型号）。
+
+  setActivePresetCard(preset.providerName);
+
+  // 昵称：优先用传入的（用户自定义过）；否则用厂商 shortName 作默认。
+  // 留空显示厂商短名——但这里主动填 shortName 让用户看到默认值，可改可清。
+  displayNameInput.value = preferredDisplayName ?? preset.shortName;
+
+  // baseUrl：仅对官方已确认的 A 口预设做协议配套切换；自定义 URL 永远不猜、不覆盖。
+  const selectedTransport = preferredExplicitTransport ?? preset.transport;
+  const restoredBaseUrl = preferredBaseUrl ?? preset.baseUrl;
+  baseUrlInput.value = selectedTransport === "anthropic"
+    && restoredBaseUrl === preset.baseUrl
+    && preset.anthropicBaseUrl
+      ? preset.anthropicBaseUrl
+      : (selectedTransport === "openai" || selectedTransport === "responses")
+        && preset.anthropicBaseUrl
+        && restoredBaseUrl === preset.anthropicBaseUrl
+          ? preset.baseUrl
+          : restoredBaseUrl;
+
+  fillModelOptions(preset, preferredModel);
+  fillContextWindowIfEmpty(true);
+
+  // apiKey：优先用缓存；否则**显式清空**——避免上一家厂商的 key 残留在输入框里被用户误点保存。
+  // 这是 v1 切厂商行为里的关键不变量：apiKey 永远只跟当前厂商绑定。
+  const customMode = getCustomEndpointMode(preset.providerName);
+  apiKeyInput.value = customMode === "local" && preferredApiKey === LOCAL_ENDPOINT_AUTH_FALLBACK
+    ? ""
+    : (preferredApiKey ?? "");
+
+  // 协议优先恢复用户保存值，否则使用预设的明确默认值；永远不按 URL 猜测。
+  transportSelect.value = selectedTransport;
+  applyCustomEndpointUI(preset);
+  updateEndpointPreview();
+
+  // 多模态默认开（与主进程 normalizeModelSettings 的默认值对齐）：
+  // 不按厂商/型号门控——直发判错有服务端仲裁 + caption 自动降级兜底。
+  // 要单配独立视觉模型是用户自己的事，用户自己关开关。
+  multimodalToggle.checked = preferredMultimodal ?? true;
+
+  // 视觉三框：始终写入值（从 preferredVision 或 preset 默认），不受开关影响
+  if (preferredVision) {
+    visionBaseUrlInput.value = preferredVision.baseUrl;
+    visionApiKeyInput.value = preferredVision.apiKey;
+    visionModelInput.value = preferredVision.model;
+    visionOcrToggle.checked = preferredVision.ocrEnabled === true;
+  } else {
+    visionBaseUrlInput.value = preset.visionBaseUrl ?? baseUrlInput.value;
+    visionApiKeyInput.value = apiKeyInput.value;
+    visionModelInput.value = preset.defaultVisionModel ?? modelInput.value;
+    visionOcrToggle.checked = false;
+  }
+
+  fillVisionModelOptions(preset);
+
+  // 官网链接：有 websiteUrl 就显示并指向，没有就隐藏。
+  if (preset.websiteUrl) {
+    presetWebsiteLink.href = preset.websiteUrl;
+    presetWebsiteLink.title = `${tOr("settings.visitSitePrefix", "前往 ")}${preset.shortName}${tOr("settings.visitSiteSuffix", " 官网")}`;
+    presetWebsiteLink.style.display = "";
+  } else {
+    presetWebsiteLink.style.display = "none";
+  }
+
+  apiState.activeProvider = preset.providerName;
+  applyMultimodalUI();
+  // 必须在 baseUrl / apiKey / transport 填完之后再自动解析，避免串用上一家 Key
+  void autoResolveModelMeta("preset");
+}
+
+async function loadConfig(): Promise<void> {
+  try {
+    fillPresetOptions();
+    const cfg = await window.settings!.getConfig();
+    // 模式按钮已删除——mode 字段不再用 UI 控制，直接忽略 cfg.mode
+    const vision = cfg.vision;
+    applyPreset(
+      cfg.provider,
+      cfg.model,
+      cfg.apiKey,
+      cfg.baseUrl,
+      cfg.displayName,
+      cfg.explicitTransport,
+      vision
+        ? {
+            baseUrl: vision.baseUrl,
+            apiKey: vision.apiKey,
+            model: vision.model,
+            ocrEnabled: vision.ocrEnabled === true,
+          }
+        : undefined,
+      cfg.multimodal,
+    );
+    applyRuntimeSyncSelection(cfg.runtimeSync);
+    stickerEnabledInput.checked = cfg.stickerEnabled !== false;
+    applyStickerSizeSelection(cfg.stickerSize);
+    const threshold = cfg.stickerSimilarityThreshold ?? 0.55;
+    stickerThresholdInput.value = String(threshold);
+    stickerThresholdVal.textContent = threshold.toFixed(2);
+    if (embeddingDimensionsInput) {
+      embeddingDimensionsInput.value = cfg.embeddingDimensions ? String(cfg.embeddingDimensions) : "";
+    }
+    if (thinkingModeSelect) {
+      const thinkingModeValue = cfg.thinkingOverride === 1 ? "enable" : cfg.thinkingOverride === -1 ? "disable" : "default";
+if (thinkingModeCustomSelect) {
+  console.log("[CustomSelect] 加载设置，设置值:", thinkingModeValue);
+  thinkingModeCustomSelect.setValue(thinkingModeValue, false);
+} else if (thinkingModeSelect) {
+  thinkingModeSelect.value = thinkingModeValue;
+}
+    }
+    toggleDisableMaxToken.checked = !!cfg.disableMaxToken;
+
+    // 辅助模型配置加载
+    const aux = cfg.auxiliary;
+    if (aux) {
+      auxiliaryDedicatedToggle.checked = aux.mode === "dedicated";
+      auxiliaryBaseUrlInput.value = aux.baseUrl ?? "";
+      auxiliaryApiKeyInput.value = aux.apiKey ?? "";
+      auxiliaryModelInput.value = aux.model ?? "";
+      if (auxiliaryDedicatedFields) {
+        auxiliaryDedicatedFields.style.display = aux.mode === "dedicated" ? "block" : "none";
+      }
+    }
+
+    // 技能自整理开关加载
+    if (consolidationToggle) {
+      consolidationToggle.checked = cfg.skillConsolidationEnabled === true;
+    }
+
+    // 档案列表加载 + 默认进入默认档案的编辑态；
+    // 无档案时保持上方 applyPreset 的顶层镜像作为"新建草稿"起点。
+    await reloadProfiles();
+    const defaultProfile = apiState.profiles.find((p) => p.id === apiState.defaultProfileId) ?? apiState.profiles[0];
+    if (defaultProfile) {
+      editProfile(defaultProfile, cfg.multimodal);
+    } else {
+      contextWindowInput.value = String(cfg.contextWindowTokens ?? 256000);
+      applyEditingStateUI();
+    }
+
+    setSaveStatus(tOr("common.pendingSave", "等待保存"));
+    setCyreneSaveStatus(tOr("common.pendingSave", "等待保存"));
+  } catch {
+    fillPresetOptions();
+    // 默认厂商已从 DeepSeek 改为 MiniMax（v1 vendor adapter 第一家落地的）
+    applyPreset("MiniMax（稀宇科技）");
+    setSaveStatus(tOr("settings.loadConfigFailed", "读取配置失败"), "is-error");
+    setCyreneSaveStatus(tOr("settings.loadConfigFailed", "读取配置失败"), "is-error");
+  }
+}
+
+async function loadGeneralSettings(): Promise<void> {
+  try {
+    const cfg = await window.settings!.getGeneral();
+    const cita = getCitaUiState({ enabled: cfg.citaEnabled, semanticEngine: cfg.citaSemanticEngine });
+    citaEnabledInput.checked = cita.enabled;
+    chatSocialContextEnabledInput.checked = normalizeChatSocialContextEnabled(cfg.chatSocialContextEnabled);
+    citaEngineSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
+      const selected = button.dataset.value === cita.selectedEngine;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    const windowCornerRadius = normalizeWindowCornerRadius(cfg.windowCornerRadius);
+    windowCornerRadiusInput.value = String(windowCornerRadius);
+    windowCornerRadiusVal.textContent = `${windowCornerRadius}px`;
+    applyWindowCornerRadius(windowCornerRadius);
+    petAlwaysOnTopInput.checked = cfg.petAlwaysOnTop;
+    petVisibleInput.checked = cfg.petVisible;
+    petZoomInput.value = String(cfg.petZoom ?? 1);
+    petZoomVal.textContent = Math.round((cfg.petZoom ?? 1) * 100) + "%";
+    // 角色选择器：从 characters 列表动态渲染自定义下拉选项，选中当前角色
+    const characters = Array.isArray(cfg.characters) && cfg.characters.length > 0
+      ? cfg.characters
+      : [{ id: "cyrene", name: "昔涟", modelPath: "cyrene/Cyrene.model3.json" }];
+    const currentCharacterId = cfg.currentCharacterId ?? characters[0].id;
+    const currentChar = characters.find((c) => c.id === currentCharacterId) ?? characters[0];
+    const currentStyleName = STYLE_DISPLAY_NAMES[currentChar.styleId] ?? currentChar.styleId;
+    characterDropdownValue.textContent = `${currentChar.name} · ${currentStyleName}`;
+    characterDropdownPanel.innerHTML = "";
+    for (const char of characters) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "character-dropdown__option" + (char.id === currentCharacterId ? " is-active" : "");
+      option.dataset.characterId = char.id;
+      option.dataset.styleId = char.styleId;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(char.id === currentCharacterId));
+      const styleName = STYLE_DISPLAY_NAMES[char.styleId] ?? char.styleId;
+      option.textContent = `${char.name} · ${styleName}`;
+      characterDropdownPanel.appendChild(option);
+    }
+    chatLineHeightInput.value = String(cfg.chatLineHeight ?? 1.75);
+    chatLineHeightVal.textContent = (cfg.chatLineHeight ?? 1.75).toFixed(2);
+    document.documentElement.style.setProperty("--rb-chat-line-height", String(cfg.chatLineHeight ?? 1.75));
+    assistantBubbleEnabledInput.checked = cfg.assistantBubbleEnabled ?? true;
+    chatParaSpacingInput.value = String(cfg.chatParaSpacing ?? 0.5);
+    chatParaSpacingVal.textContent = (cfg.chatParaSpacing ?? 0.5).toFixed(2) + "em";
+    document.documentElement.style.setProperty("--rb-chat-para-spacing", (cfg.chatParaSpacing ?? 0.5) + "em");
+    disableGpuInput.checked = cfg.disableGpuElectron ?? false;
+    sidebarVisibleInput.checked = cfg.sidebarVisible ?? true;
+    tasksVisibleInput.checked = cfg.tasksVisible ?? true;
+    launchAtLoginInput.checked = cfg.launchAtLogin;
+    renderUiFont(normalizeUiFont(cfg.uiFont));
+    renderUiIcon(normalizeUiIcon(cfg.uiIcon));
+    applyDefaultChatModeSelection(normalizeDefaultChatMode(cfg.defaultChatMode));
+    preferencesState.currentCustomStyleConfig = normalizeCustomStyleConfig(cfg.customStyle);
+    applySegmentedOutputSelection(normalizeSegmentedOutputMode(cfg.segmentedOutputMode));
+    applyMobileMessageSegmentationSelection(normalizeMobileMessageSegmentationMode(cfg.mobileMessageSegmentation));
+    applyProactiveChatSelection(normalizeProactiveChatMode(cfg.proactiveChatMode));
+    applyProactiveDeliverySelection(normalizeProactiveDeliveryTarget(cfg.proactiveDeliveryTarget));
+    renderProactiveDeliveryVisibility();
+    if (screenshotHotkeyInput) {
+      screenshotHotkeyInput.value = cfg.screenshotHotkey ?? "Alt+Shift+S";
+    }
+    void window.settings!.channelsGetStatus()
+      .then((status: unknown) => renderProactiveDeliveryAvailability(status as Record<string, { phase?: string }>))
+      .catch(() => renderProactiveDeliveryAvailability({}));
+    applyLanguageSelection("zh-CN");
+    applySchedulerSilentHours(cfg.silentHoursStart ?? "", cfg.silentHoursEnd ?? "");
+    setPreferencesSaveStatus(tOr("common.pendingSave", "等待保存"));
+    setAppearanceSaveStatus(tOr("common.pendingSave", "等待保存"));
+    setGeneralSaveStatus(tOr("common.pendingSave", "等待保存"));
+  } catch {
+    setPreferencesSaveStatus(tOr("settings.loadPrefsFailed", "读取偏好失败"), "is-error");
+    setAppearanceSaveStatus(tOr("settings.loadAppearanceFailed", "读取外观失败"), "is-error");
+    setGeneralSaveStatus(tOr("settings.loadSettingsFailed", "读取设置失败"), "is-error");
+  }
+}
+
+
+// 替换原生 select 为自定义下拉组件
+let thinkingModeCustomSelect: CustomSelect | null = null;
+if (thinkingModeSelect) {
+  console.log("[CustomSelect] 开始替换 thinkingModeSelect");
+  try {
+    thinkingModeCustomSelect = CustomSelect.fromNativeSelect(thinkingModeSelect, () => {
+      console.log("[CustomSelect] 值改变:", thinkingModeCustomSelect?.getValue());
+      setSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
+    });
+    console.log("[CustomSelect] 替换成功，当前值:", thinkingModeCustomSelect.getValue());
+  } catch (error) {
+    console.error("[CustomSelect] 替换失败:", error);
+  }
+}
+
+runtimeSyncSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
+  button.addEventListener("click", () => {
+    const value = button.dataset.value as "off" | "local" | "llm";
+    applyRuntimeSyncSelection(value);
+    window.settings?.previewRuntimeSync(value);
+    setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
+  });
+});
+
+stickerEnabledInput.addEventListener("change", () => {
+  setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
+});
+
+stickerSizeSelect.querySelectorAll<HTMLButtonElement>(".option-block").forEach((button) => {
+  button.addEventListener("click", () => {
+    const value = button.dataset.value;
+    applyStickerSizeSelection(value === "small" || value === "large" ? value : "standard");
+    setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
+  });
+});
+
+stickerThresholdInput.addEventListener("input", () => {
+  stickerThresholdVal.textContent = parseFloat(stickerThresholdInput.value).toFixed(2);
+  setCyreneSaveStatus(tOr("settings.unsavedChanges", "有未保存的更改"));
+});
+
+openChromeGpu.addEventListener("click", () => {
+  window.settings?.openChromeGpu();
+});
+
+disableGpuInput.addEventListener("change", () => {
+  void window.settings?.saveGeneral({ disableGpuElectron: disableGpuInput.checked });
+});
+
+sidebarVisibleInput.addEventListener("change", () => {
+  if (sidebarVisibleInput.checked) window.settings?.openSidebar();
+  else window.settings?.closeSidebar();
+  void window.settings?.saveGeneral({ sidebarVisible: sidebarVisibleInput.checked });
+});
+
+tasksVisibleInput.addEventListener("change", () => {
+  if (tasksVisibleInput.checked) window.settings?.openTasks();
+  else window.settings?.closeTasks();
+  void window.settings?.saveGeneral({ tasksVisible: tasksVisibleInput.checked });
+});
+
+
+// ===== 主题切换逻辑 =====
+function initThemeSwitcher(): void {
+  const themeOptions = document.querySelectorAll<HTMLButtonElement>(".theme-option");
+  if (themeOptions.length === 0) return;
+
+  // 更新主题选项的激活状态
+  function updateActiveTheme(theme: string): void {
+    themeOptions.forEach((option) => {
+      const isActive = option.dataset.theme === theme;
+      option.classList.toggle("is-active", isActive);
+      option.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  // 为每个主题选项添加点击事件
+  themeOptions.forEach((option) => {
+    option.addEventListener("click", async () => {
+      const theme = option.dataset.theme;
+      if (!theme) return;
+      try {
+        // 通过保存 general settings 来设置主题
+        await window.settings!.saveGeneral({ uiTheme: theme as never });
+        updateActiveTheme(theme);
+        setAppearanceSaveStatus(tOr("settings.themeApplied", "主题已应用"), "is-ok");
+      } catch (error) {
+        console.error("切换主题失败:", error);
+        setAppearanceSaveStatus(tOr("settings.themeSwitchFailed", "切换主题失败"), "is-error");
+      }
+    });
+  });
+
+  // 初始化时读取当前主题
+  window.cyreneTheme?.get()
+    .then((theme) => updateActiveTheme(theme as string))
+    .catch(() => updateActiveTheme("pearl-white"));
+
+  // 监听主题变化
+  window.cyreneTheme?.onChanged((theme) => {
+    updateActiveTheme(theme as string);
+  });
+}
+
+// 延迟初始化，确保 DOM 已加载
+function initSettingsPage(): void {
+  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
+
+  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
+
+  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind model ui", e); } // idempotent
+
+  initThemeSwitcher();
   initCustomSelects();
   initPasswordToggles();
+  // 语言跟随通用设置；加载完成后刷新静态文案与当前标题栏
   void initSettingsI18n().then(() => {
     applySettingsI18n();
     switchSection(currentSection);
@@ -1870,7 +2346,7 @@ function switchSection(section: string): void {
   const isAsr = section === "asr";
   const isMusic = section === "music";
   const isSkills = section === "skills";
-  const isLsp = section === "lsp";
+  const isLsp = section === "lsp";
   const isBackup = section === "backup";
   apiForm.classList.toggle("is-hidden", !isApi);
   apiRuntimeForm.classList.toggle("is-hidden", !isApiAdvanced);
@@ -1909,7 +2385,7 @@ function switchSection(section: string): void {
   if (isSkills) { try { initSkillsPanel(); } catch (e) { console.error("[Skills] 初始化失败:", e); } }
   const lspPanel = document.getElementById("lsp-panel");
   if (lspPanel) lspPanel.classList.toggle("is-hidden", !isLsp);
-  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
+  if (isLsp) { try { void initLspPanel(); } catch (e) { console.error("[LSP] 初始化失败:", e); } }
   const backupPanel = document.getElementById("backup-panel");
   if (backupPanel) backupPanel.classList.toggle("is-hidden", !isBackup);
   if (isBackup) { try { initBackupPanel(); } catch (e) { console.error("[Backup] 初始化失败:", e); } }
@@ -1939,7 +2415,7 @@ function switchSection(section: string): void {
     !isAsr &&
     !isMusic &&
     !isSkills &&
-    !isLsp &&
+    !isLsp &&
     !isBackup
   ) {
 	    placeholderIcon.innerHTML = label.emoji;
