@@ -928,6 +928,23 @@ async function fetchModelsForCurrentForm(): Promise<void> {
   }
 }
 
+/** 选模型后用目录带出上下文 */
+async function autoResolveModelMeta(_reason: "select" | "input" | "preset" | "test"): Promise<void> {
+  const provider = apiState.activeProvider;
+  const model = getCurrentModelValue().trim();
+  if (!provider || !model) return;
+  try {
+    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
+    if (typeof v === "number" && v > 0) {
+      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
+      const now = input?.value.trim() || "";
+      if (!now) applyContextTokens(v);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function bindModelAutoResolve(): void {
   modelInput?.addEventListener("change", () => void autoResolveModelMeta("input"));
   modelInput?.addEventListener("blur", () => void autoResolveModelMeta("select"));
