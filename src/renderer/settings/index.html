@@ -136,6 +136,68 @@
           </div>
 
           <div class="form-grid">
+            <label class="field">
+              <span data-i18n="api.nickname">昵称</span>
+              <div class="nickname-row">
+                <input id="display-name" type="text" placeholder="给模型起个名字" autocomplete="off" data-i18n="api.displayNamePlaceholder" />
+                <a id="preset-website-link" class="preset-website-link" href="#" target="_blank" rel="noopener noreferrer" title="前往厂商官网" data-i18n="api.officialWebsite">↗ 官网</a>
+              </div>
+            </label>
+
+            <label class="field">
+              <span id="api-key-label" data-i18n="api.apiKey">API Key</span>
+              <div class="password-input-wrapper"><input class="password-input" id="api-key" type="password" placeholder="sk-..." autocomplete="off" /><button type="button" class="password-toggle-btn" data-target="api-key" aria-label="显示/隐藏密码" data-i18n-aria="common.togglePassword">
+                    <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button></div>
+              <span class="form-hint" id="api-key-hint" data-i18n="settings.apiKeyHintFill">填写对应平台创建的 API Key</span>
+            </label>
+
+            <label class="field field--full base-url-field">
+              <span>Base URL</span>
+              <div class="base-url-row">
+                <input id="base-url" type="url" placeholder="https://api.deepseek.com" autocomplete="off" />
+                <button type="button" class="base-url-reset" id="base-url-reset-btn" title="重置为厂商默认 URL" data-i18n-title="settings.resetToPresetUrl">↻</button>
+              </div>
+              <span class="form-hint endpoint-preview" id="endpoint-preview" aria-live="polite"></span>
+            </label>
+
+            <div class="field field--full">
+              <span data-i18n="api.protocol">API 协议</span>
+              <div class="transport-cards" id="transport-select" role="group" aria-label="API 协议" data-i18n-aria="api.protocol">
+                <button type="button" class="preset-card" data-value="openai" aria-pressed="false">
+                  <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__name">chat/completion</span>
+                </button>
+                <button type="button" class="preset-card" data-value="anthropic" aria-pressed="false">
+                  <span class="preset-card__logo"><img src="../icons/providers/claude.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__name">anthropic</span>
+                </button>
+                <button type="button" class="preset-card" data-value="responses" aria-pressed="false">
+                  <span class="preset-card__logo"><img src="../icons/providers/openai.svg" alt="" width="24" height="24" draggable="false" /></span>
+                  <span class="preset-card__name">Responses</span>
+                </button>
+              </div>
+              <span class="form-hint" id="transport-hint" data-i18n="api.transportHint">请按服务商实际提供的接口类型选择（chat/completion / anthropic / Responses）；程序不会自动识别协议。</span>
+            </div>
+
+            <label class="field field--full">
+              <span data-i18n="api.modelName">模型名</span>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+                <input id="model-input" type="text" placeholder="选厂商后自动填入，可手填" autocomplete="off" data-i18n="settings.modelPlaceholderDefault" style="flex:1 1 240px;min-width:200px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid var(--ui-input-border,#d2d2d7);background:var(--ui-input-bg,#fff);" />
+                <button type="button" class="btn-secondary" id="fetch-models-btn" style="min-height:40px;padding:0 16px;white-space:nowrap;">获取模型列表</button>
+              </div>
+              <datalist id="model-input-suggestions"></datalist>
+              <div id="provider-model-dropdown" style="display:none;margin-top:8px;border:1px solid var(--ui-border,#e5e5ea);border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.06);overflow:hidden;">
+                <div style="padding:8px 10px;border-bottom:1px solid var(--ui-border,#eee);">
+                  <input id="provider-model-search" type="search" placeholder="搜索模型…" style="width:100%;min-height:36px;padding:6px 10px;border-radius:8px;border:1px solid var(--ui-input-border,#d2d2d7);" />
+                </div>
+                <div id="provider-model-list" style="max-height:240px;overflow:auto;padding:6px;"></div>
+              </div>
+            </label>
+
             <label class="field" style="width:100%;">
               <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;width:100%;">
                 <span data-i18n="api.contextWindow" style="white-space:nowrap;font-weight:600;">上下文窗口（Token）</span>
@@ -152,7 +214,7 @@
                   <option value="__custom__">自定义…</option>
                 </select>
                 <input id="context-window-input" type="number" min="4096" step="1" placeholder="131072" autocomplete="off" style="flex:0 0 140px;width:140px;min-height:40px;" />
-                <span class="form-hint" data-i18n="api.contextWindowHint" style="flex:1 1 220px;min-width:160px;text-align:right;margin:0;">单位 Token。可手填；选模型后自动带出。</span>
+                <span class="form-hint" data-i18n="api.contextWindowHint" style="flex:1 1 200px;min-width:140px;text-align:right;margin:0;">单位 Token。可手填；选模型后自动带出。</span>
               </div>
               <span class="form-hint" id="context-window-auto-hint" style="display:none;"></span>
             </label>
