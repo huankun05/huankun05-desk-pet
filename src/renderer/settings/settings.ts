@@ -1055,16 +1055,18 @@ function bindModelAutoResolve(): void {
     }
   });
 }
- } catch (e) { console.error("[Settings] bind", e); } // idempotent
 
-  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
+bindModelAutoResolve();
 
-  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind model ui", e); } // idempotent
-
+function initSettingsPage(): void {
+  try {
+    bindModelAutoResolve();
+  } catch (e) {
+    console.error("[Settings] bind", e);
+  }
   initThemeSwitcher();
   initCustomSelects();
   initPasswordToggles();
-  // 语言跟随通用设置；加载完成后刷新静态文案与当前标题栏
   void initSettingsI18n().then(() => {
     applySettingsI18n();
     switchSection(currentSection);
