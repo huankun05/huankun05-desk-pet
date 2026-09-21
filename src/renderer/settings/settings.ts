@@ -1064,7 +1064,6 @@ function initSettingsPage(): void {
   } catch (e) {
     console.error("[Settings] bind", e);
   }
-  initThemeSwitcher();
   initCustomSelects();
   initPasswordToggles();
   void initSettingsI18n().then(() => {
