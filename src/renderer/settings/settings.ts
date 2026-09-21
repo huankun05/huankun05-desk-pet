@@ -939,6 +939,31 @@ async function fetchModelsForCurrentForm(): Promise<void> {
   }
 }
 
+/** 选模型后：目录带出上下文；列表用「获取模型列表」按钮（弹窗提示） */
+async function autoResolveModelMeta(reason: "select" | "input" | "preset" | "test"): Promise<void> {
+  const provider = apiState.activeProvider;
+  const model = getCurrentModelValue().trim();
+  if (!provider || !model) return;
+  try {
+    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
+    if (typeof v === "number" && v > 0) {
+      const now = contextWindowInput.value.trim();
+      if (!now || now === "256000" || reason === "preset" || reason === "select") {
+        if (!now || now === "256000" || reason === "preset") {
+          contextWindowInput.value = String(v);
+          const presetSelect = document.getElementById("context-window-preset") as HTMLSelectElement | null;
+          if (presetSelect) {
+            const matched = Array.from(presetSelect.options).some((o) => o.value === String(v));
+            presetSelect.value = matched ? String(v) : "__custom__";
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function bindModelAutoResolve(): void {
   const run = (reason: "select" | "input" | "preset" | "test") => {
     void autoResolveModelMeta(reason);
