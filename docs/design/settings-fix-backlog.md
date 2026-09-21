@@ -1,6 +1,6 @@
 # 设置页与启动相关 — 待后续修复清单
 
-更新：2026-09-18
+更新：2026-09-21
 
 ## 已修复（本轮）
 
@@ -35,3 +35,9 @@
 4. 目录也没有 → **提示手动填写上下文 Token**
 
 相关代码：`src/renderer/settings/settings.ts`、`src/main/orchestrator/vendors/fetch-provider-models.ts`
+
+## 2026-09-21 追加
+- 设置导航可点击；存储与备份合一
+- 模型服务：获取 Toast + 贴框下拉 + 上下文推荐
+- 品牌冻结：昔涟/Cyrene
+
