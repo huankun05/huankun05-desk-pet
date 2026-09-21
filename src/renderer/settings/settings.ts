@@ -662,11 +662,11 @@ function findPreset(providerName: string): ModelPreset {
  */
 function fillModelOptions(preset: ModelPreset, preferredModel?: string): void {
   // datalist 联想建议
-  modelInputSuggestions.replaceChildren();
+  modelInputSuggestions?.replaceChildren?.();
   for (const model of preset.mainModels) {
     const option = document.createElement("option");
     option.value = model;
-    modelInputSuggestions.appendChild(option);
+    modelInputSuggestions?.appendChild?.(option);
   }
 
   const fallback = preset.mainModels[0] ?? "";
@@ -1996,11 +1996,11 @@ if (testConnectionBtn) {
             return;
           }
           // 更新 datalist
-          modelInputSuggestions.replaceChildren();
+          modelInputSuggestions?.replaceChildren?.();
           for (const m of result.models) {
             const option = document.createElement("option");
             option.value = m.id;
-            modelInputSuggestions.appendChild(option);
+            modelInputSuggestions?.appendChild?.(option);
           }
           const current = getCurrentModelValue().trim();
           const hit = result.models.find((m) => m.id === current);
