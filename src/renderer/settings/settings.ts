@@ -907,7 +907,7 @@ function applyContextTokens(tokens: number, blank = false): void {
   const input = document.getElementById("context-window-input") as HTMLInputElement | null;
   const sel = document.getElementById("context-window-k") as HTMLSelectElement | null;
   if (blank || !tokens) {
-    if (input) input.value = "";
+    if (input && blank) input.value = "";
     if (sel) sel.value = "";
     return;
   }
@@ -969,19 +969,37 @@ async function fetchModelsForCurrentForm(): Promise<void> {
 
 let _modelUiBound = false;
 
+let _modelUiBound = false;
+
 function bindModelAutoResolve(): void {
-  if (_modelUiBound) {
-    // 已绑定：仅同步单位/状态，不重复 addEventListener
-    return;
-  }
+  if (_modelUiBound) return;
   _modelUiBound = true;
+
+  const kSelect = document.getElementById("context-window-k") as HTMLSelectElement | null;
+  const ctxInput = document.getElementById("context-window-input") as HTMLInputElement | null;
+
+  /** 下拉只显示「规格标签」；手填时不显示任何 K 值（保持空白） */
+  function setKSelectBlank(): void {
+    if (kSelect) kSelect.value = "";
+  }
+
+  function syncKSelectFromTokens(tokens: number): void {
+    if (!kSelect) return;
+    if (!tokens || !Number.isFinite(tokens)) {
+      setKSelectBlank();
+      return;
+    }
+    const matched = Array.from(kSelect.options).some((o) => o.value === String(tokens));
+    // 仅当数值恰好等于某档规格时才回显该档；否则下拉保持空白
+    kSelect.value = matched ? String(tokens) : "";
+  }
+
   modelInput?.addEventListener("change", () => void autoResolveModelMeta("input"));
   modelInput?.addEventListener("blur", () => void autoResolveModelMeta("select"));
 
   document.getElementById("fetch-models-btn")?.addEventListener("click", () => {
     void fetchModelsForCurrentForm();
   });
-  // 箭头与输入框分开：点箭头收起/展开（有缓存才展开）
   document.getElementById("model-list-toggle")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -990,45 +1008,50 @@ function bindModelAutoResolve(): void {
   document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
     renderProviderModelList((e.target as HTMLInputElement).value);
   });
-  // 点模型名输入框：若有缓存则切换展开
   modelInput?.addEventListener("click", (e) => {
     if (_providerModelsCache.length) {
       e.preventDefault();
       toggleModelDropdown();
     }
   });
-
   document.addEventListener("click", (e) => {
     if (!_modelListOpen) return;
     const target = e.target as HTMLElement;
-    if (target.closest("#provider-model-dropdown") || target.closest("#model-list-toggle") || target.closest("#model-input") || target.closest("#fetch-models-btn")) {
+    if (
+      target.closest("#provider-model-dropdown") ||
+      target.closest("#model-list-toggle") ||
+      target.closest("#model-input") ||
+      target.closest("#fetch-models-btn")
+    ) {
       return;
     }
     openModelDropdown(false);
   });
 
-  // 上下文：右侧下拉；手填后下拉清空
-  const kSelect = document.getElementById("context-window-k") as HTMLSelectElement | null;
-  const ctxInput = document.getElementById("context-window-input") as HTMLInputElement | null;
+  // ── 上下文：默认下拉空白；选规格才填数；手填则下拉变空白 ──
   kSelect?.addEventListener("change", () => {
     const v = kSelect.value;
     if (!v) {
-      if (ctxInput && document.activeElement !== ctxInput) {
-        /* 空白：保持输入框现值，仅表示未锁定规格 */
-      }
+      // 选中「空白」：不改输入框，只表示不锁定规格
       return;
     }
     applyContextTokens(Number(v), false);
     void autoResolveModelMeta("select");
   });
+
   ctxInput?.addEventListener("input", () => {
     const n = (ctxInput.value || "").replace(/[^0-9]/g, "");
     if (ctxInput.value !== n) ctxInput.value = n;
-    // 手动填写 → 右侧下拉变空白
-    if (kSelect) kSelect.value = "";
+    // 手动修改 → 下拉不显示任何 K 值
+    setKSelectBlank();
   });
+
+  // 初始化：默认下拉空白（输入框已有自动带出值时也先空白，避免误导）
+  if (kSelect && !kSelect.dataset.userTouched) {
+    setKSelectBlank();
+  }
 }
-bindModelAutoResolve();
+
 
 
 
