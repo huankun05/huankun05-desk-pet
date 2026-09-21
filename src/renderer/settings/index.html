@@ -185,27 +185,25 @@
 
             <label class="field field--full" style="position:relative;">
               <span data-i18n="api.modelName">模型名</span>
-              <div style="display:flex;gap:8px;align-items:center;margin-top:6px;position:relative;">
-                <div style="position:relative;flex:1 1 240px;min-width:200px;">
-                  <input id="model-input" type="text" placeholder="选择厂商或点击右侧获取后选择" autocomplete="off" data-i18n="settings.modelPlaceholderDefault" style="width:100%;min-height:40px;padding:8px 36px 8px 12px;border-radius:10px;border:1px solid var(--ui-input-border,#d2d2d7);background:var(--ui-input-bg,#fff);" />
-                  <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.55;font-size:12px;">▼</span>
-                  <!-- 贴着模型名框展开的可搜索下拉 -->
-                  <div id="provider-model-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:80;border:1px solid var(--ui-border,#e5e5ea);border-radius:10px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.12);overflow:hidden;">
-                    <div style="padding:8px;border-bottom:1px solid var(--ui-border,#eee);">
-                      <input id="provider-model-search" type="search" placeholder="搜索模型…" style="width:100%;min-height:34px;padding:6px 10px;border-radius:8px;border:1px solid var(--ui-input-border,#d2d2d7);" />
-                    </div>
-                    <div id="provider-model-list" style="max-height:220px;overflow:auto;padding:4px;"></div>
-                  </div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+                <input id="model-input" type="text" placeholder="选择厂商或获取后选择" autocomplete="off" data-i18n="settings.modelPlaceholderDefault" style="flex:1 1 auto;min-width:160px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid var(--ui-input-border,#d2d2d7);background:var(--ui-input-bg,#fff);" />
+                <button type="button" id="model-list-toggle" class="btn-secondary" title="展开/收起模型列表" aria-label="展开/收起模型列表" style="min-height:40px;min-width:40px;padding:0 10px;flex:none;">▼</button>
+                <button type="button" class="btn-secondary" id="fetch-models-btn" style="min-height:40px;padding:0 14px;white-space:nowrap;flex:none;">获取模型列表</button>
+              </div>
+              <div id="provider-model-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:80;border:1px solid var(--ui-border,#e5e5ea);border-radius:10px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.12);overflow:hidden;">
+                <div style="padding:8px;border-bottom:1px solid var(--ui-border,#eee);">
+                  <input id="provider-model-search" type="search" placeholder="搜索模型…" style="width:100%;min-height:34px;padding:6px 10px;border-radius:8px;border:1px solid var(--ui-input-border,#d2d2d7);" />
                 </div>
-                <button type="button" class="btn-secondary" id="fetch-models-btn" style="min-height:40px;padding:0 16px;white-space:nowrap;flex:none;">获取模型列表</button>
+                <div id="provider-model-list" style="max-height:220px;overflow:auto;padding:4px;"></div>
               </div>
             </label>
 
             <label class="field" style="width:100%;">
-              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;">
-                <span style="white-space:nowrap;font-weight:600;min-width:140px;" data-i18n="api.contextWindow">上下文窗口（Token）</span>
-                <select id="context-window-k" class="setting-select" style="min-width:150px;min-height:40px;">
-                  <option value="">空白（手填）</option>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:nowrap;">
+                <span style="white-space:nowrap;font-weight:600;min-width:132px;" data-i18n="api.contextWindow">上下文窗口（Token）</span>
+                <input id="context-window-input" type="text" inputmode="numeric" placeholder="可手填 Token" autocomplete="off" style="flex:1 1 auto;min-width:140px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid var(--ui-input-border,#d2d2d7);background:var(--ui-input-bg,#fff);" />
+                <select id="context-window-k" class="setting-select" title="常用上下文规格" style="flex:0 0 auto;min-width:140px;min-height:40px;">
+                  <option value="">空白</option>
                   <option value="8192">8K</option>
                   <option value="32768">32K</option>
                   <option value="65536">64K</option>
@@ -215,7 +213,6 @@
                   <option value="524288">512K</option>
                   <option value="1048576">1M</option>
                 </select>
-                <input id="context-window-input" type="text" inputmode="numeric" placeholder="Token 数值（可手填）" autocomplete="off" style="flex:1 1 160px;min-width:140px;min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid var(--ui-input-border,#d2d2d7);background:var(--ui-input-bg,#fff);" />
               </div>
               <span class="form-hint" id="context-window-auto-hint" style="display:none;"></span>
             </label>

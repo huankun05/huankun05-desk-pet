@@ -823,15 +823,32 @@ function fillContextWindowIfEmpty(): void {
 /** 服务商模型下拉：点击可选用 */
 let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
 
+/** 本页会话内缓存的模型列表（退出设置窗即销毁） */
+let _providerModelsCache: Array<{ id: string; contextWindow?: number }> = [];
+let _modelListOpen = false;
+
 function openModelDropdown(open: boolean): void {
+  _modelListOpen = open;
   const drop = document.getElementById("provider-model-dropdown");
+  const arrow = document.getElementById("model-list-toggle");
   if (drop) drop.style.display = open ? "block" : "none";
+  if (arrow) arrow.textContent = open ? "▲" : "▼";
+}
+
+function toggleModelDropdown(): void {
+  if (!_providerModelsCache.length) {
+    showToast("请先点击「获取模型列表」", "info", 2200);
+    return;
+  }
+  openModelDropdown(!_modelListOpen);
+  if (_modelListOpen) {
+    renderProviderModelList((document.getElementById("provider-model-search") as HTMLInputElement | null)?.value || "");
+  }
 }
 
 function renderProviderModelList(filter = ""): void {
   const box = document.getElementById("provider-model-list");
-  const drop = document.getElementById("provider-model-dropdown");
-  if (!box || !drop) return;
+  if (!box) return;
   const q = filter.trim().toLowerCase();
   const list = _providerModelsCache.filter((m) => !q || m.id.toLowerCase().includes(q));
   if (!_providerModelsCache.length) {
@@ -839,7 +856,6 @@ function renderProviderModelList(filter = ""): void {
     box.innerHTML = "";
     return;
   }
-  openModelDropdown(true);
   const current = getCurrentModelValue().trim();
   if (!list.length) {
     box.innerHTML = '<div style="padding:10px;color:#888;font-size:13px;">无匹配模型</div>';
@@ -861,20 +877,24 @@ function renderProviderModelList(filter = ""): void {
       modelInput.value = id;
       const ctx = btn.dataset.ctx;
       if (ctx && Number(ctx) > 0) {
-        applyContextTokens(Number(ctx));
+        applyContextTokens(Number(ctx), false);
       } else {
         void autoResolveModelMeta("select");
       }
       openModelDropdown(false);
-      showToast(`已选择模型 ${id}`, "ok", 2000);
     });
   });
 }
 
-/** 写入上下文 Token，并同步短标签下拉 */
-function applyContextTokens(tokens: number): void {
+/** tokens=0 或 blank=true → 输入框清空、下拉空白 */
+function applyContextTokens(tokens: number, blank = false): void {
   const input = document.getElementById("context-window-input") as HTMLInputElement | null;
   const sel = document.getElementById("context-window-k") as HTMLSelectElement | null;
+  if (blank || !tokens) {
+    if (input) input.value = "";
+    if (sel) sel.value = "";
+    return;
+  }
   if (input) input.value = String(tokens);
   if (sel) {
     const matched = Array.from(sel.options).some((o) => o.value === String(tokens));
@@ -882,25 +902,29 @@ function applyContextTokens(tokens: number): void {
   }
 }
 
+/** 只弹一条 Toast */
+function toastModels(msg: string, type: "ok" | "err" | "info"): void {
+  showToast(msg, type, type === "err" ? 4000 : 2600);
+}
+
 async function fetchModelsForCurrentForm(): Promise<void> {
   const provider = apiState.activeProvider || "";
   const baseUrl = baseUrlInput.value.trim();
   const apiKey = getApiKeyForRequest?.() ?? "";
   if (!baseUrl) {
-    showToast("获取失败：请先填写 Base URL（如 https://api.stepfun.com/v1）", "err", 3500);
+    toastModels("获取失败：请先填写 Base URL", "err");
     return;
   }
   if (!apiKey && !/ollama|localhost/i.test(provider + baseUrl)) {
-    showToast(`获取失败：请先填写「${provider || "当前厂商"}」的 API Key`, "err", 3500);
+    toastModels(`获取失败：请先填写「${provider || "当前厂商"}」的 API Key`, "err");
     return;
   }
   try {
     const fetchModels = window.settings?.fetchProviderModels;
     if (!fetchModels) {
-      showToast("获取失败：当前环境不支持", "err");
+      toastModels("获取失败：当前环境不支持", "err");
       return;
     }
-    showToast("正在获取模型列表…", "info", 2000);
     const result = await fetchModels({
       baseUrl,
       apiKey: /ollama|localhost/i.test(provider + baseUrl) && !apiKey ? "ollama" : apiKey,
@@ -909,39 +933,21 @@ async function fetchModelsForCurrentForm(): Promise<void> {
       _providerModelsCache = result.models;
       const search = document.getElementById("provider-model-search") as HTMLInputElement | null;
       if (search) search.value = "";
+      openModelDropdown(true);
       renderProviderModelList("");
       const current = getCurrentModelValue().trim();
       const hit = result.models.find((m) => m.id === current);
-      if (hit?.contextWindow) applyContextTokens(hit.contextWindow);
-      showToast(`获取到 ${result.models.length} 个模型`, "ok", 2800);
+      if (hit?.contextWindow) applyContextTokens(hit.contextWindow, false);
+      toastModels(`获取到 ${result.models.length} 个模型`, "ok");
       return;
     }
     _providerModelsCache = [];
     openModelDropdown(false);
     const raw = String(result.error || "未知错误");
-    const err = /<html|DOCTYPE|_next/i.test(raw)
-      ? "接口返回网页，请检查 Base URL"
-      : raw.slice(0, 100);
-    showToast(`获取失败：${err}`, "err", 4000);
+    const err = /<html|DOCTYPE|_next/i.test(raw) ? "接口返回网页，请检查 Base URL" : raw.slice(0, 100);
+    toastModels(`获取失败：${err}`, "err");
   } catch (e) {
-    showToast(`获取失败：${String(e).slice(0, 100)}`, "err", 4000);
-  }
-}
-
-/** 选模型后用目录带出上下文 */
-async function autoResolveModelMeta(_reason: "select" | "input" | "preset" | "test"): Promise<void> {
-  const provider = apiState.activeProvider;
-  const model = getCurrentModelValue().trim();
-  if (!provider || !model) return;
-  try {
-    const v = await window.settings?.lookupModelContextWindow?.(provider, model);
-    if (typeof v === "number" && v > 0) {
-      const input = document.getElementById("context-window-input") as HTMLInputElement | null;
-      const now = input?.value.trim() || "";
-      if (!now) applyContextTokens(v);
-    }
-  } catch {
-    /* ignore */
+    toastModels(`获取失败：${String(e).slice(0, 100)}`, "err");
   }
 }
 
@@ -952,46 +958,55 @@ function bindModelAutoResolve(): void {
   document.getElementById("fetch-models-btn")?.addEventListener("click", () => {
     void fetchModelsForCurrentForm();
   });
+  // 箭头与输入框分开：点箭头收起/展开（有缓存才展开）
+  document.getElementById("model-list-toggle")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleModelDropdown();
+  });
   document.getElementById("provider-model-search")?.addEventListener("input", (e) => {
     renderProviderModelList((e.target as HTMLInputElement).value);
   });
+  // 点模型名输入框：若有缓存则切换展开
+  modelInput?.addEventListener("click", (e) => {
+    if (_providerModelsCache.length) {
+      e.preventDefault();
+      toggleModelDropdown();
+    }
+  });
 
-  // 点击模型框以外 → 收起下拉
   document.addEventListener("click", (e) => {
-    const drop = document.getElementById("provider-model-dropdown");
-    if (!drop || drop.style.display === "none") return;
+    if (!_modelListOpen) return;
     const target = e.target as HTMLElement;
-    if (target.closest("#provider-model-dropdown") || target.closest("#fetch-models-btn") || target.closest("#model-input")) {
+    if (target.closest("#provider-model-dropdown") || target.closest("#model-list-toggle") || target.closest("#model-input") || target.closest("#fetch-models-btn")) {
       return;
     }
     openModelDropdown(false);
   });
 
-  // 上下文：短标签下拉 ↔ 数值框
+  // 上下文：右侧下拉；手填后下拉清空
   const kSelect = document.getElementById("context-window-k") as HTMLSelectElement | null;
   const ctxInput = document.getElementById("context-window-input") as HTMLInputElement | null;
   kSelect?.addEventListener("change", () => {
     const v = kSelect.value;
     if (!v) {
-      if (ctxInput) {
-        ctxInput.value = "";
-        ctxInput.focus();
+      if (ctxInput && document.activeElement !== ctxInput) {
+        /* 空白：保持输入框现值，仅表示未锁定规格 */
       }
       return;
     }
-    if (ctxInput) ctxInput.value = v;
+    applyContextTokens(Number(v), false);
     void autoResolveModelMeta("select");
   });
   ctxInput?.addEventListener("input", () => {
-    const n = ctxInput.value.replace(/[^0-9]/g, "");
+    const n = (ctxInput.value || "").replace(/[^0-9]/g, "");
     if (ctxInput.value !== n) ctxInput.value = n;
-    if (kSelect) {
-      const matched = Array.from(kSelect.options).some((o) => o.value === n);
-      kSelect.value = matched ? n : "";
-    }
+    // 手动填写 → 右侧下拉变空白
+    if (kSelect) kSelect.value = "";
   });
 }
 bindModelAutoResolve();
+
 
 
 /** 载入档案到编辑表单。 */
@@ -1494,6 +1509,8 @@ function initThemeSwitcher(): void {
 
 // 延迟初始化，确保 DOM 已加载
 function initSettingsPage(): void {
+  try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
+
   try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind", e); } // idempotent
 
   try { bindModelAutoResolve(); } catch (e) { console.error("[Settings] bind model ui", e); } // idempotent
