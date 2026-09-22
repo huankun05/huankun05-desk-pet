@@ -1,4 +1,8 @@
-/**
+const fs = require("fs");
+const f = "F:/Work/Create/desk_pet/desk-pet/src/main/services/appRestart.ts";
+
+// 直接重写整个 appRestart.ts，避免嵌套字符串转义问题
+const src = `/**
  * 应用重启（Assa 同款）：
  * - 提示：Windows 系统通知 Notification（应用内浮层会在退出时关闭，不可用）
  * - 开发：隐藏 Node restarter → 等旧进程退出 → 静默拉起 vite + electron（不走 npm/concurrently）
@@ -19,7 +23,7 @@ let restartCleanup: (() => void) | null = null;
 function safeLog(...args: unknown[]): void {
   try {
     const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    appendFileSync(join(app.getPath("temp"), "cyrene-dev-restart.log"), "[app] " + msg + "\n");
+    appendFileSync(join(app.getPath("temp"), "cyrene-dev-restart.log"), "[app] " + msg + "\\n");
   } catch {
     /* ignore */
   }
@@ -107,7 +111,7 @@ function spawnDevSessionRestarter(): void {
     "})();",
   ];
 
-  writeFileSync(scriptPath, scriptLines.join("\n"), "utf8");
+  writeFileSync(scriptPath, scriptLines.join("\\n"), "utf8");
   const child = spawn(systemNode, [scriptPath], {
     cwd: projectRoot,
     detached: true,
@@ -181,3 +185,7 @@ export function quitAppFast(): void {
     }
   }, 50);
 }
+`;
+
+fs.writeFileSync(f, src, "utf8");
+console.log("wrote appRestart.ts", src.includes("Notification.isSupported"), src.includes("spawn vite silent"));
