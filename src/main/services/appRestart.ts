@@ -1,10 +1,11 @@
 /**
  * 应用重启（脚本进仓库，配置进项目 data/，不依赖 %TEMP%）
- * - 提示：wscript 弹窗（scripts/dev-restart-toast.vbs）+ Notification
+ * - 提示：仅 wscript Popup（scripts/dev-restart-toast.vbs，3 秒自动消失）
  * - 开发：wscript 隐藏启动 scripts/dev-restart-worker.js
  * - 不用 PowerShell / npm / cmd，避免终端闪窗
+ * - 不用 Electron Notification：Windows toast 时长不受应用控制，且会进操作中心反复可见
  */
-import { app, Notification } from "electron";
+import { app } from "electron";
 import { spawn } from "child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
@@ -47,15 +48,11 @@ function spawnHiddenWscript(scriptPath: string): void {
 
 function showRestartToast(): void {
   try {
-    if (Notification.isSupported()) {
-      const toast = new Notification({
-        title: "昔涟 正在重新启动",
-        body: "请稍候，将自动重新打开…",
-      });
-      toast.show();
-    }
+    // 单通道 VBS Popup：nSecondsToWait=3 自动关，不进操作中心，应用退出后仍可见
+    const toastVbs = join(app.getAppPath(), "scripts", "dev-restart-toast.vbs");
+    spawnHiddenWscript(toastVbs);
   } catch (err) {
-    safeLog("notification error", String(err));
+    safeLog("toast error", String(err));
   }
 }
 

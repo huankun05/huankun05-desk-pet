@@ -1,2 +1,2 @@
 Set sh = CreateObject("WScript.Shell")
-sh.Popup "Cyrene is restarting...", 4, "Cyrene", 64
+sh.Popup "Cyrene is restarting...", 3, "Cyrene", 64

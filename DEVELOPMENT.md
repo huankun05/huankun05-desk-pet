@@ -54,6 +54,7 @@ Hermes 对接后增加：gateway health、`/v1/runs` 冒烟。
 | `docs/plan` | 阶段计划 |
 | `docs/history` | 历史只读 |
 | `scripts/diagnostics` | 诊断脚本；禁止长期 `tmp-*` |
+| `scripts/dev-restart-*.{vbs,js}` | 托盘「重启应用」：VBS 弹窗（3 秒自动关、单通道）+ 静默 restarter |
 | `../hermes-agent` | 官方 Hermes（工作区） |
 | `../archives` | 旧仓与历史参考 |
 | `../NapCatShell` | QQ/NapCat 运行时（在用） |
