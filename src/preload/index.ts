@@ -332,6 +332,7 @@ const cyreneAppearanceApi = {
 contextBridge.exposeInMainWorld("cyreneAppearance", cyreneAppearanceApi);
 
 const settingsApi = {
+  restartApp: () => ipcRenderer.invoke("app:restart"),
   minimize: () => ipcRenderer.send(IPC.SETTINGS_MINIMIZE),
   close: () => ipcRenderer.send(IPC.SETTINGS_CLOSE),
   getConfig: () => ipcRenderer.invoke(IPC.SETTINGS_GET_CONFIG),

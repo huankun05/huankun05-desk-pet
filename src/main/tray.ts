@@ -1,6 +1,7 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import { type WindowActivationRequest } from "./application/window-activation";
 import { getCurrentAppIconPath } from "./windows/window-state";
+import { restartApp } from "./services/appRestart";
 
 export interface CreateTrayDependencies {
   /** 托盘窗口类菜单统一走激活请求；是否立即打开由 activation broker 决定。 */
@@ -37,7 +38,13 @@ export function buildTrayMenuTemplate(deps: CreateTrayDependencies): MenuItemCon
     { type: "separator" },
     {
       label: "重启应用",
-      click: () => { deps.restart(); },
+      click: () => {
+        try {
+          restartApp();
+        } catch {
+          deps.restart();
+        }
+      },
     },
     {
       label: "退出",

@@ -114,6 +114,7 @@ import { registerCodeGitIpc } from "../code-git/code-git-ipc";
 import { installSingleInstanceGuard } from "../single-instance";
 import { createWindowManager } from "../windows/window-manager";
 import { createTray } from "../tray";
+import { registerRestartCleanup, restartApp } from "../services/appRestart";
 import { createSplashWindow } from "../startup/create-splash-window";
 import { revealStartupWindows } from "../startup/startup-window-reveal";
 import { bootstrapMusicService } from "../music/bootstrap";
@@ -224,6 +225,14 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       createChatShell: (windowManager) => windowManager.createReactChatWindowShell(),
       registerProtocolHandlers,
       registerShellIpc: ({ ipc, windowManager, live2dWindowLifecycle }) => {
+        try {
+          ipc.handle("app:restart", async () => {
+            restartApp();
+            return true;
+          });
+        } catch {
+          /* ignore */
+        }
         registerWindowSystemIpc({ ipc, windowManager });
         registerChatUiIpc({ ipc, live2dWindowLifecycle, windowManager });
       },
@@ -476,6 +485,11 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
 
         // 大脑 Hermes：壳内设置（路径/端口/密钥/模型同步）
         registerHermesSettingsIpc({ ipc });
+        try {
+          registerRestartCleanup(() => {
+            /* restart cleanup placeholder */
+          });
+        } catch { /* ignore */ }
         // 存储目录：占用分析、缓存清理、数据根重定向、备份
         registerStorageIpc({ ipc });
 
