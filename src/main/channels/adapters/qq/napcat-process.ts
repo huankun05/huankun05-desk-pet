@@ -150,7 +150,19 @@ export async function readQqUninstallStringFromRegistry(
 }
 
 function spawnNapCat(exe: string, args: string[], env: NodeJS.ProcessEnv): void {
-  const child = spawn(exe, args, {
+  // 静默：经 PowerShell Start-Process -WindowStyle Hidden，避免 QQ/NapCat 黑框控制台。
+  // windowsHide 只作用于直接子进程；QQ.exe 由 NapCat 再拉起时也用 Hidden。
+  const argList = args.map((a) => `'${a.replace(/'/g, "''")}'`).join(", ");
+  const ps = [
+    "Start-Process",
+    `-FilePath '${exe.replace(/'/g, "''")}'`,
+    argList ? `-ArgumentList ${argList}` : "",
+    "-WindowStyle Hidden",
+    "-PassThru | Out-Null",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps], {
     env,
     detached: true,
     windowsHide: true,
