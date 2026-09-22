@@ -17,6 +17,7 @@ import { logger, LogTag } from "../logger";
 import { renderBanner } from "../../shared/banner";
 import { IPC } from "../../shared/ipc-channels";
 import { isDev } from "../env";
+import { waitDevServerReady } from "../dev-server-url";
 import {
   loadGeneralSettings,
   saveGeneralSettings,
@@ -210,6 +211,10 @@ export function createDefaultApplicationDependencies(): ApplicationDependencies 
       },
       createIpcScope: () => createIpcScope(),
       createSplashWindow: (options) => createSplashWindow({ isDev, onShown: options.onShown }),
+      ensureDevServer: async () => {
+        if (!isDev) return true;
+        return waitDevServerReady(30_000);
+      },
       createWindowManager: () => createWindowManager({
         getCurrentAppIconPath,
         isDev,

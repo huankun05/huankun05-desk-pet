@@ -141,6 +141,10 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
               window,
               load: () => loadReactChatWindowPage(window, sessionId),
               timeoutMs: CHAT_READY_TIMEOUT_MS,
+              // 开发模式：托盘重启后 Vite 可能尚未就绪，连接拒绝自动重试
+              retryOnConnRefused: true,
+              maxRetries: 8,
+              retryDelayMs: 700,
             }).catch((error) => {
               console.error("[WindowManager] chat page load failed:", error);
               throw error;

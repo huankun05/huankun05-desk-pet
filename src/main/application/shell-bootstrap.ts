@@ -25,6 +25,8 @@ export interface ShellIpcRegistrationInput {
 }
 
 export interface ShellDependencies {
+  /** 开发模式：等待 Vite 就绪（托盘重启后防 ERR_CONNECTION_REFUSED） */
+  ensureDevServer?: () => Promise<boolean>;
   readiness: StartupReadiness;
   activation: WindowActivationBroker;
   shutdown: ShutdownCoordinator;
@@ -60,6 +62,13 @@ export interface ShellResult {
 
 export async function startShell(deps: ShellDependencies): Promise<ShellResult> {
   const { readiness, activation, shutdown } = deps;
+
+  // 0. 开发模式等待 Vite
+  try {
+    await deps.ensureDevServer?.();
+  } catch {
+    /* continue */
+  }
 
   // 1. banner + 启动日志
   deps.writeStartupLog();

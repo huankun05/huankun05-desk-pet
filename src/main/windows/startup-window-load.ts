@@ -20,6 +20,10 @@ export interface StartupLoadWindowLike {
 }
 
 export interface LoadWindowForStartupInput {
+  /** 开发模式下 ERR_CONNECTION_REFUSED 等可重试（Vite 刚起来时） */
+  retryOnConnRefused?: boolean;
+  retryDelayMs?: number;
+  maxRetries?: number;
   window: StartupLoadWindowLike;
   load(): Promise<void>;
   timeoutMs: number;
@@ -38,13 +42,35 @@ export function loadWindowForStartup(input: LoadWindowForStartupInput): Promise<
   const setTimeoutFn = input.setTimeout ?? ((handler: () => void, ms: number) => globalThis.setTimeout(handler, ms));
   const clearTimeoutFn = input.clearTimeout ?? ((handle: ReturnType<typeof setTimeout>) => globalThis.clearTimeout(handle));
 
+  const retryOnConnRefused = input.retryOnConnRefused ?? false;
+  const retryDelayMs = input.retryDelayMs ?? 800;
+  const maxRetries = input.maxRetries ?? 6;
+
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
 
     const onReady = () => settle(resolve);
     const onFail = (_event: unknown, code: number, description: string, url: string, isMainFrame: boolean) => {
       if (!isMainFrame) return;
+      const retriable =
+        retryOnConnRefused && (code === -102 || /ERR_CONNECTION_REFUSED|ERR_ABORTED/i.test(description));
+      if (retriable && attempts < maxRetries) {
+        attempts += 1;
+        // 摘掉 once 监听后延迟再 load，避免重复触发
+        window.removeListener("ready-to-show", onReady);
+        window.webContents.removeListener("did-fail-load", onFail);
+        void setTimeoutFn(() => {
+          settled = false;
+          window.once("ready-to-show", onReady);
+          window.webContents.once("did-fail-load", onFail);
+          void Promise.resolve()
+            .then(load)
+            .catch((error) => settle(() => reject(error)));
+        }, retryDelayMs * attempts);
+        return;
+      }
       settle(() => reject(new Error(`chat page did-fail-load ${code}: ${description} ${url}`)));
     };
 
