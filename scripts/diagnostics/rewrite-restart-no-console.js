@@ -1,4 +1,7 @@
-/**
+const fs = require("fs");
+const f = "F:/Work/Create/desk_pet/desk-pet/src/main/services/appRestart.ts";
+
+const src = `/**
  * 应用重启（Assa 思路 + Windows 可见性修正）
  * - 提示：Notification + wscript Popup（图形框，无控制台）；应用退出后 restarter 仍可再提示
  * - 开发：wscript 隐藏启动 node restarter → 静默 vite + electron
@@ -19,7 +22,7 @@ let restartCleanup: (() => void) | null = null;
 function safeLog(...args: unknown[]): void {
   try {
     const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    appendFileSync(join(app.getPath("temp"), "cyrene-dev-restart.log"), "[app] " + msg + "\n");
+    appendFileSync(join(app.getPath("temp"), "cyrene-dev-restart.log"), "[app] " + msg + "\\n");
   } catch {
     /* ignore */
   }
@@ -67,8 +70,8 @@ function showRestartToast(): void {
     const vbsPath = join(tempDir, "cyrene-restart-toast.vbs");
     const vbs = [
       'Set sh = CreateObject("WScript.Shell")',
-      'sh.Popup "昔涟 正在重新启动…\n请稍候，将自动重新打开。", 4, "昔涟", 64',
-    ].join("\r\n");
+      'sh.Popup "昔涟 正在重新启动…\\n请稍候，将自动重新打开。", 4, "昔涟", 64',
+    ].join("\\r\\n");
     writeFileSync(vbsPath, vbs, "ascii");
     spawnHiddenWscript(vbsPath);
   } catch (err) {
@@ -129,11 +132,11 @@ function spawnDevSessionRestarter(): void {
     "})();",
   ];
 
-  writeFileSync(scriptPath, scriptLines.join("\n"), "utf8");
+  writeFileSync(scriptPath, scriptLines.join("\\n"), "utf8");
 
   // wscript 启动 node（GUI 子系统，无黑色终端）——与 Assa 相同
   const runner =
-    'Set sh = CreateObject("WScript.Shell")\r\n' +
+    'Set sh = CreateObject("WScript.Shell")\\r\\n' +
     'sh.Run """' + systemNode + '"" """' + scriptPath + '"""", 0, False';
   writeFileSync(runnerVbs, runner, "ascii");
   spawnHiddenWscript(runnerVbs);
@@ -202,3 +205,7 @@ export function quitAppFast(): void {
     }
   }, 50);
 }
+`;
+
+fs.writeFileSync(f, src, "utf8");
+console.log("rewritten", src.includes("WScript.Shell"), src.includes("windowsHide: true"));
