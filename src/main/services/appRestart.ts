@@ -75,38 +75,18 @@ function spawnDevSessionRestarter(): void {
   } catch {
     /* ignore */
   }
-
-  const workerJs = join(projectRoot, "scripts", "dev-restart-worker.js");
-  const runnerVbs = join(dataDir, "dev-restart-run.vbs");
   const systemNode = "E:/software/Nodejs/node.exe";
   const viteJs = join(projectRoot, "node_modules", "vite", "bin", "vite.js");
   const electronExe = join(projectRoot, "node_modules", "electron", "dist", "electron.exe");
-
   writeFileSync(
     join(dataDir, "dev-restart.json"),
-    JSON.stringify(
-      {
-        parentPid: process.pid,
-        systemNode,
-        viteJs,
-        electronExe,
-        maxMs: 120000,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({ parentPid: process.pid, systemNode, viteJs, electronExe, maxMs: 120000 }, null, 2),
     "utf8",
   );
-
-  // Chr(34) 拼命令，避免 VBS 引号把路径拆坏（上次 语句未结束 的根因）
-  const vbs = [
-    'Set sh = CreateObject("WScript.Shell")',
-    'cmd = Chr(34) & "' + systemNode + '" & Chr(34) & " " & Chr(34) & "' + workerJs + '" & Chr(34)',
-    "sh.Run cmd, 0, False",
-  ].join("\r\n");
-  writeFileSync(runnerVbs, vbs, "ascii");
+  // 使用仓库内固定 VBS（引号/编码已修好），不再往 %TEMP% 写脚本
+  const runnerVbs = join(projectRoot, "scripts", "dev-restart-run.vbs");
   spawnHiddenWscript(runnerVbs);
-  safeLog("restarter scheduled", workerJs);
+  safeLog("restarter scheduled", runnerVbs);
 }
 
 export function restartApp(): void {
