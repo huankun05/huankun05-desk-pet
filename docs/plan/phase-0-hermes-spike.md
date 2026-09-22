@@ -13,8 +13,9 @@
 | Windows 启动 gateway | **通过** | `uv run python cli.py --gateway`；api_server connected |
 | `API_SERVER_KEY` + `/health` | **通过** | `200 {"status":"ok","platform":"hermes-agent","version":"0.21.3"}` |
 | 端口 | **通过** | `http://127.0.0.1:8642`（日志：API server listening） |
-| Electron `/v1/runs` SSE | **未完成** | Client 骨架已写；需模型 provider + UI 接线 |
-| 杀进程自动重启 / 会话恢复 | **未完成** | 交给 P1 `HermesProcMgr` |
+| 壳内设置页配置引擎 | **部分** | IPC/`hermes-settings*`/preload 已齐；`settings/hermes/panel.ts` **未挂进 settings 导航**（2026-09-22 核） |
+| Electron `/v1/runs` SSE | **未完成** | `HermesClient` 骨架（health/chat/runs+onToken）已写，**全仓零 import**；需模型 provider + 最小冒烟接线 |
+| 杀进程自动重启 / 会话恢复 | **未完成** | 交给 P1；`proc-mgr` exit 仅 `child=null`，无 watchdog |
 
 ---
 
@@ -58,9 +59,11 @@
 
 ---
 
-## 壳内设置（已接入）
+## 壳内设置（后端已接，UI 面板未挂载）
 
-设置 → **大脑 Hermes**：
+> 2026-09-22 核对：功能在 `hermes-settings*.ts` + `settings/hermes/panel.ts`，但 `settings.ts` 未 import `initHermesPanel`，`index.html` 无对应 nav/`#hermes-panel`。挂上导航前不能算「壳内设置已接」。
+
+设置 → **本地引擎 / AI 引擎**（目标文案）：
 
 - Hermes 源码目录 / HERMES_HOME / uv 路径  
 - API host/port / API_SERVER_KEY（可生成）  

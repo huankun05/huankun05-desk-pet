@@ -18,9 +18,11 @@
 
 ## 验收
 
-- [ ] 应用启动后 AI 引擎页「检查健康」为在线（若已配好密钥/依赖）
-- [ ] 杀掉 gateway 进程后自动拉起
-- [ ] 一条 Chat/Work 流式回复来自 Hermes SSE
+> 2026-09-22：`proc-mgr` 已有 spawn/`/health`/`autoStartGateway` 启动拉起（`application.ts` 动态 import）；**无崩溃退避重启**。AI 引擎设置 panel 未挂导航，下表第 1 项当前不可测。
+
+- [ ] 应用启动后 AI 引擎页「检查健康」为在线（若已配好密钥/依赖）— **被 panel 未挂载阻塞**
+- [ ] 杀掉 gateway 进程后自动拉起 — **未做**（exit 仅清 child）
+- [ ] 一条 Chat/Work 流式回复来自 Hermes SSE — **未做**（HermesClient 零接线）
 - [ ] tsc + 相关 vitest 通过
 
 ## 非目标

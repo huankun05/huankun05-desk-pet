@@ -179,11 +179,11 @@
 
 | 优先级 | 动作 | 状态 |
 |---|---|---|
-| P0 | 产品名/智核名拍板 | **待用户选择** |
-| P0 | i18n / 设置标题去 Cyrene → 产品名 | 待做 |
-| P0 | 设置页「大脑 Hermes」→「智核」 | 待做（名定后） |
-| P1 | `package.json` name/description、`productName`、appId | 待做 |
-| P1 | README / 窗口标题 / 托盘文案 | 待做 |
+| P0 | 产品名/智核名拍板 | ✅ **已冻结（2026-09-18）**：产品 UI/打包 **昔涟 / Cyrene**；Hermes 设置称 **本地引擎** |
+| P0 | i18n / 设置标题去 Cyrene → 产品名 | ✅ settings i18n 已完成（B1，1737 key）；残留见下 |
+| P0 | 设置页「大脑 Hermes」→「本地引擎/AI 引擎」 | ✅ 通俗化已做；**panel 未挂进导航**（见 phase-0） |
+| P1 | `package.json` name/description、`productName`、appId | 待对齐（现为 `live2d-cyrene` / `Cyrene` / `com.cyrene.live2d`） |
+| P1 | README / 窗口标题 / 托盘文案 | 部分；**ROADMAP/DESIGN/zh-CN.json 仍有「汐月/Marea」** |
 | P2 | tokens：锁定 pearl-white 品牌色；标记 `--rb-*` legacy | 文档已定，代码渐进 |
 | P2 | 拆分 `settings.css` 超大文件（按面板抽文件） | 渐进 |
 | P3 | 聊天/桌宠窗视觉与设置页对齐 | 随 P1/P2 |

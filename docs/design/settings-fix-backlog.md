@@ -15,12 +15,12 @@
 
 | 优先级 | 问题 | 说明 |
 |---|---|---|
-| P1 | 设置页 `settings.css` 巨石 | 12 万+ 字符，需按面板拆分 |
+| P1 | 设置页 `settings.css` 巨石 | 约 12.5 万字符，需按面板拆分 |
 | P1 | 生产 vs 开发 userData | 已冻结 live2d-cyrene；dev/正式混用同一数据待评估 |
-| P1 | AI 引擎进程托管完整接线 | 设置项已收拢；spawn/重启/日志在 UI 可见性 |
+| P1 | AI 引擎进程托管完整接线 | **部分**：`proc-mgr` 已 spawn/health/启动拉起；**无崩溃自愈**；设置 panel 未挂导航；日志/手动重启 UI 未做 |
 | P2 | 备份完整性 | prompts（人设）在程序目录；聊天/模型 Key 依赖 storage 备份类别 |
-| P2 | NapCat 窗口 | windowsHide 已开；QQ 自身 UI、手动启动残留进程仍可能「有窗口」 |
-| P2 | 品色主题仅 pearl-white | tokens 里遗留多套色；UI-DESIGN 已规定单主题 |
+| P2 | NapCat 残留窗口 | **部分**：已 CreateNoWindow/Hidden（2026-09-22）；QQ 自身 UI、手动启动残留进程仍可能「有窗口」 |
+| P2 | 主题收敛 | UI 仍多主题 + 满屏 `--rb-*`；与 UI-DESIGN 单主题方向未对齐（勿再写「仅 pearl-white」） |
 | P3 | 代码标识符 Cyrene* | 用户可见层已用产品名；文件名迁移延后 |
 | P3 | Work/Code 工具链与 Hermes 对齐 | P1 换脑尚未做完 |
 | P3 | 音乐/ASR 等面板类型错误 | tsc 非 main 范围内的 renderer 历史类型问题 |
@@ -40,4 +40,8 @@
 - 设置导航可点击；存储与备份合一
 - 模型服务：获取 Toast + 贴框下拉 + 上下文推荐
 - 品牌冻结：昔涟/Cyrene
+
+## 2026-09-22 追加
+- 托盘「重启应用」可用；开发态静默 restarter；重启提示单通道 VBS Popup（3 秒自动关）
+- NapCat/QQ 静默启动（CreateNoWindow/Hidden）；启停文档补齐
 
