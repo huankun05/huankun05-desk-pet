@@ -150,24 +150,45 @@ export async function readQqUninstallStringFromRegistry(
 }
 
 function spawnNapCat(exe: string, args: string[], env: NodeJS.ProcessEnv): void {
-  // 静默：经 PowerShell Start-Process -WindowStyle Hidden，避免 QQ/NapCat 黑框控制台。
-  // windowsHide 只作用于直接子进程；QQ.exe 由 NapCat 再拉起时也用 Hidden。
-  const argList = args.map((a) => `'${a.replace(/'/g, "''")}'`).join(", ");
-  const ps = [
-    "Start-Process",
-    `-FilePath '${exe.replace(/'/g, "''")}'`,
-    argList ? `-ArgumentList ${argList}` : "",
-    "-WindowStyle Hidden",
-    "-PassThru | Out-Null",
+  // 静默启动：用 .NET ProcessStartInfo.CreateNoWindow，避免 NapCat/QQ 弹出黑框控制台。
+  // （Start-Process -WindowStyle Hidden 对控制台子系统 exe 仍可能闪窗；CreateNoWindow 更稳。）
+  const q = (s: string) => s.replace(/'/g, "''");
+  const envLines = [
+    "NAPCAT_PATCH_PACKAGE",
+    "NAPCAT_LOAD_PATH",
+    "NAPCAT_INJECT_PATH",
+    "NAPCAT_LAUNCHER_PATH",
+    "NAPCAT_MAIN_PATH",
   ]
+    .map((k) => {
+      const v = env[k];
+      return v ? `$si.EnvironmentVariables['${k}'] = '${q(v)}'` : "";
+    })
     .filter(Boolean)
-    .join(" ");
-  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps], {
-    env,
-    detached: true,
-    windowsHide: true,
-    stdio: "ignore",
-  });
+    .join("\n");
+  const argLine = args.map((a) => `'${q(a)}'`).join(" ");
+  const ps = `
+$si = New-Object System.Diagnostics.ProcessStartInfo
+$si.FileName = '${q(exe)}'
+$si.Arguments = ${args.length ? argLine : "''"}
+$si.UseShellExecute = $false
+$si.CreateNoWindow = $true
+$si.WorkingDirectory = '${q(path.dirname(exe))}'
+$si.RedirectStandardOutput = $false
+$si.RedirectStandardError = $false
+${envLines}
+$null = [System.Diagnostics.Process]::Start($si)
+`;
+  const child = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps],
+    {
+      env,
+      detached: true,
+      windowsHide: true,
+      stdio: "ignore",
+    },
+  );
   child.unref();
 }
 
