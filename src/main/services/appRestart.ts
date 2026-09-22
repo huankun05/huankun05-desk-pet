@@ -104,8 +104,7 @@ function spawnDevSessionRestarter(): void {
     "})();",
   ];
 
-  writeFileSync(scriptPath, lines.join("
-"), "utf8");
+  writeFileSync(scriptPath, lines.join(String.fromCharCode(10)), "utf8")
   const child = spawn(systemNode, [scriptPath], {
     cwd: projectRoot,
     detached: true,
