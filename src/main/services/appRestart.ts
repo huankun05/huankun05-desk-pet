@@ -9,7 +9,7 @@ import { spawn } from "child_process";
 import { appendFileSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 
-const RESTART_SILENT_EXIT_MS = 900;
+const RESTART_SILENT_EXIT_MS = 1500;
 const RESTARTER_MAX_TRIES = 120;
 
 let restarting = false;
@@ -39,22 +39,41 @@ export function registerRestartCleanup(fn: () => void): void {
 
 /** Windows 系统通知（Assa 同款） */
 function showRestartToast(): void {
+  // 1) Electron Notification（进系统通知中心）
   try {
-    if (!Notification.isSupported()) return;
-    const toast = new Notification({
-      title: "昔涟 正在重新启动",
-      body: "应用将关闭以完成重启，结束后会自动重新打开。",
-    });
-    toast.show();
+    if (Notification.isSupported()) {
+      const toast = new Notification({
+        title: "昔涟 正在重新启动",
+        body: "请稍候，将自动重新打开…",
+      });
+      toast.show();
+    }
   } catch (err) {
     safeLog("restart toast error", String(err));
   }
+  // 2) 系统托盘气球（独立进程，应用退出后仍显示）
+  try {
+    const ps = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "Add-Type -AssemblyName System.Drawing",
+      "$ni = New-Object System.Windows.Forms.NotifyIcon",
+      "$ni.Icon = [System.Drawing.SystemIcons]::Information",
+      "$ni.Visible = $true",
+      "$ni.ShowBalloonTip(5000, '昔涟 正在重新启动', '请稍候，将自动重新打开…', 'Info')",
+      "Start-Sleep -Seconds 5",
+      "$ni.Dispose()",
+    ].join("; ");
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+  } catch (err) {
+    safeLog("balloon error", String(err));
+  }
 }
 
-/**
- * 开发模式：隐藏 restarter，等本进程退出后静默拉起 vite + electron。
- * 不用 npm / concurrently / VBS——它们都会弹出控制台。
- */
 function spawnDevSessionRestarter(): void {
   const projectRoot = resolve(app.getAppPath());
   const pid = process.pid;
