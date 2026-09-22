@@ -57,14 +57,6 @@ function showRestartToast(): void {
   } catch (err) {
     safeLog("notification error", String(err));
   }
-  // 仓库内固定脚本 + Chr(34) 引号安全
-  try {
-    const projectRoot = resolve(app.getAppPath());
-    const toastVbs = join(projectRoot, "scripts", "dev-restart-toast.vbs");
-    spawnHiddenWscript(toastVbs);
-  } catch (err) {
-    safeLog("toast vbs error", String(err));
-  }
 }
 
 function spawnDevSessionRestarter(): void {
