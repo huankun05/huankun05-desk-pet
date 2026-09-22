@@ -1,19 +1,10 @@
 /**
- * 应用重启服务（参考 Assa/Xiyue 的 appRestart 思路，适配本项目 npm run dev 栈）。
- *
- * 打包：app.relaunch() 后退出。  
- * 开发：electron-vite/本栈里 Vite 与 Electron 同生命周期，直接 relaunch 会连到已死的 dev server  
- * → 派生隐藏 restarter：等本进程退出后再执行 `npm run dev`。
+ * 应用重启（参考 Assa/Xiyue：通知 + dev 软重启 restarter）。
+ * 打包：app.relaunch()；开发：等本进程退出后重新 npm run dev，避免连到已死 Vite。
  */
 import { app, Notification } from "electron";
 import { spawn } from "child_process";
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  unlinkSync,
-  writeFileSync,
-} from "fs";
+import { appendFileSync, existsSync, unlinkSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 
 const RESTART_SILENT_EXIT_MS = 900;
@@ -68,7 +59,7 @@ function showRestartToast(): void {
     });
     toast.show();
   } catch (err) {
-    safeLog("restart toast error", String(err));
+    safeLog("toast error", String(err));
   }
 }
 
@@ -84,55 +75,49 @@ function spawnDevSessionRestarter(): void {
   const npmCli = "E:/software/Nodejs/node_modules/npm/bin/npm-cli.js";
   const maxMs = RESTARTER_MAX_TRIES * 1000;
 
-  const restartConfig = { parentPid: pid, projectRoot, logFile, systemNode, npmCli };
-  writeFileSync(configFile, JSON.stringify(restartConfig, null, 2), "utf8");
+  writeFileSync(
+    configFile,
+    JSON.stringify({ parentPid: pid, projectRoot, logFile, systemNode, npmCli }, null, 2),
+    "utf8",
+  );
 
-  const script = `/* cyrene dev restarter */
-const { spawn } = require("child_process");
-const fs = require("fs");
-const net = require("net");
-const cfg = JSON.parse(fs.readFileSync(${JSON.stringify(configFile)}, "utf8"));
-const log = cfg.logFile;
-function logLine(s) { try { fs.appendFileSync(log, s + "\\n"); } catch (e) {} }
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-function alive(p) {
-  try { process.kill(p, 0); return true; } catch (e) { return false; }
-}
-function waitPortBusyGone(port, host) {
-  if (!port) return Promise.resolve(true);
-  return new Promise((ok) => {
-    const sock = net.connect({ port, host: host || "127.0.0.1" }, () => { sock.destroy(); ok(false); });
-    sock.on("error", () => ok(true));
-    setTimeout(() => { try { sock.destroy(); } catch (e) {} ok(true); }, 250);
-  });
-}
-(async () => {
-  logLine("===== restarter start parent=" + cfg.parentPid + " root=" + cfg.projectRoot + " =====");
-  const deadline = Date.now() + ${maxMs};
-  while (alive(cfg.parentPid) && Date.now() < deadline) await sleep(250);
-  logLine("parent gone");
-  await sleep(500);
-  logLine("spawn npm run dev");
-  const out = fs.openSync(log, "a");
-  const child = spawn(cfg.systemNode, [cfg.npmCli, "run", "dev"], {
-    cwd: cfg.projectRoot,
-    detached: true,
-    stdio: ["ignore", out, out],
-    windowsHide: true,
-  });
-  child.unref();
-  logLine("npm run dev detached pid=" + child.pid);
-  process.exit(0);
-})();
-`;
+  const script = [
+    "/* cyrene dev restarter */",
+    'const { spawn } = require("child_process");',
+    'const fs = require("fs");',
+    "const cfg = JSON.parse(fs.readFileSync(" + JSON.stringify(configFile) + ', "utf8"));',
+    "function logLine(s) { try { fs.appendFileSync(cfg.logFile, s + \"\\\\n\"); } catch (e) {} }",
+    "function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }",
+    "function alive(p) { try { process.kill(p, 0); return true; } catch (e) { return false; } }",
+    "(async () => {",
+    "  logLine('===== restarter start parent=' + cfg.parentPid + ' =====');",
+    "  const deadline = Date.now() + " + String(maxMs) + ";",
+    "  while (alive(cfg.parentPid) && Date.now() < deadline) await sleep(250);",
+    "  logLine('parent gone');",
+    "  await sleep(500);",
+    "  logLine('spawn npm run dev');",
+    "  const out = fs.openSync(cfg.logFile, 'a');",
+    "  const child = spawn(cfg.systemNode, [cfg.npmCli, 'run', 'dev'], {",
+    "    cwd: cfg.projectRoot,",
+    "    detached: true,",
+    "    stdio: ['ignore', out, out],",
+    "    windowsHide: true,",
+    "  });",
+    "  child.unref();",
+    "  logLine('npm run dev pid=' + child.pid);",
+    "  process.exit(0);",
+    "})();",
+  ].join("\n");
 
   writeFileSync(scriptPath, script, "utf8");
-  const vbs = [
-    "Set sh = CreateObject(\\"WScript.Shell\\")",
-    `sh.Run """${systemNode}"" ""${scriptPath.replace(/\\/g, "\\\\")}""", 0, False`,
-  ].join("\r\n");
+
+  // VBS 隐藏窗口调用 node 脚本（不用 PowerShell，避免安全软件拦截）
+  const vbs =
+    'Set sh = CreateObject("WScript.Shell")\r\n' +
+    'sh.Run """' + systemNode + '"" """' + scriptPath + '"""", 0, False';
   writeFileSync(vbsPath, vbs, "ascii");
   appendFileSync(logFile, `===== scheduled pid=${pid} root=${projectRoot} =====\n`);
+
   const child = spawn("wscript.exe", [vbsPath], {
     detached: true,
     stdio: "ignore",
@@ -153,7 +138,6 @@ export function restartApp(): void {
     if (app.isPackaged) {
       app.relaunch();
     } else {
-      // dev：等本进程退出后重新 npm run dev，避免连到死掉的 Vite
       spawnDevSessionRestarter();
     }
   } catch (err) {
@@ -167,8 +151,8 @@ export function restartApp(): void {
 
   try {
     restartCleanup?.();
-  } catch (err) {
-    safeLog("restart cleanup error", String(err));
+  } catch {
+    /* ignore */
   }
 
   setTimeout(() => {
