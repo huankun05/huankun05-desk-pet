@@ -215,3 +215,7 @@ sticker-descriptions/
 
 # Cubism core 由本地/构建放置
 src/renderer/live2dcubismcore.min.js
+
+# 重启运行时数据（配置/日志）
+data/dev-restart*
+

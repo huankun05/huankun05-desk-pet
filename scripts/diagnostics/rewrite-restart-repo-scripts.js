@@ -1,4 +1,7 @@
-/**
+const fs = require("fs");
+const f = "F:/Work/Create/desk_pet/desk-pet/src/main/services/appRestart.ts";
+
+const src = `/**
  * 应用重启（脚本进仓库，配置进项目 data/，不依赖 %TEMP%）
  * - 提示：wscript 弹窗（scripts/dev-restart-toast.vbs）+ Notification
  * - 开发：wscript 隐藏启动 scripts/dev-restart-worker.js
@@ -18,7 +21,7 @@ let restartCleanup: (() => void) | null = null;
 function safeLog(...args: unknown[]): void {
   try {
     const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-    appendFileSync(join(app.getAppPath(), "data", "dev-restart.log"), "[app] " + msg + "\n");
+    appendFileSync(join(app.getAppPath(), "data", "dev-restart.log"), "[app] " + msg + "\\n");
   } catch {
     /* ignore */
   }
@@ -103,7 +106,7 @@ function spawnDevSessionRestarter(): void {
     'Set sh = CreateObject("WScript.Shell")',
     'cmd = Chr(34) & "' + systemNode + '" & Chr(34) & " " & Chr(34) & "' + workerJs + '" & Chr(34)',
     "sh.Run cmd, 0, False",
-  ].join("\r\n");
+  ].join("\\r\\n");
   writeFileSync(runnerVbs, vbs, "ascii");
   spawnHiddenWscript(runnerVbs);
   safeLog("restarter scheduled", workerJs);
@@ -171,3 +174,7 @@ export function quitAppFast(): void {
     }
   }, 50);
 }
+`;
+
+fs.writeFileSync(f, src, "utf8");
+console.log("ok", src.includes("Chr(34)"), src.includes("dev-restart-worker.js"));
