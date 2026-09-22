@@ -68,64 +68,52 @@ function spawnDevSessionRestarter(): void {
   const pid = process.pid;
   const tempDir = app.getPath("temp");
   const logFile = join(tempDir, "cyrene-dev-restart.log");
-  const configFile = join(tempDir, `cyrene-dev-restart-${pid}.json`);
-  const scriptPath = join(tempDir, `cyrene-dev-restart-${pid}.js`);
-  const vbsPath = join(tempDir, `cyrene-dev-restart-${pid}.vbs`);
+  const scriptPath = join(tempDir, "cyrene-dev-restart-" + pid + ".js");
   const systemNode = "E:/software/Nodejs/node.exe";
   const npmCli = "E:/software/Nodejs/node_modules/npm/bin/npm-cli.js";
   const maxMs = RESTARTER_MAX_TRIES * 1000;
 
-  writeFileSync(
-    configFile,
-    JSON.stringify({ parentPid: pid, projectRoot, logFile, systemNode, npmCli }, null, 2),
-    "utf8",
-  );
-
-  const script = [
-    "/* cyrene dev restarter */",
-    'const { spawn } = require("child_process");',
-    'const fs = require("fs");',
-    "const cfg = JSON.parse(fs.readFileSync(" + JSON.stringify(configFile) + ', "utf8"));',
-    "function logLine(s) { try { fs.appendFileSync(cfg.logFile, s + \"\\\\n\"); } catch (e) {} }",
-    "function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }",
-    "function alive(p) { try { process.kill(p, 0); return true; } catch (e) { return false; } }",
+  const lines = [
+    "const { spawn } = require('child_process');",
+    "const fs = require('fs');",
+    "const net = require('net');",
+    "const logFile = " + JSON.stringify(logFile) + ";",
+    "const projectRoot = " + JSON.stringify(projectRoot) + ";",
+    "const parentPid = " + pid + ";",
+    "const systemNode = " + JSON.stringify(systemNode) + ";",
+    "const npmCli = " + JSON.stringify(npmCli) + ";",
+    "const deadline = Date.now() + " + maxMs + ";",
+    "function logLine(s){ try { fs.appendFileSync(logFile, s + String.fromCharCode(10)); } catch (e) {} }",
+    "function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }",
+    "function alive(p){ try { process.kill(p, 0); return true; } catch (e) { return false; } }",
+    "function portFree(port){ return new Promise(ok => { const s = net.connect({port: port, host: '127.0.0.1'}, () => { s.destroy(); ok(false); }); s.on('error', () => ok(true)); setTimeout(() => { try { s.destroy(); } catch (e) {} ok(true); }, 200); }); }",
     "(async () => {",
-    "  logLine('===== restarter start parent=' + cfg.parentPid + ' =====');",
-    "  const deadline = Date.now() + " + String(maxMs) + ";",
-    "  while (alive(cfg.parentPid) && Date.now() < deadline) await sleep(250);",
+    "  logLine('===== restarter start =====');",
+    "  while (alive(parentPid) && Date.now() < deadline) await sleep(250);",
     "  logLine('parent gone');",
-    "  await sleep(500);",
+    "  try { fs.rmSync(projectRoot + '/dist/main/.vite-dev-url.json', { force: true }); } catch (e) {}",
+    "  const portDeadline = Date.now() + 8000;",
+    "  while (!(await portFree(5174)) && Date.now() < portDeadline) await sleep(200);",
+    "  await sleep(400);",
     "  logLine('spawn npm run dev');",
-    "  const out = fs.openSync(cfg.logFile, 'a');",
-    "  const child = spawn(cfg.systemNode, [cfg.npmCli, 'run', 'dev'], {",
-    "    cwd: cfg.projectRoot,",
-    "    detached: true,",
-    "    stdio: ['ignore', out, out],",
-    "    windowsHide: true,",
-    "  });",
+    "  const out = fs.openSync(logFile, 'a');",
+    "  const child = spawn(systemNode, [npmCli, 'run', 'dev'], { cwd: projectRoot, detached: true, stdio: ['ignore', out, out], windowsHide: true });",
     "  child.unref();",
     "  logLine('npm run dev pid=' + child.pid);",
     "  process.exit(0);",
     "})();",
-  ].join("\n");
+  ];
 
-  writeFileSync(scriptPath, script, "utf8");
-
-  // VBS 隐藏窗口调用 node 脚本（不用 PowerShell，避免安全软件拦截）
-  const vbs =
-    'Set sh = CreateObject("WScript.Shell")\r\n' +
-    'sh.Run """' + systemNode + '"" """' + scriptPath + '"""", 0, False';
-  writeFileSync(vbsPath, vbs, "ascii");
-  appendFileSync(logFile, `===== scheduled pid=${pid} root=${projectRoot} =====\n`);
-
-  const child = spawn("wscript.exe", [vbsPath], {
+  writeFileSync(scriptPath, lines.join("
+"), "utf8");
+  const child = spawn(systemNode, [scriptPath], {
+    cwd: projectRoot,
     detached: true,
     stdio: "ignore",
     windowsHide: true,
-    cwd: projectRoot,
   });
   child.unref();
-  safeLog("restarter scheduled", scriptPath);
+  safeLog("restarter scheduled (node windowsHide)", scriptPath);
 }
 
 export function restartApp(): void {
