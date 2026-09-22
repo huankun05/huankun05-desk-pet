@@ -63,11 +63,12 @@ export interface ShellResult {
 export async function startShell(deps: ShellDependencies): Promise<ShellResult> {
   const { readiness, activation, shutdown } = deps;
 
-  // 0. 开发模式等待 Vite
-  try {
-    await deps.ensureDevServer?.();
-  } catch {
-    /* continue */
+  // 0. 开发模式等待 Vite（托盘重启后必须就绪再 loadURL）
+  if (deps.ensureDevServer) {
+    const ready = await deps.ensureDevServer().catch(() => false);
+    if (!ready) {
+      console.error("[Shell] dev server 未就绪，继续尝试加载（窗口层会重试）");
+    }
   }
 
   // 1. banner + 启动日志
