@@ -35,6 +35,18 @@
 
 检查：`/health` → 可选 `/v1/chat/completions` → 可选 `/v1/runs` SSE。
 
+### 应用内冒烟（2026-09-24 起推荐）
+
+应用跑起来后，走 **设置 → 本地引擎 → 「运行冒烟测试」** 按钮：
+
+- 底层是 `HermesClient`（`src/main/hermes/hermes-client.ts`）经
+  `hermes-client-factory.ts` 按有效设置构造，`runHermesSmoke()` 依次执行
+  `/health` → `/v1/chat/completions`
+- 任一步失败即终止，面板分步展示 `✓/✗` 与详情，可直接看出卡在哪一步
+- 比命令行脚本更贴近真实链路（用的是应用自己的 host/port/key）
+
+命令行 `smoke.ps1` 仍保留，适合不启应用的纯网关排查。
+
 ## 模型
 
 - 仅 health：**不需要**模型密钥  

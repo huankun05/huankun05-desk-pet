@@ -1,7 +1,7 @@
 # 昔涟 路线图（ROADMAP）
 
 **产品**：昔涟 / Cyrene（品牌冻结）· 四模式 · **智核**（官方 Hermes）+ **心核**（LifeKernel）+ **壳**（Electron）  
-**更新**：2026-09-22（按代码实况对齐；此前版本停在 2026-09-18）  
+**更新**：2026-09-24（「本地引擎」面板挂载 + HermesClient 接线；2026-09-22 按代码实况对齐）  
 **UI 规范**：[../design/UI-DESIGN.md](../design/UI-DESIGN.md)  
 **历史路线图**（CyreneHarness 时代，已收口）：[../history/cyrene-harness/2026-09-05-agent-grade-upgrade-plan.md](../history/cyrene-harness/2026-09-05-agent-grade-upgrade-plan.md)
 
@@ -26,14 +26,16 @@
 
 ---
 
-## 近期已落地（2026-09-18 ~ 09-22，原先未入路线图）
+## 近期已落地（2026-09-18 ~ 09-24，原先未入路线图）
 
 | 主题 | 内容 |
 |---|---|
 | 设置/模型 UX | 模型自动获取（`/v1/models` + 目录）、可搜索下拉、上下文推荐、401 脱敏提示、存储与备份合一 |
 | 托盘重启 | 「重启应用」+ 开发态静默 restarter；提示单通道 VBS Popup（3 秒自动关） |
 | QQ/NapCat | 启用渠道时自动拉起；CreateNoWindow/Hidden 静默；启停文档 |
-| 品牌 | 昔涟/Cyrene 冻结；userData 目录 `live2d-cyrene`；文档同步（部分文件仍残留「汐月/Marea」） |
+| 品牌 | 昔涟/Cyrene 冻结；userData 目录 `live2d-cyrene`；settings i18n `appTitle`/`nav.brand` 清零（部分文件仍残留「汐月/Marea」） |
+| **本地引擎面板** | 「本地引擎」进设置导航：health 检查、端点展示、启动时拉起开关、凭据同步；IPC 六件套 + preload 桥 |
+| **HermesClient 接线** | `hermes-client-factory.ts` 按有效设置构造 client；`runHermesSmoke()` 分步冒烟；`HERMES_RUN_SMOKE` IPC + 设置页「运行冒烟测试」按钮；17 个单测 |
 
 ---
 
@@ -48,21 +50,19 @@
 
 ---
 
-## 下一步（建议顺序，2026-09-22）
+## 下一步（建议顺序，2026-09-24）
 
-1. **P0 收尾**  
-   - 把「AI 引擎」面板挂进设置导航（`initHermesPanel` 接上 `settings.ts` + `index.html`）  
-   - 配一个可用云端模型 → `SMOKE_CHAT=1` 跑 chat/runs  
-   - 把 `HermesClient` 接到一条最小 SSE 冒烟路径（可先命令面板/日志，不必接四模式）  
+1. **P0 最后一项**  
+   - 在「模型服务」配一个可用云端模型 → 「本地引擎」点「立即同步模型服务凭据」→ 点「运行冒烟测试」，应看到 `✓ health` + `✓ chat`
 2. **P1 托管补全**  
-   - proc-mgr 崩溃自愈（指数退避）+ 设置「启动时拉起」UI 可见状态/日志/手动重启  
+   - proc-mgr 崩溃自愈（指数退避）+ 设置「启动时拉起」UI 可见状态/日志/手动重启
 3. **P1 四模式换脑**  
-   - `agui-bridge` 接 Hermes；CyreneHarness 开关或目录隔离（不删文件）  
-   - ModelRouter 最小版（按模式选 model）  
+   - `agui-bridge` 接 Hermes（已有 `hermes-client-factory` 可复用）；CyreneHarness 开关或目录隔离（不删文件）  
+   - ModelRouter 最小版（按模式选 model）
 4. **体验债（可并行）**  
    - `settings.css` 拆分（12 万+ 字符巨石）  
    - 备份完整性：prompts 迁 userData；聊天/模型 Key 纳入备份策略  
-   - 文档/文案品牌残留（ROADMAP/DESIGN/UI-DESIGN 内「汐月/Marea」、zh-CN.json）  
+   - 文档/文案品牌残留（ROADMAP/DESIGN/UI-DESIGN 内「汐月/Marea」、zh-CN.json 内的角色名场景）
 5. **P2 LifeKernel 最小闭环**（换脑稳定后再动）
 
 非目标：摄像头、情绪放宽权限、第二套关系记忆、追 Hermes main、恢复截图热键。

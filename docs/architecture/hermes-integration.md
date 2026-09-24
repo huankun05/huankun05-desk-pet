@@ -5,6 +5,13 @@
 **锁定版本**：`v2026.9.14`（本地已检出于工作区 `hermes-agent/`）  
 **旧 fork**：`archives/hermes-agent-fork-elementh/`（只读，不作基准）
 
+> **实现进度（2026-09-24）**：本文 §1 描述**目标拓扑**，与当前代码有差距。  
+> 已落地：`proc-mgr.ts`（spawn / health / 启动拉起，**无崩溃自愈**）、  
+> `hermes-client.ts` + `hermes-client-factory.ts`（HTTP + SSE 消费，经 `HERMES_RUN_SMOKE` IPC 暴露给设置页冒烟按钮）、  
+> 「本地引擎」设置面板（health / 端点 / 自动拉起 / 凭据同步）。  
+> 未落地：LifeKernel、PolicyGate、ModelRouter、McpElectronServer、ReflectionService；  
+> 四模式主循环仍走 CyreneHarness（详见 `../plan/ROADMAP.md`）。
+
 ---
 
 ## 1. 进程拓扑
@@ -102,7 +109,7 @@ Cyrene 历史 TS 工具：能映射 Hermes 内置的不重复提供；特色能�
 
 ## 7. 验收要点
 
-- [ ] Windows 上 gateway 可启动，`/health` 可用  
-- [ ] `/v1/runs` SSE 流式 token 可达渲染层  
-- [ ] 杀进程后可自动重启且会话可恢复  
+- [x] Windows 上 gateway 可启动，`/health` 可用（实测 `{"status":"ok","version":"0.21.3"}`）  
+- [x] `/v1/runs` SSE 流式 token 可达 Electron（`HermesClient.runOnce/onToken` 已接线并有单测；**尚未接四模式/渲染层**）  
+- [ ] 杀进程后可自动重启且会话可恢复（proc-mgr 无 watchdog，属 P1）  
 - [ ] 仓库内无未记录的 Hermes core 修改  

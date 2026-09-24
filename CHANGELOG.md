@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - **QQ/NapCat 自动拉起与静默**：QQ 渠道启用时检测并拉起 NapCat（CreateNoWindow/Hidden）；已在运行则幂等跳过；补充启停用户文档
 - **模型服务自动获取与上下文推荐**：选厂商/模型后请求 `GET {base}/v1/models` + 内置 `model-context-catalog`；贴框可搜索下拉、Toast 提示、上下文 32K/128K/256K/1M 推荐；401 等错误脱敏提示
 - **存储与备份合一**：设置侧栏合并入口；数据目录/占用/定位/扩容与完整备份同页
+- **「本地引擎」设置面板**：设置新增「本地引擎」导航项与面板（健康状态 / 端点展示 / 启动时拉起 / 自动同步凭据 / 立即同步）；`initHermesPanel` 接入 settings 面板切换，IPC 后端（get/save/generate-key/write-env/sync-model-credentials/test-health）已就绪
+- **HermesClient 接线与冒烟**：新增 `hermes-client-factory.ts`，按有效设置（host/port/key）构造 `HermesClient`，`runHermesSmoke()` 走 health → chat completions，任一步失败即终止并报告卡在哪一步；新增 IPC `HERMES_RUN_SMOKE` + preload `runSmoke` 桥；设置页「本地引擎」新增**「运行冒烟测试」按钮**，分步展示 ✓/✗ 与详情
 
 - **QQ 渠道自动拉起 NapCat**：QQ 渠道启用时，应用启动自动检测并拉起 NapCat（注入 QQ 进程），替代手动运行 launcher-user.bat；新增 napcat-process 模块（tasklist 进程检测 / NapCatShell 目录自动探测 + 可选 napcatPath 配置 / 注册表读取 QQ 安装路径 / 重写 loadNapCat.js + detached spawn）；已在运行则幂等跳过，失败只记日志不阻塞应用；NapCat 进程 detached 不随应用退出，避免频繁重登触发风控
 - **自然语言创建定时任务**：移植 Hermes cronjob 工具设计，新增 schedule_task 内置工具（LLM 把自然语言翻译成调度字符串 → parse-schedule.ts 解析 → 写入 scheduler store）；ScheduleConfig 新增 `cron` 类型（5 字段表达式，croner 计算下次触发，明确拒绝带年字段表达式）；parse-schedule 支持 `every 30m`/`2h`/`1d`（周期）、`30m`/`2h`/`1d`（一次性）、5 字段 cron、ISO 时间戳；定时任务执行过滤 schedule_task（对齐 Hermes cron 上下文禁用 cronjob，防止递归建任务）；设置面板新增 cron 频率选项与表达式输入
@@ -81,6 +83,9 @@ All notable changes to this project will be documented in this file.
 - **TTS 播放锁**：连续点击播放时从头播放，避免音频重叠
 
 ### Fixed
+
+- **设置 i18n 过期期望**：修正 3 个测试文件共 9 处过期断言——`nav.api`「API 设置」→「模型服务」、`appTitle`「汐月」→「昔涟 / Cyrene」（品牌冻结后残留）、`dev-server-url` 期望 `localhost` → 实际已强制 `127.0.0.1`、`deepseek-v4-pro` 上下文 131072 → 262144（模型已升级）
+- **本地引擎面板桥接类型**：`panel.ts` 桥接参数为 `never` 导致 `saveSettings(...)` 不可赋值，改为 `unknown`
 
 - **导航栏选中样式**：修复技能管理和备份管理页面导航栏选中样式不更新的问题，将激活状态更新移到 switchSection 函数开头
 - **LSP 进程 shell 解析错乱**：修复 createLSPProcess 在 Windows 无条件启用 shell 导致 cmd.exe 把含括号等特殊字符的参数（如 `node -e` 内联脚本）拆解成多条命令并生成垃圾文件的问题（同时消除 Node DEP0190 注入风险）；shell 仅对 `.cmd/.bat` 命令启用，普通可执行文件直接 spawn 原样传参
