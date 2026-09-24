@@ -28,21 +28,21 @@ describe("getDevServerBaseUrl", () => {
 
   it("reads the actual port from the vite probe file", () => {
     writeProbe(JSON.stringify({ url: "http://localhost:5174" }));
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
+    expect(getDevServerBaseUrl(true)).toBe("http://127.0.0.1:5174");
   });
 
   it("strips trailing slashes from the probe url", () => {
     writeProbe(JSON.stringify({ url: "http://localhost:5174/" }));
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
+    expect(getDevServerBaseUrl(true)).toBe("http://127.0.0.1:5174");
   });
 
   it("falls back to the default port when the probe file is missing", () => {
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
+    expect(getDevServerBaseUrl(true)).toBe("http://127.0.0.1:5174");
   });
 
   it("falls back when the probe file is malformed", () => {
     writeProbe("{ not json");
-    expect(getDevServerBaseUrl(true)).toBe("http://localhost:5174");
+    expect(getDevServerBaseUrl(true)).toBe("http://127.0.0.1:5174");
   });
 
   it("returns empty string in production", () => {

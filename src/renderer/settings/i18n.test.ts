@@ -6,7 +6,7 @@ describe("settings i18n", () => {
   it("defaults to zh-CN and resolves known keys", () => {
     expect(getSettingsLocale()).toBe("zh-CN");
     expect(t("appTitle")).toBe("昔涟 · 设置");
-    expect(t("nav.api")).toBe("API 设置");
+    expect(t("nav.api")).toBe("模型服务");
     expect(t("nav.characterStyle")).toBe("角色与风格");
     expect(t("hint.channels")).toBeTruthy();
     expect(t("panel.memory")).toBe("昔涟记忆");
@@ -18,7 +18,7 @@ describe("settings i18n", () => {
 
   it("tOr falls back when the key is missing", () => {
     expect(tOr("nav.notExist", "回退文案")).toBe("回退文案");
-    expect(tOr("nav.api", "回退文案")).toBe("API 设置");
+    expect(tOr("nav.api", "回退文案")).toBe("模型服务");
   });
 
   it("applySettingsI18n replaces text, placeholder and aria-label", () => {
@@ -28,7 +28,7 @@ describe("settings i18n", () => {
       <aside data-i18n-aria="navAria">nav</aside>
     `;
     applySettingsI18n();
-    expect(document.querySelector("h1")?.textContent).toBe("API 设置");
+    expect(document.querySelector("h1")?.textContent).toBe("模型服务");
     expect((document.querySelector("input") as HTMLInputElement).placeholder).toBe(
       "这个模块先占位，等核心聊天与 API 接通后再继续扩展。",
     );

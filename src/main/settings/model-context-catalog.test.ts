@@ -6,14 +6,14 @@ import {
 
 describe("model-context-catalog", () => {
   it("resolves exact model match for known providers", () => {
-    expect(lookupModelContextWindow("DeepSeek（深度求索）", "deepseek-v4-pro")).toBe(131_072);
+    expect(lookupModelContextWindow("DeepSeek（深度求索）", "deepseek-v4-pro")).toBe(262_144);
     expect(lookupModelContextWindow("MiniMax（稀宇科技）", "MiniMax-M3")).toBe(1_000_000);
     expect(lookupModelContextWindow("GLM（智谱）", "glm-5.3")).toBe(131_072);
     expect(lookupModelContextWindow("Claude（Anthropic）", "claude-sonnet-4-6")).toBe(200_000);
   });
 
   it("is case-insensitive and trims whitespace", () => {
-    expect(lookupModelContextWindow("  deepseek（深度求索） ", "  DEEPSEEK-V4-PRO ")).toBe(131_072);
+    expect(lookupModelContextWindow("  deepseek（深度求索） ", "  DEEPSEEK-V4-PRO ")).toBe(262_144);
     expect(lookupModelContextWindow("minimax", "MINIMAX-M3")).toBe(1_000_000);
   });
 

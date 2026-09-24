@@ -24,6 +24,7 @@
             <nav class="settings-nav__list">
         <span class="settings-nav__group-label">模型与智能</span>
         <button type="button" class="nav-item" data-section="api"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>模型服务</title><g clip-path="url(#api-key-clip)"><circle cx="15" cy="33" r="8" fill="none" stroke="currentColor" stroke-width="4"/><path d="M29 16L35.5 22" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26L37 7" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 11L42 17.5" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g><defs><clipPath id="api-key-clip"><rect width="48" height="48" fill="none"/></clipPath></defs></svg></span><span class="nav-item__label">模型服务</span></button>
+        <button type="button" class="nav-item" data-section="hermes"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>本地引擎</title><rect x="8" y="10" width="32" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="4"/><path d="M16 24h16M24 16v16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></span><span class="nav-item__label" data-i18n="nav.hermes">本地引擎</span></button>
         <button type="button" class="nav-item" data-section="api-advanced"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>高级设置</title><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.apiAdvanced">高级设置</span></button>
         <button type="button" class="nav-item" data-section="tokens"><span><svg class="nav-item__icon" width="18" height="18" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title data-i18n="nav.tokens">Token 用量</title><path d="M4 42H44" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><rect x="8" y="28" width="6" height="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="21" y="18" width="6" height="24" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="6" width="6" height="36" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-item__label" data-i18n="nav.tokens">Token 用量</span></button>
         <hr class="nav-divider" />
@@ -1259,6 +1260,87 @@
           <!-- 技能列表 -->
           <div class="skills-list" id="skills-list">
             <p class="skills-loading" data-i18n="common.loading">加载中...</p>
+          </div>
+        </section>
+
+        <section class="settings-panel is-hidden" id="hermes-panel" data-panel="hermes">
+          <div class="panel-heading">
+            <div class="panel-heading__icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true"><title>本地引擎</title><rect x="8" y="10" width="32" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="4"/><path d="M16 24h16M24 16v16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></div>
+            <div>
+              <h1 data-i18n="nav.hermes">本地引擎</h1>
+              <p class="settings-section__hint" data-i18n="hint.hermes">本地 AI 引擎连接与模型同步</p>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2 class="settings-section__title">运行状态</h2>
+              <p class="settings-section__hint">引擎随应用自动拉起。若显示未连接，可点击「检查健康」重试。</p>
+            </div>
+            <div class="settings-section__body">
+              <div class="form-row">
+                <label class="form-label" for="hermes-health-btn">健康状态</label>
+                <div class="form-control">
+                  <strong id="hermes-health">未检测</strong>
+                  <span class="form-hint" id="hermes-health-detail">尚未检查</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">服务地址</label>
+                <div class="form-control">
+                  <code id="hermes-endpoint">—</code>
+                  <span class="form-hint">本机网关地址，路径与端口由应用管理</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <span class="form-label">操作</span>
+                <div class="form-control">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="btn-secondary" id="hermes-health-btn">检查健康</button>
+                    <button type="button" class="btn-primary" id="hermes-save-btn">保存设置</button>
+                  </div>
+                  <div class="save-status" id="hermes-save-status" hidden></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section__heading">
+              <h2 class="settings-section__title">启动与模型同步</h2>
+              <p class="settings-section__hint">决定引擎何时启动，以及是否把「模型服务」里的 Key 写给引擎。</p>
+            </div>
+            <div class="settings-section__body">
+              <div class="form-row">
+                <label class="form-label" for="hermes-auto-start">启动时拉起</label>
+                <div class="form-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="hermes-auto-start" checked />
+                    <span class="toggle-switch__slider"></span>
+                  </label>
+                  <span class="form-hint">打开应用时自动启动本地引擎（推荐保持开启）</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label" for="hermes-sync-model">自动同步凭据</label>
+                <div class="form-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="hermes-sync-model" checked />
+                    <span class="toggle-switch__slider"></span>
+                  </label>
+                  <span class="form-hint">在「模型服务」保存 API Key 时，自动写入引擎配置</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <span class="form-label">手动同步</span>
+                <div class="form-control">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="btn-secondary" id="hermes-sync-model-btn">立即同步模型服务凭据</button>
+                  </div>
+                  <span class="form-hint">把当前「模型服务」中的厂商 / Key / 模型写入引擎</span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

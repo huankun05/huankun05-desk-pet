@@ -1,14 +1,20 @@
-/* AI 引擎（Hermes）设置面板 — 模块样式 */
-
-#hermes-panel .form-control input[readonly] {
-  font-family: var(--ui-font-mono, Consolas, monospace);
-  font-size: 12px;
-}
-
+/* 本地引擎面板 — 主体复用 settings.css / controls.css */
 #hermes-health {
-  word-break: break-all;
+  font-weight: 600;
+  min-height: 1.4em;
 }
 
-#hermes-panel .settings-section__title::after {
-  content: none;
+#hermes-endpoint {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--ui-text-default, #2c2c2e);
+}
+
+#hermes-panel .form-hint {
+  max-width: 420px;
+}
+
+#hermes-panel button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

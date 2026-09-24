@@ -1,7 +1,8 @@
 {
-  "appTitle": "汐月 Marea · Settings",
+  "appTitle": "Cyrene · Settings",
   "nav": {
-    "brand": "汐月",
+    "brand": "Cyrene",
+    "hermes": "Local Engine",
     "api": "Model Service",
     "apiAdvanced": "Advanced Settings",
     "tokens": "Token Usage",
@@ -24,6 +25,7 @@
     "Marea": "Agent Behavior"
   },
   "hint": {
+    "hermes": "Local AI engine connection and model sync",
     "api": "Pick a preset, then fill in the API Key.",
     "apiAdvanced": "Configure API timeouts and invocation modes.",
     "tokens": "View API call statistics and spending",
