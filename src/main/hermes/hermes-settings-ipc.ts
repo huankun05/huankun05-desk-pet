@@ -16,6 +16,10 @@ import {
 } from "./hermes-settings";
 import { getAiEngineStatus } from "./proc-mgr";
 import { loadModelSettings } from "../settings/model-settings";
+import {
+  runHermesSmoke,
+  type HermesSmokeResult,
+} from "./hermes-client-factory";
 
 export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
   const ipc = deps.ipc ?? createIpcScope();
@@ -71,5 +75,9 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
       body: st.detail,
       baseUrl: "",
     } satisfies HermesHealthStatus;
+  });
+
+  ipc.handle(IPC.HERMES_RUN_SMOKE, async () => {
+    return await runHermesSmoke();
   });
 }

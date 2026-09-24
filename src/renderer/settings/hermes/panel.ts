@@ -6,6 +6,8 @@
 import { showToast } from "../shared/toast";
 
 type Health = { ok: boolean; status: number; body: string; baseUrl: string };
+type SmokeStep = { name: string; ok: boolean; detail: string };
+type SmokeResult = { ok: boolean; steps: SmokeStep[]; reply?: string };
 type PublicSettings = {
   syncModelCredentials?: boolean;
   autoStartGateway?: boolean;
@@ -15,8 +17,12 @@ type PublicSettings = {
 
 function api() {
   const w = window as unknown as {
-    settings?: { hermes?: Record<string, (...args: never[]) => Promise<unknown>> };
-    settingsApi?: { hermes?: Record<string, (...args: never[]) => Promise<unknown>> };
+    settings?: {
+      hermes?: Record<string, (...args: unknown[]) => Promise<unknown>>;
+    };
+    settingsApi?: {
+      hermes?: Record<string, (...args: unknown[]) => Promise<unknown>>;
+    };
   };
   return w.settings?.hermes ?? w.settingsApi?.hermes ?? null;
 }
@@ -117,6 +123,44 @@ export async function initHermesPanel(): Promise<void> {
 
   el("hermes-health-btn")?.addEventListener("click", () => {
     void checkHealth();
+  });
+
+  el("hermes-smoke-btn")?.addEventListener("click", () => {
+    void (async () => {
+      const btn = el<HTMLButtonElement>("hermes-smoke-btn");
+      const out = el("hermes-smoke-status");
+      setBusy(btn, true, "测试中…", "运行冒烟测试");
+      if (out) {
+        out.hidden = false;
+        out.textContent = "正在执行 health → chat 冒烟…";
+        out.style.color = "";
+      }
+      try {
+        const r = (await bridge.runSmoke()) as SmokeResult;
+        const lines = (r.steps ?? []).map(
+          (s) => `${s.ok ? "✓" : "✗"} ${s.name}：${s.detail}`,
+        );
+        if (out) {
+          out.textContent = lines.join("\n");
+          out.style.color = r.ok ? "#0b6b5c" : "#a63a49";
+          out.style.whiteSpace = "pre-line";
+        }
+        if (r.ok) {
+          showToast("冒烟测试通过", "ok");
+        } else {
+          const failed = (r.steps ?? []).find((s) => !s.ok);
+          showToast(`冒烟失败：${failed?.name ?? "未知步骤"}`, "err");
+        }
+      } catch (err) {
+        if (out) {
+          out.textContent = String(err);
+          out.style.color = "#a63a49";
+        }
+        showToast("冒烟测试异常：" + String(err), "err");
+      } finally {
+        setBusy(btn, false, "测试中…", "运行冒烟测试");
+      }
+    })();
   });
 
   el("hermes-save-btn")?.addEventListener("click", () => {

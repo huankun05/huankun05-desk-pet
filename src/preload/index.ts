@@ -344,6 +344,7 @@ const settingsApi = {
     writeEnv: () => ipcRenderer.invoke(IPC.HERMES_WRITE_ENV),
     syncModelCredentials: () => ipcRenderer.invoke(IPC.HERMES_SYNC_MODEL_CREDENTIALS),
     testHealth: () => ipcRenderer.invoke(IPC.HERMES_TEST_HEALTH),
+    runSmoke: () => ipcRenderer.invoke(IPC.HERMES_RUN_SMOKE),
   },
   storage: {
     getReport: () => ipcRenderer.invoke(IPC.STORAGE_GET_REPORT),

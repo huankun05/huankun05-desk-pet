@@ -14,7 +14,7 @@
 | **R0 仓库整理** | 归档旧仓、官方 Hermes、文档体系 | **完成** |
 | **R1 品牌与 UI 规范** | 昔涟/Cyrene 冻结、设置通俗化、控件层 | **完成（2026-09-18）** |
 | **A0 Agent 能力升级** | 并行子 Agent / 迭代预算 / 凭据加密 / 成本 / 轨迹 / 审查 / LSP… | **完成（2026-09-05~07）**，见历史路线图 |
-| **P0 Hermes Spike** | gateway health + 壳内设置 | **部分**：health 通过；`HermesClient` 有骨架但**零接线**；设置 panel **未挂到 settings 页** |
+| **P0 Hermes Spike** | gateway health + 壳内设置 | **近完成**：health 通过；「本地引擎」面板已挂进设置导航；`HermesClient` 经 `hermes-client-factory` 接线 + 冒烟 IPC/按钮；剩模型凭据实跑 |
 | **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：proc-mgr 能 spawn/health/启动拉起；**无崩溃自愈**；四模式仍走 CyreneHarness；ModelRouter 未做 |
 | **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 未动工（仅有 relationship-log / tone-injector 等碎片） |
 | **P3 记忆** | LifeMemoryProvider + 注入预算 + 角色卡 v0 | 未动工（现实是自研 L0/L1/L2 top-4，与文档模型不同） |
@@ -41,9 +41,9 @@
 
 - [x] 官方 Hermes 在 Windows 可启动 gateway  
 - [x] `API_SERVER_KEY` + `/health`  
-- [ ] 壳内设置页配置引擎 — **IPC/后端已有，`settings/hermes/panel.ts` 未挂进 settings 导航**  
-- [ ] 配置模型后 `/v1/chat` + `/v1/runs` SSE 冒烟（`scripts/hermes-p0/smoke.ps1` 可跑，缺模型凭据）  
-- [ ] Electron 收到流式 token（`HermesClient.runOnce/onToken` 已写，**全仓零 import**）  
+- [x] 壳内设置页配置引擎 — 「本地引擎」面板已挂进设置导航（nav + panel + initHermesPanel）
+- [ ] 配置模型后 `/v1/chat` + `/v1/runs` SSE 冒烟（`scripts/hermes-p0/smoke.ps1` 可跑，缺模型凭据）
+- [x] Electron 收到流式 token — `HermesClient` 已接线：`hermes-client-factory.ts` 按有效设置构造 client，`HERMES_RUN_SMOKE` IPC + 设置页「运行冒烟测试」按钮；`runOnce/onToken` 有 12 个单测覆盖（含跨块 SSE）
 - [ ] 杀进程自动重启（并入 P1；proc-mgr exit 只 `child=null`，无 watchdog）  
 
 ---
