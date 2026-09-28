@@ -38,10 +38,12 @@ test("本地引擎面板可切换且渲染（Hermes P0 回归守卫）", async (
   const panel = settingsWindow.locator("#hermes-panel");
   await expect(panel).toBeVisible();
   await expect(panel).not.toHaveClass(/is-hidden/);
-  // 面板关键元素：健康状态、端点展示、冒烟按钮
+  // 面板关键元素：健康状态、端点展示、自愈重启、冒烟/重启按钮
   await expect(panel.locator("#hermes-health")).toBeVisible();
   await expect(panel.locator("#hermes-endpoint")).toBeVisible();
+  await expect(panel.locator("#hermes-restarts")).toBeVisible();
   await expect(panel.locator("#hermes-health-btn")).toBeVisible();
+  await expect(panel.locator("#hermes-restart-btn")).toBeVisible();
 });
 
 test("设置窗口标题正确（窗口系统冒烟）", async () => {

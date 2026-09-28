@@ -76,7 +76,7 @@ let child: ChildProcess | null = null;
 let starting = false;
 // ── watchdog 状态 ──
 let stopping = false; // 人工停止：不再自愈（ensureAiEngineRunning 会重新启用）
-let respawnTimer: ReturnType<typeof setTimeout> | null = null;
+let respawnTimer: { clear(): void } | null = null;
 let backoffIndex = 0; // 连续失败计数 → 退避档位
 let restartsTotal = 0; // 自愈重启计数（诊断）
 
@@ -223,6 +223,12 @@ export async function getAiEngineStatus(): Promise<EngineStatus> {
     detail: healthy ? "已连接" : "未连接",
     restarts: restartsTotal,
   };
+}
+
+/** 人工重启：停掉当前实例（不触发自愈）并重新拉起 */
+export async function restartAiEngine(): Promise<EngineStatus> {
+  stopAiEngine();
+  return ensureAiEngineRunning();
 }
 
 /** 人工停止：杀进程并取消 watchdog（此后不再自愈，直到下次 ensureAiEngineRunning） */

@@ -52,6 +52,10 @@ function makeFakeChild(): ChildProcess & { exit(code?: number): void } {
     (emitter as unknown as { exitCode: number | null }).exitCode = code ?? 0;
     emitter.emit("exit", code ?? 0);
   };
+  (emitter as unknown as { kill: () => boolean }).kill = vi.fn(() => {
+    (emitter as unknown as { killed: boolean }).killed = true;
+    return true;
+  });
   return emitter;
 }
 
@@ -65,6 +69,7 @@ import {
   __setProcMgrDepsForTest,
   ensureAiEngineRunning,
   getAiEngineStatus,
+  restartAiEngine,
   stopAiEngine,
 } from "./proc-mgr";
 
@@ -195,6 +200,27 @@ describe("proc-mgr 崩溃自愈（watchdog）", () => {
     expect(spawnMock.mock.calls.length).toBe(callsBefore);
     const status = await getAiEngineStatus();
     expect(status.restarts).toBe(restartsBefore + 1);
+  });
+
+  it("restartAiEngine：人工重启停旧实例并重新拉起，不触发额外自愈", async () => {
+    __setProcMgrDepsForTest({
+      sleep: () => Promise.resolve(),
+      // ensure#1: ping+poll；getAiEngineStatus 探测；restart: ping 失败 → 重新 spawn → poll 成功
+      pingHealth: pingScript([false, true, false, false, true]),
+      backoffMs: [5, 5, 5],
+      healthWaitPolls: 1,
+    });
+    await ensureAiEngineRunning();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const first = spawnMock.mock.results[0]?.value as ChildProcess & { kill: () => boolean };
+    const restartsBefore = (await getAiEngineStatus()).restarts ?? 0;
+
+    const status = await restartAiEngine();
+    expect(status.healthy).toBe(true);
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(first.kill).toHaveBeenCalledTimes(1);
+    // 人工重启路径不产生自愈计数（计数为会话累计，只看增量）
+    expect(status.restarts).toBe(restartsBefore);
   });
 
   it("autoStartGateway=false 时 ensure 短路不拉起", async () => {

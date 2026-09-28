@@ -1293,10 +1293,18 @@
                 </div>
               </div>
               <div class="form-row">
+                <label class="form-label">自愈重启</label>
+                <div class="form-control">
+                  <strong id="hermes-restarts">—</strong>
+                  <span class="form-hint">本次会话内引擎崩溃后的自动重启次数（watchdog 指数退避）</span>
+                </div>
+              </div>
+              <div class="form-row">
                 <span class="form-label">操作</span>
                 <div class="form-control">
                   <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button type="button" class="btn-secondary" id="hermes-health-btn">检查健康</button>
+                    <button type="button" class="btn-secondary" id="hermes-restart-btn">重启引擎</button>
                     <button type="button" class="btn-secondary" id="hermes-smoke-btn">运行冒烟测试</button>
                     <button type="button" class="btn-primary" id="hermes-save-btn">保存设置</button>
                   </div>

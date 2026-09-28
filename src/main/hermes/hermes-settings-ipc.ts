@@ -14,7 +14,7 @@ import {
   syncModelCredentialsToHermes,
   writeHermesRuntimeEnv,
 } from "./hermes-settings";
-import { getAiEngineStatus } from "./proc-mgr";
+import { getAiEngineStatus, restartAiEngine } from "./proc-mgr";
 import { loadModelSettings } from "../settings/model-settings";
 import {
   runHermesSmoke,
@@ -27,11 +27,12 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
   ipc.handle(IPC.HERMES_GET_SETTINGS, async () => {
     const settings = getHermesSettingsPublic();
     const status = await getAiEngineStatus();
-    const health: HermesHealthStatus = {
+    const health: HermesHealthStatus & { restarts?: number } = {
       ok: status.healthy,
       status: status.healthy ? 200 : 0,
       body: status.detail,
       baseUrl: "",
+      restarts: status.restarts,
     };
     return { settings, health } as { settings: HermesSettingsPublic; health: HermesHealthStatus };
   });
@@ -74,7 +75,19 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
       status: st.healthy ? 200 : 0,
       body: st.detail,
       baseUrl: "",
-    } satisfies HermesHealthStatus;
+      restarts: st.restarts,
+    } satisfies HermesHealthStatus & { restarts?: number };
+  });
+
+  ipc.handle(IPC.HERMES_RESTART_ENGINE, async () => {
+    const st = await restartAiEngine();
+    return {
+      ok: st.healthy,
+      status: st.healthy ? 200 : 0,
+      body: st.detail,
+      baseUrl: "",
+      restarts: st.restarts,
+    } satisfies HermesHealthStatus & { restarts?: number };
   });
 
   ipc.handle(IPC.HERMES_RUN_SMOKE, async () => {

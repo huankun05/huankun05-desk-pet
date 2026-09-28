@@ -5,7 +5,7 @@
 
 import { showToast } from "../shared/toast";
 
-type Health = { ok: boolean; status: number; body: string; baseUrl: string };
+type Health = { ok: boolean; status: number; body: string; baseUrl: string; restarts?: number };
 type SmokeStep = { name: string; ok: boolean; detail: string };
 type SmokeResult = { ok: boolean; steps: SmokeStep[]; reply?: string };
 type PublicSettings = {
@@ -48,7 +48,13 @@ function setBusy(btn: HTMLButtonElement | null, busy: boolean, busyText: string,
 function renderHealth(h: Health | null): void {
   const node = el("hermes-health");
   const detail = el("hermes-health-detail");
+  const restarts = el("hermes-restarts");
   if (!node) return;
+  if (restarts) {
+    const n = h?.restarts ?? 0;
+    restarts.textContent = h ? String(n) : "—";
+    restarts.style.color = n > 0 ? "#b06a00" : "";
+  }
   if (!h) {
     node.textContent = "未检测";
     node.style.color = "";
@@ -123,6 +129,30 @@ export async function initHermesPanel(): Promise<void> {
 
   el("hermes-health-btn")?.addEventListener("click", () => {
     void checkHealth();
+  });
+
+  el("hermes-restart-btn")?.addEventListener("click", () => {
+    void (async () => {
+      const btn = el<HTMLButtonElement>("hermes-restart-btn");
+      setBusy(btn, true, "重启中…", "重启引擎");
+      setStatus("正在重启本地引擎…");
+      try {
+        const h = (await bridge.restartEngine()) as Health;
+        renderHealth(h);
+        if (h.ok) {
+          setStatus("引擎已重启", true);
+          showToast("本地引擎已重启", "ok");
+        } else {
+          setStatus(h.body || "重启后未就绪，可稍后点「检查健康」", false);
+          showToast(h.body || "重启后未就绪", "err");
+        }
+      } catch (err) {
+        setStatus(String(err), false);
+        showToast("重启失败：" + String(err), "err");
+      } finally {
+        setBusy(btn, false, "重启中…", "重启引擎");
+      }
+    })();
   });
 
   el("hermes-smoke-btn")?.addEventListener("click", () => {
