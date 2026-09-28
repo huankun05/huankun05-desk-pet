@@ -165,18 +165,15 @@ Cyrene can chat normally without running a local large language model. However, 
 
 ### 5. Music Feature (Optional)
 
-> [!NOTE]
->
-> The music feature has been reworked: it now uses the NetEase Cloud Music OpenAPI plus a bundled `mpv` player, and no longer requires the desktop client or the `orpheus://` protocol. See the [Chinese README](./README.md) for the current details; the description below is outdated and will be updated.
+The music feature is built from the main-process `NeteaseOpenapiProvider` + `MpvController`:
 
-The music tool is integrated via [Code-MonkeyZhang/cloud-music-mcp](https://github.com/Code-MonkeyZhang/cloud-music-mcp). To use the NetEase Cloud Music feature, install the following additional dependencies:
-
-- **[uv](https://docs.astral.sh/uv/getting-started/installation/)** — A Python package manager that will automatically download Python and install all dependencies when the music tool is first used
-- **[NetEase Cloud Music Desktop Client](https://music.163.com/)** — Required for music playback; the `orpheus://` protocol must be registered
+- **Data source** — `NeteaseOpenapiProvider` fetches search results, recommendations, playlists, and favorites through the NetEase Cloud Music OpenAPI. You need to configure the OpenAPI credentials (Cookie / Token, etc.) in Settings.
+- **Playback** — `MpvController` spawns the `mpv` subprocess bundled at `resources/bin/mpv/mpv.exe` and sends JSON IPC commands over a named pipe (Windows) or Unix socket. **No NetEase Cloud Music desktop client or `orpheus://` protocol registration is required.**
+- **When mpv is missing** — `pnpm run prepare:mpv` copies the mpv binary into `resources/bin/mpv/` at packaging time. If mpv is not detected locally, music tools return `client_unavailable` and show a UI prompt; other features are unaffected.
 
 > [!NOTE]
 >
-> The music feature is optional and does not affect chat or other core features. If `uv` is not installed, the music tool will be skipped automatically with a UI prompt.
+> The music feature is an optional component and does not affect chat or other core features. Without OpenAPI credentials or a detected mpv, music tools skip automatically with a UI prompt.
 
 ### 6. Build and Start
 
@@ -609,6 +606,7 @@ src/
 │   ├── cita/         # CITA context-understanding and recommendation engine
 │   ├── code-git/     # Git service for Code mode (status / commit / branch / push / revert)
 │   ├── game-bot/     # Game automation driven by game recipes
+│   ├── hermes/       # Hermes engine client (local gateway process management / HTTP+SSE client / settings discovery, P0)
 │   ├── learn/        # Learn mode: Obsidian Vault binding + progress overview
 │   ├── lsp/          # LSP client (manager / client / server-catalog / server-discovery)
 │   ├── memory/       # L0/L1/L2 memory engine + DMAE Worldbook + entity relationship graph

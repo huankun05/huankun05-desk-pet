@@ -513,6 +513,7 @@ src/
 │   ├── cita/         # CITA 上下文理解与建议引擎
 │   ├── code-git/     # Code 模式的 git 服务（status / commit / branch / push / revert）
 │   ├── game-bot/     # 游戏自动化（game-recipes 驱动）
+│   ├── hermes/       # Hermes 智核客户端（本地 gateway 进程托管 / HTTP+SSE 客户端 / 设置发现，P0）
 │   ├── learn/        # Learn 模式：Obsidian Vault 绑定 + 进度总览
 │   ├── lsp/          # LSP 客户端（manager / client / server-catalog / server-discovery）
 │   ├── memory/       # L0/L1/L2 记忆引擎 + DMAE Worldbook + 实体关系图
