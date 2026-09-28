@@ -12,7 +12,7 @@
 
 | 层 | 规范用语 | 说明 |
 |---|---|---|
-| 产品名 | **汐月 · Marea** | 安装包 `productName`、窗口标题、文档 |
+| 产品名 | **昔涟 · Cyrene** | 安装包 `productName`、窗口标题、文档 |
 | 包名 / appId | `marea` / `com.marea.deskpet` | 已改 |
 | 默认角色 | 可保留「昔涟」等**角色卡内容** | 角色 ≠ 产品名 |
 | 智能核心层（设置 UI） | **AI 引擎** | 副标题可写 Hermes Agent；文档内可称「智核」作内部代号 |
@@ -183,7 +183,7 @@
 | P0 | i18n / 设置标题去 Cyrene → 产品名 | ✅ settings i18n 已完成（B1，1737 key）；残留见下 |
 | P0 | 设置页「大脑 Hermes」→「本地引擎/AI 引擎」 | ✅ 通俗化已做；**panel 未挂进导航**（见 phase-0） |
 | P1 | `package.json` name/description、`productName`、appId | 待对齐（现为 `live2d-cyrene` / `Cyrene` / `com.cyrene.live2d`） |
-| P1 | README / 窗口标题 / 托盘文案 | 部分；**ROADMAP/DESIGN/zh-CN.json 仍有「汐月/Marea」** |
+| P1 | README / 窗口标题 / 托盘文案 | **完成（2026-09-28）**：文档与设置 i18n 品牌残留已清零 |
 | P2 | tokens：锁定 pearl-white 品牌色；标记 `--rb-*` legacy | 文档已定，代码渐进 |
 | P2 | 拆分 `settings.css` 超大文件（按面板抽文件） | 渐进 |
 | P3 | 聊天/桌宠窗视觉与设置页对齐 | 随 P1/P2 |

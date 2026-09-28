@@ -65,7 +65,7 @@
    - 巨型文件拆分：`renderer/settings/settings.ts`（2739 行，旧栈巨石）、`ChatPage.tsx`（2135）、`preload/index.ts`（941，IPC 桥与 `shared/ipc-channels.ts` 手写同步）  
    - 设置中心 React 化：旧原生 DOM settings 栈与 `renderer/react/` 双轨并存，建议作为 P1 伴生任务与换脑共用回归基建（e2e 已覆盖设置窗关键路径）  
    - 备份完整性：prompts 迁 userData；聊天/模型 Key 纳入备份策略  
-   - 文档/文案品牌残留（ROADMAP/DESIGN/UI-DESIGN 内「汐月/Marea」、zh-CN.json 内的角色名场景）
+   - ~~文档/文案品牌残留~~（2026-09-28 已完成：设置 i18n 值、renderer 窗口标题、docs 索引/设计文档清零；zh 词典保留「汐月」i18n 键以兼容查找，值已全部替换）
 5. **P2 LifeKernel 最小闭环**（换脑稳定后再动）
 
 非目标：摄像头、情绪放宽权限、第二套关系记忆、追 Hermes main、恢复截图热键。

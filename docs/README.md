@@ -1,6 +1,6 @@
-# 汐月 Marea 文档索引
+# 昔涟 Cyrene 文档索引
 
-> 产品：**汐月 Marea** — 数字生命体桌宠（角色卡可换，与产品名分离）  
+> 产品：**昔涟 Cyrene** — 数字生命体桌宠（角色卡可换，与产品名分离）  
 > 技术：Electron 壳 + **智核**（官方 Hermes）+ **心核**（LifeKernel）  
 > 更新：2026-09-18
 
@@ -9,7 +9,7 @@
 | 文档 | 内容 |
 |---|---|
 | [design/UI-DESIGN.md](design/UI-DESIGN.md) | UI 设计系统与界面规范 |
-| [standards/ui-and-branding.md](standards/ui-and-branding.md) | 汐月/智核命名与品牌检查单 |
+| [standards/ui-and-branding.md](standards/ui-and-branding.md) | 昔涟/智核命名与品牌检查单 |
 | [architecture/DESIGN.md](architecture/DESIGN.md) | 总架构：智核/心核/壳、四模式 |
 | [../PLAN.md](../PLAN.md) | 产品与工程路线 |
 | [../DEVELOPMENT.md](../DEVELOPMENT.md) | 工程规范与开发流程 |
