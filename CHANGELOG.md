@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **E2E 基线扩展**：新增设置窗口关键路径 E2E（`e2e/settings-panel.spec.ts`）——设置窗可经 preload 桥打开、导航渲染完整、「本地引擎」（Hermes P0）面板可切换且渲染，作为架构迁移 P0/P1 的 UI 回归守卫；冒烟断言对齐启动实况（启动默认窗口为聊天窗壳，非状态窗）；CI 的 vitest 手工分组步骤合并为数据驱动单步
+- **prompts/ 提示词资产索引**：新增 `prompts/README.md`（加载机制、四模式拼接顺序、各文件用途与维护约定）；README 项目结构树补 `src/main/hermes/`；英文版 README 音乐章节同步为 OpenAPI + mpv 实况
+
 ## [1.2.0] - 2026-09-28
 
 首个打 tag 的基线版本。此前从未做过版本切分（1.1.9 及更早均未建 tag），本节收录自 1.1.9 以来累积的全部变更，按功能域归组。

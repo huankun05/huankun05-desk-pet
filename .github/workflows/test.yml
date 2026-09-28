@@ -34,69 +34,42 @@ jobs:
 
       - name: E2E smoke (Electron app)
         if: success() || failure()
-        run: npx playwright test e2e/app-smoke.spec.ts --reporter=line
+        run: npx playwright test --reporter=line
 
-      - name: Test src/main/orchestrator/vendors
+      - name: Unit tests (grouped, continue on failure)
         if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/orchestrator/vendors
-
-      - name: Test src/main/orchestrator/structured-output
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/orchestrator/structured-output
-
-      - name: Test src/main/orchestrator/tools
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/orchestrator/tools
-
-      - name: Test src/main/orchestrator root files
-        if: success() || failure()
-        shell: pwsh
+        shell: bash
         run: |
-          $files = Get-ChildItem -Path "src/main/orchestrator" -Filter "*.test.ts" | Select-Object -ExpandProperty FullName
-          if (-not $files) { Write-Host "No root test files found"; exit 0 }
-          npx vitest run --reporter=verbose --maxWorkers=1 $files
-
-      - name: Test src/main/music
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/music
-
-      - name: Test src/main/memory
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/memory
-
-      - name: Test src/main/channels+chats+chat+cita
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/channels src/main/chats src/main/chat src/main/cita
-
-      - name: Test src/main/screenshot+rag+scheduler+proactive
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/screenshot src/main/rag src/main/scheduler src/main/proactive
-
-      - name: Test src/main/skills+social+relationship+runtime-policy+game-bot
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/main/skills src/main/social-context src/main/relationship src/main/runtime-policy src/main/game-bot
-
-      - name: Test src/main root files
-        if: success() || failure()
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Path "src/main" -Filter "*.test.ts" | Select-Object -ExpandProperty FullName
-          if (-not $files) { Write-Host "No root test files found"; exit 0 }
-          npx vitest run --reporter=verbose --maxWorkers=1 $files
-
-      - name: Test src/plugins
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/plugins
-
-      - name: Test src/renderer
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/renderer
-
-      - name: Test src/shared + src/cli
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 src/shared src/cli
-
-      - name: Test skills
-        if: success() || failure()
-        run: npx vitest run --reporter=verbose --maxWorkers=1 skills
-
+          groups=(
+            "src/main/orchestrator/vendors"
+            "src/main/orchestrator/structured-output"
+            "src/main/orchestrator/tools"
+            "@orchestrator-root"
+            "src/main/music"
+            "src/main/memory"
+            "src/main/channels src/main/chats src/main/chat src/main/cita"
+            "src/main/screenshot src/main/rag src/main/scheduler src/main/proactive"
+            "src/main/skills src/main/social-context src/main/relationship src/main/runtime-policy src/main/game-bot"
+            "@main-root"
+            "src/plugins"
+            "src/renderer"
+            "src/shared src/cli"
+            "skills"
+          )
+          fail=0
+          for g in "${groups[@]}"; do
+            if [ "$g" = "@orchestrator-root" ]; then
+              files=$(find src/main/orchestrator -maxdepth 1 -name "*.test.ts" 2>/dev/null)
+              [ -z "$files" ] && continue
+              g="$files"
+            elif [ "$g" = "@main-root" ]; then
+              files=$(find src/main -maxdepth 1 -name "*.test.ts" 2>/dev/null)
+              [ -z "$files" ] && continue
+              g="$files"
+            fi
+            echo "=== vitest: $g ==="
+            if ! npx vitest run --reporter=verbose --maxWorkers=1 $g; then
+              fail=1
+            fi
+          done
+          exit $fail
