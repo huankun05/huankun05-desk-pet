@@ -45,10 +45,21 @@ export function discoverHermesHome(): string {
   return path.join(workspaceRootFromApp(), ".runtime", "hermes-home");
 }
 
+/** 沿 PATH 逐目录找 uv.exe（uv 官方安装器/pip scripts 均会写入 PATH） */
+function uvFromPathEnv(): string {
+  const dirs = (process.env.PATH ?? "").split(path.delimiter);
+  for (const dir of dirs) {
+    if (!dir) continue;
+    const p = path.join(dir, "uv.exe");
+    if (fs.existsSync(p)) return p;
+  }
+  return "";
+}
+
 export function discoverUvPath(): string {
   const candidates = [
     process.env.UV_PATH?.trim(),
-    "E:\\software\\Python3.12\\Scripts\\uv.exe",
+    uvFromPathEnv(),
     path.join(process.env.LOCALAPPDATA ?? "", "Programs", "uv", "uv.exe"),
   ].filter(Boolean);
   for (const p of candidates) {

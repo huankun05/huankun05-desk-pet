@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **E2E 基线扩展**：新增设置窗口关键路径 E2E（`e2e/settings-panel.spec.ts`）——设置窗可经 preload 桥打开、导航渲染完整、「本地引擎」（Hermes P0）面板可切换且渲染，作为架构迁移 P0/P1 的 UI 回归守卫；冒烟断言对齐启动实况（启动默认窗口为聊天窗壳，非状态窗）；CI 的 vitest 手工分组步骤合并为数据驱动单步
+- **E2E 基线扩展**：新增设置窗口关键路径 E2E（`e2e/settings-panel.spec.ts`）——设置窗可经 preload 桥打开、导航渲染完整、「本地引擎」（Hermes P0）面板可切换且渲染，作为架构迁移 P0/P1 的 UI 回归守卫；新增 `e2e/chat-loop.spec.ts` Chat 对话回路 E2E（本地 mock OpenAI 兼容服务 + `CYRENE_USER_DATA_DIR` 隔离 userData，经 agui-bridge 全链路验证 RUN_FINISHED 与流式回复），是 P1 换脑前后的行为对比基线；冒烟断言对齐启动实况（启动默认窗口为聊天窗壳，非状态窗）；CI 的 vitest 手工分组步骤合并为数据驱动单步
+- **引擎崩溃自愈（watchdog）**：proc-mgr 新增指数退避自动重启（1s→2s→…→30s 封顶），gateway 意外退出后自动恢复；恢复健康或端口被其他实例接管时退避档位归零，不重复 spawn；`stopAiEngine()` 人工停止不触发自愈；`EngineStatus` 新增 `restarts` 诊断字段；6 个单测覆盖退避递增/封顶/恢复归零/端口接管/人工停止/自动启动开关
 - **prompts/ 提示词资产索引**：新增 `prompts/README.md`（加载机制、四模式拼接顺序、各文件用途与维护约定）；README 项目结构树补 `src/main/hermes/`；英文版 README 音乐章节同步为 OpenAPI + mpv 实况
 
 ## [1.2.0] - 2026-09-28

@@ -15,7 +15,7 @@
 | **R1 品牌与 UI 规范** | 昔涟/Cyrene 冻结、设置通俗化、控件层 | **完成（2026-09-18）** |
 | **A0 Agent 能力升级** | 并行子 Agent / 迭代预算 / 凭据加密 / 成本 / 轨迹 / 审查 / LSP… | **完成（2026-09-05~07）**，见历史路线图 |
 | **P0 Hermes Spike** | gateway health + 壳内设置 | **近完成**：health 通过；「本地引擎」面板已挂进设置导航；`HermesClient` 经 `hermes-client-factory` 接线 + 冒烟 IPC/按钮；剩模型凭据实跑 |
-| **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：proc-mgr 能 spawn/health/启动拉起；**无崩溃自愈**；四模式仍走 CyreneHarness；ModelRouter 未做 |
+| **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：proc-mgr 能 spawn/health/启动拉起；崩溃自愈已实现（2026-09-28，指数退避 1s→30s 封顶 + 端口接管探测 + 6 个单测）；四模式仍走 CyreneHarness；ModelRouter 未做 |
 | **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 未动工（仅有 relationship-log / tone-injector 等碎片） |
 | **P3 记忆** | LifeMemoryProvider + 注入预算 + 角色卡 v0 | 未动工（现实是自研 L0/L1/L2 top-4，与文档模型不同） |
 | **P4 工具审批** | Electron MCP + 审批 UI | 未动工 |
@@ -47,7 +47,7 @@
 - [x] 壳内设置页配置引擎 — 「本地引擎」面板已挂进设置导航（nav + panel + initHermesPanel）
 - [ ] 配置模型后 `/v1/chat` + `/v1/runs` SSE 冒烟（`scripts/hermes-p0/smoke.ps1` 可跑，缺模型凭据）
 - [x] Electron 收到流式 token — `HermesClient` 已接线：`hermes-client-factory.ts` 按有效设置构造 client，`HERMES_RUN_SMOKE` IPC + 设置页「运行冒烟测试」按钮；`runOnce/onToken` 有 12 个单测覆盖（含跨块 SSE）
-- [ ] 杀进程自动重启（并入 P1；proc-mgr exit 只 `child=null`，无 watchdog）  
+- [x] 杀进程自动重启（2026-09-28 并入 proc-mgr：watchdog 指数退避自愈 + stopAiEngine 人工停止例外；单测覆盖退避递增/封顶/恢复归零/端口接管/人工停止）  
 
 ---
 
@@ -56,7 +56,7 @@
 1. **P0 最后一项**  
    - 在「模型服务」配一个可用云端模型 → 「本地引擎」点「立即同步模型服务凭据」→ 点「运行冒烟测试」，应看到 `✓ health` + `✓ chat`
 2. **P1 托管补全**  
-   - proc-mgr 崩溃自愈（指数退避）+ 设置「启动时拉起」UI 可见状态/日志/手动重启
+   - ~~proc-mgr 崩溃自愈（指数退避）~~（2026-09-28 已完成）；剩设置「启动时拉起」UI 可见状态/日志/手动重启
 3. **P1 四模式换脑**  
    - `agui-bridge` 接 Hermes（已有 `hermes-client-factory` 可复用）；CyreneHarness 开关或目录隔离（不删文件）  
    - ModelRouter 最小版（按模式选 model）
