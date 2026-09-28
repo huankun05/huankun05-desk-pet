@@ -8,8 +8,10 @@ import { _electron as electron, type ElectronApplication, type Page } from "@pla
  * - 无其他正在运行的实例（应用有单实例锁）
  */
 
-export async function launchApp(): Promise<ElectronApplication> {
-  return electron.launch({ args: ["."] });
+export async function launchApp(options?: {
+  env?: Record<string, string>;
+}): Promise<ElectronApplication> {
+  return electron.launch({ args: ["."], env: options?.env });
 }
 
 /** 轮询等待标题匹配的窗口出现（应用窗口异步创建，顺序不固定）。 */

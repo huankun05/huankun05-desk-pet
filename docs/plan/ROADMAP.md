@@ -1,7 +1,7 @@
 # 昔涟 路线图（ROADMAP）
 
 **产品**：昔涟 / Cyrene（品牌冻结）· 四模式 · **智核**（官方 Hermes）+ **心核**（LifeKernel）+ **壳**（Electron）  
-**更新**：2026-09-24（「本地引擎」面板挂载 + HermesClient 接线；2026-09-22 按代码实况对齐）  
+**更新**：2026-09-28（v1.2.0 基线 + 对话回路 e2e；2026-09-24 「本地引擎」面板挂载 + HermesClient 接线）  
 **UI 规范**：[../design/UI-DESIGN.md](../design/UI-DESIGN.md)  
 **历史路线图**（CyreneHarness 时代，已收口）：[../history/cyrene-harness/2026-09-05-agent-grade-upgrade-plan.md](../history/cyrene-harness/2026-09-05-agent-grade-upgrade-plan.md)
 
@@ -36,6 +36,7 @@
 | 品牌 | 昔涟/Cyrene 冻结；userData 目录 `live2d-cyrene`；settings i18n `appTitle`/`nav.brand` 清零（部分文件仍残留「汐月/Marea」） |
 | **本地引擎面板** | 「本地引擎」进设置导航：health 检查、端点展示、启动时拉起开关、凭据同步；IPC 六件套 + preload 桥 |
 | **HermesClient 接线** | `hermes-client-factory.ts` 按有效设置构造 client；`runHermesSmoke()` 分步冒烟；`HERMES_RUN_SMOKE` IPC + 设置页「运行冒烟测试」按钮；17 个单测 |
+| **质量基建（2026-09-28）** | v1.2.0 基线 tag + CHANGELOG 版本切分；`e2e/chat-loop.spec.ts`（mock OpenAI 服务 + `CYRENE_USER_DATA_DIR` 隔离，Chat 模式经 agui-bridge 全链路回归，换脑前后的行为对比基线）；设置窗关键路径 e2e；`prompts/README.md` 资产索引 |
 
 ---
 
@@ -61,6 +62,8 @@
    - ModelRouter 最小版（按模式选 model）
 4. **体验债（可并行）**  
    - `settings.css` 拆分（12 万+ 字符巨石）  
+   - 巨型文件拆分：`renderer/settings/settings.ts`（2739 行，旧栈巨石）、`ChatPage.tsx`（2135）、`preload/index.ts`（941，IPC 桥与 `shared/ipc-channels.ts` 手写同步）  
+   - 设置中心 React 化：旧原生 DOM settings 栈与 `renderer/react/` 双轨并存，建议作为 P1 伴生任务与换脑共用回归基建（e2e 已覆盖设置窗关键路径）  
    - 备份完整性：prompts 迁 userData；聊天/模型 Key 纳入备份策略  
    - 文档/文案品牌残留（ROADMAP/DESIGN/UI-DESIGN 内「汐月/Marea」、zh-CN.json 内的角色名场景）
 5. **P2 LifeKernel 最小闭环**（换脑稳定后再动）
