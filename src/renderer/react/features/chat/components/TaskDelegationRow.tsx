@@ -2,18 +2,18 @@ import React from "react";
 import { useTranslation } from "../../../i18n";
 import type { TaskDelegationDisplayRecord } from "../../../../../shared/chat-types";
 import "./RunExperience.css";
-import fengjinUrl from "../../../../tast/风堇.png";
-import klyUrl from "../../../../tast/刻律德菈.png";
-import changyeyueUrl from "../../../../tast/长夜月.png";
-import xiadiUrl from "../../../../tast/遐蝶.png";
-import tibaoUrl from "../../../../tast/缇宝.png";
-import aglaiyaUrl from "../../../../tast/阿格莱雅.png";
-import baierUrl from "../../../../tast/白厄.png";
-import danhengUrl from "../../../../tast/丹恒.png";
-import hysUrl from "../../../../tast/海瑟音.png";
-import nakexiaUrl from "../../../../tast/那刻夏.png";
-import saifeierUrl from "../../../../tast/赛飞儿.png";
-import wandiUrl from "../../../../tast/万敌.png";
+import fengjinUrl from "../../../../assets/agent-avatars/风堇.png";
+import klyUrl from "../../../../assets/agent-avatars/刻律德菈.png";
+import changyeyueUrl from "../../../../assets/agent-avatars/长夜月.png";
+import xiadiUrl from "../../../../assets/agent-avatars/遐蝶.png";
+import tibaoUrl from "../../../../assets/agent-avatars/缇宝.png";
+import aglaiyaUrl from "../../../../assets/agent-avatars/阿格莱雅.png";
+import baierUrl from "../../../../assets/agent-avatars/白厄.png";
+import danhengUrl from "../../../../assets/agent-avatars/丹恒.png";
+import hysUrl from "../../../../assets/agent-avatars/海瑟音.png";
+import nakexiaUrl from "../../../../assets/agent-avatars/那刻夏.png";
+import saifeierUrl from "../../../../assets/agent-avatars/赛飞儿.png";
+import wandiUrl from "../../../../assets/agent-avatars/万敌.png";
 
 const avatarUrls: Readonly<Record<string, string>> = {
   "风堇.png": fengjinUrl, "刻律德菈.png": klyUrl, "长夜月.png": changyeyueUrl, "遐蝶.png": xiadiUrl,
