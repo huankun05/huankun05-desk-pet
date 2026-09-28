@@ -15,7 +15,7 @@
 | **R1 品牌与 UI 规范** | 昔涟/Cyrene 冻结、设置通俗化、控件层 | **完成（2026-09-18）** |
 | **A0 Agent 能力升级** | 并行子 Agent / 迭代预算 / 凭据加密 / 成本 / 轨迹 / 审查 / LSP… | **完成（2026-09-05~07）**，见历史路线图 |
 | **P0 Hermes Spike** | gateway health + 壳内设置 | **近完成**：health 通过；「本地引擎」面板已挂进设置导航；`HermesClient` 经 `hermes-client-factory` 接线 + 冒烟 IPC/按钮；剩模型凭据实跑 |
-| **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：proc-mgr 能 spawn/health/启动拉起；崩溃自愈已实现（2026-09-28，指数退避 1s→30s 封顶 + 端口接管探测 + 6 个单测）；四模式仍走 CyreneHarness；ModelRouter 未做 |
+| **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：崩溃自愈 + 手动重启已完成（09-28）；**Chat 模式换脑第一刀已落地（09-28）**：`chatViaHermes` 开关经网关 OpenAI 兼容端点路由 Chat 模型请求（失败自动回退 Harness），e2e 验证路由生效；Work/Learn/Code 仍走 CyreneHarness；ModelRouter 未做 |
 | **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 未动工（仅有 relationship-log / tone-injector 等碎片） |
 | **P3 记忆** | LifeMemoryProvider + 注入预算 + 角色卡 v0 | 未动工（现实是自研 L0/L1/L2 top-4，与文档模型不同） |
 | **P4 工具审批** | Electron MCP + 审批 UI | 未动工 |
@@ -58,7 +58,8 @@
 2. **P1 托管补全**  
    - ~~proc-mgr 崩溃自愈（指数退避）~~（2026-09-28 已完成）；剩设置「启动时拉起」UI 可见状态/日志/手动重启
 3. **P1 四模式换脑**  
-   - `agui-bridge` 接 Hermes（已有 `hermes-client-factory` 可复用）；CyreneHarness 开关或目录隔离（不删文件）  
+   - ✅ Chat 模式已接（09-28，`chatViaHermes` 开关 + chat-bridge settings 视图，模型接入层替换、Harness 管线复用、失败回退）；待真网关实跑验证  
+   - Work/Learn/Code 接入：复用同一 settings 视图机制按模式扩展（注意网关侧工具归属：工具模式先保持 Harness 本地执行）  
    - ModelRouter 最小版（按模式选 model）
 4. **体验债（可并行）**  
    - `settings.css` 拆分（12 万+ 字符巨石）  

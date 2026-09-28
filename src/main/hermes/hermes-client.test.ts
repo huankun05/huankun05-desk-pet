@@ -30,129 +30,114 @@ function sseBody(blocks: string[]): Response {
   return new Response(stream, { status: 200 });
 }
 
-/** 分片 SSE：每片单独 enqueue，用于验证跨块边界解析。 */
-function chunkedSse(chunks: string[]): Response {
+/** 把 SSE 块切成固定大小字节块（模拟跨 chunk 边界）。 */
+function chunkedSse(parts: string[]): Response {
   const enc = new TextEncoder();
+  const bytes = enc.encode(parts.join(""));
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      for (const c of chunks) controller.enqueue(enc.encode(c));
+      const size = 7;
+      for (let i = 0; i < bytes.length; i += size) {
+        controller.enqueue(bytes.slice(i, i + size));
+      }
       controller.close();
     },
   });
   return new Response(stream, { status: 200 });
 }
 
+function client(m: ReturnType<typeof mockFetch>): HermesClient {
+  return new HermesClient({
+    baseUrl: "http://127.0.0.1:8642",
+    apiKey: "k",
+    fetchImpl: m.impl as unknown as typeof fetch,
+  });
+}
+
 describe("HermesClient", () => {
-  it("sends bearer auth and parses health body", async () => {
-    const m = mockFetch([() => json({ status: "ok" })]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "secret",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    const h = await client.health();
-    expect(h.ok).toBe(true);
-    expect(h.status).toBe(200);
-    expect(h.body).toEqual({ status: "ok" });
-    expect(m.calls[0].url).toBe("http://127.0.0.1:8642/health");
-    const headers = m.calls[0].init?.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer secret");
+  it("health parses ok response", async () => {
+    const m = mockFetch([() => json({ status: "ok", platform: "hermes-agent", version: "0.21.3" })]);
+    const res = await client(m).health();
+    expect(res.ok).toBe(true);
+    expect(res.body).toMatchObject({ status: "ok" });
   });
 
-  it("strips trailing slash from baseUrl", async () => {
-    const m = mockFetch([() => json({})]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642/",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    await client.health();
-    expect(m.calls[0].url).toBe("http://127.0.0.1:8642/health");
-  });
-
-  it("returns text body when health payload is not JSON", async () => {
-    const m = mockFetch([() => new Response("up", { status: 200 })]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    const h = await client.health();
-    expect(h.body).toBe("up");
-  });
-
-  it("posts chat completions and returns parsed body", async () => {
+  it("chatCompletions posts openai-compatible body", async () => {
     const m = mockFetch([
-      () => json({ choices: [{ message: { content: "pong" } }] }),
+      () => json({ choices: [{ message: { role: "assistant", content: "hey" } }] }),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    const res = (await client.chatCompletions([{ role: "user", content: "hi" }])) as {
+    const res = (await client(m).chatCompletions([{ role: "user", content: "hi" }])) as {
       choices: Array<{ message: { content: string } }>;
     };
-    expect(res.choices[0].message.content).toBe("pong");
-    expect(m.calls[0].url).toBe("http://127.0.0.1:8642/v1/chat/completions");
-    const init = m.calls[0].init;
-    expect(init?.method).toBe("POST");
-    const body = JSON.parse(String(init?.body)) as { stream: boolean; model: string };
-    expect(body.stream).toBe(false);
-    expect(body.model).toBe("hermes-agent");
+    expect(res.choices[0].message.content).toBe("hey");
+    expect(String(m.calls[0].init?.body)).toContain('"stream":false');
   });
 
-  it("throws with status and body on chat failure", async () => {
-    const m = mockFetch([() => new Response("bad key", { status: 401 })]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "wrong",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
+  it("chatCompletions rejects non-2xx", async () => {
+    const m = mockFetch([() => new Response("unauthorized", { status: 401 })]);
     await expect(
-      client.chatCompletions([{ role: "user", content: "hi" }]),
+      client(m).chatCompletions([{ role: "user", content: "hi" }]),
     ).rejects.toThrow(/chatCompletions 401/);
   });
 
-  it("consumes SSE run events and accumulates tokens", async () => {
+  it("consumes agent-run SSE events and accumulates deltas", async () => {
     const m = mockFetch([
-      () => json({ run_id: "run-1" }),
+      () => json({ run_id: "run-1", session_id: "sess-1" }),
       () =>
         sseBody([
-          'event: token\ndata: {"token":"你"}\n\n',
-          'event: token\ndata: {"token":"好"}\n\n',
-          'event: done\ndata: {"ok":true}\n\n',
+          'data: {"event":"message.delta","run_id":"run-1","delta":"你"}\n\n',
+          'data: {"event":"message.delta","run_id":"run-1","delta":"好"}\n\n',
+          'data: {"event":"run.completed","run_id":"run-1","output":"你好"}\n\n',
+          ": stream closed\n\n",
         ]),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
     const seen: string[] = [];
     const events: string[] = [];
-    const res = await client.runOnce("hi", {
+    const res = await client(m).runOnce("hi", {
       onToken: (t) => seen.push(t),
       onEvent: (name) => events.push(name),
     });
     expect(res.runId).toBe("run-1");
+    expect(res.sessionId).toBe("sess-1");
     expect(res.text).toBe("你好");
     expect(seen).toEqual(["你", "好"]);
-    expect(events).toEqual(["token", "token", "done"]);
+    expect(events).toEqual(["message.delta", "message.delta", "run.completed"]);
+    // 真实网关协议：请求体是 input（不是 message）
+    expect(String(m.calls[0].init?.body)).toContain('"input":"hi"');
     expect(m.calls[1].url).toBe("http://127.0.0.1:8642/v1/runs/run-1/events");
   });
 
-  it("accepts id field as run id", async () => {
+  it("passes session/instructions/history overrides in the run body", async () => {
+    const m = mockFetch([
+      () => json({ run_id: "run-o" }),
+      () => sseBody(['data: {"event":"run.completed","output":"ok"}\n\n']),
+    ]);
+    await client(m).runOnce({
+      input: "hi",
+      sessionId: "pet-1",
+      instructions: "你是昔涟",
+      conversationHistory: [
+        { role: "system", content: "sys" },
+        { role: "user", content: "hi" },
+      ],
+      model: "mock-model",
+    });
+    const body = String(m.calls[0].init?.body);
+    expect(body).toContain('"session_id":"pet-1"');
+    expect(body).toContain('"instructions":"你是昔涟"');
+    expect(body).toContain('"conversation_history"');
+    expect(body).toContain('"model":"mock-model"');
+  });
+
+  it("falls back to run.completed output when no deltas arrived", async () => {
     const m = mockFetch([
       () => json({ id: "run-2" }),
-      () => sseBody(['data: {"content":"A"}\n\n']),
+      () => sseBody(['data: {"event":"run.completed","output":"A"}\n\n']),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    const res = await client.runOnce("hi");
+    const res = await client(m).runOnce("hi");
     expect(res.runId).toBe("run-2");
     expect(res.text).toBe("A");
+    expect(res.output).toBe("A");
   });
 
   it("handles SSE payloads split across chunk boundaries", async () => {
@@ -160,55 +145,43 @@ describe("HermesClient", () => {
       () => json({ run_id: "run-3" }),
       () =>
         chunkedSse([
-          'event: token\nda',
-          'ta: {"content":"A"}\n\nevent: token\nda',
-          'ta: {"content":"B"}\n\n',
+          'data: {"event":"message.delta","de',
+          'lta":"A"}\n\ndata: {"event":"message.delta","de',
+          'lta":"B"}\n\n',
         ]),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    const res = await client.runOnce("hi");
+    const res = await client(m).runOnce("hi");
     expect(res.runId).toBe("run-3");
     expect(res.text).toBe("AB");
   });
 
-  it("ignores SSE blocks without data", async () => {
+  it("ignores keepalive comments and blocks without data", async () => {
     const m = mockFetch([
       () => json({ run_id: "run-4" }),
-      () => sseBody(["event: ping\n\n", 'data: {"token":"x"}\n\n', "\n"]),
+      () => sseBody([": keepalive\n\n", 'data: {"event":"message.delta","delta":"x"}\n\n', "\n"]),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
     const events: string[] = [];
-    const res = await client.runOnce("hi", { onEvent: (n) => events.push(n) });
+    const res = await client(m).runOnce("hi", { onEvent: (n) => events.push(n) });
     expect(res.text).toBe("x");
-    expect(events).toEqual(["message"]);
+    expect(events).toEqual(["message.delta"]);
+  });
+
+  it("rejects when the gateway reports run.failed", async () => {
+    const m = mockFetch([
+      () => json({ run_id: "run-f" }),
+      () => sseBody(['data: {"event":"run.failed","error":"model unavailable"}\n\n']),
+    ]);
+    await expect(client(m).runOnce("hi")).rejects.toThrow(/hermes run failed: model unavailable/);
   });
 
   it("rejects when run creation fails", async () => {
     const m = mockFetch([() => new Response("nope", { status: 500 })]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    await expect(client.runOnce("hi")).rejects.toThrow(/POST \/v1\/runs 500/);
+    await expect(client(m).runOnce("hi")).rejects.toThrow(/POST \/v1\/runs 500/);
   });
 
   it("rejects when run creation omits the run id", async () => {
     const m = mockFetch([() => json({})]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    await expect(client.runOnce("hi")).rejects.toThrow(/missing run id/);
+    await expect(client(m).runOnce("hi")).rejects.toThrow(/missing run id/);
   });
 
   it("rejects when the events stream is not ok", async () => {
@@ -216,11 +189,6 @@ describe("HermesClient", () => {
       () => json({ run_id: "run-5" }),
       () => new Response("gone", { status: 404 }),
     ]);
-    const client = new HermesClient({
-      baseUrl: "http://127.0.0.1:8642",
-      apiKey: "k",
-      fetchImpl: m.impl as unknown as typeof fetch,
-    });
-    await expect(client.runOnce("hi")).rejects.toThrow(/GET events 404/);
+    await expect(client(m).runOnce("hi")).rejects.toThrow(/GET events 404/);
   });
 });

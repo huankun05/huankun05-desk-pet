@@ -1332,6 +1332,16 @@
                 </div>
               </div>
               <div class="form-row">
+                <label class="form-label" for="hermes-chat-route">Chat 走本地引擎</label>
+                <div class="form-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="hermes-chat-route" />
+                    <span class="toggle-switch__slider"></span>
+                  </label>
+                  <span class="form-hint">实验：Chat 模式的模型请求改经本地引擎网关（OpenAI 兼容，失败自动回退）。需先「立即同步模型服务凭据」</span>
+                </div>
+              </div>
+              <div class="form-row">
                 <label class="form-label" for="hermes-sync-model">自动同步凭据</label>
                 <div class="form-control">
                   <label class="toggle-switch">

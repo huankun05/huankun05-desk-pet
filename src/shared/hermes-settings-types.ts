@@ -21,6 +21,8 @@ export type HermesSettings = {
   defaultModel: string;
   /** 模型 provider（openrouter/openai/xiaomi/ollama/...，可空） */
   modelProvider: string;
+  /** 实验性：Chat 模式模型请求改经本地引擎网关（失败自动回退 CyreneHarness）。默认关闭 */
+  chatViaHermes: boolean;
 };
 
 export type HermesHealthStatus = {
@@ -53,6 +55,7 @@ export const DEFAULT_HERMES_SETTINGS: HermesSettings = {
   syncModelCredentials: true,
   defaultModel: "",
   modelProvider: "",
+  chatViaHermes: false,
 };
 
 export function normalizeHermesSettings(input: Partial<HermesSettings> | null | undefined): HermesSettings {
@@ -70,6 +73,8 @@ export function normalizeHermesSettings(input: Partial<HermesSettings> | null | 
     syncModelCredentials: raw.syncModelCredentials !== false,
     defaultModel: typeof raw.defaultModel === "string" ? raw.defaultModel.trim() : "",
     modelProvider: typeof raw.modelProvider === "string" ? raw.modelProvider.trim() : "",
+    // 实验特性：仅显式 true 才开启
+    chatViaHermes: raw.chatViaHermes === true,
   };
 }
 

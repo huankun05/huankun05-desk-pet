@@ -21,6 +21,7 @@ import { checkPermission, type ToolRiskLevel } from "../permission";
 import { getAdapterForConfig, type ChatMessage } from "./vendors";
 import { contextRefRegistry, extractLastUserQuery, type ToolContext } from "./tools/registry/tool-context";
 import { runChatLoop } from "./chat-loop";
+import { getHermesChatSettingsView } from "../hermes/chat-bridge";
 import type { RunCapabilities } from "./run-capabilities";
 import { runHarnessWithAdapter } from "./harness-adapter";
 import type { CheckpointManager } from "./checkpoint/checkpoint-manager";
@@ -446,22 +447,48 @@ export class CyreneAgent extends AbstractAgent {
           flowLog(`1. 准备上下文：${executionMode === "chat" ? "Chat" : "Work"} 模式，模型 ${options.settings.model}，${enabledToolCount} 个工具可用`);
           flowLog(`2. 理解用户请求：${executionMode === "chat" ? "Chat 模式无需工具上下文" : `完成，可信引用 ${(options.trustedRefs ?? []).length} 个`}`);
 
-          let result: AgentLoopResult;
+          let result: AgentLoopResult | undefined;
           if (executionMode === "chat" && !chatWithTools) {
-            flowLog("3. Chat 模式：生成回复");
-            result = await perf.track("chat_loop", () => runChatLoop({
-              settings: options.settings,
-              adapter,
-              messages: options.messages,
-              soulSystemBaseContent: options.soulSystemBaseContent,
-              runtimeContext: [options.soulRuntimeContext, options.citaContextBlock, options.responseContext].filter(Boolean).join("\n\n---\n\n"),
-              soulSampling: options.soulSampling,
-              timeoutMs: options.timeoutMs,
-              imageCaptionFallback: options.imageCaptionFallback,
-              onEvent,
-              signal: abortController.signal,
-              mode: options.conversationMode,
-            }));
+            // P1 换脑第一刀：chatViaHermes 开启时，Chat 模式的模型请求改经本地引擎
+            // 网关（OpenAI 兼容端点，网关侧 agent 化）；任一失败回退本 Harness。
+            const hermesView = getHermesChatSettingsView(options.settings);
+            if (hermesView) {
+              flowLog("3. Chat 模式：本地引擎（Hermes）路径");
+              try {
+                result = await perf.track("chat_loop_hermes", () => runChatLoop({
+                  settings: hermesView,
+                  adapter: getAdapterForConfig(hermesView),
+                  messages: options.messages,
+                  soulSystemBaseContent: options.soulSystemBaseContent,
+                  runtimeContext: [options.soulRuntimeContext, options.citaContextBlock, options.responseContext].filter(Boolean).join("\n\n---\n\n"),
+                  soulSampling: options.soulSampling,
+                  timeoutMs: options.timeoutMs,
+                  imageCaptionFallback: options.imageCaptionFallback,
+                  onEvent,
+                  signal: abortController.signal,
+                  mode: options.conversationMode,
+                }));
+              } catch (err) {
+                console.warn(`${LOG_PREFIX} Hermes chat 路径失败，回退 CyreneHarness：`, err);
+                flowLog("3. Chat 模式：Hermes 失败 → 回退 Harness");
+              }
+            }
+            if (!result) {
+              flowLog("3. Chat 模式：生成回复");
+              result = await perf.track("chat_loop", () => runChatLoop({
+                settings: options.settings,
+                adapter,
+                messages: options.messages,
+                soulSystemBaseContent: options.soulSystemBaseContent,
+                runtimeContext: [options.soulRuntimeContext, options.citaContextBlock, options.responseContext].filter(Boolean).join("\n\n---\n\n"),
+                soulSampling: options.soulSampling,
+                timeoutMs: options.timeoutMs,
+                imageCaptionFallback: options.imageCaptionFallback,
+                onEvent,
+                signal: abortController.signal,
+                mode: options.conversationMode,
+              }));
+            }
           } else {
             const executeTool = (tc: Parameters<typeof executeToolCall>[0], runnableToolIds: Set<string>) => executeToolCall(tc, runnableToolIds, {
               userQuery: extractLastUserQuery(options.messages),

@@ -11,6 +11,7 @@ type SmokeResult = { ok: boolean; steps: SmokeStep[]; reply?: string };
 type PublicSettings = {
   syncModelCredentials?: boolean;
   autoStartGateway?: boolean;
+  chatViaHermes?: boolean;
   apiHost?: string;
   apiPort?: number;
 };
@@ -100,6 +101,8 @@ export async function initHermesPanel(): Promise<void> {
     if (sync) sync.checked = res.settings.syncModelCredentials !== false;
     const auto = el<HTMLInputElement>("hermes-auto-start");
     if (auto) auto.checked = res.settings.autoStartGateway !== false;
+    const chatRoute = el<HTMLInputElement>("hermes-chat-route");
+    if (chatRoute) chatRoute.checked = res.settings.chatViaHermes === true;
     renderEndpoint(res.settings);
     renderHealth(res.health);
     setStatus("");
@@ -201,6 +204,7 @@ export async function initHermesPanel(): Promise<void> {
         await bridge.saveSettings({
           syncModelCredentials: el<HTMLInputElement>("hermes-sync-model")?.checked !== false,
           autoStartGateway: el<HTMLInputElement>("hermes-auto-start")?.checked !== false,
+          chatViaHermes: el<HTMLInputElement>("hermes-chat-route")?.checked === true,
         });
         setStatus("已保存", true);
         showToast("本地引擎设置已保存", "ok");
