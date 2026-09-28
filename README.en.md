@@ -16,6 +16,9 @@
 > Centered around Cyrene's character design and powered by the self-developed Cyrene_Harness&DMAE memory engine,  
 > it brings character-driven conversation, personalized memory, voice interaction, tool use, and multi-platform access into a single desktop Agent,  
 > supporting four conversation modes: Chat, Work, Code, and Learn.
+>
+> 🚧 **Architecture migration in progress**: per [PLAN.md](./PLAN.md), the project is evolving toward a "Electron shell + Hermes engine + LifeKernel" architecture.
+> All four conversation modes are currently still driven by CyreneHarness (described below as-is); the Hermes local engine has completed its P0 integration (see [Current Status](#-current-status)).
 
 ---
 
@@ -40,6 +43,8 @@
 
 > `Work / Code / Learn` and any session mode that requires tool invocation runs on top of **CyreneHarness**.  
 > Source: [`src/main/orchestrator/harness/cyrene-harness.ts`](./src/main/orchestrator/harness/cyrene-harness.ts)
+>
+> 🚧 CyreneHarness is the **current** runtime main loop. Per [PLAN.md](./PLAN.md), the four modes will gradually switch to the Hermes local engine, with CyreneHarness eventually retired or demoted to a capability layer; migration progress is tracked in PLAN.md and [docs/architecture/hermes-integration.md](./docs/architecture/hermes-integration.md).
 
 CyreneHarness is the core Agent Loop of Cyrene Agent. It chains **model decisions, tool execution, side-effect accounting, and state recovery** into a continuous loop that is interruptible, recoverable, and replayable.
 
@@ -84,7 +89,7 @@ CyreneHarness is the core Agent Loop of Cyrene Agent. It chains **model decision
 
 - **Windows 10 / 11 64-bit**
 - **Node.js 24 LTS**
-- **npm 10+** (npm 11 recommended)
+- **pnpm 10+** (pnpm 11 recommended; the project pins pnpm via the `packageManager` field)
 - **[Rust stable](https://www.rust-lang.org/tools/install)** (required for building the screenshot helper from source)
 - **[Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)**
 
@@ -107,14 +112,14 @@ rustup default stable-x86_64-pc-windows-msvc
 ### 1. Clone the Project
 
 ```bash
-git clone https://github.com/Playa-0v0/Cyrene-Agent.git
-cd Cyrene-Agent
+git clone https://github.com/huankun05/huankun05-desk-pet.git
+cd huankun05-desk-pet
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-npm install
+pnpm install --frozen-lockfile
 ```
 
 The first installation downloads Electron, Pixi.js, Live2D, and related dependencies. The time required depends on your network connection.
@@ -124,8 +129,8 @@ The first installation downloads Electron, Pixi.js, Live2D, and related dependen
 The project ships a `cyrene` command-line entry point for the first-time greeting, version checks, and launching the desktop app. From the project root:
 
 ```bash
-npm run build:cli
-npm link
+pnpm run build:cli
+pnpm link --global
 ```
 
 You can then use `cyrene` from any directory:
@@ -141,7 +146,7 @@ cyrene run        # Launch the desktop app from a project root (dev mode)
 
 > The first-time greeting appears only once; the state is recorded in `~/.cyrene/state.json`. Subsequent default invocations print only `Cyrene Agent <version>` and `Ready.`. `cyrene run` is dev-only in v0.9 and requires a `package.json` in the current directory; the production `cyrene desktop` entry will arrive in 1.x.
 >
-> `npm run build` already includes `npm run build:cli`, so you do not need to run `build:cli` separately after building the project. However, `npm link` is still required to use the `cyrene` command from any directory.
+> `pnpm run build` already includes `pnpm run build:cli`, so you do not need to run `build:cli` separately after building the project. However, `pnpm link --global` is still required to use the `cyrene` command from any directory.
 
 ### 4. Install BGE-M3 (Recommended)
 
@@ -152,13 +157,17 @@ Cyrene can chat normally without running a local large language model. However, 
 - Worldbook semantic retrieval
 - RAG retrieval
 
-[Download BGE-M3 from Releases](https://github.com/Playa-0v0/Cyrene-Agent/releases)
+[Download BGE-M3 from Releases](https://github.com/huankun05/huankun05-desk-pet/releases)
 
 > [!IMPORTANT]
 >
 > Not installing BGE-M3 does not affect basic chat. Features that depend on Embedding will be disabled or degraded automatically.
 
 ### 5. Music Feature (Optional)
+
+> [!NOTE]
+>
+> The music feature has been reworked: it now uses the NetEase Cloud Music OpenAPI plus a bundled `mpv` player, and no longer requires the desktop client or the `orpheus://` protocol. See the [Chinese README](./README.md) for the current details; the description below is outdated and will be updated.
 
 The music tool is integrated via [Code-MonkeyZhang/cloud-music-mcp](https://github.com/Code-MonkeyZhang/cloud-music-mcp). To use the NetEase Cloud Music feature, install the following additional dependencies:
 
@@ -174,28 +183,28 @@ The music tool is integrated via [Code-MonkeyZhang/cloud-music-mcp](https://gith
 When running from source for the first time, you need to build the Rust native screenshot helper:
 
 ```bash
-npm run build:screenshot-helper
-npm run build
-npm start
+pnpm run build:screenshot-helper
+pnpm run build
+pnpm start
 ```
 
 > [!IMPORTANT]
 >
-> The native screenshot helper is not committed to the Git repository as an `.exe` file. You must run `npm run build:screenshot-helper` once after cloning.
+> The native screenshot helper is not committed to the Git repository as an `.exe` file. You must run `pnpm run build:screenshot-helper` once after cloning.
 >
-> **Windows users** can also double-click `setup.bat` in the project root to install dependencies, build, and run `npm link`, then double-click `start.bat` to launch.
+> **Windows users** can also double-click `setup.bat` in the project root to install dependencies, build, and run `pnpm link --global`, then double-click `start.bat` to launch.
 
 Development mode:
 
 ```bash
-npm run build:screenshot-helper
-npm run dev
+pnpm run build:screenshot-helper
+pnpm run dev
 ```
 
 After modifying the Rust screenshot helper code, re-run:
 
 ```bash
-npm run build:screenshot-helper
+pnpm run build:screenshot-helper
 ```
 
 Development mode starts the Electron main process, Preload compilation, the Vite renderer, and the Electron application together.
@@ -205,7 +214,7 @@ Changes to the main process automatically restart Electron, while renderer chang
 Building a distributable Windows version:
 
 ```bash
-npm run package:win:dir
+pnpm run package:win:dir
 ```
 
 The packaging command automatically builds both the Electron application and the Rust screenshot helper.
@@ -224,6 +233,8 @@ After starting the application, **click the system tray icon → Open Settings**
 3. **🎧 ASR Settings** (optional): To use voice calls, configure Alibaba Cloud real-time ASR credentials or the API key shared with Mossland TTS.
 
 4. **📱 External Channels** (optional): Connect Feishu, WeChat iLink, or QQ through NapCat/OneBot 11.
+
+5. **🧠 Local Engine** (optional, experimental): Configure the Hermes engine gateway source directory and API endpoint (default `http://127.0.0.1:8642`). The app automatically starts the local gateway process at launch, and the panel provides a "Test Connection" button that runs a health + chat smoke check. Currently used for architecture-migration P0 validation only; it is not yet wired into the conversation path.
 
 Configuration is stored in the application's `<userData>/` directory. Most changes do not require a restart.
 
@@ -249,6 +260,7 @@ Configuration is stored in the application's `<userData>/` directory. Most chang
 | 📱 WeChat iLink | 🧪 Experimental | Long-poll message exchange, media handling, and mobile chat |
 | 📱 QQ / NapCat | 🧪 Experimental | OneBot 11 reverse WebSocket, private/group allowlists, replies, mentions, and cross-WSL media |
 | 🌙 Proactive Chat | 🧪 Experimental | Status evaluation, do-not-disturb policies, and delivery through desktop, Feishu, and WeChat |
+| 🧠 Local Engine (Hermes) | 🧪 Experimental | Migration P0: gateway process management, the "Local Engine" settings panel, and HermesClient smoke checks are wired up; switching the four modes over is planned for P1 and not yet in the conversation path (see [PLAN.md](./PLAN.md)) |
 
 > ✅ **Available**: The core workflow is implemented and suitable for everyday use.  
 > 🧪 **Experimental**: The feature is integrated, but compatibility, edge cases, or user experience are still being refined.
@@ -526,12 +538,12 @@ Cyrene includes many built-in and extensible tools, primarily covering the follo
 #### 🧪 Unit Tests
 
 - Vitest 4 covers core modules including ASR, TTS, channels, chats, game-bot, memory, opener, orchestrator, RAG, scheduler, and Skills.
-- Use `npm test` for a one-time run or `npm run test:watch` for watch mode.
+- Use `pnpm test` for a one-time run or `pnpm run test:watch` for watch mode.
 
 #### 🎬 Scenario Simulation
 
-- Use `npm run sim` for the default scenario, or `sim:coffee`, `sim:mix`, and `sim:rescue` for individual scenario debugging.
-- Run `npm run sim:sweep --rewardGain=3,5,7,10` to sweep Worldbook scoring parameters.
+- Use `pnpm run sim` for the default scenario, or `sim:coffee`, `sim:mix`, and `sim:rescue` for individual scenario debugging.
+- Run `pnpm run sim:sweep --rewardGain=3,5,7,10` to sweep Worldbook scoring parameters.
 - Output is written to `sim-result/`.
 
 #### 🔧 Developer Experience
@@ -645,7 +657,8 @@ src/
 │   ├── sidebar/      # Sidebar
 │   ├── sticker-manager/  # Sticker management
 │   ├── tasks/        # Task panel
-│   ├── tast/         # Character avatar assets (PNG)
+│   ├── assets/       # Local renderer assets
+│   │   └── agent-avatars/  # Character avatar assets (PNG)
 │   ├── types/        # Shared type definitions
 │   └── ui/           # Shared UI components (modal / theme / chart, etc.)
 └── shared/           # Code shared between the main and renderer processes
@@ -665,7 +678,7 @@ dist/renderer/        # Vite output (generated files ignored; product assets tra
 
 > `dist/renderer/assets/`, the per-window `index.html` files, and `dist/renderer/live2dcubismcore.min.js` are generated Vite build outputs and are not tracked by Git.  
 > `audio/`, `avatars/`, `feeling/`, `icons/`, `models/`, `status/`, and `stickers/` are product assets and are tracked.  
-> Static source assets are located in `src/renderer/public/`. Run `npm run build:renderer` to regenerate the build output.
+> Static source assets are located in `src/renderer/public/`. Run `pnpm run build:renderer` to regenerate the build output.
 
 ---
 

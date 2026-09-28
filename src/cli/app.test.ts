@@ -53,7 +53,7 @@ describe("main: about", () => {
   it("prints banner + GitHub URL", async () => {
     const code = await main(["about"], VERSION);
     expect(code).toBe(0);
-    expect(stdoutBuf).toContain("https://github.com/Playa-0v0/Cyrene-Agent");
+    expect(stdoutBuf).toContain("https://github.com/huankun05/huankun05-desk-pet");
   });
 });
 

@@ -15,6 +15,9 @@
 > 项目围绕昔涟（Cyrene）的角色设定，结合自研Cyrene_Harness+DMAE 记忆引擎，  
 > 将角色化聊天、个性化记忆、语音交互、工具调用与多平台接入整合在同一个桌面 Agent 中，  
 > 支持日常聊天（Chat）、辅助工作（Work）、代码协作（Code）、学习陪伴（Learn）四种对话模式。
+>
+> 🚧 **架构迁移中**：项目正按 [PLAN.md](./PLAN.md) 向「Electron 壳 + Hermes 智核 + LifeKernel 心核」的新架构演进。
+> 当前四种对话模式仍由 CyreneHarness 驱动（下文照实描述），Hermes 本地引擎已完成 P0 接入（见[当前状态](#-当前状态)）。
 
 ---
 
@@ -42,6 +45,8 @@
 
 > `Work / Code / Learn` 等需要工具调用的会话模式，全部跑在 **CyreneHarness** 之上。
 > 源码：[`src/main/orchestrator/harness/cyrene-harness.ts`](./src/main/orchestrator/harness/cyrene-harness.ts)
+>
+> 🚧 CyreneHarness 是**当前**的运行时主循环。按 [PLAN.md](./PLAN.md) 的规划，四模式将逐步切换到 Hermes 本地引擎（智核），CyreneHarness 转为退役/降级为能力层；迁移进度以 PLAN.md 与 [docs/architecture/hermes-integration.md](./docs/architecture/hermes-integration.md) 为准。
 
 CyreneHarness 是 Cyrene Agent 的核心 Agent Loop，负责把**模型决策、工具执行、副作用记账与状态恢复**串成一个可中断、可恢复、可回放的连续循环。
 
@@ -88,7 +93,7 @@ CyreneHarness 是 Cyrene Agent 的核心 Agent Loop，负责把**模型决策、
 
 - **Windows 10 / 11 64 位**
 - **Node.js 24 LTS**
-- **npm 10+**（推荐 npm 11）
+- **pnpm 10+**（推荐 pnpm 11；项目通过 `packageManager` 字段锁定 pnpm）
 - **[Rust stable](https://www.rust-lang.org/tools/install)**（源码构建截图功能必需）
 - **[Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)**
 
@@ -111,8 +116,8 @@ rustup default stable-x86_64-pc-windows-msvc
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/Playa-0v0/Cyrene-Agent.git
-cd Cyrene-Agent
+git clone https://github.com/huankun05/huankun05-desk-pet.git
+cd huankun05-desk-pet
 ```
 
 ### 2. 安装依赖
@@ -120,13 +125,13 @@ cd Cyrene-Agent
 推荐使用锁定版本安装：
 
 ```bash
-npm ci
+pnpm install --frozen-lockfile
 ```
 
 也可以使用：
 
 ```bash
-npm install
+pnpm install
 ```
 
 首次安装会下载 Electron、Pixi.js、Live2D 等相关依赖，具体耗时取决于网络环境。
@@ -136,8 +141,8 @@ npm install
 项目附带 `cyrene` 命令行入口，可用于首次欢迎语、查看版本或启动桌面端。在项目根目录执行：
 
 ```bash
-npm run build:cli
-npm link
+pnpm run build:cli
+pnpm link --global
 ```
 
 之后即可在任意目录使用 `cyrene`：
@@ -153,7 +158,7 @@ cyrene run        # 在项目根目录启动桌面端（开发模式）
 
 > 首次欢迎语仅在第一次执行 `cyrene` 时出现，状态记录在 `~/.cyrene/state.json`；之后默认只输出 `Cyrene Agent <version>` 与 `Ready.`。`cyrene run` 目前为开发模式，需要当前目录存在 `package.json`；正式安装版的 `cyrene desktop` 入口将在 1.x 提供。
 >
-> `npm run build` 已经包含 `npm run build:cli`，因此构建项目后无需再单独执行 `build:cli`。但 `npm link` 仍需单独运行，才能在任意目录使用 `cyrene` 命令。
+> `pnpm run build` 已经包含 `pnpm run build:cli`，因此构建项目后无需再单独执行 `build:cli`。但 `pnpm link --global` 仍需单独运行，才能在任意目录使用 `cyrene` 命令。
 
 ### 4. 安装 BGE-M3（推荐）
 
@@ -164,7 +169,7 @@ Cyrene 无需本地大语言模型即可正常聊天，但建议安装 **BGE-M3 
 - Worldbook 语义检索
 - RAG检索
 
-[前往 Releases 下载 BGE-M3](https://github.com/Playa-0v0/Cyrene-Agent/releases)
+[前往 Releases 下载 BGE-M3](https://github.com/huankun05/huankun05-desk-pet/releases)
 
 > [!IMPORTANT]
 >
@@ -176,7 +181,7 @@ Cyrene 无需本地大语言模型即可正常聊天，但建议安装 **BGE-M3 
 
 - **数据源** — `NeteaseOpenapiProvider` 通过网易云音乐 OpenAPI 拉取搜索结果、推荐、歌单、收藏等内容；需要在设置中配置 OpenAPI 凭据（Cookie / Token 等）。
 - **播放** — `MpvController` 启动打包在 `resources/bin/mpv/mpv.exe` 的 mpv 子进程，通过命名管道（Windows）或 Unix socket 发送 JSON IPC 命令，**不需要安装网易云桌面客户端或注册 `orpheus://` 协议**。
-- **mpv 缺失时的处理** — 由 `npm run prepare:mpv` 在打包阶段拷贝 mpv 二进制到 `resources/bin/mpv/`；本地未检测到 mpv 时，音乐工具会返回 `client_unavailable` 并在 UI 中提示，但不影响其他功能。
+- **mpv 缺失时的处理** — 由 `pnpm run prepare:mpv` 在打包阶段拷贝 mpv 二进制到 `resources/bin/mpv/`；本地未检测到 mpv 时，音乐工具会返回 `client_unavailable` 并在 UI 中提示，但不影响其他功能。
 
 > [!NOTE]
 >
@@ -187,34 +192,34 @@ Cyrene 无需本地大语言模型即可正常聊天，但建议安装 **BGE-M3 
 首次从源码运行时，需要先构建 Rust 原生截图助手：
 
 ```bash
-npm run build:screenshot-helper
-npm run build
-npm start
+pnpm run build:screenshot-helper
+pnpm run build
+pnpm start
 ```
 
 > [!IMPORTANT]
 >
-> 原生截图助手不会以 `.exe` 形式提交到 Git 仓库，因此首次克隆后必须执行一次 `npm run build:screenshot-helper`。
+> 原生截图助手不会以 `.exe` 形式提交到 Git 仓库，因此首次克隆后必须执行一次 `pnpm run build:screenshot-helper`。
 >
-> **Windows 用户**也可以直接双击项目根目录的 `setup.bat` 完成依赖安装、构建和 `npm link`，之后双击 `start.bat` 即可启动。
+> **Windows 用户**也可以直接双击项目根目录的 `setup.bat` 完成依赖安装、构建和 `pnpm link --global`，之后双击 `start.bat` 即可启动。
 
 开发模式：
 
 ```bash
-npm run build:screenshot-helper
-npm run dev
+pnpm run build:screenshot-helper
+pnpm run dev
 ```
 
 修改 Rust 截图助手代码后，需要重新执行：
 
 ```bash
-npm run build:screenshot-helper
+pnpm run build:screenshot-helper
 ```
 
 构建 Windows 可分发版本：
 
 ```bash
-npm run package:win:dir
+pnpm run package:win:dir
 ```
 
 打包命令会自动构建 Electron 应用和 Rust 截图助手。
@@ -233,6 +238,8 @@ npm run package:win:dir
 3. **🎧 ASR 设置**（可选）：如需使用语音通话，可配置阿里云实时 ASR 的 AppKey 与 AccessKey，或填写与 Mossland TTS 共用的 API Key。
 
 4. **📱 外部渠道**（可选）：根据需要连接飞书或微信 iLink，在手机端与 Cyrene 对话。
+
+5. **🧠 本地引擎**（可选，实验性）：配置 Hermes 智核 gateway 的源码目录与 API 地址（默认 `http://127.0.0.1:8642`），应用启动时会自动拉起本地 gateway 进程，面板内提供「测试连接」按钮执行 health + chat 冒烟验证。当前仅用于架构迁移 P0 验证，尚未接入对话链路。
 
 相关配置会保存在应用的 `<userData>/` 目录中，修改后通常无需重启应用。
 
@@ -409,11 +416,11 @@ Cyrene 内置和扩展的工具较多，主要覆盖以下类别：
 #### 🧪 单元测试
 - Vitest 4 覆盖 asr / tts / channels / chats / game-bot / memory /
   opener / orchestrator / rag / scheduler / skills 等核心模块。
-- `npm test` 一次性 / `npm run test:watch` 监听模式。
+- `pnpm test` 一次性 / `pnpm run test:watch` 监听模式。
 
 #### 🎬 场景模拟
-- `npm run sim` 默认场景 / `sim:coffee` / `sim:mix` / `sim:rescue` 单场景调试。
-- `npm run sim:sweep --rewardGain=3,5,7,10` 跑 Worldbook 评分参数 sweep。
+- `pnpm run sim` 默认场景 / `sim:coffee` / `sim:mix` / `sim:rescue` 单场景调试。
+- `pnpm run sim:sweep --rewardGain=3,5,7,10` 跑 Worldbook 评分参数 sweep。
 - 产物输出到 `sim-result/`。
 
 #### 🔧 开发者体验
@@ -447,6 +454,7 @@ Cyrene 内置和扩展的工具较多，主要覆盖以下类别：
 | 📱 微信 iLink | 🧪 实验性 | 支持长轮询消息收发、媒体处理与手机端对话 |
 | 📱 QQ / NapCat | 🧪 实验性 | OneBot 11 反向 WebSocket、私聊/群聊白名单、引用/@ 与跨 WSL 多媒体传输 |
 | 🌙 主动聊天 | 🧪 实验性 | 支持状态判断、不打扰策略与桌面、飞书、微信多渠道投递 |
+| 🧠 本地引擎（Hermes 智核） | 🧪 实验性 | 架构迁移 P0：gateway 进程托管、设置「本地引擎」面板与 HermesClient 冒烟已接通；四模式换脑在 P1，尚未接入对话链路（进度见 [PLAN.md](./PLAN.md)） |
 
 > ✅ **可用**：核心流程已经实现，可用于日常体验。  
 > 🧪 **实验性**：功能已经接入，但兼容性、边界情况或使用体验仍在持续完善。
@@ -549,7 +557,8 @@ src/
 │   ├── live2d/       # Live2D 模型渲染逻辑
 │   ├── public/       # 静态资源源文件（音频 / 头像 / Cubism Core / 贴纸，已跟踪）
 │   ├── react/        # React 19 组件库（features / styles / App）
-│   ├── tast/         # 角色头像资源（PNG）
+│   ├── assets/       # 渲染层本地资源
+│   │   └── agent-avatars/  # 角色头像资源（PNG，任务委派子 Agent 头像）
 │   ├── settings/     # 设置中心
 │   ├── sidebar/      # 侧边栏
 │   ├── sticker-manager/  # 贴纸管理
@@ -573,7 +582,7 @@ dist/renderer/        # Vite 构建产物（构建产物 gitignore，产品资�
 
 > `dist/renderer/assets/`、各窗口的 `index.html`、`dist/renderer/live2dcubismcore.min.js` 为 Vite 构建产物
 > 不在 git 跟踪范围内。`audio/`、`avatars/`、`feeling/`、`icons/`、`models/`、`status/`、`stickers/` 为产品资源，已纳入 git。
-> 静态资源源文件见 `src/renderer/public/`。运行 `npm run build:renderer` 重新生成构建产物。
+> 静态资源源文件见 `src/renderer/public/`。运行 `pnpm run build:renderer` 重新生成构建产物。
 
 ---
 ## ❓ 常见问题

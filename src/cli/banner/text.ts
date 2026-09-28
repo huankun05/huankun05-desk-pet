@@ -9,7 +9,7 @@ export const BANNER_LINES = [
 ] as const;
 
 export const ABOUT_LINES = [
-  "GitHub:   https://github.com/Playa-0v0/Cyrene-Agent",
+  "GitHub:   https://github.com/huankun05/huankun05-desk-pet",
   "License:  MIT (see MODEL_LICENSE.md for model terms)",
 ] as const;
 

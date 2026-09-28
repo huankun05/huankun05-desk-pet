@@ -11,8 +11,8 @@ describe("application update packaging", () => {
 
     expect(config.publish).toMatchObject({
       provider: "github",
-      owner: "Playa-0v0",
-      repo: "Cyrene-Agent",
+      owner: "huankun05",
+      repo: "huankun05-desk-pet",
     });
   });
 });

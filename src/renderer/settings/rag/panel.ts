@@ -133,7 +133,7 @@ import { tOr } from "../i18n";
   downloadBtn?.addEventListener("click", async () => {
     // 打开模型安装说明文档
     await window.system?.openExternal(
-      "https://github.com/Playa-0v0/Cyrene-Agent/blob/master/docs/local-models.md"
+      "https://github.com/huankun05/huankun05-desk-pet/blob/master/docs/local-models.md"
     );
   });
 

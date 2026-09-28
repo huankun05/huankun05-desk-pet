@@ -2,8 +2,8 @@ appId: com.cyrene.live2d
 productName: Cyrene
 publish:
   provider: github
-  owner: Playa-0v0
-  repo: Cyrene-Agent
+  owner: huankun05
+  repo: huankun05-desk-pet
 directories:
   output: release
 asar: true

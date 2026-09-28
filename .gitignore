@@ -208,6 +208,7 @@ sticker-descriptions/
 
 # 测试运行时生成的临时工作区目录
 .cyrene-temp/
+.workbuddy/
 
 
 # 本机 git 配置，不入库

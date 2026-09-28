@@ -59,7 +59,7 @@ describe("render", () => {
 
   it("renderAbout includes the GitHub URL", () => {
     expect(renderAbout({ width: 64 })).toContain(
-      "https://github.com/Playa-0v0/Cyrene-Agent",
+      "https://github.com/huankun05/huankun05-desk-pet",
     );
   });
 
