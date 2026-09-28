@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 /**
  * 杀掉本应用（desk-pet / live2d-cyrene）残留的 electron 实例。
  *
- * 背景：应用启用了单实例锁，重复 `npm run dev` 时新实例会因锁静默退出，
+ * 背景：应用启用了单实例锁，重复 `pnpm run dev` 时新实例会因锁静默退出，
  * 旧的（可能加载了错误端口地址）实例会一直保留，造成「修复了却还是打不开」的错觉。
  * dev 启动前先清理残留实例，确保每次都是全新、正确的实例。
  *

@@ -17,14 +17,14 @@
 ## 环境（当前壳）
 
 - Windows 10/11 64-bit（主目标）  
-- Node.js 24 + npm 10+  
+- Node.js 24 + pnpm 10+（包管理器已统一为 pnpm，见 `packageManager` 字段）  
 - 视构建需要：Rust MSVC、VS Build Tools  
 - Hermes：官方仓 `../hermes-agent`（工作区）或用户安装；`HERMES_HOME` 指向应用数据  
 
 ```bash
 cd desk-pet
-npm install        # 或项目当前使用的包管理命令
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 细节以 `README.md` 为准（方向切换后可能仍含 Cyrene 表述，实施 P1 时更新）。
@@ -35,8 +35,8 @@ npm run dev
 
 ```bash
 npx tsc -p tsconfig.main.json --noEmit
-npm test           # vitest
-npm run test:e2e   # playwright（需要时）
+pnpm test          # vitest
+pnpm run test:e2e  # playwright（需要时）
 ```
 
 Hermes 对接后增加：gateway health、`/v1/runs` 冒烟。
