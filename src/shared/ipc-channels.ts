@@ -87,6 +87,7 @@ export const IPC = {
   HERMES_TEST_HEALTH: "hermes:test-health",
   HERMES_RUN_SMOKE: "hermes:run-smoke",
   HERMES_RESTART_ENGINE: "hermes:restart-engine",
+  HERMES_OPEN_HOME: "hermes:open-home",
   STORAGE_GET_REPORT: "storage:get-report",
   STORAGE_CLEAN: "storage:clean",
   STORAGE_OPEN_PATH: "storage:open-path",

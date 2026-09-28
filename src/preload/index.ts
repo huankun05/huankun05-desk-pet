@@ -346,6 +346,7 @@ const settingsApi = {
     testHealth: () => ipcRenderer.invoke(IPC.HERMES_TEST_HEALTH),
     runSmoke: () => ipcRenderer.invoke(IPC.HERMES_RUN_SMOKE),
     restartEngine: () => ipcRenderer.invoke(IPC.HERMES_RESTART_ENGINE),
+    openHome: () => ipcRenderer.invoke(IPC.HERMES_OPEN_HOME),
   },
   storage: {
     getReport: () => ipcRenderer.invoke(IPC.STORAGE_GET_REPORT),

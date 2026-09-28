@@ -158,6 +158,19 @@ export async function initHermesPanel(): Promise<void> {
     })();
   });
 
+  el("hermes-open-home-btn")?.addEventListener("click", () => {
+    void (async () => {
+      try {
+        const r = (await bridge.openHome()) as { ok?: boolean; error?: string };
+        if (r?.ok === false) {
+          showToast("打开失败：" + (r.error ?? "未知原因"), "err");
+        }
+      } catch (err) {
+        showToast("打开失败：" + String(err), "err");
+      }
+    })();
+  });
+
   el("hermes-smoke-btn")?.addEventListener("click", () => {
     void (async () => {
       const btn = el<HTMLButtonElement>("hermes-smoke-btn");

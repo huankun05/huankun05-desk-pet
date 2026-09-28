@@ -15,6 +15,7 @@ import {
   writeHermesRuntimeEnv,
 } from "./hermes-settings";
 import { getAiEngineStatus, restartAiEngine } from "./proc-mgr";
+import { shell } from "electron";
 import { loadModelSettings } from "../settings/model-settings";
 import {
   runHermesSmoke,
@@ -92,5 +93,11 @@ export function registerHermesSettingsIpc(deps: { ipc?: IpcScope } = {}): void {
 
   ipc.handle(IPC.HERMES_RUN_SMOKE, async () => {
     return await runHermesSmoke();
+  });
+
+  ipc.handle(IPC.HERMES_OPEN_HOME, async () => {
+    const hermes = resolveEffectiveHermesSettings(loadHermesSettings());
+    const result = await shell.openPath(hermes.homeDir);
+    return { ok: !result, error: result || undefined, homeDir: hermes.homeDir };
   });
 }

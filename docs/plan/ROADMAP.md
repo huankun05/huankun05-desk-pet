@@ -16,7 +16,7 @@
 | **A0 Agent 能力升级** | 并行子 Agent / 迭代预算 / 凭据加密 / 成本 / 轨迹 / 审查 / LSP… | **完成（2026-09-05~07）**，见历史路线图 |
 | **P0 Hermes Spike** | gateway health + 壳内设置 | **近完成**：health 通过；「本地引擎」面板已挂进设置导航；`HermesClient` 经 `hermes-client-factory` 接线 + 冒烟 IPC/按钮；剩模型凭据实跑 |
 | **P1 换脑** | HermesProcMgr + 四模式接 Hermes + ModelRouter | **部分**：崩溃自愈 + 手动重启已完成（09-28）；**Chat 模式换脑第一刀已落地（09-28）**：`chatViaHermes` 开关经网关 OpenAI 兼容端点路由 Chat 模型请求（失败自动回退 Harness），e2e 验证路由生效；Work/Learn/Code 仍走 CyreneHarness；ModelRouter 未做 |
-| **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 未动工（仅有 relationship-log / tone-injector 等碎片） |
+| **P2 生命层** | LifeKernel + PolicyGate + Live2D 情绪 | 未动工（设计意图已落 [`phase-2-life-kernel.md`](phase-2-life-kernel.md)：P2-0 最小闭环可先行，不阻塞 P1） |
 | **P3 记忆** | LifeMemoryProvider + 注入预算 + 角色卡 v0 | 未动工（现实是自研 L0/L1/L2 top-4，与文档模型不同） |
 | **P4 工具审批** | Electron MCP + 审批 UI | 未动工 |
 | **P5 反思系统** | 技能/行为进化策略 | **窄版已有**：memory-scheduler 每 20 轮 reflect；无 confirm 策略/技能进化 |
@@ -78,5 +78,5 @@
 - 设置/启动遗留：[`../design/settings-fix-backlog.md`](../design/settings-fix-backlog.md)  
 - UI/品牌收敛：[`../design/UI-DESIGN.md`](../design/UI-DESIGN.md) §8  
 - AI 引擎接入：[`../architecture/hermes-integration.md`](../architecture/hermes-integration.md)  
-- P0 细节：[`phase-0-hermes-spike.md`](phase-0-hermes-spike.md) · P1：[`phase-1-ai-engine-procmgr.md`](phase-1-ai-engine-procmgr.md)  
+- P0 细节：[`phase-0-hermes-spike.md`](phase-0-hermes-spike.md) · P1：[`phase-1-ai-engine-procmgr.md`](phase-1-ai-engine-procmgr.md) · P2 意图：[`phase-2-life-kernel.md`](phase-2-life-kernel.md)  
 - 流程：[`../standards/development-process.md`](../standards/development-process.md)

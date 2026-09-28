@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - **P1 换脑第一刀：Chat 模式经本地引擎路由（实验）**：新增 `chatViaHermes` 设置（「本地引擎」面板开关，默认关）。开启后 Chat 模式（无工具会话）的模型请求改经 Hermes 网关 OpenAI 兼容端点（网关侧 agent 化），记忆注入/模式提示/流式事件等 Harness 管线原样复用；网关不可用或请求失败自动回退 CyreneHarness。新增 `chat-bridge` settings 视图（7 单测）与 `e2e/hermes-chat.spec.ts`（mock 网关 + Bearer 校验验证路由生效）
 - **修正 HermesClient.runOnce 协议**：请求体由错误的 `{message}` 改为网关真实契约 `{input, session_id?, instructions?, conversation_history?, model?}`；SSE 解析改为网关真实事件（`message.delta`/`run.completed`/`run.failed` 等，事件名在 data JSON 的 `event` 字段）；此前的实现从未对过真实网关（P0 仅实测 health 与 chat completions）
 
+- **Work 模式工具回路 E2E**（`e2e/work-tool-loop.spec.ts`）：mock LLM 下发流式 tool_calls（read_file）→ Harness 本地真实执行 → 工具结果回喂校验 —— 证明换脑只换模型接入层、本地工具执行/权限策略/会话状态留在壳内，是 P1 最重要的行为基线
+- **「本地引擎」打开数据目录**：面板新增按钮（`HERMES_OPEN_HOME` IPC，shell.openPath 引擎 HERMES_HOME），引擎日志/凭据/配置可见
+- **P2 设计意图落地**：新增 `docs/plan/phase-2-life-kernel.md`（LifeKernel 定位、现状碎片收拢清单、P2-0 最小闭环验收线、与 PolicyGate 边界、明确延后项）
 - **E2E 基线扩展**：新增设置窗口关键路径 E2E（`e2e/settings-panel.spec.ts`）——设置窗可经 preload 桥打开、导航渲染完整、「本地引擎」（Hermes P0）面板可切换且渲染，作为架构迁移 P0/P1 的 UI 回归守卫；新增 `e2e/chat-loop.spec.ts` Chat 对话回路 E2E（本地 mock OpenAI 兼容服务 + `CYRENE_USER_DATA_DIR` 隔离 userData，经 agui-bridge 全链路验证 RUN_FINISHED 与流式回复），是 P1 换脑前后的行为对比基线；冒烟断言对齐启动实况（启动默认窗口为聊天窗壳，非状态窗）；CI 的 vitest 手工分组步骤合并为数据驱动单步
 - **「本地引擎」手动重启与自愈可见**：面板新增「重启引擎」按钮（`HERMES_RESTART_ENGINE` IPC，人工重启不触发自愈计数）与「自愈重启」次数展示（健康检查/状态载荷携带 `restarts`）
 - **引擎崩溃自愈（watchdog）**：proc-mgr 新增指数退避自动重启（1s→2s→…→30s 封顶），gateway 意外退出后自动恢复；恢复健康或端口被其他实例接管时退避档位归零，不重复 spawn；`stopAiEngine()` 人工停止不触发自愈；`EngineStatus` 新增 `restarts` 诊断字段；6 个单测覆盖退避递增/封顶/恢复归零/端口接管/人工停止/自动启动开关
